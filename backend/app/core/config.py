@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     email_from: str = "no-reply@localhost"
 
+    cookie_secure: bool = False  # set true behind HTTPS in production
     cv_max_size_mb: int = 10
     quiz_network_grace_seconds: int = 2
 

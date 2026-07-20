@@ -19,13 +19,6 @@ pytestmark = pytest.mark.skipif(
 BACKEND_DIR = Path(__file__).parents[1]
 
 
-@pytest.fixture(scope="session")
-def migrated_db() -> None:
-    cfg = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
-    cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
-    command.upgrade(cfg, "head")
-
-
 @pytest.mark.usefixtures("migrated_db")
 async def test_company_and_user_roundtrip() -> None:
     engine = create_async_engine(settings.database_url)
