@@ -1,0 +1,42 @@
+domain: software-engineering
+tag: python
+questions:
+  - id: py-mutable-default-1
+    difficulty: easy
+    prompt: "What is the problem with `def f(items=[])` in Python?"
+    options:
+      a: "The default list is shared across all calls to the function"
+      b: "It raises a SyntaxError"
+      c: "The list is re-created on every call, wasting memory"
+      d: "Default arguments cannot be containers"
+    correct: a
+    explanation: >
+      Default argument values are evaluated once at function definition time,
+      so the same list object is reused across calls — a classic footgun.
+
+  - id: py-gil-1
+    difficulty: easy
+    prompt: "In CPython, what does the GIL prevent?"
+    options:
+      a: "Multiple threads executing Python bytecode simultaneously"
+      b: "Multiple processes running simultaneously"
+      c: "Any use of threads in Python"
+      d: "Race conditions of any kind"
+    correct: a
+    explanation: >
+      The Global Interpreter Lock allows only one thread to execute Python
+      bytecode at a time in a process. Threads still exist and race conditions
+      are still possible; multiprocessing is unaffected.
+
+  - id: py-dict-ordering-1
+    difficulty: medium
+    prompt: "Since which Python version is `dict` insertion order guaranteed by the language spec?"
+    options:
+      a: "3.7"
+      b: "3.5"
+      c: "2.7"
+      d: "It is an implementation detail, never guaranteed"
+    correct: a
+    explanation: >
+      CPython 3.6 had ordered dicts as an implementation detail; Python 3.7
+      made insertion order an official language guarantee.

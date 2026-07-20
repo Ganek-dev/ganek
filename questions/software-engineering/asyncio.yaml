@@ -1,0 +1,46 @@
+domain: software-engineering
+tag: asyncio
+questions:
+  - id: py-asyncio-gather-1
+    tags: [python]
+    difficulty: medium
+    prompt: "What does `asyncio.gather(a(), b())` do?"
+    options:
+      a: "Runs both coroutines concurrently and returns their results as a list"
+      b: "Runs a() then b() sequentially"
+      c: "Runs each coroutine in a separate OS thread"
+      d: "Returns whichever coroutine finishes first and cancels the other"
+    correct: a
+    explanation: >
+      gather schedules the awaitables concurrently on the event loop and
+      resolves to a list of results in argument order. Threads are not involved;
+      first-completed semantics is asyncio.wait(..., return_when=FIRST_COMPLETED).
+
+  - id: py-asyncio-blocking-1
+    tags: [python]
+    difficulty: easy
+    prompt: "Why is calling `time.sleep(5)` inside a coroutine a bug?"
+    options:
+      a: "It blocks the entire event loop, freezing all other tasks"
+      b: "It raises a RuntimeError in async context"
+      c: "It only sleeps the current task, which is too slow"
+      d: "time.sleep is deprecated in async code but works fine"
+    correct: a
+    explanation: >
+      The event loop runs on one thread; a synchronous sleep blocks it entirely.
+      Use `await asyncio.sleep(5)` to yield control back to the loop.
+
+  - id: py-asyncio-run-1
+    tags: [python]
+    difficulty: medium
+    prompt: "What happens if you call a coroutine function like `main()` without awaiting or running it?"
+    options:
+      a: "It returns a coroutine object; the body never executes"
+      b: "The body executes synchronously"
+      c: "It raises a SyntaxError"
+      d: "The body executes in a background thread"
+    correct: a
+    explanation: >
+      Calling a coroutine function just creates a coroutine object. The body
+      runs only when driven by an event loop (asyncio.run, await, task).
+      Python emits a "never awaited" RuntimeWarning when it's garbage collected.

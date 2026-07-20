@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+coverage/
+
+# Env & local
+.env
+*.local
+.DS_Store
+
+# Build
+dist/
+build/
