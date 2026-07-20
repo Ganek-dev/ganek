@@ -16,8 +16,12 @@ jobs:
       - run: python questions/validate.py
 
   backend:
-    name: Backend lint + typecheck + test
+    name: Backend lint + typecheck + test (py${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]  # 3.12 = contributor floor, 3.14 = runtime
     defaults: { run: { working-directory: backend } }
     services:
       postgres:
@@ -37,6 +41,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python }}
       - run: uv sync
       - run: uv run ruff check .
       - run: uv run ruff format --check .
