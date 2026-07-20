@@ -1,0 +1,35 @@
+name: E2E
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  compose-smoke:
+    name: docker compose smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: cp .env.example .env
+      - run: docker compose up -d --build
+      - name: Wait for stack
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1 \
+               && curl -fsS -o /dev/null http://localhost:3000 2>/dev/null; then
+              echo "stack is up"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "stack did not become healthy in time"
+          docker compose ps
+          docker compose logs
+          exit 1
+      - name: Run smoke test
+        run: bash scripts/e2e_smoke.sh http://localhost:3000
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs
