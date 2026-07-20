@@ -19,6 +19,21 @@ jobs:
     name: Backend lint + typecheck + test
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vetd
+          POSTGRES_PASSWORD: vetd
+          POSTGRES_DB: vetd_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vetd"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      VETD_DATABASE_URL: postgresql+asyncpg://vetd:vetd@localhost:5432/vetd_test
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -27,9 +42,6 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy app
       - run: uv run pytest
-        env:
-          # testcontainers needs docker; provided by ubuntu-latest
-          TESTCONTAINERS_RYUK_DISABLED: "true"
 
   # frontend job will be added when frontend/ is scaffolded (M0) —
   # job-level `if: hashFiles(...)` is not supported by Actions and broke the workflow.
