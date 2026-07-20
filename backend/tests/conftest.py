@@ -23,6 +23,16 @@ def migrated_db() -> None:
 
 
 @pytest.fixture
+async def db_session() -> AsyncIterator[AsyncSession]:
+    """Direct database session for service/dependency-level tests."""
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+    await engine.dispose()
+
+
+@pytest.fixture
 async def client() -> AsyncIterator[AsyncClient]:
     """HTTP client against the app with a per-test database engine.
 
