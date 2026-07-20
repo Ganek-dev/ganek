@@ -15,7 +15,7 @@ pytestmark = pytest.mark.skipif(
 def _register_payload(**overrides: str) -> dict[str, str]:
     payload = {
         "company_name": f"Acme {uuid4().hex[:6]}",
-        "email": f"admin-{uuid4().hex[:8]}@acme.test",
+        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
         "password": "a-long-secure-password",
     }
     payload.update(overrides)

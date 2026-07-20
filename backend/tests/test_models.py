@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -63,14 +63,9 @@ async def test_company_slug_is_unique() -> None:
 
 
 @pytest.mark.usefixtures("migrated_db")
-async def test_migration_is_idempotent_on_stamped_db() -> None:
-    # upgrade head on an already-migrated DB is a no-op, not an error
+def test_migration_is_idempotent_on_stamped_db() -> None:
+    # upgrade head on an already-migrated DB is a no-op, not an error.
+    # Sync test: alembic's env.py drives its own event loop via asyncio.run.
     cfg = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     command.upgrade(cfg, "head")
-    engine = create_async_engine(settings.database_url)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with factory() as session:
-        count = (await session.execute(select(func.count()).select_from(Company))).scalar_one()
-        assert count >= 0
-    await engine.dispose()
