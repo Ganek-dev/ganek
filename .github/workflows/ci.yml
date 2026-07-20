@@ -31,19 +31,5 @@ jobs:
           # testcontainers needs docker; provided by ubuntu-latest
           TESTCONTAINERS_RYUK_DISABLED: "true"
 
-  frontend:
-    name: Frontend lint + typecheck + test
-    runs-on: ubuntu-latest
-    # Remove this once frontend/ is scaffolded (M0)
-    if: ${{ hashFiles('frontend/package.json') != '' }}
-    defaults: { run: { working-directory: frontend } }
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { version: 9 }
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+  # frontend job will be added when frontend/ is scaffolded (M0) —
+  # job-level `if: hashFiles(...)` is not supported by Actions and broke the workflow.
