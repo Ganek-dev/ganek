@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api import auth
 from app.core.config import settings
 
 app = FastAPI(
@@ -9,12 +10,9 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
+app.include_router(auth.router, prefix="/api/v1")
+
 
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "mode": settings.mode}
-
-
-# M0: wire routers here as they are built, e.g.
-# from app.api import auth, companies, jobs, applications, quiz, public
-# app.include_router(auth.router, prefix="/api/v1")
