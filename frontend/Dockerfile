@@ -9,6 +9,10 @@ RUN corepack enable
 WORKDIR /srv
 COPY --from=deps /srv/node_modules ./node_modules
 COPY . .
+# Next.js resolves rewrite destinations at build time, so the backend
+# origin must be provided here (compose passes http://backend:8000).
+ARG BACKEND_URL=http://localhost:8000
+ENV BACKEND_URL=$BACKEND_URL
 RUN pnpm build
 
 FROM node:22-alpine AS run

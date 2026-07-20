@@ -4,6 +4,10 @@ Next.js (App Router, TypeScript, Tailwind). API calls are proxied same-origin
 to the backend via `next.config.ts` rewrites (`BACKEND_URL`, default
 `http://localhost:8000`), so session cookies just work.
 
+Note: Next resolves rewrite destinations at **build** time. In dev,
+`BACKEND_URL` is read when `pnpm dev` starts; in Docker it must be passed
+as a build arg (compose already does: `http://backend:8000`).
+
 ```bash
 pnpm install
 pnpm dev          # http://localhost:3000 (backend must run on :8000)
