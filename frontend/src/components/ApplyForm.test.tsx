@@ -30,7 +30,7 @@ describe("ApplyForm", () => {
       max_size_mb: 10,
     });
     mocked.uploadCv.mockResolvedValue(undefined);
-    mocked.submit.mockResolvedValue({ status: "received" });
+    mocked.submit.mockResolvedValue({ status: "received", quiz_token: null });
   });
 
   it("uploads the CV then submits and shows confirmation", async () => {

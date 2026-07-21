@@ -128,7 +128,7 @@ export const publicApply = {
   uploadTicket: (basePath: string) =>
     request<CvUploadTicket>(`${basePath}/apply/upload-url`, { method: "POST" }),
   submit: (basePath: string, payload: ApplicationPayload) =>
-    request<{ status: string }>(`${basePath}/apply`, {
+    request<{ status: string; quiz_token: string | null }>(`${basePath}/apply`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -184,4 +184,40 @@ export const applications = {
     }),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
+};
+
+export interface QuizOption {
+  key: string;
+  text_md: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  prompt_md: string;
+  options: QuizOption[];
+  time_limit_seconds: number;
+  deadline_at: string;
+  index: number;
+  total: number;
+}
+
+export interface QuizState {
+  status: "pending" | "in_progress" | "completed" | "expired";
+  answered: number;
+  total: number;
+}
+
+export interface QuizNext {
+  done: boolean;
+  question: QuizQuestion | null;
+}
+
+export const publicQuiz = {
+  state: (token: string) => request<QuizState>(`/api/v1/public/quiz/${token}`),
+  next: (token: string) => request<QuizNext>(`/api/v1/public/quiz/${token}/next`, { method: "POST" }),
+  answer: (token: string, questionId: string, answerKey: string) =>
+    request<{ recorded: boolean }>(`/api/v1/public/quiz/${token}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ question_id: questionId, answer_key: answerKey }),
+    }),
 };
