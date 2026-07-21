@@ -52,10 +52,41 @@ expect 200 -X POST -H 'Content-Type: application/json' \
   "$BASE/api/v1/auth/login"
 expect 200 "$BASE/api/v1/auth/me"
 
+step "admin creates and publishes a job"
+expect 201 -X POST -H 'Content-Type: application/json' \
+  -d '{"title":"Smoke Test Engineer","location":"Remote","remote_policy":"remote","tags":["python","smoke"],"description_md":"You will **test** things."}' \
+  "$BASE/api/v1/jobs"
+JOB_ID=$(python3 -c "import json,sys; print(json.load(open('$BODY'))['id'])")
+expect 200 -X POST "$BASE/api/v1/jobs/$JOB_ID/publish"
+
+step "published job is on the public API; a draft is not"
+expect 201 -X POST -H 'Content-Type: application/json' \
+  -d '{"title":"Hidden Draft Role"}' "$BASE/api/v1/jobs"
+expect 200 "$BASE/api/v1/public/company"
+if ! grep -q "smoke-test-engineer" "$BODY"; then
+  echo "FAIL: published job missing from public company page"; cat "$BODY"; exit 1
+fi
+if grep -q "hidden-draft-role" "$BODY"; then
+  echo "FAIL: draft job leaked to public company page"; cat "$BODY"; exit 1
+fi
+
 step "SSR careers page renders the company (single mode)"
-if ! curl -fsS "$BASE/" | grep -q "Smoke Test Co"; then
+HOME_HTML=$(curl -fsS "$BASE/")
+if ! echo "$HOME_HTML" | grep -q "Smoke Test Co"; then
   echo "FAIL: / did not render the company name (SSR/BACKEND_URL broken?)"
   exit 1
+fi
+
+step "SSR careers page lists the published job and its detail page renders"
+if ! echo "$HOME_HTML" | grep -q "Smoke Test Engineer"; then
+  echo "FAIL: / did not render the published job"; exit 1
+fi
+if echo "$HOME_HTML" | grep -q "Hidden Draft Role"; then
+  echo "FAIL: / rendered a draft job"; exit 1
+fi
+DETAIL_HTML=$(curl -fsS "$BASE/jobs/smoke-test-engineer")
+if ! echo "$DETAIL_HTML" | grep -q "application/ld+json"; then
+  echo "FAIL: job detail page missing JobPosting JSON-LD"; exit 1
 fi
 
 echo "e2e smoke: OK"
