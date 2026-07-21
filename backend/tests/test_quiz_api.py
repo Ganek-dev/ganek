@@ -87,7 +87,7 @@ def test_candidate_schema_has_no_answer_fields() -> None:
     assert not forbidden & set(QuizQuestionOut.model_fields)
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
 async def test_apply_issues_quiz_token_and_full_run(client: AsyncClient) -> None:
     token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
     assert token is not None
@@ -125,13 +125,13 @@ async def test_apply_issues_quiz_token_and_full_run(client: AsyncClient) -> None
     assert state["answered"] == 4
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
 async def test_quiz_disabled_job_issues_no_token(client: AsyncClient) -> None:
     token = await _apply_with_quiz(client, quiz_config=None)
     assert token is None
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
 async def test_bogus_and_unserved_answers_rejected(client: AsyncClient) -> None:
     token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
     assert token is not None
