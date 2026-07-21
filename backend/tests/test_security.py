@@ -6,7 +6,7 @@ from app.core.security import (
     read_session_token,
     verify_password,
 )
-from app.services.auth import slugify
+from app.services.slugs import slugify
 
 
 def test_password_hash_roundtrip() -> None:
@@ -35,5 +35,5 @@ def test_session_token_rejects_tampering() -> None:
 def test_slugify() -> None:
     assert slugify("Acme Inc.") == "acme-inc"
     assert slugify("  Über  Cool GmbH!  ") == "ber-cool-gmbh"
-    assert slugify("!!!") == "company"
+    assert slugify("!!!") == "item"
     assert len(slugify("x" * 300)) <= 64

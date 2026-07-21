@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import auth
+from app.api import auth, jobs
 from app.core.config import settings
 
 app = FastAPI(
@@ -11,6 +11,7 @@ app = FastAPI(
 )
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(jobs.router, prefix="/api/v1")
 
 
 @app.get("/api/health")
