@@ -6,7 +6,7 @@ browser uploads directly); head/delete operations use the internal endpoint.
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import anyio.to_thread
@@ -16,13 +16,16 @@ from botocore.exceptions import ClientError
 
 from app.core.config import settings
 
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
+
 CV_CONTENT_TYPE = "application/pdf"
 UPLOAD_URL_TTL_SECONDS = 600
 
 _BOTO_CONFIG = BotoConfig(signature_version="s3v4", s3={"addressing_style": "path"})
 
 
-def _make_client(endpoint_url: str) -> Any:
+def _make_client(endpoint_url: str) -> "S3Client":
     return boto3.client(
         "s3",
         endpoint_url=endpoint_url,
@@ -34,12 +37,12 @@ def _make_client(endpoint_url: str) -> Any:
 
 
 @lru_cache(maxsize=1)
-def _internal_client() -> Any:
+def _internal_client() -> "S3Client":
     return _make_client(settings.s3_endpoint_url)
 
 
 @lru_cache(maxsize=1)
-def _public_client() -> Any:
+def _public_client() -> "S3Client":
     return _make_client(settings.s3_public_endpoint_url or settings.s3_endpoint_url)
 
 
@@ -62,7 +65,7 @@ def build_cv_key(company_id: UUID) -> str:
 
 
 def presign_cv_upload(object_key: str) -> str:
-    return _public_client().generate_presigned_url(  # type: ignore[no-any-return]
+    return _public_client().generate_presigned_url(
         "put_object",
         Params={
             "Bucket": settings.s3_bucket,
