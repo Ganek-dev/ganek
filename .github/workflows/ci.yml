@@ -36,18 +36,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports: ["9000:9000"]
     env:
       VETD_DATABASE_URL: postgresql+asyncpg://vetd:vetd@localhost:5432/vetd_test
       VETD_S3_ENDPOINT_URL: http://localhost:9000
       VETD_S3_BUCKET: vetd-cvs-test
     steps:
       - uses: actions/checkout@v7
+      # GH service containers can't override the image command, and the
+      # bitnami env-configured image is gone from Docker Hub — plain docker run:
+      - name: Start minio
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python }}
