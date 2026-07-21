@@ -35,6 +35,12 @@ docker compose up
 # open http://localhost:3000 and follow the setup wizard
 ```
 
+Vetd expects a **database of its own**. The bundled compose stack provides one
+(isolated volume, port not published). If you point Vetd at an existing
+postgres server instead, create a dedicated database for it and set
+`VETD_DATABASE_URL` accordingly — don't share a database with another
+application.
+
 ## Contributing
 
 Code and question-pack contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). The question bank especially benefits from many eyes: [questions/README.md](questions/README.md).
