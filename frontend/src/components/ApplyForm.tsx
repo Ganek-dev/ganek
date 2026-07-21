@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { ApiError, publicApply } from "@/lib/api";
@@ -12,6 +13,7 @@ export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [quizToken, setQuizToken] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,7 +43,7 @@ export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
         throw new ApiError(413, `Your CV exceeds the ${ticket.max_size_mb} MB limit.`);
       }
       await publicApply.uploadCv(ticket, file);
-      await publicApply.submit(apiBasePath, {
+      const received = await publicApply.submit(apiBasePath, {
         name: str("name"),
         email: str("email"),
         message: opt("message"),
@@ -51,6 +53,7 @@ export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
         cv_object_key: ticket.object_key,
         cv_filename: file.name,
       });
+      setQuizToken(received.quiz_token);
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong — please try again");
@@ -67,6 +70,19 @@ export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
         <p className="mt-1 text-sm text-green-800 dark:text-green-200">
           Thanks for applying — the team will be in touch.
         </p>
+        {quizToken ? (
+          <div className="mt-4">
+            <p className="text-sm text-green-800 dark:text-green-200">
+              One more step: a short skills quiz (a few 15-second questions).
+            </p>
+            <Link
+              href={`/quiz/${quizToken}`}
+              className="mt-2 inline-block rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              Take the quiz now
+            </Link>
+          </div>
+        ) : null}
       </div>
     );
   }
