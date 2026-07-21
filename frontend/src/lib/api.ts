@@ -132,3 +132,47 @@ export const publicApply = {
     if (!resp.ok) throw new ApiError(resp.status, "CV upload failed — please try again");
   },
 };
+
+export type ApplicationStage =
+  | "new"
+  | "screening"
+  | "interview"
+  | "offer"
+  | "hired"
+  | "rejected";
+
+export interface CandidateOut {
+  id: string;
+  name: string;
+  email: string;
+  links: Record<string, string>;
+}
+
+export interface ApplicationOut {
+  id: string;
+  job_id: string;
+  candidate: CandidateOut;
+  cv_filename: string;
+  cv_size: number;
+  message: string | null;
+  stage: ApplicationStage;
+  source: string | null;
+  created_at: string;
+}
+
+export const applications = {
+  list: (filters?: { job_id?: string; stage?: ApplicationStage }) => {
+    const params = new URLSearchParams();
+    if (filters?.job_id) params.set("job_id", filters.job_id);
+    if (filters?.stage) params.set("stage", filters.stage);
+    const qs = params.toString();
+    return request<ApplicationOut[]>(`/api/v1/applications${qs ? `?${qs}` : ""}`);
+  },
+  setStage: (id: string, stage: ApplicationStage) =>
+    request<ApplicationOut>(`/api/v1/applications/${id}/stage`, {
+      method: "PATCH",
+      body: JSON.stringify({ stage }),
+    }),
+  cvUrl: (id: string) =>
+    request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
+};
