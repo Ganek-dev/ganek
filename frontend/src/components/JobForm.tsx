@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { EmploymentType, JobInput, JobOut, RemotePolicy } from "@/lib/api";
+import type { EmploymentType, JobInput, JobOut, QuizConfig, RemotePolicy } from "@/lib/api";
 
 const REMOTE_POLICIES: { value: RemotePolicy; label: string }[] = [
   { value: "onsite", label: "On-site" },
@@ -41,6 +41,16 @@ export function JobForm({
     const str = (name: string) => String(data.get(name) ?? "").trim();
     const num = (name: string) => (str(name) === "" ? null : Number(str(name)));
     try {
+      const quizTags = str("quiz_tags")
+        .split(",")
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean);
+      const quiz_config: QuizConfig = {
+        enabled: data.get("quiz_enabled") === "on",
+        tags: quizTags.length > 0 ? quizTags : null,
+        question_count: Number(str("quiz_question_count") || "6"),
+        include_company_questions: true,
+      };
       await onSubmit({
         title: str("title"),
         description_md: str("description_md"),
@@ -54,6 +64,7 @@ export function JobForm({
           .split(",")
           .map((t) => t.trim().toLowerCase())
           .filter(Boolean),
+        quiz_config,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -155,6 +166,42 @@ export function JobForm({
           className={inputCls}
         />
       </label>
+
+      <fieldset className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+        <legend className="px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+          Screening quiz
+        </legend>
+        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+          <input
+            name="quiz_enabled"
+            type="checkbox"
+            defaultChecked={initial?.quiz_config.enabled ?? false}
+          />
+          Ask candidates a short timed quiz after they apply
+        </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className={labelCls}>Questions</span>
+            <input
+              name="quiz_question_count"
+              type="number"
+              min={1}
+              max={20}
+              defaultValue={initial?.quiz_config.question_count ?? 6}
+              className={inputCls}
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className={labelCls}>Quiz tags (defaults to job tags)</span>
+            <input
+              name="quiz_tags"
+              placeholder="python, asyncio"
+              defaultValue={initial?.quiz_config.tags?.join(", ") ?? ""}
+              className={inputCls}
+            />
+          </label>
+        </div>
+      </fieldset>
 
       {error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">

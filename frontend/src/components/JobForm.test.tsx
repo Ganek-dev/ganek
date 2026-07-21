@@ -31,6 +31,12 @@ describe("JobForm", () => {
         salary_min: 15000,
         salary_max: null,
         salary_currency: null,
+        quiz_config: {
+          enabled: false,
+          tags: null,
+          question_count: 6,
+          include_company_questions: true,
+        },
       }),
     );
   });
