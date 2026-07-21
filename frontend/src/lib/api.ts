@@ -96,3 +96,39 @@ export const api = {
     delete: (id: string) => request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
   },
 };
+
+export interface CvUploadTicket {
+  upload_url: string;
+  object_key: string;
+  content_type: string;
+  max_size_mb: number;
+}
+
+export interface ApplicationPayload {
+  name: string;
+  email: string;
+  message: string | null;
+  github: string | null;
+  linkedin: string | null;
+  portfolio: string | null;
+  cv_object_key: string;
+  cv_filename: string;
+}
+
+export const publicApply = {
+  uploadTicket: (basePath: string) =>
+    request<CvUploadTicket>(`${basePath}/apply/upload-url`, { method: "POST" }),
+  submit: (basePath: string, payload: ApplicationPayload) =>
+    request<{ status: string }>(`${basePath}/apply`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  uploadCv: async (ticket: CvUploadTicket, file: File): Promise<void> => {
+    const resp = await fetch(ticket.upload_url, {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": ticket.content_type },
+    });
+    if (!resp.ok) throw new ApiError(resp.status, "CV upload failed — please try again");
+  },
+};
