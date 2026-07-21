@@ -16,6 +16,23 @@ BACKEND_DIR = Path(__file__).parents[1]
 
 
 @pytest.fixture(scope="session")
+def bucket() -> None:
+    import time
+
+    from app.services import storage
+
+    last: Exception | None = None
+    for _ in range(20):
+        try:
+            storage.ensure_bucket()
+            return
+        except Exception as exc:  # noqa: BLE001 - minio may still be starting
+            last = exc
+            time.sleep(0.5)
+    raise RuntimeError(f"minio never became ready: {last}")
+
+
+@pytest.fixture(scope="session")
 def migrated_db() -> None:
     cfg = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))

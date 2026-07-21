@@ -76,6 +76,19 @@ def presign_cv_upload(object_key: str) -> str:
     )
 
 
+def presign_cv_download(object_key: str, filename: str) -> str:
+    safe_name = filename.replace('"', "")
+    return _public_client().generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.s3_bucket,
+            "Key": object_key,
+            "ResponseContentDisposition": f'attachment; filename="{safe_name}"',
+        },
+        ExpiresIn=UPLOAD_URL_TTL_SECONDS,
+    )
+
+
 def _stat_object(object_key: str) -> ObjectStat | None:
     try:
         head = _internal_client().head_object(Bucket=settings.s3_bucket, Key=object_key)

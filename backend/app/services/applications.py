@@ -1,9 +1,12 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.models import Application, Candidate, Company, Job
+from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.schemas.public import ApplicationSubmit
 from app.services import storage
 
@@ -70,4 +73,45 @@ async def submit_application(
     except IntegrityError:
         await db.rollback()
         raise AlreadyAppliedError from None
+    return application
+
+
+async def list_applications(
+    db: AsyncSession,
+    company: Company,
+    *,
+    job_id: uuid.UUID | None = None,
+    stage: ApplicationStage | None = None,
+) -> list[Application]:
+    query = (
+        select(Application)
+        .where(Application.company_id == company.id)
+        .options(selectinload(Application.candidate))
+        .order_by(Application.created_at.desc())
+    )
+    if job_id is not None:
+        query = query.where(Application.job_id == job_id)
+    if stage is not None:
+        query = query.where(Application.stage == stage)
+    return list((await db.execute(query)).scalars().all())
+
+
+async def get_application(
+    db: AsyncSession, company: Company, application_id: uuid.UUID
+) -> Application | None:
+    return (
+        await db.execute(
+            select(Application)
+            .where(Application.company_id == company.id, Application.id == application_id)
+            .options(selectinload(Application.candidate))
+        )
+    ).scalar_one_or_none()
+
+
+async def set_stage(
+    db: AsyncSession, application: Application, stage: ApplicationStage
+) -> Application:
+    application.stage = stage
+    await db.commit()
+    await db.refresh(application)
     return application

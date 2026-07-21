@@ -1,4 +1,3 @@
-import time
 from uuid import uuid4
 
 import httpx
@@ -6,7 +5,6 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
-from app.services import storage
 from tests.db import database_reachable, s3_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -15,19 +13,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 PDF_BYTES = b"%PDF-1.4 fake but good enough for a smoke"
-
-
-@pytest.fixture(scope="session")
-def bucket() -> None:
-    last: Exception | None = None
-    for _ in range(20):
-        try:
-            storage.ensure_bucket()
-            return
-        except Exception as exc:  # noqa: BLE001 - minio may still be starting
-            last = exc
-            time.sleep(0.5)
-    raise RuntimeError(f"minio never became ready: {last}")
 
 
 @pytest.fixture
