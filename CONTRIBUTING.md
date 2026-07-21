@@ -26,6 +26,7 @@ To fix a wrong/leaked question: edit in place (same ID) for corrections; set `st
 cd backend && uv sync
 cd frontend && pnpm install
 docker compose up postgres redis minio   # local services
+pip install pre-commit && pre-commit install   # lint/format gate on every commit
 ```
 
 ### Conventions

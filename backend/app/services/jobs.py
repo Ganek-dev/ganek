@@ -68,6 +68,9 @@ async def update_job(db: AsyncSession, job: Job, payload: JobUpdate) -> Job:
     ):
         raise ValueError("salary_min cannot exceed salary_max")
     await db.commit()
+    # updated_at is server-generated (onupdate); refresh so serialization
+    # never triggers lazy IO outside the async context
+    await db.refresh(job)
     return job
 
 
@@ -77,6 +80,7 @@ async def publish_job(db: AsyncSession, job: Job) -> Job:
     job.status = JobStatus.PUBLISHED
     job.published_at = datetime.now(UTC)
     await db.commit()
+    await db.refresh(job)
     return job
 
 
@@ -85,6 +89,7 @@ async def close_job(db: AsyncSession, job: Job) -> Job:
         raise InvalidTransitionError(job.status, JobStatus.CLOSED)
     job.status = JobStatus.CLOSED
     await db.commit()
+    await db.refresh(job)
     return job
 
 
