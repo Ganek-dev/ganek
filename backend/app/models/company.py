@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.job import Job
     from app.models.user import User
 
 
@@ -23,3 +24,4 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
     users: Mapped[list["User"]] = relationship(back_populates="company")
+    jobs: Mapped[list["Job"]] = relationship(back_populates="company")
