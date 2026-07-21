@@ -58,4 +58,9 @@ services:
 
 volumes:
   pgdata:
+    # Explicit global names: Docker matches volumes by name only, so a
+    # generic name like vetd_pgdata can silently collide with (and reuse
+    # the data of) another project's volume.
+    name: vetd-postgres-data
   miniodata:
+    name: vetd-minio-data
