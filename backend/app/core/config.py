@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     questions_dir: str | None = None  # explicit question-bank path (auto-detected otherwise)
     cv_max_size_mb: int = 10
     quiz_network_grace_seconds: int = 2
+    quiz_start_ttl_hours: int = 24
 
 
 settings = Settings()
