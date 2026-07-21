@@ -14,3 +14,14 @@ def database_reachable() -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(1)
         return sock.connect_ex((host, port)) == 0
+
+
+def s3_reachable() -> bool:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(settings.s3_endpoint_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(1)
+        return sock.connect_ex((host, port)) == 0

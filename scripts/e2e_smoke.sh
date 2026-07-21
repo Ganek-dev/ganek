@@ -89,4 +89,21 @@ if ! echo "$DETAIL_HTML" | grep -q "application/ld+json"; then
   echo "FAIL: job detail page missing JobPosting JSON-LD"; exit 1
 fi
 
+step "candidate uploads a CV and applies"
+expect 200 -X POST "$BASE/api/v1/public/company/jobs/smoke-test-engineer/apply/upload-url"
+UPLOAD_URL=$(python3 -c "import json; print(json.load(open('$BODY'))['upload_url'])")
+OBJECT_KEY=$(python3 -c "import json; print(json.load(open('$BODY'))['object_key'])")
+printf '%%PDF-1.4 smoke cv' > /tmp/smoke-cv.pdf
+if ! curl -fsS -X PUT -H 'Content-Type: application/pdf' --data-binary @/tmp/smoke-cv.pdf "$UPLOAD_URL" -o /dev/null; then
+  echo "FAIL: presigned CV upload failed (is minio's public endpoint reachable?)"; exit 1
+fi
+expect 201 -X POST -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Smoke Candidate\",\"email\":\"candidate@smoke-e2e.dev\",\"cv_object_key\":\"$OBJECT_KEY\",\"cv_filename\":\"cv.pdf\"}" \
+  "$BASE/api/v1/public/company/jobs/smoke-test-engineer/apply"
+
+step "duplicate application is refused"
+expect 409 -X POST -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Smoke Candidate\",\"email\":\"candidate@smoke-e2e.dev\",\"cv_object_key\":\"$OBJECT_KEY\",\"cv_filename\":\"cv.pdf\"}" \
+  "$BASE/api/v1/public/company/jobs/smoke-test-engineer/apply"
+
 echo "e2e smoke: OK"

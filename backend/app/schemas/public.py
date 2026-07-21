@@ -7,7 +7,7 @@ beyond published_at. What is not serialized cannot leak.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
 from app.models import EmploymentType, RemotePolicy
 
@@ -46,3 +46,36 @@ class PublicCompanyOut(BaseModel):
 class PublicCompanyPage(BaseModel):
     company: PublicCompanyOut
     jobs: list[PublicJobSummary]
+
+
+class CvUploadTicket(BaseModel):
+    upload_url: str
+    object_key: str
+    content_type: str
+    max_size_mb: int
+
+
+class ApplicationSubmit(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    email: EmailStr
+    message: str | None = Field(default=None, max_length=5000)
+    github: HttpUrl | None = None
+    linkedin: HttpUrl | None = None
+    portfolio: HttpUrl | None = None
+    cv_object_key: str = Field(min_length=1, max_length=500)
+    cv_filename: str = Field(min_length=1, max_length=255, pattern=r"(?i)\.pdf$")
+
+    def links(self) -> dict[str, str]:
+        return {
+            key: str(url)
+            for key, url in (
+                ("github", self.github),
+                ("linkedin", self.linkedin),
+                ("portfolio", self.portfolio),
+            )
+            if url is not None
+        }
+
+
+class ApplicationReceived(BaseModel):
+    status: str = "received"
