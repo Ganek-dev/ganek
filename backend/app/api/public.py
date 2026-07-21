@@ -2,7 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import DbSession, PublicCompany, SingleCompany
 from app.core.config import settings
-from app.models import Company, Job
+from app.core.security import create_quiz_token, read_quiz_token
+from app.models import Company, Job, QuizAttempt
 from app.schemas.public import (
     ApplicationReceived,
     ApplicationSubmit,
@@ -11,10 +12,17 @@ from app.schemas.public import (
     PublicCompanyPage,
     PublicJobDetail,
     PublicJobSummary,
+    QuizAnswerIn,
+    QuizAnswerOut,
+    QuizNextOut,
+    QuizOptionOut,
+    QuizQuestionOut,
+    QuizStateOut,
 )
 from app.services import applications as applications_service
 from app.services import email as email_service
 from app.services import jobs as jobs_service
+from app.services import quiz as quiz_service
 from app.services import storage
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -76,7 +84,7 @@ async def _apply(
 ) -> ApplicationReceived:
     job = await _published_job_or_404(db, company, job_slug)
     try:
-        await applications_service.submit_application(db, company, job, payload)
+        application = await applications_service.submit_application(db, company, job, payload)
     except applications_service.InvalidCvError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.reason
@@ -93,7 +101,9 @@ async def _apply(
         job_title=job.title,
         company_name=company.name,
     )
-    return ApplicationReceived()
+    attempt = await quiz_service.create_attempt(db, company, application, job)
+    quiz_token = create_quiz_token(attempt.id) if attempt is not None else None
+    return ApplicationReceived(quiz_token=quiz_token)
 
 
 @router.post("/companies/{slug}/jobs/{job_slug}/apply/upload-url", response_model=CvUploadTicket)
@@ -140,3 +150,70 @@ async def single_apply(
     background: BackgroundTasks,
 ) -> ApplicationReceived:
     return await _apply(db, company, job_slug, payload, background)
+
+
+async def _attempt_or_404(db: DbSession, token: str) -> "QuizAttempt":
+    attempt_id = read_quiz_token(token)
+    attempt = (
+        await quiz_service.get_attempt_by_id(db, attempt_id) if attempt_id is not None else None
+    )
+    if attempt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    return attempt
+
+
+async def _answered_count(db: DbSession, attempt: "QuizAttempt") -> int:
+    return sum(1 for a in await quiz_service.resolved_answers(db, attempt) if a.answered_at)
+
+
+@router.get("/quiz/{token}", response_model=QuizStateOut)
+async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
+    attempt = await _attempt_or_404(db, token)
+    return QuizStateOut(
+        status=attempt.status.value,
+        answered=await _answered_count(db, attempt),
+        total=len(attempt.question_ids),
+    )
+
+
+@router.post("/quiz/{token}/next", response_model=QuizNextOut)
+async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
+    attempt = await _attempt_or_404(db, token)
+    try:
+        served = await quiz_service.current_or_next_question(db, attempt)
+    except quiz_service.AttemptExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail="This quiz has expired"
+        ) from None
+    if served is None:
+        return QuizNextOut(done=True)
+    answer, question = served
+    answered = await _answered_count(db, attempt)
+    return QuizNextOut(
+        done=False,
+        question=QuizQuestionOut(
+            id=question.id,
+            prompt_md=question.prompt_md,
+            options=[
+                QuizOptionOut(key=key, text_md=str(question.options[key]))
+                for key in answer.option_order
+            ],
+            time_limit_seconds=question.time_limit_seconds,
+            deadline_at=answer.deadline_at,
+            index=answered + 1,
+            total=len(attempt.question_ids),
+        ),
+    )
+
+
+@router.post("/quiz/{token}/answer", response_model=QuizAnswerOut)
+async def quiz_answer(token: str, payload: QuizAnswerIn, db: DbSession) -> QuizAnswerOut:
+    attempt = await _attempt_or_404(db, token)
+    try:
+        await quiz_service.submit_answer(db, attempt, payload.question_id, payload.answer_key)
+    except quiz_service.NoOpenQuestionError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This question is not open for answering",
+        ) from None
+    return QuizAnswerOut()

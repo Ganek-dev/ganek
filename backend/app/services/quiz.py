@@ -128,7 +128,7 @@ async def create_attempt(
     return attempt
 
 
-async def _resolved_answers(db: AsyncSession, attempt: QuizAttempt) -> list[AttemptAnswer]:
+async def resolved_answers(db: AsyncSession, attempt: QuizAttempt) -> list[AttemptAnswer]:
     return list(
         (
             await db.execute(
@@ -143,7 +143,7 @@ async def _resolved_answers(db: AsyncSession, attempt: QuizAttempt) -> list[Atte
 
 
 async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
-    answers = await _resolved_answers(db, attempt)
+    answers = await resolved_answers(db, attempt)
     questions = {
         q.id: q
         for q in (
@@ -188,7 +188,7 @@ async def current_or_next_question(
         attempt.status = AttemptStatus.IN_PROGRESS
         attempt.started_at = now
 
-    answers = await _resolved_answers(db, attempt)
+    answers = await resolved_answers(db, attempt)
     open_answers = [a for a in answers if a.answered_at is None]
     for answer in open_answers:
         if now <= answer.deadline_at:
