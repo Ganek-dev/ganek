@@ -98,3 +98,24 @@ async def delete_job(db: AsyncSession, job: Job) -> None:
         raise InvalidTransitionError(job.status, JobStatus.DRAFT)
     await db.delete(job)
     await db.commit()
+
+
+async def list_published_jobs(db: AsyncSession, company: Company) -> list[Job]:
+    query = (
+        select(Job)
+        .where(Job.company_id == company.id, Job.status == JobStatus.PUBLISHED)
+        .order_by(Job.published_at.desc())
+    )
+    return list((await db.execute(query)).scalars().all())
+
+
+async def get_published_job(db: AsyncSession, company: Company, job_slug: str) -> Job | None:
+    return (
+        await db.execute(
+            select(Job).where(
+                Job.company_id == company.id,
+                Job.slug == job_slug,
+                Job.status == JobStatus.PUBLISHED,
+            )
+        )
+    ).scalar_one_or_none()
