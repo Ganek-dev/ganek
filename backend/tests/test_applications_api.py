@@ -5,6 +5,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -118,3 +119,26 @@ async def test_upload_url_404s_for_unpublished_job(client: AsyncClient) -> None:
     company_slug, _ = await _publishing_company(client)
     resp = await client.post(f"/api/v1/public/companies/{company_slug}/jobs/nope/apply/upload-url")
     assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_apply_sends_confirmation_email(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[dict[str, str]] = []
+
+    def _capture(**kwargs: str) -> None:
+        sent.append(kwargs)
+
+    monkeypatch.setattr(email_service, "send_application_received", _capture)
+    company_slug, job_slug = await _publishing_company(client)
+    key = await _uploaded_cv(client, company_slug, job_slug)
+    email = f"jane-{uuid4().hex[:8]}@vetd-ci.dev"
+    resp = await client.post(
+        f"/api/v1/public/companies/{company_slug}/jobs/{job_slug}/apply",
+        json=_submission(key, email=email),
+    )
+    assert resp.status_code == 201
+    assert len(sent) == 1
+    assert sent[0]["to"] == email
+    assert sent[0]["job_title"] == "Backend Engineer"

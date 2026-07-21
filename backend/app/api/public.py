@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import DbSession, PublicCompany, SingleCompany
 from app.core.config import settings
@@ -13,6 +13,7 @@ from app.schemas.public import (
     PublicJobSummary,
 )
 from app.services import applications as applications_service
+from app.services import email as email_service
 from app.services import jobs as jobs_service
 from app.services import storage
 
@@ -67,7 +68,11 @@ def _upload_ticket(company: Company) -> CvUploadTicket:
 
 
 async def _apply(
-    db: DbSession, company: Company, job_slug: str, payload: ApplicationSubmit
+    db: DbSession,
+    company: Company,
+    job_slug: str,
+    payload: ApplicationSubmit,
+    background: BackgroundTasks,
 ) -> ApplicationReceived:
     job = await _published_job_or_404(db, company, job_slug)
     try:
@@ -81,6 +86,13 @@ async def _apply(
             status_code=status.HTTP_409_CONFLICT,
             detail="You already applied for this position",
         ) from None
+    background.add_task(
+        email_service.send_application_received,
+        to=payload.email,
+        candidate_name=payload.name,
+        job_title=job.title,
+        company_name=company.name,
+    )
     return ApplicationReceived()
 
 
@@ -98,9 +110,13 @@ async def company_cv_upload_url(
     status_code=status.HTTP_201_CREATED,
 )
 async def company_apply(
-    company: PublicCompany, job_slug: str, payload: ApplicationSubmit, db: DbSession
+    company: PublicCompany,
+    job_slug: str,
+    payload: ApplicationSubmit,
+    db: DbSession,
+    background: BackgroundTasks,
 ) -> ApplicationReceived:
-    return await _apply(db, company, job_slug, payload)
+    return await _apply(db, company, job_slug, payload, background)
 
 
 @router.post("/company/jobs/{job_slug}/apply/upload-url", response_model=CvUploadTicket)
@@ -117,6 +133,10 @@ async def single_cv_upload_url(
     status_code=status.HTTP_201_CREATED,
 )
 async def single_apply(
-    company: SingleCompany, job_slug: str, payload: ApplicationSubmit, db: DbSession
+    company: SingleCompany,
+    job_slug: str,
+    payload: ApplicationSubmit,
+    db: DbSession,
+    background: BackgroundTasks,
 ) -> ApplicationReceived:
-    return await _apply(db, company, job_slug, payload)
+    return await _apply(db, company, job_slug, payload, background)
