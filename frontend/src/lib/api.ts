@@ -11,6 +11,13 @@ export type RemotePolicy = "onsite" | "hybrid" | "remote";
 export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
 export type JobStatus = "draft" | "published" | "closed";
 
+export interface QuizConfig {
+  enabled: boolean;
+  tags: string[] | null;
+  question_count: number;
+  include_company_questions: boolean;
+}
+
 export interface JobOut {
   id: string;
   slug: string;
@@ -24,6 +31,7 @@ export interface JobOut {
   salary_currency: string | null;
   tags: string[];
   status: JobStatus;
+  quiz_config: QuizConfig;
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -39,6 +47,7 @@ export interface JobInput {
   salary_max: number | null;
   salary_currency: string | null;
   tags: string[];
+  quiz_config: QuizConfig;
 }
 
 export class ApiError extends Error {

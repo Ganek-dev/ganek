@@ -32,10 +32,11 @@ async def _unique_slug(db: AsyncSession, company_id: uuid.UUID, base: str) -> st
 
 
 async def create_job(db: AsyncSession, company: Company, payload: JobCreate) -> Job:
+    values = payload.model_dump()
     job = Job(
         company_id=company.id,
         slug=await _unique_slug(db, company.id, slugify(payload.title)),
-        **payload.model_dump(),
+        **values,
     )
     db.add(job)
     await db.commit()

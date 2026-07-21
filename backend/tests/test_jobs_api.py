@@ -126,3 +126,38 @@ async def test_tenant_isolation(client: AsyncClient) -> None:
     assert (await client.get(f"/api/v1/jobs/{job['id']}")).status_code == 404
     assert (await client.patch(f"/api/v1/jobs/{job['id']}", json={"title": "X"})).status_code == 404
     assert (await client.get("/api/v1/jobs")).json() == []
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_quiz_config_roundtrips_via_api(client: AsyncClient) -> None:
+    await _register(client)
+    payload = _job_payload()
+    payload["quiz_config"] = {"enabled": True, "tags": ["python"], "question_count": 5}
+    job = (await client.post("/api/v1/jobs", json=payload)).json()
+    assert job["quiz_config"]["enabled"] is True
+    assert job["quiz_config"]["tags"] == ["python"]
+    assert job["quiz_config"]["question_count"] == 5
+    assert job["quiz_config"]["include_company_questions"] is True
+
+    resp = await client.patch(
+        f"/api/v1/jobs/{job['id']}",
+        json={"quiz_config": {"enabled": False, "question_count": 8}},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["quiz_config"]["enabled"] is False
+    assert resp.json()["quiz_config"]["question_count"] == 8
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_quiz_config_validation(client: AsyncClient) -> None:
+    await _register(client)
+    payload = _job_payload()
+    payload["quiz_config"] = {"enabled": True, "question_count": 0}
+    assert (await client.post("/api/v1/jobs", json=payload)).status_code == 422
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_default_quiz_config_is_disabled(client: AsyncClient) -> None:
+    await _register(client)
+    job = (await client.post("/api/v1/jobs", json=_job_payload())).json()
+    assert job["quiz_config"]["enabled"] is False
