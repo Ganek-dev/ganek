@@ -52,4 +52,10 @@ expect 200 -X POST -H 'Content-Type: application/json' \
   "$BASE/api/v1/auth/login"
 expect 200 "$BASE/api/v1/auth/me"
 
+step "SSR careers page renders the company (single mode)"
+if ! curl -fsS "$BASE/" | grep -q "Smoke Test Co"; then
+  echo "FAIL: / did not render the company name (SSR/BACKEND_URL broken?)"
+  exit 1
+fi
+
 echo "e2e smoke: OK"
