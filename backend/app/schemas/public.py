@@ -79,3 +79,41 @@ class ApplicationSubmit(BaseModel):
 
 class ApplicationReceived(BaseModel):
     status: str = "received"
+    quiz_token: str | None = None
+
+
+class QuizOptionOut(BaseModel):
+    key: str
+    text_md: str
+
+
+class QuizQuestionOut(BaseModel):
+    """Candidate-facing question. correct_key/explanation MUST never appear here."""
+
+    id: str
+    prompt_md: str
+    options: list[QuizOptionOut]  # in served (shuffled) order
+    time_limit_seconds: int
+    deadline_at: datetime
+    index: int
+    total: int
+
+
+class QuizStateOut(BaseModel):
+    status: str
+    answered: int
+    total: int
+
+
+class QuizNextOut(BaseModel):
+    done: bool
+    question: QuizQuestionOut | None = None
+
+
+class QuizAnswerIn(BaseModel):
+    question_id: str = Field(min_length=1, max_length=100)
+    answer_key: str = Field(pattern=r"^[a-d]$")
+
+
+class QuizAnswerOut(BaseModel):
+    recorded: bool = True

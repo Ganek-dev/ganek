@@ -39,6 +39,24 @@ def migrated_db() -> None:
     command.upgrade(cfg, "head")
 
 
+@pytest.fixture(scope="session")
+def seeded_bank(migrated_db: None) -> None:
+    """Seed the question bank once per test session (own loop, own engine)."""
+    import asyncio
+
+    from app.services.seed import questions_dir, seed_questions
+
+    async def _run() -> None:
+        engine = create_async_engine(settings.database_url, poolclass=NullPool)
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            directory = questions_dir()
+            assert directory is not None, "question bank must exist in the checkout"
+            await seed_questions(db, directory)
+        await engine.dispose()
+
+    asyncio.run(_run())
+
+
 @pytest.fixture
 async def db_session() -> AsyncIterator[AsyncSession]:
     """Direct database session for service/dependency-level tests."""
