@@ -1,5 +1,3 @@
-import re
-import secrets
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -8,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.models import Company, User, UserRole
+from app.services.slugs import slugify, with_random_suffix
 
 
 class RegistrationClosedError(Exception):
@@ -18,11 +17,6 @@ class EmailTakenError(Exception):
     """A user with this email already exists."""
 
 
-def slugify(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug[:64] or "company"
-
-
 async def _unique_slug(db: AsyncSession, base: str) -> str:
     slug = base
     while True:
@@ -31,7 +25,7 @@ async def _unique_slug(db: AsyncSession, base: str) -> str:
         ).scalar_one()
         if not exists:
             return slug
-        slug = f"{base[:57]}-{secrets.token_hex(3)}"
+        slug = with_random_suffix(base)
 
 
 async def register_company_admin(

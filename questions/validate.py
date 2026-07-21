@@ -4,6 +4,7 @@
 Usage: python questions/validate.py
 Exits non-zero on any error. Requires: pyyaml, jsonschema.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,7 +43,9 @@ for path in files:
 
     # Cross-checks
     if data.get("domain") != path.parent.name:
-        errors.append(f"{rel}: domain '{data.get('domain')}' != directory '{path.parent.name}'")
+        errors.append(
+            f"{rel}: domain '{data.get('domain')}' != directory '{path.parent.name}'"
+        )
     if data.get("tag") != path.stem:
         errors.append(f"{rel}: tag '{data.get('tag')}' != filename '{path.stem}'")
 
