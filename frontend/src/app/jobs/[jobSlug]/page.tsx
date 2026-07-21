@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { ApplyForm } from "@/components/ApplyForm";
 import { JobPosting } from "@/components/JobPosting";
 import { publicApi } from "@/lib/public-api";
 
@@ -27,8 +28,9 @@ export default async function SingleModeJobPage({ params }: Props) {
   if (!page || !job) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12">
+    <main className="mx-auto max-w-3xl space-y-10 px-4 py-12">
       <JobPosting company={page.company} job={job} backHref="/" />
+      <ApplyForm apiBasePath={`/api/v1/public/company/jobs/${job.slug}`} />
     </main>
   );
 }
