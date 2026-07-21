@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint_url: str = "http://localhost:9000"
+    # Endpoint candidates' browsers can reach (presigned URLs are signed
+    # against this host). Defaults to s3_endpoint_url.
+    s3_public_endpoint_url: str | None = None
     s3_bucket: str = "vetd-cvs"
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"  # noqa: S105
