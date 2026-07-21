@@ -31,6 +31,8 @@ services:
     env_file: .env
     environment:
       VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
+    volumes:
+      - ./questions:/srv/questions:ro
     command: sh -c "uv run alembic upgrade head && uv run python -m app.services.seed"
     depends_on:
       postgres: { condition: service_healthy }
