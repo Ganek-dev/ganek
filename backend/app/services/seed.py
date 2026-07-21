@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import anyio.to_thread
 import yaml
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,10 +76,15 @@ def _to_row(pack: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def load_packs(directory: Path) -> list[dict[str, Any]]:
+    """Blocking YAML reads, done before any event-loop work."""
+    return [yaml.safe_load(path.read_text()) for path in sorted(directory.glob("*/*.yaml"))]
+
+
 async def seed_questions(db: AsyncSession, directory: Path) -> SeedReport:
     report = SeedReport()
-    for path in sorted(directory.glob("*/*.yaml")):
-        pack = yaml.safe_load(path.read_text())
+    packs = await anyio.to_thread.run_sync(load_packs, directory)
+    for pack in packs:
         for item in pack.get("questions", []):
             row = _to_row(pack, item)
             existing = (
