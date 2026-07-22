@@ -11,7 +11,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     api: { ...original.api, jobs: { ...original.api.jobs, list: vi.fn() } },
-    applications: { list: vi.fn(), setStage: vi.fn(), cvUrl: vi.fn() },
+    applications: { list: vi.fn(), setStage: vi.fn(), cvUrl: vi.fn(), quizAnswers: vi.fn() },
   };
 });
 
@@ -67,6 +67,40 @@ describe("ApplicantsPage", () => {
     expect(badge).toHaveAttribute("title", "python: 3/4");
     const warning = screen.getByText("⚠ 1");
     expect(warning).toHaveAttribute("title", "left the tab 2x (~20s)");
+  });
+
+  it("expands the answers review", async () => {
+    mockedApps.quizAnswers.mockResolvedValue([
+      {
+        question_id: "py-gil-1",
+        prompt_md: "What does the GIL prevent?",
+        options: { a: "Parallel bytecode", b: "Threads", c: "Processes", d: "Races" },
+        correct_key: "a",
+        explanation_md: "One thread runs bytecode at a time.",
+        tags: ["python"],
+        answer_key: "b",
+        is_correct: false,
+        response_ms: 4200,
+      },
+      {
+        question_id: "py-x-2",
+        prompt_md: "Timed out one?",
+        options: { a: "Yes", b: "No", c: "?", d: "!" },
+        correct_key: "a",
+        explanation_md: "",
+        tags: ["python"],
+        answer_key: null,
+        is_correct: false,
+        response_ms: null,
+      },
+    ]);
+    render(<ApplicantsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Answers" }));
+    expect(await screen.findByText("What does the GIL prevent?")).toBeInTheDocument();
+    expect(screen.getByText(/answered: Threads \(4.2s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/correct: Parallel bytecode/)).toBeInTheDocument();
+    expect(screen.getByText(/no answer — time ran out/)).toBeInTheDocument();
+    expect(mockedApps.quizAnswers).toHaveBeenCalledWith("app-1");
   });
 
   it("shows pending badge for unfinished quizzes and none without a quiz", async () => {

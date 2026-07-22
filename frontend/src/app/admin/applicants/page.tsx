@@ -8,6 +8,7 @@ import {
   type ApplicationOut,
   type ApplicationStage,
   type JobOut,
+  type QuizAnswerReview,
   type QuizResult,
 } from "@/lib/api";
 
@@ -67,6 +68,39 @@ function QuizBadge({ result }: { result: QuizResult | null }) {
   );
 }
 
+function AnswersPanel({ reviews }: { reviews: QuizAnswerReview[] }) {
+  return (
+    <ol className="mt-3 space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+      {reviews.map((review) => {
+        const candidate =
+          review.answer_key === null ? null : review.options[review.answer_key];
+        return (
+          <li key={review.question_id} className="text-sm">
+            <p className="font-medium text-zinc-900 dark:text-zinc-50">{review.prompt_md}</p>
+            <p className={review.is_correct ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}>
+              {review.is_correct ? "✓" : "✗"}{" "}
+              {candidate === null
+                ? "no answer — time ran out"
+                : `answered: ${candidate}`}
+              {review.response_ms !== null
+                ? ` (${(review.response_ms / 1000).toFixed(1)}s)`
+                : null}
+            </p>
+            {!review.is_correct ? (
+              <p className="text-zinc-600 dark:text-zinc-400">
+                correct: {review.options[review.correct_key]}
+              </p>
+            ) : null}
+            {review.explanation_md ? (
+              <p className="text-xs text-zinc-500">{review.explanation_md}</p>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function formatBytes(size: number): string {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(size / 1024))} KB`;
@@ -78,6 +112,8 @@ export default function ApplicantsPage() {
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "">("");
   const [jobFilter, setJobFilter] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, QuizAnswerReview[]>>({});
+  const [openAnswers, setOpenAnswers] = useState<Record<string, boolean>>({});
 
   const reload = useCallback(() => {
     applications
@@ -105,6 +141,23 @@ export default function ApplicantsPage() {
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stage change failed");
+    }
+  }
+
+  async function toggleAnswers(id: string) {
+    setError(null);
+    if (openAnswers[id]) {
+      setOpenAnswers((prev) => ({ ...prev, [id]: false }));
+      return;
+    }
+    try {
+      if (!answers[id]) {
+        const reviews = await applications.quizAnswers(id);
+        setAnswers((prev) => ({ ...prev, [id]: reviews }));
+      }
+      setOpenAnswers((prev) => ({ ...prev, [id]: true }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load answers");
     }
   }
 
@@ -185,6 +238,15 @@ export default function ApplicantsPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <QuizBadge result={app.quiz_attempt} />
+                  {app.quiz_attempt?.status === "completed" ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleAnswers(app.id)}
+                      className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    >
+                      {openAnswers[app.id] ? "Hide answers" : "Answers"}
+                    </button>
+                  ) : null}
                   <select
                     aria-label={`Stage for ${app.candidate.name}`}
                     value={app.stage}
@@ -208,6 +270,9 @@ export default function ApplicantsPage() {
               </div>
               {app.message ? (
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">{app.message}</p>
+              ) : null}
+              {openAnswers[app.id] && answers[app.id] ? (
+                <AnswersPanel reviews={answers[app.id]} />
               ) : null}
               {Object.keys(app.candidate.links).length > 0 ? (
                 <p className="flex gap-3 text-sm">

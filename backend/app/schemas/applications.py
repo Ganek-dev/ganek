@@ -50,3 +50,17 @@ class StageUpdate(BaseModel):
 
 class CvDownload(BaseModel):
     download_url: str
+
+
+class QuizAnswerReview(BaseModel):
+    """One answered (or timed-out) question, recruiter-facing."""
+
+    question_id: str
+    prompt_md: str
+    options: dict[str, Any]
+    correct_key: str
+    explanation_md: str
+    tags: list[str]
+    answer_key: str | None  # None = time ran out
+    is_correct: bool
+    response_ms: int | None
