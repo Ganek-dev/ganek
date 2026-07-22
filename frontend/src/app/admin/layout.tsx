@@ -44,6 +44,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             Applicants
           </Link>
+          <Link
+            href="/admin/questions"
+            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+          >
+            Questions
+          </Link>
         </nav>
         <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
           <span>{user.email}</span>

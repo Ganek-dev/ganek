@@ -174,3 +174,60 @@ async def test_unstarted_attempt_expires(db_session: AsyncSession) -> None:
     with pytest.raises(quiz.AttemptExpiredError):
         await quiz.current_or_next_question(db_session, attempt)
     assert attempt.status is AttemptStatus.EXPIRED
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_company_questions_join_the_pool_and_stay_private(
+    db_session: AsyncSession,
+) -> None:
+    from app.models import Question, QuestionSource
+
+    company, job, application = await _fixture(db_session)
+    unique_tag = f"secret-{uuid4().hex[:8]}"
+    db_session.add(
+        Question(
+            id=f"co-{uuid4().hex[:16]}",
+            company_id=company.id,
+            domain="company",
+            tags=[unique_tag],
+            difficulty="easy",
+            prompt_md="Company-internal question?",
+            options={"a": "Yes", "b": "No", "c": "Maybe", "d": "42"},
+            correct_key="a",
+            source=QuestionSource.COMPANY,
+        )
+    )
+    job.quiz_config = {"enabled": True, "tags": [unique_tag], "question_count": 1}
+    await db_session.commit()
+
+    attempt = await quiz.create_attempt(db_session, company, application, job)
+    assert attempt is not None
+    assert len(attempt.question_ids) == 1
+    assert attempt.question_ids[0].startswith("co-")
+
+    # another company with the same tag config gets nothing (private pool)
+    other = Company(slug=f"other-{uuid4().hex[:8]}", name="Other Co")
+    db_session.add(other)
+    await db_session.flush()
+    other_job = Job(
+        company_id=other.id,
+        slug="py-dev",
+        title="Py Dev",
+        quiz_config={"enabled": True, "tags": [unique_tag], "question_count": 1},
+    )
+    other_candidate = Candidate(
+        company_id=other.id, email=f"c-{uuid4().hex[:8]}@vetd-ci.dev", name="X"
+    )
+    db_session.add_all([other_job, other_candidate])
+    await db_session.flush()
+    other_application = Application(
+        company_id=other.id,
+        job_id=other_job.id,
+        candidate_id=other_candidate.id,
+        cv_object_key=f"cvs/{other.id}/{uuid4().hex}.pdf",
+        cv_filename="cv.pdf",
+        cv_size=1000,
+    )
+    db_session.add(other_application)
+    await db_session.commit()
+    assert await quiz.create_attempt(db_session, other, other_application, other_job) is None
