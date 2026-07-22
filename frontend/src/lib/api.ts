@@ -245,3 +245,35 @@ export const publicQuiz = {
       body: JSON.stringify({ events }),
     }),
 };
+
+export type Difficulty = "easy" | "medium" | "hard";
+
+export interface QuestionOut {
+  id: string;
+  prompt_md: string;
+  options: Record<string, string>;
+  correct_key: string;
+  explanation_md: string;
+  tags: string[];
+  difficulty: Difficulty;
+  time_limit_seconds: number;
+  status: "active" | "retired";
+  created_at: string;
+}
+
+export interface QuestionInput {
+  prompt_md: string;
+  options: Record<string, string>;
+  correct_key: string;
+  explanation_md: string;
+  tags: string[];
+  difficulty: Difficulty;
+  time_limit_seconds: number;
+}
+
+export const questions = {
+  list: () => request<QuestionOut[]>("/api/v1/questions"),
+  create: (payload: QuestionInput) =>
+    request<QuestionOut>("/api/v1/questions", { method: "POST", body: JSON.stringify(payload) }),
+  retire: (id: string) => request<QuestionOut>(`/api/v1/questions/${id}`, { method: "DELETE" }),
+};
