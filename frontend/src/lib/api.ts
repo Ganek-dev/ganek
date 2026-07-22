@@ -157,12 +157,22 @@ export interface CandidateOut {
   links: Record<string, string>;
 }
 
+export interface QuizIntegrity {
+  blur_count?: number;
+  blur_total_ms?: number;
+  paste_count?: number;
+  resize_count?: number;
+  avg_answer_ms?: number;
+  flags?: string[];
+}
+
 export interface QuizResult {
   status: "pending" | "in_progress" | "completed" | "expired";
   score: number | null;
   per_tag_scores: Record<string, { correct: number; total: number }>;
   completed_at: string | null;
   question_ids: string[];
+  integrity: QuizIntegrity;
 }
 
 export interface ApplicationOut {
@@ -228,5 +238,10 @@ export const publicQuiz = {
     request<{ recorded: boolean }>(`/api/v1/public/quiz/${token}/answer`, {
       method: "POST",
       body: JSON.stringify({ question_id: questionId, answer_key: answerKey }),
+    }),
+  events: (token: string, events: { type: "blur" | "paste" | "resize"; duration_ms?: number }[]) =>
+    request<{ recorded: boolean }>(`/api/v1/public/quiz/${token}/events`, {
+      method: "POST",
+      body: JSON.stringify({ events }),
     }),
 };

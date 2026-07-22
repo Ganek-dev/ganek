@@ -26,6 +26,7 @@ class QuizResultOut(BaseModel):
     per_tag_scores: dict[str, Any]
     completed_at: datetime | None
     question_ids: list[str]
+    integrity: dict[str, Any]
 
 
 class ApplicationOut(BaseModel):

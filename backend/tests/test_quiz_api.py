@@ -150,3 +150,69 @@ async def test_bogus_and_unserved_answers_rejected(client: AsyncClient) -> None:
         json={"question_id": served["id"], "answer_key": "z"},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_integrity_events_aggregate_and_flag(client: AsyncClient) -> None:
+    token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
+    assert token is not None
+
+    resp = await client.post(
+        f"/api/v1/public/quiz/{token}/events",
+        json={
+            "events": [
+                {"type": "blur", "duration_ms": 12000},
+                {"type": "blur", "duration_ms": 8000},
+                {"type": "paste"},
+                {"type": "resize"},
+            ]
+        },
+    )
+    assert resp.status_code == 200
+
+    # complete the quiz quickly (answers land < 3s after serve)
+    while True:
+        body = (await client.post(f"/api/v1/public/quiz/{token}/next")).json()
+        if body["done"]:
+            break
+        question = body["question"]
+        await client.post(
+            f"/api/v1/public/quiz/{token}/answer",
+            json={"question_id": question["id"], "answer_key": question["options"][0]["key"]},
+        )
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.core.security import read_quiz_token
+    from app.services.quiz import get_attempt_by_id
+
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        attempt_id = read_quiz_token(token)
+        assert attempt_id is not None
+        attempt = await get_attempt_by_id(db, attempt_id)
+        assert attempt is not None
+        integrity = attempt.integrity
+    await engine.dispose()
+
+    assert integrity["blur_count"] == 2
+    assert integrity["blur_total_ms"] == 20000
+    assert integrity["paste_count"] == 1
+    assert integrity["resize_count"] == 1
+    assert integrity["avg_answer_ms"] < 3000
+    flags = integrity["flags"]
+    assert any("left the tab 2x" in flag for flag in flags)
+    assert any("paste detected" in flag for flag in flags)
+    assert any("very fast" in flag for flag in flags)
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_integrity_events_validation(client: AsyncClient) -> None:
+    token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
+    assert token is not None
+    resp = await client.post(
+        f"/api/v1/public/quiz/{token}/events",
+        json={"events": [{"type": "webcam_off"}]},
+    )
+    assert resp.status_code == 422
