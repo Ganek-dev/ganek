@@ -157,6 +157,14 @@ export interface CandidateOut {
   links: Record<string, string>;
 }
 
+export interface QuizResult {
+  status: "pending" | "in_progress" | "completed" | "expired";
+  score: number | null;
+  per_tag_scores: Record<string, { correct: number; total: number }>;
+  completed_at: string | null;
+  question_ids: string[];
+}
+
 export interface ApplicationOut {
   id: string;
   job_id: string;
@@ -166,6 +174,7 @@ export interface ApplicationOut {
   message: string | null;
   stage: ApplicationStage;
   source: string | null;
+  quiz_attempt: QuizResult | null;
   created_at: string;
 }
 

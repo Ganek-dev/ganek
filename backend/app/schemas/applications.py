@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import ApplicationStage
+from app.models import ApplicationStage, AttemptStatus
 
 
 class CandidateOut(BaseModel):
@@ -16,6 +16,16 @@ class CandidateOut(BaseModel):
     name: str
     email: str
     links: dict[str, Any]
+
+
+class QuizResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    status: AttemptStatus
+    score: float | None
+    per_tag_scores: dict[str, Any]
+    completed_at: datetime | None
+    question_ids: list[str]
 
 
 class ApplicationOut(BaseModel):
@@ -29,6 +39,7 @@ class ApplicationOut(BaseModel):
     message: str | None
     stage: ApplicationStage
     source: str | None
+    quiz_attempt: QuizResultOut | None
     created_at: datetime
 
 

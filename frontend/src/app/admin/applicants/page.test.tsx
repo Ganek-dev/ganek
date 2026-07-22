@@ -32,6 +32,13 @@ const application: ApplicationOut = {
   message: "Hello!",
   stage: "new",
   source: null,
+  quiz_attempt: {
+    status: "completed",
+    score: 0.75,
+    per_tag_scores: { python: { correct: 3, total: 4 } },
+    completed_at: "2026-07-21T10:05:00Z",
+    question_ids: ["q1", "q2", "q3", "q4"],
+  },
   created_at: "2026-07-21T10:00:00Z",
 };
 
@@ -55,6 +62,18 @@ describe("ApplicantsPage", () => {
       "https://github.com/jane",
     );
     expect(screen.getByRole("button", { name: /CV \(244 KB\)/ })).toBeInTheDocument();
+    const badge = screen.getByText("quiz 75% (3/4)");
+    expect(badge).toHaveAttribute("title", "python: 3/4");
+  });
+
+  it("shows pending badge for unfinished quizzes and none without a quiz", async () => {
+    mockedApps.list.mockResolvedValue([
+      { ...application, id: "a2", quiz_attempt: { ...application.quiz_attempt!, status: "pending", score: null } },
+      { ...application, id: "a3", quiz_attempt: null },
+    ]);
+    render(<ApplicantsPage />);
+    expect(await screen.findByText("quiz pending")).toBeInTheDocument();
+    expect(screen.queryByText(/quiz \d+%/)).not.toBeInTheDocument();
   });
 
   it("changes the stage via the dropdown", async () => {
