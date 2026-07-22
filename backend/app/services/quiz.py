@@ -11,6 +11,7 @@ import random
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -167,7 +168,7 @@ async def record_events(
     await db.commit()
 
 
-def _integrity_flags(integrity: dict[str, object], answers: list[AttemptAnswer]) -> list[str]:
+def _integrity_flags(integrity: dict[str, Any], answers: list[AttemptAnswer]) -> list[str]:
     flags: list[str] = []
     blur_count = int(integrity.get("blur_count", 0) or 0)
     if blur_count:
