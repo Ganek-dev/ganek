@@ -122,3 +122,77 @@ async def test_applications_require_auth_and_are_tenant_scoped(client: AsyncClie
         await client.patch(f"/api/v1/applications/{target['id']}/stage", json={"stage": "hired"})
     ).status_code == 404
     assert (await client.get(f"/api/v1/applications/{target['id']}/cv-url")).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_admin_sees_quiz_results(client: AsyncClient) -> None:
+    from sqlalchemy import update
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.models import Job
+
+    creds = {
+        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "password": "a-long-secure-password",
+    }
+    name = f"Score Co {uuid4().hex[:6]}"
+    assert (
+        await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
+    ).status_code == 201
+    slug = name.lower().replace(" ", "-")
+    job = (await client.post("/api/v1/jobs", json={"title": "Py Dev", "tags": ["python"]})).json()
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    async with async_sessionmaker(engine)() as db:
+        await db.execute(
+            update(Job)
+            .where(Job.id == job["id"])
+            .values(quiz_config={"enabled": True, "tags": ["python"], "question_count": 2})
+        )
+        await db.commit()
+    await engine.dispose()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+
+    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+    ticket = (await client.post(f"{base}/apply/upload-url")).json()
+    async with httpx.AsyncClient() as raw:
+        assert (
+            await raw.put(
+                ticket["upload_url"],
+                content=PDF_BYTES,
+                headers={"Content-Type": ticket["content_type"]},
+            )
+        ).status_code == 200
+    resp = await client.post(
+        f"{base}/apply",
+        json={
+            "name": "Jane",
+            "email": f"jane-{uuid4().hex[:8]}@vetd-ci.dev",
+            "cv_object_key": ticket["object_key"],
+            "cv_filename": "cv.pdf",
+        },
+    )
+    token = resp.json()["quiz_token"]
+    assert token is not None
+    while True:
+        body = (await client.post(f"/api/v1/public/quiz/{token}/next")).json()
+        if body["done"]:
+            break
+        question = body["question"]
+        await client.post(
+            f"/api/v1/public/quiz/{token}/answer",
+            json={"question_id": question["id"], "answer_key": question["options"][0]["key"]},
+        )
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    app = (await client.get("/api/v1/applications")).json()[0]
+    result = app["quiz_attempt"]
+    assert result is not None
+    assert result["status"] == "completed"
+    assert result["score"] is not None
+    assert 0.0 <= result["score"] <= 1.0
+    assert len(result["question_ids"]) == 2
+    assert result["per_tag_scores"]
+    # answers themselves are not exposed on the list payload
+    assert "correct_key" not in str(app)

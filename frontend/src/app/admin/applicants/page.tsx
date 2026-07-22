@@ -8,6 +8,7 @@ import {
   type ApplicationOut,
   type ApplicationStage,
   type JobOut,
+  type QuizResult,
 } from "@/lib/api";
 
 const STAGES: ApplicationStage[] = [
@@ -21,6 +22,39 @@ const STAGES: ApplicationStage[] = [
 
 const selectCls =
   "rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
+
+function QuizBadge({ result }: { result: QuizResult | null }) {
+  if (result === null) {
+    return null;
+  }
+  if (result.status !== "completed" || result.score === null) {
+    return (
+      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+        quiz {result.status.replace("_", " ")}
+      </span>
+    );
+  }
+  const percent = Math.round(result.score * 100);
+  const total = result.question_ids.length;
+  const correct = Math.round(result.score * total);
+  const tone =
+    percent >= 70
+      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+      : percent >= 40
+        ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+  const breakdown = Object.entries(result.per_tag_scores)
+    .map(([tag, bucket]) => `${tag}: ${bucket.correct}/${bucket.total}`)
+    .join(" · ");
+  return (
+    <span
+      title={breakdown}
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
+    >
+      quiz {percent}% ({correct}/{total})
+    </span>
+  );
+}
 
 function formatBytes(size: number): string {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
@@ -139,6 +173,7 @@ export default function ApplicantsPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <QuizBadge result={app.quiz_attempt} />
                   <select
                     aria-label={`Stage for ${app.candidate.name}`}
                     value={app.stage}

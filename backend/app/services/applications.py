@@ -86,7 +86,10 @@ async def list_applications(
     query = (
         select(Application)
         .where(Application.company_id == company.id)
-        .options(selectinload(Application.candidate))
+        .options(
+            selectinload(Application.candidate),
+            selectinload(Application.quiz_attempt),
+        )
         .order_by(Application.created_at.desc())
     )
     if job_id is not None:
@@ -103,7 +106,10 @@ async def get_application(
         await db.execute(
             select(Application)
             .where(Application.company_id == company.id, Application.id == application_id)
-            .options(selectinload(Application.candidate))
+            .options(
+                selectinload(Application.candidate),
+                selectinload(Application.quiz_attempt),
+            )
         )
     ).scalar_one_or_none()
 

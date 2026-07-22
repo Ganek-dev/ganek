@@ -10,6 +10,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.candidate import Candidate
     from app.models.job import Job
+    from app.models.quiz import QuizAttempt
 
 
 class ApplicationStage(enum.StrEnum):
@@ -50,3 +51,4 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     candidate: Mapped["Candidate"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship()
+    quiz_attempt: Mapped["QuizAttempt | None"] = relationship(back_populates="application")

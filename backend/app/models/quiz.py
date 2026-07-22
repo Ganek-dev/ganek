@@ -48,7 +48,7 @@ class QuizAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     per_tag_scores: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     integrity: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
-    application: Mapped["Application"] = relationship()
+    application: Mapped["Application"] = relationship(back_populates="quiz_attempt")
     answers: Mapped[list["AttemptAnswer"]] = relationship(
         back_populates="attempt", order_by="AttemptAnswer.served_at"
     )
