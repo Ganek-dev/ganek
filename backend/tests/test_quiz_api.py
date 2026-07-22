@@ -157,25 +157,27 @@ async def test_integrity_events_aggregate_and_flag(client: AsyncClient) -> None:
     token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
     assert token is not None
 
-    resp = await client.post(
-        f"/api/v1/public/quiz/{token}/events",
-        json={
-            "events": [
-                {"type": "blur", "duration_ms": 12000},
-                {"type": "blur", "duration_ms": 8000},
-                {"type": "paste"},
-                {"type": "resize"},
-            ]
-        },
-    )
-    assert resp.status_code == 200
-
-    # complete the quiz quickly (answers land < 3s after serve)
+    # complete the quiz quickly, reporting events tied to the first question
+    first_question_id: str | None = None
     while True:
         body = (await client.post(f"/api/v1/public/quiz/{token}/next")).json()
         if body["done"]:
             break
         question = body["question"]
+        if first_question_id is None:
+            first_question_id = question["id"]
+            resp = await client.post(
+                f"/api/v1/public/quiz/{token}/events",
+                json={
+                    "events": [
+                        {"type": "blur", "duration_ms": 12000, "question_id": question["id"]},
+                        {"type": "blur", "duration_ms": 8000, "question_id": question["id"]},
+                        {"type": "paste", "question_id": question["id"]},
+                        {"type": "resize"},
+                    ]
+                },
+            )
+            assert resp.status_code == 200
         await client.post(
             f"/api/v1/public/quiz/{token}/answer",
             json={"question_id": question["id"], "answer_key": question["options"][0]["key"]},
@@ -201,10 +203,16 @@ async def test_integrity_events_aggregate_and_flag(client: AsyncClient) -> None:
     assert integrity["paste_count"] == 1
     assert integrity["resize_count"] == 1
     assert integrity["avg_answer_ms"] < 3000
-    flags = integrity["flags"]
-    assert any("left the tab 2x" in flag for flag in flags)
-    assert any("paste detected" in flag for flag in flags)
-    assert any("very fast" in flag for flag in flags)
+    assert len(integrity["events"]) == 4
+
+    flags = {flag["code"]: flag for flag in integrity["flags"]}
+    assert flags["tab_hidden"]["summary"] == "left the tab 2x (~20s)"
+    assert "Q1" in flags["tab_hidden"]["detail"]  # reasoning names the question
+    assert flags["tab_hidden"]["question_ids"] == [first_question_id]
+    assert flags["paste"]["question_ids"] == [first_question_id]
+    assert "external tooling" in flags["paste"]["detail"]
+    assert flags["very_fast"]["question_ids"]  # all four were fast
+    assert "guessing" in flags["very_fast"]["detail"]
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")

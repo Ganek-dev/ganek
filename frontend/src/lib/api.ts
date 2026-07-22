@@ -157,13 +157,20 @@ export interface CandidateOut {
   links: Record<string, string>;
 }
 
+export interface IntegrityFlag {
+  code: string;
+  summary: string;
+  detail: string;
+  question_ids: string[];
+}
+
 export interface QuizIntegrity {
   blur_count?: number;
   blur_total_ms?: number;
   paste_count?: number;
   resize_count?: number;
   avg_answer_ms?: number;
-  flags?: string[];
+  flags?: IntegrityFlag[];
 }
 
 export interface QuizResult {
@@ -239,7 +246,10 @@ export const publicQuiz = {
       method: "POST",
       body: JSON.stringify({ question_id: questionId, answer_key: answerKey }),
     }),
-  events: (token: string, events: { type: "blur" | "paste" | "resize"; duration_ms?: number }[]) =>
+  events: (
+    token: string,
+    events: { type: "blur" | "paste" | "resize"; duration_ms?: number; question_id?: string }[],
+  ) =>
     request<{ recorded: boolean }>(`/api/v1/public/quiz/${token}/events`, {
       method: "POST",
       body: JSON.stringify({ events }),

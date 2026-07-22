@@ -38,7 +38,17 @@ const application: ApplicationOut = {
     per_tag_scores: { python: { correct: 3, total: 4 } },
     completed_at: "2026-07-21T10:05:00Z",
     question_ids: ["q1", "q2", "q3", "q4"],
-    integrity: { blur_count: 2, flags: ["left the tab 2x (~20s)"] },
+    integrity: {
+      blur_count: 2,
+      flags: [
+        {
+          code: "tab_hidden",
+          summary: "left the tab 2x (~20s)",
+          detail: "The quiz tab was hidden 2 time(s) for about 20s total. Occurred during Q1.",
+          question_ids: ["py-gil-1"],
+        },
+      ],
+    },
   },
   created_at: "2026-07-21T10:00:00Z",
 };

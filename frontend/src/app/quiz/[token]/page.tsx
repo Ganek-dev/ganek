@@ -20,11 +20,19 @@ function useCountdown(deadline: string | null): number | null {
 
 type Phase = "loading" | "intro" | "question" | "done" | "expired" | "invalid";
 
-type IntegrityEvent = { type: "blur" | "paste" | "resize"; duration_ms?: number };
+type IntegrityEvent = {
+  type: "blur" | "paste" | "resize";
+  duration_ms?: number;
+  question_id?: string;
+};
 
-function useIntegrityTelemetry(token: string, active: boolean) {
+function useIntegrityTelemetry(token: string, active: boolean, questionId: string | null) {
   const queue = useRef<IntegrityEvent[]>([]);
   const blurStarted = useRef<number | null>(null);
+  const currentQuestion = useRef<string | null>(null);
+  useEffect(() => {
+    currentQuestion.current = questionId;
+  }, [questionId]);
 
   useEffect(() => {
     if (!active) return;
@@ -35,12 +43,15 @@ function useIntegrityTelemetry(token: string, active: boolean) {
         queue.current.push({
           type: "blur",
           duration_ms: Date.now() - blurStarted.current,
+          question_id: currentQuestion.current ?? undefined,
         });
         blurStarted.current = null;
       }
     };
-    const onPaste = () => queue.current.push({ type: "paste" });
-    const onResize = () => queue.current.push({ type: "resize" });
+    const onPaste = () =>
+      queue.current.push({ type: "paste", question_id: currentQuestion.current ?? undefined });
+    const onResize = () =>
+      queue.current.push({ type: "resize", question_id: currentQuestion.current ?? undefined });
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("paste", onPaste);
     window.addEventListener("resize", onResize);
@@ -72,7 +83,11 @@ export default function QuizPage() {
   const advancedFor = useRef<string | null>(null);
 
   const remaining = useCountdown(question?.deadline_at ?? null);
-  const flushTelemetry = useIntegrityTelemetry(token, phase === "question");
+  const flushTelemetry = useIntegrityTelemetry(
+    token,
+    phase === "question",
+    question?.id ?? null,
+  );
 
   const fail = useCallback((err: unknown) => {
     if (err instanceof ApiError && err.status === 404) setPhase("invalid");
