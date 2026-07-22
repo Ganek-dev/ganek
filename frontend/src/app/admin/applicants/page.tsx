@@ -7,8 +7,11 @@ import {
   applications,
   type ApplicationOut,
   type ApplicationStage,
+  type IntegrityFlag,
   type JobOut,
+  type QuizAnswerReview,
   type QuizResult,
+  type ReviewIntegrityEvent,
 } from "@/lib/api";
 
 const STAGES: ApplicationStage[] = [
@@ -43,28 +46,93 @@ function QuizBadge({ result }: { result: QuizResult | null }) {
       : percent >= 40
         ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
         : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-  const breakdown = Object.entries(result.per_tag_scores)
-    .map(([tag, bucket]) => `${tag}: ${bucket.correct}/${bucket.total}`)
-    .join(" · ");
   const flags = result.integrity.flags ?? [];
-  const flagSummaries = flags.map((flag) => flag.summary).join(" · ");
   return (
     <>
-      <span
-        title={breakdown}
-        className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
-      >
+      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>
         quiz {percent}% ({correct}/{total})
       </span>
       {flags.length > 0 ? (
-        <span
-          title={flagSummaries}
-          className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-        >
-          ⚠ {flags.length}
+        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+          ⚠ {flags.length} flag{flags.length > 1 ? "s" : ""}
         </span>
       ) : null}
     </>
+  );
+}
+
+function eventLabel(event: ReviewIntegrityEvent): string {
+  if (event.type === "blur") {
+    const seconds = event.duration_ms !== null ? ` ${(event.duration_ms / 1000).toFixed(1)}s` : "";
+    return `left the tab${seconds}`;
+  }
+  if (event.type === "paste") return "paste";
+  return event.type;
+}
+
+function AnswersPanel({
+  reviews,
+  flags,
+}: {
+  reviews: QuizAnswerReview[];
+  flags: IntegrityFlag[];
+}) {
+  return (
+    <div className="mt-3 space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+      {flags.length > 0 ? (
+        <div className="space-y-2 rounded-lg bg-orange-50 p-3 dark:bg-orange-950">
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-900 dark:text-orange-200">
+            Integrity flags
+          </p>
+          {flags.map((flag) => (
+            <div key={flag.code} className="text-sm">
+              <p className="font-medium text-orange-900 dark:text-orange-200">⚠ {flag.summary}</p>
+              <p className="text-orange-800 dark:text-orange-300">{flag.detail}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <ol className="space-y-3">
+        {reviews.map((review, index) => {
+          const candidate =
+            review.answer_key === null ? null : review.options[review.answer_key];
+          return (
+            <li key={review.question_id} className="text-sm">
+              <p className="font-medium text-zinc-900 dark:text-zinc-50">
+                <span className="text-zinc-400">Q{index + 1}.</span> {review.prompt_md}
+                {review.integrity_events.map((event, i) => (
+                  <span
+                    key={i}
+                    className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-normal text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                  >
+                    ⚠ {eventLabel(event)}
+                  </span>
+                ))}
+              </p>
+              <p
+                className={
+                  review.is_correct
+                    ? "text-green-700 dark:text-green-400"
+                    : "text-red-700 dark:text-red-400"
+                }
+              >
+                {review.is_correct ? "✓" : "✗"}{" "}
+                {candidate === null ? "no answer — time ran out" : `answered: ${candidate}`}
+                {review.response_ms !== null ? ` (${(review.response_ms / 1000).toFixed(1)}s)` : null}
+              </p>
+              {!review.is_correct ? (
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  correct: {review.options[review.correct_key]}
+                </p>
+              ) : null}
+              {review.explanation_md ? (
+                <p className="text-xs text-zinc-500">{review.explanation_md}</p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -79,6 +147,8 @@ export default function ApplicantsPage() {
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "">("");
   const [jobFilter, setJobFilter] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, QuizAnswerReview[]>>({});
+  const [openAnswers, setOpenAnswers] = useState<Record<string, boolean>>({});
 
   const reload = useCallback(() => {
     applications
@@ -94,7 +164,10 @@ export default function ApplicantsPage() {
 
   useEffect(reload, [reload]);
   useEffect(() => {
-    api.jobs.list().then(setJobs).catch(() => setJobs([]));
+    api.jobs
+      .list()
+      .then(setJobs)
+      .catch(() => setJobs([]));
   }, []);
 
   const jobTitle = (id: string) => jobs.find((j) => j.id === id)?.title ?? "—";
@@ -106,6 +179,23 @@ export default function ApplicantsPage() {
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stage change failed");
+    }
+  }
+
+  async function toggleAnswers(id: string) {
+    setError(null);
+    if (openAnswers[id]) {
+      setOpenAnswers((prev) => ({ ...prev, [id]: false }));
+      return;
+    }
+    try {
+      if (!answers[id]) {
+        const reviews = await applications.quizAnswers(id);
+        setAnswers((prev) => ({ ...prev, [id]: reviews }));
+      }
+      setOpenAnswers((prev) => ({ ...prev, [id]: true }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load answers");
     }
   }
 
@@ -186,6 +276,15 @@ export default function ApplicantsPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <QuizBadge result={app.quiz_attempt} />
+                  {app.quiz_attempt?.status === "completed" ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleAnswers(app.id)}
+                      className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    >
+                      {openAnswers[app.id] ? "Hide answers" : "Answers"}
+                    </button>
+                  ) : null}
                   <select
                     aria-label={`Stage for ${app.candidate.name}`}
                     value={app.stage}
@@ -209,6 +308,12 @@ export default function ApplicantsPage() {
               </div>
               {app.message ? (
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">{app.message}</p>
+              ) : null}
+              {openAnswers[app.id] && answers[app.id] ? (
+                <AnswersPanel
+                  reviews={answers[app.id]}
+                  flags={app.quiz_attempt?.integrity.flags ?? []}
+                />
               ) : null}
               {Object.keys(app.candidate.links).length > 0 ? (
                 <p className="flex gap-3 text-sm">

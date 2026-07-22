@@ -4,8 +4,15 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import CurrentCompany, DbSession
 from app.models import Application, ApplicationStage
-from app.schemas.applications import ApplicationOut, CvDownload, StageUpdate
+from app.schemas.applications import (
+    ApplicationOut,
+    CvDownload,
+    QuizAnswerReview,
+    ReviewIntegrityEvent,
+    StageUpdate,
+)
 from app.services import applications as applications_service
+from app.services import quiz as quiz_service
 from app.services import storage
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -53,3 +60,41 @@ async def cv_download_url(
     return CvDownload(
         download_url=storage.presign_cv_download(application.cv_object_key, application.cv_filename)
     )
+
+
+@router.get("/{application_id}/quiz-answers", response_model=list[QuizAnswerReview])
+async def quiz_answers(
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+) -> list[QuizAnswerReview]:
+    application = await _get_or_404(db, company, application_id)
+    attempt = await quiz_service.get_attempt_by_application(db, application.id)
+    if attempt is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No quiz for this application"
+        )
+    events = attempt.integrity.get("events", [])
+    reviews: list[QuizAnswerReview] = []
+    for answer, question in await quiz_service.review_answers(db, attempt):
+        response_ms: int | None = None
+        if answer.answer_key is not None and answer.answered_at is not None:
+            response_ms = int((answer.answered_at - answer.served_at).total_seconds() * 1000)
+        question_events = [
+            ReviewIntegrityEvent(type=str(e.get("type")), duration_ms=e.get("duration_ms"))
+            for e in events
+            if e.get("question_id") == question.id
+        ]
+        reviews.append(
+            QuizAnswerReview(
+                question_id=question.id,
+                prompt_md=question.prompt_md,
+                options=question.options,
+                correct_key=question.correct_key,
+                explanation_md=question.explanation_md,
+                tags=question.tags,
+                answer_key=answer.answer_key,
+                is_correct=answer.is_correct,
+                response_ms=response_ms,
+                integrity_events=question_events,
+            )
+        )
+    return reviews
