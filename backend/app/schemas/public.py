@@ -122,6 +122,7 @@ class QuizAnswerOut(BaseModel):
 class QuizEvent(BaseModel):
     type: Literal["blur", "paste", "resize"]
     duration_ms: int | None = Field(default=None, ge=0, le=600_000)
+    question_id: str | None = Field(default=None, max_length=100)
 
 
 class QuizEventsIn(BaseModel):

@@ -47,6 +47,7 @@ function QuizBadge({ result }: { result: QuizResult | null }) {
     .map(([tag, bucket]) => `${tag}: ${bucket.correct}/${bucket.total}`)
     .join(" · ");
   const flags = result.integrity.flags ?? [];
+  const flagSummaries = flags.map((flag) => flag.summary).join(" · ");
   return (
     <>
       <span
@@ -57,7 +58,7 @@ function QuizBadge({ result }: { result: QuizResult | null }) {
       </span>
       {flags.length > 0 ? (
         <span
-          title={flags.join(" · ")}
+          title={flagSummaries}
           className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-200"
         >
           ⚠ {flags.length}

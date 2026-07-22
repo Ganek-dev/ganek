@@ -144,49 +144,129 @@ async def resolved_answers(db: AsyncSession, attempt: QuizAttempt) -> list[Attem
 
 
 MAX_EVENTS_PER_CALL = 100
+MAX_STORED_EVENTS = 200
 _COUNTED_EVENTS = {"blur", "paste", "resize"}
 
 
 async def record_events(
-    db: AsyncSession, attempt: QuizAttempt, events: list[dict[str, int | str]]
+    db: AsyncSession, attempt: QuizAttempt, events: list[dict[str, int | str | None]]
 ) -> None:
-    """Aggregate client integrity telemetry. Informational only — never scores."""
+    """Record client integrity telemetry. Informational only — never scores.
+
+    Each event may carry the question that was open when it happened, so
+    recruiters can see exactly where in the quiz something occurred.
+    """
     integrity = dict(attempt.integrity)
+    stored: list[dict[str, int | str | None]] = list(integrity.get("events", []))
     for event in events[:MAX_EVENTS_PER_CALL]:
         kind = str(event.get("type", ""))
         if kind not in _COUNTED_EVENTS:
             continue
         key = f"{kind}_count"
         integrity[key] = min(int(integrity.get(key, 0)) + 1, 1000)
+        duration: int | None = None
         if kind == "blur":
-            duration = int(event.get("duration_ms", 0) or 0)
+            duration = max(0, min(int(event.get("duration_ms", 0) or 0), 600_000))
             integrity["blur_total_ms"] = min(
-                int(integrity.get("blur_total_ms", 0)) + max(0, min(duration, 600_000)),
-                36_000_000,
+                int(integrity.get("blur_total_ms", 0)) + duration, 36_000_000
             )
+        question_id = event.get("question_id")
+        if len(stored) < MAX_STORED_EVENTS:
+            stored.append(
+                {
+                    "type": kind,
+                    "question_id": str(question_id) if question_id else None,
+                    "duration_ms": duration,
+                }
+            )
+        else:
+            integrity["events_truncated"] = True
+    integrity["events"] = stored
     attempt.integrity = integrity
     await db.commit()
 
 
-def _integrity_flags(integrity: dict[str, Any], answers: list[AttemptAnswer]) -> list[str]:
-    flags: list[str] = []
+def _events_by_type(integrity: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+    return [e for e in integrity.get("events", []) if e.get("type") == kind]
+
+
+def _question_positions(question_ids: list[str], attempt: QuizAttempt) -> str:
+    positions = sorted(
+        attempt.question_ids.index(qid) + 1 for qid in question_ids if qid in attempt.question_ids
+    )
+    return ", ".join(f"Q{p}" for p in positions)
+
+
+def _integrity_flags(
+    integrity: dict[str, Any], answers: list[AttemptAnswer], attempt: QuizAttempt
+) -> list[dict[str, Any]]:
+    """Structured flags: what was detected, why it was flagged, and where."""
+    flags: list[dict[str, Any]] = []
+
+    blur_events = _events_by_type(integrity, "blur")
     blur_count = int(integrity.get("blur_count", 0) or 0)
     if blur_count:
         seconds = round(int(integrity.get("blur_total_ms", 0) or 0) / 1000)
-        flags.append(f"left the tab {blur_count}x (~{seconds}s)")
+        question_ids = sorted({e["question_id"] for e in blur_events if e.get("question_id")})
+        where = _question_positions(question_ids, attempt)
+        flags.append(
+            {
+                "code": "tab_hidden",
+                "summary": f"left the tab {blur_count}x (~{seconds}s)",
+                "detail": (
+                    f"The quiz tab was hidden {blur_count} time(s) for about {seconds}s "
+                    "total while a question was open — consistent with switching to "
+                    "another window (search, notes, chat). Can also be a notification "
+                    "or an accidental switch; check which questions were affected."
+                    + (f" Occurred during {where}." if where else "")
+                ),
+                "question_ids": question_ids,
+            }
+        )
+
+    paste_events = _events_by_type(integrity, "paste")
     paste_count = int(integrity.get("paste_count", 0) or 0)
     if paste_count:
-        flags.append(f"paste detected x{paste_count}")
+        question_ids = sorted({e["question_id"] for e in paste_events if e.get("question_id")})
+        where = _question_positions(question_ids, attempt)
+        flags.append(
+            {
+                "code": "paste",
+                "summary": f"paste detected x{paste_count}",
+                "detail": (
+                    "Paste events fired inside the quiz. There is nothing to type in a "
+                    "multiple-choice quiz, so pasting usually means external tooling "
+                    "was in play." + (f" Occurred during {where}." if where else "")
+                ),
+                "question_ids": question_ids,
+            }
+        )
+
     timed = [
-        (a.answered_at - a.served_at).total_seconds()
+        (a, (a.answered_at - a.served_at).total_seconds())
         for a in answers
         if a.answered_at is not None and a.answer_key is not None
     ]
     if timed:
-        avg = sum(timed) / len(timed)
+        avg = sum(seconds for _, seconds in timed) / len(timed)
         integrity["avg_answer_ms"] = int(avg * 1000)
         if avg < 3 and len(timed) == len(answers):
-            flags.append(f"answered very fast (avg {avg:.1f}s)")
+            fast_ids = [a.question_id for a, seconds in timed if seconds < 3]
+            where = _question_positions(fast_ids, attempt)
+            flags.append(
+                {
+                    "code": "very_fast",
+                    "summary": f"answered very fast (avg {avg:.1f}s)",
+                    "detail": (
+                        f"Every question was answered, averaging {avg:.1f}s — near the "
+                        "floor of reading time. Plausible for strong recall on easy "
+                        "questions, but combined with a low score it suggests guessing; "
+                        "combined with tab-switching it suggests a second screen."
+                        + (f" Fastest answers: {where}." if where else "")
+                    ),
+                    "question_ids": fast_ids,
+                }
+            )
     return flags
 
 
@@ -210,7 +290,7 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
     attempt.score = correct / total if total else 0.0
     attempt.per_tag_scores = per_tag
     integrity = dict(attempt.integrity)
-    integrity["flags"] = _integrity_flags(integrity, answers)
+    integrity["flags"] = _integrity_flags(integrity, answers, attempt)
     attempt.integrity = integrity
     attempt.status = AttemptStatus.COMPLETED
     attempt.completed_at = _now()
