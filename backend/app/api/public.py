@@ -14,6 +14,8 @@ from app.schemas.public import (
     PublicJobSummary,
     QuizAnswerIn,
     QuizAnswerOut,
+    QuizEventsIn,
+    QuizEventsOut,
     QuizNextOut,
     QuizOptionOut,
     QuizQuestionOut,
@@ -217,3 +219,10 @@ async def quiz_answer(token: str, payload: QuizAnswerIn, db: DbSession) -> QuizA
             detail="This question is not open for answering",
         ) from None
     return QuizAnswerOut()
+
+
+@router.post("/quiz/{token}/events", response_model=QuizEventsOut)
+async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizEventsOut:
+    attempt = await _attempt_or_404(db, token)
+    await quiz_service.record_events(db, attempt, [event.model_dump() for event in payload.events])
+    return QuizEventsOut()

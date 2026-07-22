@@ -5,7 +5,7 @@ beyond published_at. What is not serialized cannot leak.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
@@ -116,4 +116,17 @@ class QuizAnswerIn(BaseModel):
 
 
 class QuizAnswerOut(BaseModel):
+    recorded: bool = True
+
+
+class QuizEvent(BaseModel):
+    type: Literal["blur", "paste", "resize"]
+    duration_ms: int | None = Field(default=None, ge=0, le=600_000)
+
+
+class QuizEventsIn(BaseModel):
+    events: list[QuizEvent] = Field(max_length=100)
+
+
+class QuizEventsOut(BaseModel):
     recorded: bool = True

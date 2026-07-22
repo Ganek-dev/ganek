@@ -46,13 +46,24 @@ function QuizBadge({ result }: { result: QuizResult | null }) {
   const breakdown = Object.entries(result.per_tag_scores)
     .map(([tag, bucket]) => `${tag}: ${bucket.correct}/${bucket.total}`)
     .join(" · ");
+  const flags = result.integrity.flags ?? [];
   return (
-    <span
-      title={breakdown}
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
-    >
-      quiz {percent}% ({correct}/{total})
-    </span>
+    <>
+      <span
+        title={breakdown}
+        className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
+      >
+        quiz {percent}% ({correct}/{total})
+      </span>
+      {flags.length > 0 ? (
+        <span
+          title={flags.join(" · ")}
+          className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+        >
+          ⚠ {flags.length}
+        </span>
+      ) : null}
+    </>
   );
 }
 

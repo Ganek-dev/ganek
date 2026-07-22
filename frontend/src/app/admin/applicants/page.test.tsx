@@ -38,6 +38,7 @@ const application: ApplicationOut = {
     per_tag_scores: { python: { correct: 3, total: 4 } },
     completed_at: "2026-07-21T10:05:00Z",
     question_ids: ["q1", "q2", "q3", "q4"],
+    integrity: { blur_count: 2, flags: ["left the tab 2x (~20s)"] },
   },
   created_at: "2026-07-21T10:00:00Z",
 };
@@ -64,6 +65,8 @@ describe("ApplicantsPage", () => {
     expect(screen.getByRole("button", { name: /CV \(244 KB\)/ })).toBeInTheDocument();
     const badge = screen.getByText("quiz 75% (3/4)");
     expect(badge).toHaveAttribute("title", "python: 3/4");
+    const warning = screen.getByText("⚠ 1");
+    expect(warning).toHaveAttribute("title", "left the tab 2x (~20s)");
   });
 
   it("shows pending badge for unfinished quizzes and none without a quiz", async () => {

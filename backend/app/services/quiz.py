@@ -11,6 +11,7 @@ import random
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,6 +143,53 @@ async def resolved_answers(db: AsyncSession, attempt: QuizAttempt) -> list[Attem
     )
 
 
+MAX_EVENTS_PER_CALL = 100
+_COUNTED_EVENTS = {"blur", "paste", "resize"}
+
+
+async def record_events(
+    db: AsyncSession, attempt: QuizAttempt, events: list[dict[str, int | str]]
+) -> None:
+    """Aggregate client integrity telemetry. Informational only — never scores."""
+    integrity = dict(attempt.integrity)
+    for event in events[:MAX_EVENTS_PER_CALL]:
+        kind = str(event.get("type", ""))
+        if kind not in _COUNTED_EVENTS:
+            continue
+        key = f"{kind}_count"
+        integrity[key] = min(int(integrity.get(key, 0)) + 1, 1000)
+        if kind == "blur":
+            duration = int(event.get("duration_ms", 0) or 0)
+            integrity["blur_total_ms"] = min(
+                int(integrity.get("blur_total_ms", 0)) + max(0, min(duration, 600_000)),
+                36_000_000,
+            )
+    attempt.integrity = integrity
+    await db.commit()
+
+
+def _integrity_flags(integrity: dict[str, Any], answers: list[AttemptAnswer]) -> list[str]:
+    flags: list[str] = []
+    blur_count = int(integrity.get("blur_count", 0) or 0)
+    if blur_count:
+        seconds = round(int(integrity.get("blur_total_ms", 0) or 0) / 1000)
+        flags.append(f"left the tab {blur_count}x (~{seconds}s)")
+    paste_count = int(integrity.get("paste_count", 0) or 0)
+    if paste_count:
+        flags.append(f"paste detected x{paste_count}")
+    timed = [
+        (a.answered_at - a.served_at).total_seconds()
+        for a in answers
+        if a.answered_at is not None and a.answer_key is not None
+    ]
+    if timed:
+        avg = sum(timed) / len(timed)
+        integrity["avg_answer_ms"] = int(avg * 1000)
+        if avg < 3 and len(timed) == len(answers):
+            flags.append(f"answered very fast (avg {avg:.1f}s)")
+    return flags
+
+
 async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
     answers = await resolved_answers(db, attempt)
     questions = {
@@ -161,6 +209,9 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
                 bucket["correct"] += 1
     attempt.score = correct / total if total else 0.0
     attempt.per_tag_scores = per_tag
+    integrity = dict(attempt.integrity)
+    integrity["flags"] = _integrity_flags(integrity, answers)
+    attempt.integrity = integrity
     attempt.status = AttemptStatus.COMPLETED
     attempt.completed_at = _now()
     await db.commit()

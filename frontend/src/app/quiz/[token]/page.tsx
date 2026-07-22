@@ -20,6 +20,46 @@ function useCountdown(deadline: string | null): number | null {
 
 type Phase = "loading" | "intro" | "question" | "done" | "expired" | "invalid";
 
+type IntegrityEvent = { type: "blur" | "paste" | "resize"; duration_ms?: number };
+
+function useIntegrityTelemetry(token: string, active: boolean) {
+  const queue = useRef<IntegrityEvent[]>([]);
+  const blurStarted = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        blurStarted.current = Date.now();
+      } else if (blurStarted.current !== null) {
+        queue.current.push({
+          type: "blur",
+          duration_ms: Date.now() - blurStarted.current,
+        });
+        blurStarted.current = null;
+      }
+    };
+    const onPaste = () => queue.current.push({ type: "paste" });
+    const onResize = () => queue.current.push({ type: "resize" });
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("paste", onPaste);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("paste", onPaste);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [active]);
+
+  return useCallback(() => {
+    if (queue.current.length === 0) return;
+    const batch = queue.current.splice(0, 100);
+    publicQuiz.events(token, batch).catch(() => {
+      // telemetry is best-effort; never block the quiz on it
+    });
+  }, [token]);
+}
+
 export default function QuizPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -32,6 +72,7 @@ export default function QuizPage() {
   const advancedFor = useRef<string | null>(null);
 
   const remaining = useCountdown(question?.deadline_at ?? null);
+  const flushTelemetry = useIntegrityTelemetry(token, phase === "question");
 
   const fail = useCallback((err: unknown) => {
     if (err instanceof ApiError && err.status === 404) setPhase("invalid");
@@ -91,6 +132,7 @@ export default function QuizPage() {
     } catch {
       // late or already-resolved answers are fine to ignore — just move on
     }
+    flushTelemetry();
     advance();
   }
 
