@@ -50,3 +50,27 @@ class StageUpdate(BaseModel):
 
 class CvDownload(BaseModel):
     download_url: str
+
+
+class ReviewIntegrityEvent(BaseModel):
+    type: str
+    duration_ms: int | None
+
+
+class QuizAnswerReview(BaseModel):
+    """One answered (or timed-out) question, recruiter-facing.
+
+    correct_key IS present — recruiters review answers. The hard rule
+    forbids it in candidate-facing schemas only.
+    """
+
+    question_id: str
+    prompt_md: str
+    options: dict[str, Any]
+    correct_key: str
+    explanation_md: str
+    tags: list[str]
+    answer_key: str | None  # None = time ran out
+    is_correct: bool
+    response_ms: int | None
+    integrity_events: list[ReviewIntegrityEvent]

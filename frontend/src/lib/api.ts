@@ -210,7 +210,27 @@ export const applications = {
     }),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
+  quizAnswers: (id: string) =>
+    request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
 };
+
+export interface ReviewIntegrityEvent {
+  type: string;
+  duration_ms: number | null;
+}
+
+export interface QuizAnswerReview {
+  question_id: string;
+  prompt_md: string;
+  options: Record<string, string>;
+  correct_key: string;
+  explanation_md: string;
+  tags: string[];
+  answer_key: string | null;
+  is_correct: boolean;
+  response_ms: number | null;
+  integrity_events: ReviewIntegrityEvent[];
+}
 
 export interface QuizOption {
   key: string;

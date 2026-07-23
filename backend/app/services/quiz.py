@@ -379,6 +379,28 @@ async def submit_answer(
     return answer
 
 
+async def get_attempt_by_application(
+    db: AsyncSession, application_id: uuid.UUID
+) -> QuizAttempt | None:
+    return (
+        await db.execute(select(QuizAttempt).where(QuizAttempt.application_id == application_id))
+    ).scalar_one_or_none()
+
+
+async def review_answers(
+    db: AsyncSession, attempt: QuizAttempt
+) -> list[tuple[AttemptAnswer, Question]]:
+    """Resolved answers paired with their questions, in serve order."""
+    answers = [a for a in await resolved_answers(db, attempt) if a.answered_at is not None]
+    questions = {
+        q.id: q
+        for q in (
+            await db.execute(select(Question).where(Question.id.in_(attempt.question_ids)))
+        ).scalars()
+    }
+    return [(answer, questions[answer.question_id]) for answer in answers]
+
+
 async def get_attempt_by_id(db: AsyncSession, attempt_id: uuid.UUID) -> QuizAttempt | None:
     return (
         await db.execute(select(QuizAttempt).where(QuizAttempt.id == attempt_id))
