@@ -106,4 +106,16 @@ expect 409 -X POST -H 'Content-Type: application/json' \
   -d "{\"name\":\"Smoke Candidate\",\"email\":\"candidate@smoke-e2e.dev\",\"cv_object_key\":\"$OBJECT_KEY\",\"cv_filename\":\"cv.pdf\"}" \
   "$BASE/api/v1/public/company/jobs/smoke-test-engineer/apply"
 
+step "rate limiting kicks in on auth (redis-backed)"
+RL_CODE=0
+for i in $(seq 1 12); do
+  RL_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H 'Content-Type: application/json' \
+    -d '{"email":"bruteforce@smoke-e2e.dev","password":"wrong-password-x"}' \
+    "$BASE/api/v1/auth/login")
+  if [ "$RL_CODE" = "429" ]; then break; fi
+done
+if [ "$RL_CODE" != "429" ]; then
+  echo "FAIL: 12 bad logins never hit the rate limit (last: $RL_CODE)"; exit 1
+fi
+
 echo "e2e smoke: OK"

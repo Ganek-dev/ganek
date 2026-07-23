@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # set true behind HTTPS in production
     questions_dir: str | None = None  # explicit question-bank path (auto-detected otherwise)
     cv_max_size_mb: int = 10
+    rate_limit_enabled: bool = True
+    trust_proxy_headers: bool = True  # browser traffic arrives via the Next proxy
+    rate_limit_auth_per_minute: int = 10
+    rate_limit_apply_per_minute: int = 5
+    rate_limit_upload_per_minute: int = 10
+    rate_limit_quiz_per_minute: int = 60
+    rate_limit_public_per_minute: int = 120
     quiz_network_grace_seconds: int = 2
     quiz_start_ttl_hours: int = 24
 

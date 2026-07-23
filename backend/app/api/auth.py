@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
+from app.core.ratelimit import rate_limit
 from app.core.security import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_token
 from app.models import User
 from app.schemas.auth import LoginRequest, RegisterRequest, UserOut
@@ -21,7 +22,12 @@ def _set_session_cookie(response: Response, user: User) -> None:
     )
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
 async def register(payload: RegisterRequest, response: Response, db: DbSession) -> User:
     try:
         user = await auth_service.register_company_admin(
@@ -44,7 +50,11 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
     return user
 
 
-@router.post("/login", response_model=UserOut)
+@router.post(
+    "/login",
+    response_model=UserOut,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
 async def login(payload: LoginRequest, response: Response, db: DbSession) -> User:
     user = await auth_service.authenticate(db, email=payload.email, password=payload.password)
     if user is None:
