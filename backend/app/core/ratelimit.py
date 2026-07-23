@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
+from fastapi import params as fastapi_params
 from redis import asyncio as aioredis
 
 from app.core.config import settings
@@ -94,7 +95,7 @@ async def check_rate_limit(request: Request, scope: str, per_minute: int) -> Non
         )
 
 
-def rate_limit(scope: str, limit_from_settings: Callable[[], int]) -> Callable[..., object]:
+def rate_limit(scope: str, limit_from_settings: Callable[[], int]) -> fastapi_params.Depends:
     """Dependency factory: `dependencies=[rate_limit("auth", lambda: settings.x)]`.
 
     The limit is read per request so tests and operators can tune it live.
