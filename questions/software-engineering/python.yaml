@@ -40,3 +40,363 @@ questions:
     explanation: >
       CPython 3.6 had ordered dicts as an implementation detail; Python 3.7
       made insertion order an official language guarantee.
+
+  # ── batch 1 (2026-07-23) ──────────────────────────────────────
+
+  - id: py-fstring-eval-1
+    difficulty: easy
+    prompt: 'What does `f"{2 + 3}"` evaluate to?'
+    options:
+      a: '`"5"`'
+      b: '`"2 + 3"`'
+      c: '`"{2 + 3}"`'
+      d: "A `SyntaxError`"
+    correct: a
+    explanation: >
+      f-strings evaluate the expressions inside the braces and interpolate
+      the results into the string.
+
+  - id: py-list-alias-1
+    difficulty: easy
+    prompt: "After `a = [1]`, `b = a`, `b.append(2)` — what is `a`?"
+    options:
+      a: "`[1, 2]`"
+      b: "`[1]`"
+      c: "`[2]`"
+      d: "A `ValueError` is raised"
+    correct: a
+    explanation: >
+      Assignment never copies. `a` and `b` are two names for the same list
+      object, so mutating through either name is visible through both.
+
+  - id: py-is-vs-eq-1
+    difficulty: easy
+    prompt: "What is the difference between `==` and `is`?"
+    options:
+      a: "`==` compares values, `is` compares object identity"
+      b: "They are interchangeable"
+      c: "`is` compares values, `==` compares identity"
+      d: "`is` only works on numbers"
+    correct: a
+    explanation: >
+      `==` calls `__eq__` (value equality); `is` checks whether both names
+      point to the very same object in memory.
+
+  - id: py-len-dict-1
+    difficulty: easy
+    prompt: 'What does `len({"a": 1, "b": 2})` return?'
+    options:
+      a: "`2`"
+      b: "`4`"
+      c: "`1`"
+      d: "A `TypeError`"
+    correct: a
+    explanation: "`len` on a dict counts its keys."
+
+  - id: py-tuple-immutable-1
+    difficulty: easy
+    prompt: "What happens when you run `t = (1, 2)` then `t[0] = 3`?"
+    options:
+      a: "A `TypeError` — tuples are immutable"
+      b: "`t` becomes `(3, 2)`"
+      c: "A new tuple is silently created"
+      d: "A `KeyError`"
+    correct: a
+    explanation: >
+      Tuples do not support item assignment; mutation attempts raise
+      TypeError.
+
+  - id: py-slice-basic-1
+    difficulty: easy
+    prompt: "What does `[1, 2, 3, 4][1:3]` return?"
+    options:
+      a: "`[2, 3]`"
+      b: "`[2, 3, 4]`"
+      c: "`[1, 2, 3]`"
+      d: "`[3, 4]`"
+    correct: a
+    explanation: >
+      Slicing is start-inclusive and stop-exclusive: indices 1 and 2.
+
+  - id: py-none-check-1
+    difficulty: easy
+    prompt: "The idiomatic way to test whether `x` is `None`?"
+    options:
+      a: "`if x is None:`"
+      b: "`if x == None:`"
+      c: "`if not x:`"
+      d: "`if x.equals(None):`"
+    correct: a
+    explanation: >
+      PEP 8 prescribes identity comparison for singletons. `not x` is wrong
+      because 0, "" and [] are also falsy.
+
+  - id: py-set-dedup-1
+    difficulty: easy
+    prompt: "What is `len(set([1, 2, 2, 3, 3, 3]))`?"
+    options:
+      a: "`3`"
+      b: "`6`"
+      c: "`2`"
+      d: "A `ValueError` — duplicate elements"
+    correct: a
+    explanation: "Sets keep unique elements only: {1, 2, 3}."
+
+  - id: py-floor-div-1
+    difficulty: easy
+    prompt: "What does `7 // 2` evaluate to?"
+    options:
+      a: "`3`"
+      b: "`3.5`"
+      c: "`4`"
+      d: "`3.0`"
+    correct: a
+    explanation: "`//` is floor division; for ints it yields an int, rounded down."
+
+  - id: py-finally-1
+    difficulty: easy
+    prompt: "When does a `finally:` block run?"
+    options:
+      a: "Always — even if the try block raises or returns"
+      b: "Only when no exception occurred"
+      c: "Only when an exception occurred"
+      d: "Only if the exception was not caught"
+    correct: a
+    explanation: >
+      `finally` runs on every path out of the try statement — normal exit,
+      exception, return, break or continue.
+
+  - id: py-venv-purpose-1
+    difficulty: easy
+    prompt: "What is the purpose of a virtual environment (venv)?"
+    options:
+      a: "Isolating a project's installed packages from other projects"
+      b: "Running Python in a virtual machine"
+      c: "Compiling Python to machine code"
+      d: "Sandboxing Python away from the filesystem"
+    correct: a
+    explanation: >
+      A venv gives each project its own interpreter environment and
+      site-packages, preventing dependency version conflicts.
+
+  - id: py-dict-get-1
+    difficulty: easy
+    prompt: 'What does `{"a": 1}.get("b", 0)` return?'
+    options:
+      a: "`0`"
+      b: "`None`"
+      c: "A `KeyError`"
+      d: "`1`"
+    correct: a
+    explanation: >
+      `dict.get` returns the second argument as a default when the key is
+      missing, instead of raising KeyError.
+
+  - id: py-args-kwargs-1
+    difficulty: medium
+    prompt: "In `def f(*args, **kwargs)`, what is `args` inside the function?"
+    options:
+      a: "A tuple of the extra positional arguments"
+      b: "A list of the extra positional arguments"
+      c: "A dict of all arguments"
+      d: "A generator over the arguments"
+    correct: a
+    explanation: >
+      `*args` collects surplus positional arguments into a tuple;
+      `**kwargs` collects surplus keyword arguments into a dict.
+
+  - id: py-generator-def-1
+    difficulty: medium
+    prompt: "Calling a function whose body contains `yield` returns what?"
+    options:
+      a: "A generator object; the body has not run yet"
+      b: "The first yielded value"
+      c: "A list of all yielded values"
+      d: "`None`"
+    correct: a
+    explanation: >
+      The presence of `yield` makes it a generator function. Calling it
+      creates a generator; the body executes lazily as you iterate.
+
+  - id: py-decorator-equiv-1
+    difficulty: medium
+    prompt: "`@decorator` above `def f(): ...` is equivalent to which statement?"
+    options:
+      a: "`f = decorator(f)`"
+      b: "`f = decorator()`"
+      c: "`decorator.register(f)`"
+      d: "`f.decorator = True`"
+    correct: a
+    explanation: >
+      Decorator syntax applies the decorator to the function and rebinds
+      the name to the result.
+
+  - id: py-comprehension-scope-1
+    difficulty: medium
+    prompt: "After `[x for x in range(3)]` at module level, is `x` defined?"
+    options:
+      a: "No — comprehensions have their own scope in Python 3"
+      b: "Yes, `x` is `2`"
+      c: "Yes, `x` is `0`"
+      d: "Only inside functions"
+    correct: a
+    explanation: >
+      Unlike Python 2, comprehension variables do not leak into the
+      enclosing scope in Python 3.
+
+  - id: py-with-open-1
+    difficulty: medium
+    prompt: "What does `with open(path) as f:` guarantee?"
+    options:
+      a: "The file is closed when the block exits, even on an exception"
+      b: "The file cannot be opened by other processes"
+      c: "All writes are flushed to disk immediately"
+      d: "The file is opened read-only"
+    correct: a
+    explanation: >
+      The context manager protocol calls `f.__exit__` on every path out of
+      the block, which closes the file.
+
+  - id: py-lru-cache-1
+    difficulty: medium
+    prompt: "What does `functools.lru_cache` do when applied to a function?"
+    options:
+      a: "Memoizes return values keyed by the call arguments"
+      b: "Limits how often the function may be called"
+      c: "Runs the function in a background thread"
+      d: "Caches the function's bytecode"
+    correct: a
+    explanation: >
+      Repeated calls with the same (hashable) arguments return the cached
+      result instead of re-running the body.
+
+  - id: py-shallow-copy-1
+    difficulty: medium
+    prompt: "`b = a.copy()` on a list of lists is a shallow copy — meaning?"
+    options:
+      a: "The outer list is new, but inner lists are shared with `a`"
+      b: "Everything is duplicated recursively"
+      c: "`b` is just another name for `a`"
+      d: "Only the first element is copied"
+    correct: a
+    explanation: >
+      A shallow copy duplicates one level; nested objects are shared.
+      Use `copy.deepcopy` for a full recursive copy.
+
+  - id: py-str-join-1
+    difficulty: medium
+    prompt: 'Why is `"".join(parts)` preferred over `s += part` in a loop?'
+    options:
+      a: "Strings are immutable, so each `+=` builds a whole new string"
+      b: "`join` sorts the parts first"
+      c: "`+=` is not allowed on strings"
+      d: "`join` works in parallel"
+    correct: a
+    explanation: >
+      Repeated concatenation of immutable strings is quadratic in total;
+      join builds the result in a single pass.
+
+  - id: py-dataclass-gen-1
+    difficulty: medium
+    prompt: "What does the `@dataclass` decorator generate for a class by default?"
+    options:
+      a: "`__init__`, `__repr__` and `__eq__` from the declared fields"
+      b: "Database table mappings"
+      c: "JSON serialization methods"
+      d: "Getters and setters for each field"
+    correct: a
+    explanation: >
+      dataclasses derive the standard boilerplate from field annotations;
+      ordering and hashing are opt-in flags.
+
+  - id: py-raise-from-1
+    difficulty: medium
+    prompt: "What does `raise NewError(...) from err` do?"
+    options:
+      a: "Chains explicitly: sets `err` as the new exception's `__cause__`"
+      b: "Suppresses the original traceback entirely"
+      c: "Re-raises `err` unchanged"
+      d: "Retries the failed operation once"
+    correct: a
+    explanation: >
+      Explicit chaining records the original exception as the cause, shown
+      as "The above exception was the direct cause..." in tracebacks.
+
+  - id: py-closure-late-binding-1
+    difficulty: hard
+    prompt: "`funcs = [lambda: i for i in range(3)]` — what does `funcs[0]()` return?"
+    options:
+      a: "`2`"
+      b: "`0`"
+      c: "`1`"
+      d: "A `NameError`"
+    correct: a
+    explanation: >
+      Closures capture the variable, not its value at creation time. After
+      the comprehension finishes, `i` is 2 for all three lambdas. The fix
+      is a default argument: `lambda i=i: i`.
+
+  - id: py-mro-1
+    difficulty: hard
+    prompt: "With multiple inheritance, how does Python decide which parent method to call?"
+    options:
+      a: "The C3-linearized MRO (method resolution order)"
+      b: "Alphabetical order of class names"
+      c: "The most recently defined class wins"
+      d: "It raises unless you call the parent explicitly"
+    correct: a
+    explanation: >
+      Python linearizes the class hierarchy with the C3 algorithm;
+      `Class.__mro__` shows the exact lookup order that `super()` follows.
+
+  - id: py-memory-mgmt-1
+    difficulty: hard
+    prompt: "How does CPython primarily manage memory?"
+    options:
+      a: "Reference counting, plus a cyclic garbage collector"
+      b: "A compacting generational GC like the JVM"
+      c: "Manual allocation with malloc/free"
+      d: "Arena allocation freed only at exit"
+    correct: a
+    explanation: >
+      Objects are freed as soon as their refcount hits zero; the cycle
+      collector exists only to break reference cycles refcounting misses.
+
+  - id: py-slots-1
+    difficulty: hard
+    prompt: "What is the effect of defining `__slots__` on a class?"
+    options:
+      a: "Instances get fixed attributes and no per-instance `__dict__`, saving memory"
+      b: "The class becomes thread-safe"
+      c: "Attributes become read-only"
+      d: "The class can no longer be subclassed"
+    correct: a
+    explanation: >
+      __slots__ replaces the instance dict with fixed storage — lower
+      memory and faster attribute access, at the cost of dynamic attrs.
+
+  - id: py-generator-exhaust-1
+    difficulty: hard
+    prompt: "`g = (n for n in range(3))`, then `list(g)` twice — what does the second `list(g)` give?"
+    options:
+      a: "`[]` — the generator is exhausted"
+      b: "`[0, 1, 2]` again"
+      c: "A `StopIteration` escapes to the caller"
+      d: "A `RuntimeError`"
+    correct: a
+    explanation: >
+      Generators are single-pass iterators. Once exhausted they keep
+      returning nothing; re-create the generator to iterate again.
+
+  - id: py-unhashable-key-1
+    difficulty: hard
+    prompt: "What happens when you use a list as a dict key, e.g. `{[1, 2]: 'x'}`?"
+    options:
+      a: "A `TypeError` — lists are unhashable"
+      b: "It works; the list is converted to a tuple"
+      c: "A `KeyError`"
+      d: "The dict silently stores it by identity"
+    correct: a
+    explanation: >
+      Dict keys must be hashable. Mutable built-ins (list, dict, set) are
+      not; use a tuple instead.

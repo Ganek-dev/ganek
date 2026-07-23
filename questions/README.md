@@ -15,7 +15,7 @@ Open, community-maintained pool of screening questions. Layout: `{domain}/{tag}.
 
 | Tag | easy | medium | hard | Quiz-ready |
 |---|---|---|---|---|
-| python | 2 | 1 | 0 | ❌ (seed examples only) |
+| python | 14 | 11 | 6 | ❌ (growing — batch 1 landed) |
 | asyncio | 1 | 2 | 0 | ❌ (seed examples only) |
 
 (Update this table in PRs. Target for launch: python, asyncio, fastapi, javascript, typescript, react, go, sql, backend, frontend, devops, git.)
