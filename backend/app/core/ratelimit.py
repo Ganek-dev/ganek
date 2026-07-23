@@ -29,7 +29,9 @@ def _get_redis() -> aioredis.Redis | None:
     if _redis_broken:
         return None
     if _redis is None:
-        _redis = aioredis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1)
+        _redis = aioredis.from_url(  # type: ignore[no-untyped-call]
+            settings.redis_url, socket_connect_timeout=1, socket_timeout=1
+        )
     return _redis
 
 
@@ -104,7 +106,7 @@ def rate_limit(scope: str, limit_from_settings: Callable[[], int]) -> fastapi_pa
     async def dependency(request: Request) -> None:
         await check_rate_limit(request, scope, limit_from_settings())
 
-    return Depends(dependency)
+    return fastapi_params.Depends(dependency=dependency, use_cache=True)
 
 
 RequestIp = Annotated[str, Depends(client_ip)]
