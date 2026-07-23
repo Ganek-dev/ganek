@@ -1,8 +1,8 @@
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 
 from app.api import applications, auth, jobs, public, questions
 from app.core.config import settings
@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    if settings.secret_key == "change-me":  # noqa: S105
+        logger.critical(
+            "VETD_SECRET_KEY is the default value — sessions and quiz tokens are "
+            "forgeable. Set a real secret before exposing this instance: "
+            "openssl rand -hex 32"
+        )
     try:
         await ensure_bucket_async()
     except Exception:  # noqa: BLE001 - S3 is optional at boot (e.g. DB-less tests)
@@ -29,6 +35,23 @@ app = FastAPI(
 )
 
 app.include_router(applications.router, prefix="/api/v1")
+
+
+@app.middleware("http")
+async def security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if request.url.path.startswith("/api/v1"):
+        # API responses carry per-user data; never let shared caches keep them
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
+
+
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
