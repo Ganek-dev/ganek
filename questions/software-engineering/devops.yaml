@@ -1,0 +1,220 @@
+domain: software-engineering
+tag: devops
+questions:
+  - id: devops-image-container-1
+    difficulty: easy
+    prompt: "Docker image vs container?"
+    options:
+      a: "An image is the immutable template; a container is a running instance of it"
+      b: "They are synonyms"
+      c: "Containers are stored in registries, images run"
+      d: "An image is one running process, a container is many"
+    correct: a
+    explanation: >
+      One image can back many containers, each with its own writable
+      layer and lifecycle.
+
+  - id: devops-dockerfile-1
+    difficulty: easy
+    prompt: "What is a Dockerfile?"
+    options:
+      a: "A recipe of instructions for building an image"
+      b: "The container's runtime log"
+      c: "A Docker Hub account settings file"
+      d: "A container backup archive"
+    correct: a
+    explanation: >
+      FROM/COPY/RUN etc. build the image layer by layer, reproducibly.
+
+  - id: devops-ci-1
+    difficulty: easy
+    prompt: "What is Continuous Integration (CI)?"
+    options:
+      a: "Automatically building and testing every change pushed to the repository"
+      b: "Deploying to production on every commit"
+      c: "Merging branches once a week"
+      d: "Continuously monitoring servers"
+    correct: a
+    explanation: >
+      CI catches integration breakage early; deployment automation is CD,
+      a separate step.
+
+  - id: devops-env-config-1
+    difficulty: easy
+    prompt: "Why configure apps via environment variables rather than baked-in files?"
+    options:
+      a: "The same build runs in every environment; secrets stay out of the image and repo"
+      b: "Env vars are encrypted automatically"
+      c: "Files cannot be read inside containers"
+      d: "It makes the image smaller"
+    correct: a
+    explanation: >
+      Build once, configure per environment (12-factor); rotating a
+      secret doesn't mean rebuilding an image.
+
+  - id: devops-compose-1
+    difficulty: easy
+    prompt: "What is docker compose for?"
+    options:
+      a: "Defining and running a multi-container application (app + db + cache) from one file"
+      b: "Composing multiple images into one"
+      c: "Orchestrating containers across many servers"
+      d: "Compressing images"
+    correct: a
+    explanation: >
+      compose.yml declares services, networks and volumes for local/
+      single-host stacks; multi-host is orchestration territory.
+
+  - id: devops-port-map-1
+    difficulty: easy
+    prompt: "What does `-p 8080:80` mean in `docker run`?"
+    options:
+      a: "Host port 8080 forwards to container port 80"
+      b: "Container port 8080 forwards to host port 80"
+      c: "Open ports 80 through 8080"
+      d: "Limit the container to 8080 connections"
+    correct: a
+    explanation: "The order is host:container."
+
+  - id: devops-container-vm-1
+    difficulty: medium
+    prompt: "Containers vs virtual machines?"
+    options:
+      a: "Containers share the host kernel and isolate processes; VMs virtualize hardware with a full OS each"
+      b: "Containers are small VMs"
+      c: "VMs share the kernel, containers don't"
+      d: "Containers cannot run Linux software"
+    correct: a
+    explanation: >
+      Kernel sharing makes containers start in ms and cost MBs — with
+      weaker isolation than hardware virtualization.
+
+  - id: devops-healthcheck-1
+    difficulty: medium
+    prompt: "Why do deployments define health checks?"
+    options:
+      a: "So the platform routes traffic only to instances that actually work, and restarts/holds back the rest"
+      b: "To measure code coverage in production"
+      c: "To warm CPU caches"
+      d: "To validate TLS certificates"
+    correct: a
+    explanation: >
+      Readiness gates traffic; liveness triggers restarts. Without them,
+      broken instances happily receive requests.
+
+  - id: devops-stdout-logs-1
+    difficulty: medium
+    prompt: "Why should containerized apps log to stdout/stderr instead of files?"
+    options:
+      a: "The runtime captures the streams so the platform can collect, ship and rotate logs uniformly"
+      b: "Files are read-only in containers"
+      c: "stdout is faster than disk"
+      d: "It encrypts the logs"
+    correct: a
+    explanation: >
+      Twelve-factor logging: the app writes events; the environment owns
+      aggregation.
+
+  - id: devops-layer-cache-1
+    difficulty: medium
+    prompt: "Why COPY dependency manifests and install BEFORE copying the app code in a Dockerfile?"
+    options:
+      a: "Layer caching: code changes then reuse the cached dependency layer instead of reinstalling"
+      b: "It reduces the final image size"
+      c: "Later layers run with fewer privileges"
+      d: "The order is required by Docker"
+    correct: a
+    explanation: >
+      A layer's cache invalidates when its inputs change; keeping
+      volatile code last makes rebuilds fast.
+
+  - id: devops-rolling-1
+    difficulty: medium
+    prompt: "What is a rolling deployment?"
+    options:
+      a: "Replacing instances gradually so some old and some new serve traffic during the rollout"
+      b: "Deploying at a fixed time daily"
+      c: "Deploying to all servers simultaneously"
+      d: "Rolling back after every deploy"
+    correct: a
+    explanation: >
+      Zero-downtime updates — which also means two versions run at once,
+      so changes (e.g. DB schema) must be compatible with both.
+
+  - id: devops-reverse-proxy-1
+    difficulty: medium
+    prompt: "What does a reverse proxy (nginx, Caddy) in front of an app typically do?"
+    options:
+      a: "Terminates TLS, routes requests to backends, load-balances, serves static files"
+      b: "Hides the client's IP from the internet"
+      c: "Replaces the application server"
+      d: "Caches database queries"
+    correct: a
+    explanation: >
+      A forward proxy fronts clients; a REVERSE proxy fronts servers —
+      the standard edge for web apps.
+
+  - id: devops-secrets-1
+    difficulty: medium
+    prompt: "Why must secrets never be baked into Docker images?"
+    options:
+      a: "Images are widely copied and layers are inspectable — anyone with the image has the secret"
+      b: "Secrets make images too large"
+      c: "Docker refuses to build them"
+      d: "Secrets expire when images are pushed"
+    correct: a
+    explanation: >
+      Even 'deleted' files persist in earlier layers. Inject at runtime:
+      env vars, mounted secrets, or a secrets manager.
+
+  - id: devops-blue-green-1
+    difficulty: hard
+    prompt: "Blue-green vs canary deployment?"
+    options:
+      a: "Blue-green switches all traffic between two full environments; canary shifts a small share to the new version first"
+      b: "Canary is for databases, blue-green for apps"
+      c: "Blue-green requires Kubernetes"
+      d: "They are the same strategy"
+    correct: a
+    explanation: >
+      Blue-green gives instant cutover/rollback; canary trades speed for
+      risk containment with real-traffic validation.
+
+  - id: devops-orchestrator-1
+    difficulty: hard
+    prompt: "What does an orchestrator like Kubernetes fundamentally do?"
+    options:
+      a: "Continuously reconciles declared desired state — scheduling, scaling, healing across a cluster"
+      b: "Builds container images faster"
+      c: "Replaces the need for load balancers"
+      d: "Runs containers with kernel-level isolation"
+    correct: a
+    explanation: >
+      You declare what should run; the control loop makes reality match —
+      restarting, rescheduling and scaling as needed.
+
+  - id: devops-immutable-1
+    difficulty: hard
+    prompt: "What is immutable infrastructure?"
+    options:
+      a: "Servers/containers are never patched in place — changes ship as new images replacing old instances"
+      b: "Infrastructure that cannot be deleted"
+      c: "Read-only file systems everywhere"
+      d: "Hardware without firmware updates"
+    correct: a
+    explanation: >
+      No config drift, reproducible rollbacks: the artifact IS the
+      environment version.
+
+  - id: devops-observability-1
+    difficulty: hard
+    prompt: "The three classic pillars of observability?"
+    options:
+      a: "Logs, metrics, and traces"
+      b: "Alerts, dashboards, and runbooks"
+      c: "CPU, memory, and disk"
+      d: "Tests, builds, and deploys"
+    correct: a
+    explanation: >
+      Logs record events, metrics aggregate numbers over time, traces
+      follow one request across services.
