@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import DbSession, PublicCompany, SingleCompany
 from app.core.config import settings
+from app.core.ratelimit import rate_limit
 from app.core.security import create_quiz_token, read_quiz_token
 from app.models import Company, Job, QuizAttempt
 from app.schemas.public import (
@@ -46,23 +47,39 @@ async def _published_job_or_404(db: DbSession, company: Company, job_slug: str) 
 
 
 # Multi-tenant routes (hosted): /c/{slug} pages
-@router.get("/companies/{slug}", response_model=PublicCompanyPage)
+@router.get(
+    "/companies/{slug}",
+    response_model=PublicCompanyPage,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
 async def company_page(company: PublicCompany, db: DbSession) -> PublicCompanyPage:
     return await _company_page(db, company)
 
 
-@router.get("/companies/{slug}/jobs/{job_slug}", response_model=PublicJobDetail)
+@router.get(
+    "/companies/{slug}/jobs/{job_slug}",
+    response_model=PublicJobDetail,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
 async def company_job(company: PublicCompany, job_slug: str, db: DbSession) -> Job:
     return await _published_job_or_404(db, company, job_slug)
 
 
 # Single-tenant routes (self-host): the instance's one company at /
-@router.get("/company", response_model=PublicCompanyPage)
+@router.get(
+    "/company",
+    response_model=PublicCompanyPage,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
 async def single_company_page(company: SingleCompany, db: DbSession) -> PublicCompanyPage:
     return await _company_page(db, company)
 
 
-@router.get("/company/jobs/{job_slug}", response_model=PublicJobDetail)
+@router.get(
+    "/company/jobs/{job_slug}",
+    response_model=PublicJobDetail,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
 async def single_company_job(company: SingleCompany, job_slug: str, db: DbSession) -> Job:
     return await _published_job_or_404(db, company, job_slug)
 
@@ -108,7 +125,11 @@ async def _apply(
     return ApplicationReceived(quiz_token=quiz_token)
 
 
-@router.post("/companies/{slug}/jobs/{job_slug}/apply/upload-url", response_model=CvUploadTicket)
+@router.post(
+    "/companies/{slug}/jobs/{job_slug}/apply/upload-url",
+    response_model=CvUploadTicket,
+    dependencies=[rate_limit("upload", lambda: settings.rate_limit_upload_per_minute)],
+)
 async def company_cv_upload_url(
     company: PublicCompany, job_slug: str, db: DbSession
 ) -> CvUploadTicket:
@@ -120,6 +141,7 @@ async def company_cv_upload_url(
     "/companies/{slug}/jobs/{job_slug}/apply",
     response_model=ApplicationReceived,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[rate_limit("apply", lambda: settings.rate_limit_apply_per_minute)],
 )
 async def company_apply(
     company: PublicCompany,
@@ -131,7 +153,11 @@ async def company_apply(
     return await _apply(db, company, job_slug, payload, background)
 
 
-@router.post("/company/jobs/{job_slug}/apply/upload-url", response_model=CvUploadTicket)
+@router.post(
+    "/company/jobs/{job_slug}/apply/upload-url",
+    response_model=CvUploadTicket,
+    dependencies=[rate_limit("upload", lambda: settings.rate_limit_upload_per_minute)],
+)
 async def single_cv_upload_url(
     company: SingleCompany, job_slug: str, db: DbSession
 ) -> CvUploadTicket:
@@ -143,6 +169,7 @@ async def single_cv_upload_url(
     "/company/jobs/{job_slug}/apply",
     response_model=ApplicationReceived,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[rate_limit("apply", lambda: settings.rate_limit_apply_per_minute)],
 )
 async def single_apply(
     company: SingleCompany,
@@ -168,7 +195,11 @@ async def _answered_count(db: DbSession, attempt: "QuizAttempt") -> int:
     return sum(1 for a in await quiz_service.resolved_answers(db, attempt) if a.answered_at)
 
 
-@router.get("/quiz/{token}", response_model=QuizStateOut)
+@router.get(
+    "/quiz/{token}",
+    response_model=QuizStateOut,
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
 async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
     attempt = await _attempt_or_404(db, token)
     return QuizStateOut(
@@ -178,7 +209,11 @@ async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
     )
 
 
-@router.post("/quiz/{token}/next", response_model=QuizNextOut)
+@router.post(
+    "/quiz/{token}/next",
+    response_model=QuizNextOut,
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
 async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
     attempt = await _attempt_or_404(db, token)
     try:
@@ -208,7 +243,11 @@ async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
     )
 
 
-@router.post("/quiz/{token}/answer", response_model=QuizAnswerOut)
+@router.post(
+    "/quiz/{token}/answer",
+    response_model=QuizAnswerOut,
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
 async def quiz_answer(token: str, payload: QuizAnswerIn, db: DbSession) -> QuizAnswerOut:
     attempt = await _attempt_or_404(db, token)
     try:
@@ -221,7 +260,11 @@ async def quiz_answer(token: str, payload: QuizAnswerIn, db: DbSession) -> QuizA
     return QuizAnswerOut()
 
 
-@router.post("/quiz/{token}/events", response_model=QuizEventsOut)
+@router.post(
+    "/quiz/{token}/events",
+    response_model=QuizEventsOut,
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
 async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizEventsOut:
     attempt = await _attempt_or_404(db, token)
     await quiz_service.record_events(db, attempt, [event.model_dump() for event in payload.events])
