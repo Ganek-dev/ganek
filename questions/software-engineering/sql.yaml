@@ -1,0 +1,244 @@
+domain: software-engineering
+tag: sql
+questions:
+  - id: sql-where-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What does the WHERE clause do?"
+    options:
+      a: "Filters rows before they are returned or modified"
+      b: "Chooses which columns appear"
+      c: "Sorts the result"
+      d: "Joins two tables"
+    correct: a
+    explanation: "WHERE keeps only rows matching the condition."
+
+  - id: sql-primary-key-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What does a PRIMARY KEY guarantee?"
+    options:
+      a: "Each row is uniquely identified; values are unique and not NULL"
+      b: "The column is encrypted"
+      c: "The table is sorted by it on disk in every database"
+      d: "Foreign tables update automatically"
+    correct: a
+    explanation: >
+      Primary keys enforce uniqueness + NOT NULL and are the standard
+      target for foreign keys.
+
+  - id: sql-count-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What does `SELECT COUNT(*) FROM users` return?"
+    options:
+      a: "The number of rows in users"
+      b: "The number of columns"
+      c: "The sum of all numeric columns"
+      d: "The table size in bytes"
+    correct: a
+    explanation: "COUNT(*) counts rows, including those with NULLs."
+
+  - id: sql-order-by-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "How do you sort results by newest first on a `created_at` column?"
+    options:
+      a: "`ORDER BY created_at DESC`"
+      b: "`SORT BY created_at DOWN`"
+      c: "`ORDER BY created_at ASC`"
+      d: "`GROUP BY created_at DESC`"
+    correct: a
+    explanation: "ORDER BY ... DESC sorts descending; ASC (default) ascending."
+
+  - id: sql-insert-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "Which statement adds a row?"
+    options:
+      a: "`INSERT INTO users (name) VALUES ('Jane')`"
+      b: "`ADD ROW users ('Jane')`"
+      c: "`UPDATE users APPEND ('Jane')`"
+      d: "`CREATE ROW IN users ('Jane')`"
+    correct: a
+    explanation: "INSERT INTO ... VALUES is the standard row-creation syntax."
+
+  - id: sql-distinct-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What does `SELECT DISTINCT country FROM users` return?"
+    options:
+      a: "Each country at most once"
+      b: "Countries with more than one user"
+      c: "The first country alphabetically"
+      d: "A count per country"
+    correct: a
+    explanation: "DISTINCT removes duplicate result rows."
+
+  - id: sql-left-join-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "INNER JOIN vs LEFT JOIN — the difference?"
+    options:
+      a: "LEFT JOIN keeps unmatched left-side rows (with NULLs); INNER keeps only matches"
+      b: "LEFT JOIN is faster INNER JOIN"
+      c: "INNER JOIN keeps unmatched rows from both sides"
+      d: "LEFT JOIN ignores the join condition"
+    correct: a
+    explanation: >
+      Users LEFT JOIN orders returns users with zero orders too; INNER
+      drops them.
+
+  - id: sql-null-compare-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "Why does `WHERE deleted_at = NULL` match nothing?"
+    options:
+      a: "Comparisons with NULL yield UNKNOWN — use IS NULL instead"
+      b: "NULL must be quoted"
+      c: "deleted_at cannot store NULL"
+      d: "= only works on numbers"
+    correct: a
+    explanation: >
+      NULL is "unknown": NULL = NULL is not true. IS NULL / IS NOT NULL
+      are the null tests.
+
+  - id: sql-group-by-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "What does `SELECT country, COUNT(*) FROM users GROUP BY country` produce?"
+    options:
+      a: "One row per country with its user count"
+      b: "All users sorted by country"
+      c: "One row per user with a running total"
+      d: "A syntax error — COUNT needs HAVING"
+    correct: a
+    explanation: >
+      GROUP BY collapses rows sharing a value; aggregates compute per
+      group.
+
+  - id: sql-having-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "WHERE vs HAVING?"
+    options:
+      a: "WHERE filters rows before grouping; HAVING filters groups after aggregation"
+      b: "HAVING is faster WHERE"
+      c: "WHERE works only with joins"
+      d: "They are interchangeable"
+    correct: a
+    explanation: >
+      `HAVING COUNT(*) > 5` is legal because HAVING sees aggregate
+      results; WHERE cannot reference them.
+
+  - id: sql-foreign-key-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "What does a FOREIGN KEY constraint enforce?"
+    options:
+      a: "Referential integrity: the value must exist in the referenced table (or be NULL)"
+      b: "The column is indexed automatically in all databases"
+      c: "Rows are copied to the other table"
+      d: "The referenced table becomes read-only"
+    correct: a
+    explanation: >
+      Orphan references are rejected; ON DELETE rules (CASCADE, SET NULL)
+      define what happens when the parent goes.
+
+  - id: sql-index-tradeoff-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "What is the trade-off of adding an index?"
+    options:
+      a: "Faster lookups on that column, but slower writes and extra storage"
+      b: "Faster everything"
+      c: "Faster writes, slower reads"
+      d: "Only storage cost, no performance impact"
+    correct: a
+    explanation: >
+      Every INSERT/UPDATE/DELETE must also maintain the index structure —
+      index what you query, not everything.
+
+  - id: sql-injection-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "The correct defense against SQL injection?"
+    options:
+      a: "Parameterized queries / prepared statements — never string-concatenate user input"
+      b: "Escaping quotes with a regex"
+      c: "Base64-encoding the input"
+      d: "Hiding error messages"
+    correct: a
+    explanation: >
+      Placeholders keep data out of the query's code channel entirely;
+      hand-escaping always eventually misses a case.
+
+  - id: sql-limit-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "What does `LIMIT 10 OFFSET 20` do?"
+    options:
+      a: "Skips the first 20 result rows and returns the next 10"
+      b: "Returns rows 10 through 20"
+      c: "Limits the query to 20 seconds"
+      d: "Samples 10 random rows"
+    correct: a
+    explanation: >
+      Classic pagination (page 3 of size 10) — mind that large offsets
+      still scan the skipped rows.
+
+  - id: sql-transaction-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "Two UPDATEs run inside one transaction and the second fails; you ROLLBACK. What's the state?"
+    options:
+      a: "Neither update is applied — atomicity restores the pre-transaction state"
+      b: "The first update persists"
+      c: "Both persist but flagged dirty"
+      d: "The table is locked until repaired"
+    correct: a
+    explanation: >
+      Transactions are all-or-nothing; rollback undoes every change made
+      within them.
+
+  - id: sql-nplus1-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "What is the N+1 query problem?"
+    options:
+      a: "One query for a list, then one more per item for its relations — instead of a single join/batch"
+      b: "A query that returns N+1 duplicate rows"
+      c: "An off-by-one error in LIMIT"
+      d: "Using N+1 indexes on one table"
+    correct: a
+    explanation: >
+      Typical ORM lazy-loading trap: 1 + N round-trips. Fix with joins or
+      eager/batched loading.
+
+  - id: sql-explain-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "What does EXPLAIN show you?"
+    options:
+      a: "The planner's execution plan — scans, index usage, join strategy, cost estimates"
+      b: "Documentation for the tables involved"
+      c: "The query rewritten in standard SQL"
+      d: "Which user last ran the query"
+    correct: a
+    explanation: >
+      EXPLAIN (ANALYZE) is the first tool for slow queries: it reveals
+      sequential scans where you expected index hits.
+
+  - id: sql-isolation-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "Under READ COMMITTED, what can two identical SELECTs inside one transaction observe?"
+    options:
+      a: "Different rows — other transactions' commits between them are visible (non-repeatable reads)"
+      b: "Always identical results"
+      c: "Uncommitted data from other transactions"
+      d: "Only data older than the transaction"
+    correct: a
+    explanation: >
+      READ COMMITTED prevents dirty reads but not non-repeatable ones;
+      REPEATABLE READ / SERIALIZABLE strengthen that.
