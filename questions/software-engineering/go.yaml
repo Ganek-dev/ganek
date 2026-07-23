@@ -1,0 +1,252 @@
+domain: software-engineering
+tag: go
+questions:
+  - id: go-goroutine-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "How do you start a goroutine?"
+    options:
+      a: "`go doWork()`"
+      b: "`async doWork()`"
+      c: "`thread.Start(doWork)`"
+      d: "`spawn doWork()`"
+    correct: a
+    explanation: >
+      The go keyword runs the call concurrently on a lightweight runtime-
+      scheduled goroutine.
+
+  - id: go-declare-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What does `x := 5` do inside a function?"
+    options:
+      a: "Declares x with an inferred type and assigns 5"
+      b: "Compares x to 5"
+      c: "Declares a constant"
+      d: "Assigns to an existing global x"
+    correct: a
+    explanation: >
+      Short variable declaration; only valid inside functions.
+
+  - id: go-entry-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "Where does an executable Go program start?"
+    options:
+      a: "func main() in package main"
+      b: "The first function in main.go"
+      c: "func init() in any package"
+      d: "A function registered with go:start"
+    correct: a
+    explanation: >
+      The runtime calls package main's main() after all inits.
+
+  - id: go-exported-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What makes an identifier exported (public) in Go?"
+    options:
+      a: "Starting with an uppercase letter"
+      b: "The `public` keyword"
+      c: "An @export annotation"
+      d: "Being listed in go.mod"
+    correct: a
+    explanation: >
+      Capitalized names are visible outside the package; lowercase names
+      are package-private.
+
+  - id: go-gofmt-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "What is gofmt?"
+    options:
+      a: "The canonical code formatter — one standard style for all Go code"
+      b: "Go's package manager"
+      c: "A linter for bugs"
+      d: "The Go compiler"
+    correct: a
+    explanation: >
+      gofmt (and go fmt) normalizes formatting; style debates are simply
+      over in Go.
+
+  - id: go-error-convention-1
+    tags: [backend]
+    difficulty: easy
+    prompt: "The idiomatic way a Go function reports failure?"
+    options:
+      a: "Returning an error as the last return value, checked with `if err != nil`"
+      b: "Throwing an exception"
+      c: "Returning -1"
+      d: "Setting a global errno"
+    correct: a
+    explanation: >
+      Errors are ordinary values; explicit checks replace exception
+      control flow (panic is for unrecoverable bugs).
+
+  - id: go-slice-array-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "The key difference between a slice and an array in Go?"
+    options:
+      a: "Arrays have fixed length in their type; slices are resizable views over a backing array"
+      b: "Slices are immutable"
+      c: "Arrays live on the heap, slices on the stack"
+      d: "There is no difference"
+    correct: a
+    explanation: >
+      [3]int and [4]int are different types; a slice has pointer, length
+      and capacity, and append may reallocate its backing array.
+
+  - id: go-defer-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "When and in what order do `defer`red calls run?"
+    options:
+      a: "When the surrounding function returns, last-deferred first (LIFO)"
+      b: "At the end of the enclosing block, in order"
+      c: "Immediately, on a background goroutine"
+      d: "Only if the function panics"
+    correct: a
+    explanation: >
+      Defers stack up and run on function exit — including during panics,
+      which is why they're used for cleanup.
+
+  - id: go-nil-map-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "`var m map[string]int` (nil map). What happens on `m[\"a\"] = 1`?"
+    options:
+      a: "A runtime panic — writes to nil maps are illegal"
+      b: "The map is auto-initialized"
+      c: "The write is silently dropped"
+      d: "A compile error"
+    correct: a
+    explanation: >
+      Reading a nil map yields zero values, but writing panics; make(map)
+      first.
+
+  - id: go-channel-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "What is a channel for?"
+    options:
+      a: "Typed communication and synchronization between goroutines"
+      b: "Streaming logs to stdout"
+      c: "Reading files line by line"
+      d: "Sharing memory without synchronization"
+    correct: a
+    explanation: >
+      "Share memory by communicating": sends and receives transfer values
+      and create happens-before edges.
+
+  - id: go-unbuffered-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "A send on an UNbuffered channel does what?"
+    options:
+      a: "Blocks until another goroutine is ready to receive"
+      b: "Queues the value and continues"
+      c: "Drops the value if no receiver"
+      d: "Panics"
+    correct: a
+    explanation: >
+      Unbuffered channels are rendezvous points; buffered ones accept
+      up to cap values before blocking.
+
+  - id: go-range-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "What does `for i, v := range xs` give you for a slice?"
+    options:
+      a: "Index and a copy of the element at that index"
+      b: "Pointer and element"
+      c: "Element and index, in that order"
+      d: "Key and value of a map only"
+    correct: a
+    explanation: >
+      range over slices yields (index, element-copy); mutating v does not
+      change the slice.
+
+  - id: go-waitgroup-1
+    tags: [backend]
+    difficulty: medium
+    prompt: "How does sync.WaitGroup coordinate goroutines?"
+    options:
+      a: "Add(n) before starting, Done() in each goroutine, Wait() blocks until the counter is zero"
+      b: "It kills goroutines after a timeout"
+      c: "It limits concurrency to n"
+      d: "It restarts panicked goroutines"
+    correct: a
+    explanation: >
+      A counting latch: Wait returns once every counted goroutine called
+      Done.
+
+  - id: go-interface-implicit-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "How does a type implement an interface in Go?"
+    options:
+      a: "Implicitly — by having the right method set; no declaration needed"
+      b: "With an `implements` clause"
+      c: "By embedding the interface"
+      d: "By registering in an interface table"
+    correct: a
+    explanation: >
+      Structural satisfaction: if the methods match, it implements the
+      interface — enabling decoupled packages.
+
+  - id: go-closed-channel-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "Receiving from a CLOSED channel does what?"
+    options:
+      a: "Returns the zero value immediately, with ok=false in the two-value form"
+      b: "Panics"
+      c: "Blocks forever"
+      d: "Returns the last sent value repeatedly, ok=true"
+    correct: a
+    explanation: >
+      Closed channels drain buffered values then yield zero,false;
+      SENDING to a closed channel is what panics.
+
+  - id: go-select-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "What does `select` do when several of its channel cases are ready?"
+    options:
+      a: "Picks one of the ready cases at random (uniform pseudo-random)"
+      b: "Runs them all in order"
+      c: "Always the first written case"
+      d: "Deadlocks"
+    correct: a
+    explanation: >
+      Random choice prevents starvation; with no ready case select blocks
+      unless there's a default.
+
+  - id: go-nil-interface-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "A function returns `error` by returning a nil *MyErr pointer. Why is `err != nil` then true?"
+    options:
+      a: "The interface holds a (type, value) pair; with a non-nil type it isn't nil even if the value is"
+      b: "Comparing errors with != is undefined"
+      c: "The compiler wraps errors automatically"
+      d: "It's a known compiler bug"
+    correct: a
+    explanation: >
+      The classic typed-nil trap: return a literal nil (or the interface
+      itself), not a nil concrete pointer.
+
+  - id: go-goroutine-leak-1
+    tags: [backend]
+    difficulty: hard
+    prompt: "A goroutine blocked forever on a channel nobody will touch again is called what — and why does it matter?"
+    options:
+      a: "A goroutine leak — its stack and references are never freed"
+      b: "A deadlock — the whole program stops"
+      c: "Harmless — the GC collects blocked goroutines"
+      d: "A race condition"
+    correct: a
+    explanation: >
+      Blocked goroutines are not garbage-collected. Ensure exit paths:
+      contexts, closed channels, timeouts.

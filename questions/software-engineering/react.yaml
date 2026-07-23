@@ -1,0 +1,241 @@
+domain: software-engineering
+tag: react
+questions:
+  - id: react-jsx-1
+    tags: [frontend, javascript]
+    difficulty: easy
+    prompt: "What is JSX?"
+    options:
+      a: "A syntax extension that compiles to React element-creating function calls"
+      b: "A templating language rendered by the browser natively"
+      c: "React's CSS-in-JS solution"
+      d: "A JSON schema format"
+    correct: a
+    explanation: >
+      JSX is compiled (by Babel/TS/SWC) into createElement/jsx calls —
+      browsers never see it.
+
+  - id: react-component-return-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does a React function component return?"
+    options:
+      a: "The UI description (JSX / elements) to render"
+      b: "An HTML string inserted with innerHTML"
+      c: "A DOM node it created manually"
+      d: "Nothing; it mutates the page directly"
+    correct: a
+    explanation: >
+      Components return element trees; React reconciles them against the
+      DOM.
+
+  - id: react-props-readonly-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "Can a component modify the props it receives?"
+    options:
+      a: "No — props are read-only; data flows down, changes flow up via callbacks"
+      b: "Yes, that's how state updates work"
+      c: "Only inside event handlers"
+      d: "Only class components can"
+    correct: a
+    explanation: >
+      Mutating props breaks the one-way data flow; the owner passes new
+      props instead.
+
+  - id: react-usestate-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does `useState(0)` return?"
+    options:
+      a: "A pair: the current value and a setter function"
+      b: "Just the current value"
+      c: "An observable stream"
+      d: "A ref object with .current"
+    correct: a
+    explanation: >
+      `const [count, setCount] = useState(0)` — calling the setter
+      triggers a re-render with the new value.
+
+  - id: react-key-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "Why does React ask for a `key` on list items?"
+    options:
+      a: "To identify items across renders so it can reorder/reuse instead of rebuilding"
+      b: "For CSS styling hooks"
+      c: "Keys are sent to the server for hydration"
+      d: "To make items focusable"
+    correct: a
+    explanation: >
+      Stable identity lets reconciliation match old and new children;
+      array indexes as keys break when order changes.
+
+  - id: react-conditional-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "A common way to render something only when `show` is true?"
+    options:
+      a: "`{show ? <Panel /> : null}`"
+      b: "`<Panel visible={false} />` hides it automatically"
+      c: "`<if cond={show}><Panel /></if>`"
+      d: "`display(show, <Panel />)`"
+    correct: a
+    explanation: >
+      Rendering is plain JavaScript: ternaries or `show && <Panel />`
+      (mind falsy 0 with &&).
+
+  - id: react-useeffect-timing-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "When does `useEffect(fn, [dep])` run `fn`?"
+    options:
+      a: "After the render is committed, on mount and whenever dep changes"
+      b: "During rendering, before JSX is returned"
+      c: "Only once, before mount"
+      d: "On every browser event"
+    correct: a
+    explanation: >
+      Effects run post-commit; the dependency array controls which
+      re-renders re-fire them.
+
+  - id: react-effect-cleanup-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What is the function returned from a useEffect callback for?"
+    options:
+      a: "Cleanup — it runs before the effect re-runs and on unmount"
+      b: "It renders fallback UI"
+      c: "It memoizes the effect"
+      d: "It is called on every click"
+    correct: a
+    explanation: >
+      Return a cleanup to unsubscribe/clearInterval; React calls it before
+      the next effect run and at unmount.
+
+  - id: react-state-async-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "Right after calling `setCount(count + 1)`, what does `count` hold in that same function?"
+    options:
+      a: "The old value — state updates apply on the next render"
+      b: "The new value immediately"
+      c: "undefined until React flushes"
+      d: "It depends on the browser"
+    correct: a
+    explanation: >
+      State is a snapshot per render. For updates based on previous state
+      use the functional form: setCount(c => c + 1).
+
+  - id: react-lift-state-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: '"Lifting state up" means what?'
+    options:
+      a: "Moving shared state to the closest common ancestor and passing it down as props"
+      b: "Storing state in localStorage"
+      c: "Moving state into global variables"
+      d: "Converting props into state"
+    correct: a
+    explanation: >
+      When siblings need the same data, their parent owns it and
+      distributes value + callbacks.
+
+  - id: react-controlled-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What is a controlled input?"
+    options:
+      a: "An input whose value comes from React state and changes via onChange"
+      b: "An input with the disabled attribute"
+      c: "An input validated by the browser"
+      d: "An input inside a form tag"
+    correct: a
+    explanation: >
+      value={state} + onChange={setState} makes React the single source
+      of truth; uncontrolled inputs keep their own DOM state.
+
+  - id: react-hooks-rules-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "Why must hooks be called at the top level, never inside conditions or loops?"
+    options:
+      a: "React tracks hooks by call order — it must be identical every render"
+      b: "Conditional hooks are slower"
+      c: "It's only a style convention"
+      d: "Hooks inside conditions leak memory"
+    correct: a
+    explanation: >
+      Hook state is matched positionally between renders; a skipped call
+      shifts every subsequent hook onto wrong state.
+
+  - id: react-fragment-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does `<>...</>` (a Fragment) let you do?"
+    options:
+      a: "Return multiple siblings without adding a wrapper DOM node"
+      b: "Render outside the React root"
+      c: "Delay rendering until data loads"
+      d: "Scope CSS to its children"
+    correct: a
+    explanation: >
+      Fragments group children with zero DOM output — no more div soup
+      just to satisfy the single-parent rule.
+
+  - id: react-usememo-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "What problem do `useMemo`/`useCallback` primarily solve?"
+    options:
+      a: "Preserving referential identity (and skipping recomputation) across renders so memoized children and effect deps don't fire needlessly"
+      b: "Persisting values after unmount"
+      c: "Making renders asynchronous"
+      d: "Sharing state between components"
+    correct: a
+    explanation: >
+      New function/object identities every render defeat React.memo and
+      retrigger effects; memo hooks stabilize them while deps are equal.
+
+  - id: react-stale-closure-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "A setInterval callback set up in useEffect with `[]` deps always logs the initial count. Why?"
+    options:
+      a: "The callback closed over the first render's state; it never sees later values"
+      b: "setInterval pauses React state updates"
+      c: "The effect re-runs and resets count"
+      d: "State can't be read inside timers"
+    correct: a
+    explanation: >
+      Classic stale closure: the effect ran once, capturing that render's
+      snapshot. Fix with functional updates or a ref, or include deps.
+
+  - id: react-strictmode-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "In development, StrictMode mounts, unmounts and remounts components (double-invoking effects). Why?"
+    options:
+      a: "To surface missing effect cleanups and non-idempotent logic before they bite in production"
+      b: "To measure render performance"
+      c: "A React bug fixed in v19"
+      d: "To warm the component cache"
+    correct: a
+    explanation: >
+      The dev-only double pass makes unsafe side effects visible early;
+      production renders once.
+
+  - id: react-context-rerender-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "When a Context value changes, which components re-render?"
+    options:
+      a: "Every consumer of that context, regardless of memoization of intermediate parents"
+      b: "Only the provider"
+      c: "The whole tree unconditionally"
+      d: "Nothing until they next receive props"
+    correct: a
+    explanation: >
+      All useContext readers of that provider update — which is why
+      hot-changing values in one broad context cause churn; split
+      contexts or memoize the value.
