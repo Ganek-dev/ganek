@@ -1,0 +1,280 @@
+domain: software-engineering
+tag: javascript
+questions:
+  - id: js-triple-eq-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What is the difference between `==` and `===`?"
+    options:
+      a: "`===` compares without type coercion; `==` coerces types first"
+      b: "They are identical"
+      c: "`===` also compares object contents deeply"
+      d: "`==` is a syntax error in modern JS"
+    correct: a
+    explanation: >
+      Strict equality requires same type and value; loose equality applies
+      coercion rules ('1' == 1 is true, '1' === 1 is false).
+
+  - id: js-const-reassign-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What happens when you reassign a `const` variable?"
+    options:
+      a: "A TypeError is thrown"
+      b: "It silently keeps the old value"
+      c: "It works like `let`"
+      d: "Only a linter warning"
+    correct: a
+    explanation: >
+      const bindings cannot be reassigned. Note the object a const points
+      to can still be mutated — the binding is constant, not the value.
+
+  - id: js-typeof-null-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does `typeof null` return?"
+    options:
+      a: '`"object"`'
+      b: '`"null"`'
+      c: '`"undefined"`'
+      d: "A TypeError"
+    correct: a
+    explanation: >
+      A historical bug kept for compatibility: typeof null is "object".
+      Check null with `value === null`.
+
+  - id: js-json-parse-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does `JSON.parse('{\"a\": 1}')` return?"
+    options:
+      a: "The object `{ a: 1 }`"
+      b: "The string unchanged"
+      c: "A Map instance"
+      d: "undefined"
+    correct: a
+    explanation: "JSON.parse turns a JSON string into a JavaScript value."
+
+  - id: js-template-literal-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "Which syntax embeds an expression in a template literal?"
+    options:
+      a: "`` `Total: ${a + b}` ``"
+      b: '`"Total: #{a + b}"`'
+      c: '`"Total: {{a + b}}"`'
+      d: "`` `Total: %s` % (a + b) ``"
+    correct: a
+    explanation: "Backtick strings interpolate with ${expression}."
+
+  - id: js-array-push-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does `[1, 2].push(3)` return?"
+    options:
+      a: "`3` — the new length of the array"
+      b: "The array `[1, 2, 3]`"
+      c: "The added element `3`... as an array"
+      d: "undefined"
+    correct: a
+    explanation: >
+      push mutates the array and returns its new length, not the array —
+      a classic source of chained-call bugs.
+
+  - id: js-nan-compare-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does `NaN === NaN` evaluate to?"
+    options:
+      a: "`false`"
+      b: "`true`"
+      c: "`NaN`"
+      d: "A TypeError"
+    correct: a
+    explanation: >
+      NaN is the only value not equal to itself. Use Number.isNaN(x) to
+      test for it.
+
+  - id: js-let-var-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "The key scoping difference between `let` and `var`?"
+    options:
+      a: "`let` is block-scoped; `var` is function-scoped"
+      b: "`var` is block-scoped; `let` is global"
+      c: "There is none since ES6"
+      d: "`let` variables cannot be captured by closures"
+    correct: a
+    explanation: >
+      var leaks out of blocks (if/for) to the enclosing function; let/const
+      live only inside the block.
+
+  - id: js-closure-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What is a closure?"
+    options:
+      a: "A function that retains access to variables from the scope where it was created"
+      b: "A function with no parameters"
+      c: "A class with private fields"
+      d: "An immediately-invoked function"
+    correct: a
+    explanation: >
+      Inner functions capture outer variables by reference and keep them
+      alive after the outer function returns.
+
+  - id: js-promise-then-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does `.then()` return, enabling chaining?"
+    options:
+      a: "A new Promise resolving with the callback's return value"
+      b: "The same promise it was called on"
+      c: "The resolved value synchronously"
+      d: "undefined"
+    correct: a
+    explanation: >
+      Every .then produces a fresh promise; returned promises inside the
+      callback are flattened into the chain.
+
+  - id: js-async-await-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What is the relationship between `async/await` and Promises?"
+    options:
+      a: "await unwraps promises; an async function always returns a Promise"
+      b: "async/await replaces promises with callbacks"
+      c: "They are unrelated mechanisms"
+      d: "await works on any function, promise or not... blocking the thread"
+    correct: a
+    explanation: >
+      async/await is syntax over promises: `await p` suspends until p
+      settles; return values become resolved promises.
+
+  - id: js-map-immutable-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does `arr.map(fn)` do to `arr`?"
+    options:
+      a: "Nothing — it returns a NEW array of the transformed elements"
+      b: "Replaces each element in place"
+      c: "Removes elements where fn returns false"
+      d: "Sorts the array by fn's result"
+    correct: a
+    explanation: >
+      map is non-mutating; filter selects, forEach side-effects, and none
+      of the three sorts.
+
+  - id: js-destructuring-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "After `const { name, age = 18 } = person`, what is `age` if `person.age` is undefined?"
+    options:
+      a: "`18` — the destructuring default applies"
+      b: "`undefined`"
+      c: "`null`"
+      d: "A ReferenceError"
+    correct: a
+    explanation: >
+      Destructuring defaults kick in only for undefined (not null or other
+      falsy values).
+
+  - id: js-null-undefined-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "Conceptually, `undefined` vs `null`?"
+    options:
+      a: "undefined = never assigned / missing; null = intentional explicit absence"
+      b: "They are interchangeable in every way"
+      c: "null appears only in JSON"
+      d: "undefined is an error state that throws when read"
+    correct: a
+    explanation: >
+      The engine produces undefined (missing props, no return); developers
+      assign null on purpose. Note null == undefined but null !== undefined.
+
+  - id: js-spread-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does `{ ...defaults, ...overrides }` produce?"
+    options:
+      a: "A new object; keys in overrides win over the same keys in defaults"
+      b: "A deep merge of nested objects"
+      c: "An array of both objects"
+      d: "A TypeError — spread only works on arrays"
+    correct: a
+    explanation: >
+      Object spread copies own enumerable properties left to right —
+      later spreads overwrite. One level only; nesting is shared.
+
+  - id: js-tdz-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "Accessing a `let` variable before its declaration line throws. Why?"
+    options:
+      a: "It sits in the temporal dead zone: hoisted but uninitialized until the declaration runs"
+      b: "let variables are not hoisted at all"
+      c: "The parser removes the access"
+      d: "It returns undefined like var — no throw"
+    correct: a
+    explanation: >
+      let/const declarations are known to the scope from the start but
+      reading them before initialization raises a ReferenceError, unlike
+      var's silent undefined.
+
+  - id: js-arrow-this-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "How does `this` behave in an arrow function?"
+    options:
+      a: "Lexically inherited from the enclosing scope — call site doesn't change it"
+      b: "Bound to the object the arrow is called on"
+      c: "Always undefined"
+      d: "Bound to the global object, always"
+    correct: a
+    explanation: >
+      Arrows have no own `this`; they close over the surrounding one.
+      That's why they suit callbacks but not object methods needing
+      dynamic `this`.
+
+  - id: js-microtask-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "`setTimeout(f, 0)` and `Promise.resolve().then(g)` are both pending — which runs first?"
+    options:
+      a: "g — microtasks (promise callbacks) run before the next macrotask"
+      b: "f — timers have priority"
+      c: "Whichever was scheduled first"
+      d: "They run in parallel threads"
+    correct: a
+    explanation: >
+      After the current script, the engine drains the entire microtask
+      queue before processing timer (macro)tasks.
+
+  - id: js-float-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "Why is `0.1 + 0.2 === 0.3` false?"
+    options:
+      a: "Binary floating point cannot represent 0.1 and 0.2 exactly; the sum is 0.30000000000000004"
+      b: "A parser bug in most engines"
+      c: "+ concatenates the numbers as strings"
+      d: "It's true in strict mode"
+    correct: a
+    explanation: >
+      IEEE-754 doubles approximate decimal fractions. Compare with a
+      tolerance (Number.EPSILON) or work in integer units (cents).
+
+  - id: js-prototype-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "When you read `obj.foo` and `obj` has no own property `foo`, what happens?"
+    options:
+      a: "The engine walks up the prototype chain until it finds foo or reaches null"
+      b: "A ReferenceError is thrown immediately"
+      c: "The property is auto-created as undefined"
+      d: "The nearest class definition is re-executed"
+    correct: a
+    explanation: >
+      Property lookup follows [[Prototype]] links; that chain is how
+      inheritance works, including behind class syntax.
