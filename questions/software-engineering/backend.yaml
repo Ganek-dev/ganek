@@ -1,0 +1,246 @@
+domain: software-engineering
+tag: backend
+questions:
+  - id: be-get-post-1
+    difficulty: easy
+    prompt: "Semantically, GET vs POST?"
+    options:
+      a: "GET retrieves without side effects; POST submits data / creates or changes state"
+      b: "GET is encrypted, POST is not"
+      c: "POST is cacheable, GET is not"
+      d: "GET can carry a body, POST cannot"
+    correct: a
+    explanation: >
+      GET must be safe and cacheable; POST is for state-changing
+      submissions.
+
+  - id: be-404-1
+    difficulty: easy
+    prompt: "What does HTTP 404 mean?"
+    options:
+      a: "The requested resource was not found"
+      b: "The server crashed"
+      c: "Authentication is required"
+      d: "Too many requests"
+    correct: a
+    explanation: "4xx = client-side issue; 404 specifically: no such resource."
+
+  - id: be-500-1
+    difficulty: easy
+    prompt: "What does HTTP 500 indicate?"
+    options:
+      a: "An unexpected error on the server"
+      b: "Invalid client input"
+      c: "The resource moved"
+      d: "The request succeeded with no content"
+    correct: a
+    explanation: >
+      5xx = server-side failure; the client's request may have been fine.
+
+  - id: be-https-1
+    difficulty: easy
+    prompt: "What does HTTPS add over HTTP?"
+    options:
+      a: "TLS encryption plus server authentication in transit"
+      b: "Compression"
+      c: "Guaranteed delivery"
+      d: "Server-side caching"
+    correct: a
+    explanation: >
+      TLS protects confidentiality/integrity between client and server;
+      it says nothing about what the server stores.
+
+  - id: be-json-header-1
+    difficulty: easy
+    prompt: "Which header tells the server a request body is JSON?"
+    options:
+      a: "`Content-Type: application/json`"
+      b: "`Accept-Encoding: json`"
+      c: "`Body-Format: json`"
+      d: "`X-JSON: true`"
+    correct: a
+    explanation: >
+      Content-Type describes the body being sent; Accept describes what
+      response format the client wants.
+
+  - id: be-rest-url-1
+    difficulty: easy
+    prompt: "Which URL is most RESTful for fetching order 17 of user 4?"
+    options:
+      a: "`GET /users/4/orders/17`"
+      b: "`GET /getUserOrder?uid=4&oid=17`"
+      c: "`POST /orders/fetch`"
+      d: "`GET /api?action=order&u=4&o=17`"
+    correct: a
+    explanation: >
+      REST models resources as nouns in paths; verbs come from the HTTP
+      method.
+
+  - id: be-401-403-1
+    difficulty: medium
+    prompt: "401 vs 403?"
+    options:
+      a: "401: not authenticated (who are you?); 403: authenticated but not allowed"
+      b: "401: forbidden; 403: unauthenticated"
+      c: "Both mean login expired"
+      d: "403 is retryable, 401 is not"
+    correct: a
+    explanation: >
+      401 asks for (new) credentials; 403 says credentials are fine but
+      access is denied.
+
+  - id: be-idempotent-1
+    difficulty: medium
+    prompt: "What does it mean that PUT is idempotent?"
+    options:
+      a: "Repeating the same request leaves the same final state as doing it once"
+      b: "It cannot fail"
+      c: "It is safe to cache"
+      d: "It requires authentication"
+    correct: a
+    explanation: >
+      PUT replaces state — N identical PUTs equal one. POST is typically
+      not idempotent (N creates).
+
+  - id: be-stateless-1
+    difficulty: medium
+    prompt: "HTTP is stateless — what follows for API design?"
+    options:
+      a: "Each request must carry everything needed (auth, context); the server keeps no per-connection memory"
+      b: "Servers cannot use databases"
+      c: "Clients may send only one request per connection"
+      d: "Sessions are impossible"
+    correct: a
+    explanation: >
+      State lives in tokens/cookies/stores, not in the connection — which
+      is what makes horizontal scaling straightforward.
+
+  - id: be-pagination-1
+    difficulty: medium
+    prompt: "Why paginate list endpoints?"
+    options:
+      a: "Unbounded responses grow with data: memory, latency and payload blow up"
+      b: "REST requires it"
+      c: "Browsers can't render long JSON"
+      d: "It improves write performance"
+    correct: a
+    explanation: >
+      Bounded pages keep response time predictable as tables grow;
+      cursor pagination also survives concurrent inserts.
+
+  - id: be-rate-limit-1
+    difficulty: medium
+    prompt: "What is rate limiting for?"
+    options:
+      a: "Protecting the service from abuse and overload by capping requests per client/time"
+      b: "Compressing repeated requests"
+      c: "Ordering requests fairly"
+      d: "Encrypting bursts of traffic"
+    correct: a
+    explanation: >
+      Limits (with 429 responses) defend against brute force, scraping
+      and accidental retry storms.
+
+  - id: be-etag-1
+    difficulty: medium
+    prompt: "How do ETag and If-None-Match reduce bandwidth?"
+    options:
+      a: "The server replies 304 Not Modified with no body when the client's cached version is current"
+      b: "They gzip the response"
+      c: "They deduplicate concurrent requests"
+      d: "They pin the response to a CDN"
+    correct: a
+    explanation: >
+      The client revalidates its cache with the entity tag; unchanged
+      content costs a header roundtrip, not a payload.
+
+  - id: be-patch-put-1
+    difficulty: medium
+    prompt: "PUT vs PATCH?"
+    options:
+      a: "PUT replaces the whole resource; PATCH applies a partial modification"
+      b: "PATCH is just a faster PUT"
+      c: "PUT creates, PATCH deletes"
+      d: "PATCH bypasses validation"
+    correct: a
+    explanation: >
+      Send the full representation with PUT; send only the changed fields
+      with PATCH.
+
+  - id: be-cors-1
+    difficulty: medium
+    prompt: "What problem does CORS address?"
+    options:
+      a: "Browsers block cross-origin reads by default; CORS headers let a server opt in to specific origins"
+      b: "Server-to-server API authentication"
+      c: "Encrypting cross-site traffic"
+      d: "Preventing SQL injection"
+    correct: a
+    explanation: >
+      CORS is a browser mechanism relaxing the same-origin policy —
+      irrelevant to curl or backend-to-backend calls.
+
+  - id: be-optimistic-lock-1
+    difficulty: hard
+    prompt: "Two users edit the same record; last write silently wins. A common fix?"
+    options:
+      a: "Optimistic locking: carry a version, reject the save if the version changed (409)"
+      b: "Locking the whole table during edits"
+      c: "Queueing all writes through one worker"
+      d: "Retrying the lost write automatically"
+    correct: a
+    explanation: >
+      Version columns (or compare-and-set) detect concurrent modification
+      and let the client resolve the conflict explicitly.
+
+  - id: be-idempotency-key-1
+    difficulty: hard
+    prompt: "Why do payment APIs accept an Idempotency-Key header?"
+    options:
+      a: "So a retried request (timeout, crash) executes the operation once, returning the recorded result"
+      b: "To sign the request body"
+      c: "To route to the same server"
+      d: "To rate-limit by customer"
+    correct: a
+    explanation: >
+      Retries are inevitable; the key lets the server deduplicate
+      "charge the card" without double-executing.
+
+  - id: be-queue-1
+    difficulty: hard
+    prompt: "What's the main architectural gain of a message queue between services?"
+    options:
+      a: "Decoupling: producers and consumers scale and fail independently; bursts are absorbed"
+      b: "Lower latency than direct calls"
+      c: "Stronger consistency than a database"
+      d: "Automatic schema migration"
+    correct: a
+    explanation: >
+      A queue buffers work and isolates failures — the trade is eventual
+      processing and delivery-semantics complexity.
+
+  - id: be-conn-pool-1
+    difficulty: hard
+    prompt: "Why do backends use database connection pools?"
+    options:
+      a: "Connections are expensive to open and DBs cap them — reuse keeps latency low and load bounded"
+      b: "Pools encrypt database traffic"
+      c: "Each query legally requires its own connection"
+      d: "Pools cache query results"
+    correct: a
+    explanation: >
+      Handshake + auth per request would dominate latency and exhaust
+      server limits; pooling amortizes it.
+
+  - id: be-cache-stampede-1
+    difficulty: hard
+    prompt: "A hot cache key expires and 1000 requests hit the DB at once. This is called — and mitigated by?"
+    options:
+      a: "Cache stampede — single-flight locks, staggered TTLs, or serving stale while revalidating"
+      b: "Cache poisoning — input validation"
+      c: "Thundering read — sharding"
+      d: "TTL inversion — longer TTLs everywhere"
+    correct: a
+    explanation: >
+      Letting one request rebuild while others wait (or get stale data)
+      prevents the dogpile on the origin.

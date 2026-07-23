@@ -1,0 +1,268 @@
+domain: software-engineering
+tag: fastapi
+questions:
+  - id: fastapi-foundation-1
+    tags: [python, backend]
+    difficulty: easy
+    prompt: "FastAPI is built on top of which two libraries?"
+    options:
+      a: "Starlette (ASGI toolkit) and Pydantic (validation)"
+      b: "Flask and Marshmallow"
+      c: "Django and DRF"
+      d: "Tornado and attrs"
+    correct: a
+    explanation: >
+      Starlette provides routing/ASGI plumbing; Pydantic provides model
+      validation and serialization.
+
+  - id: fastapi-path-param-1
+    tags: [python, backend]
+    difficulty: easy
+    prompt: 'In `@app.get("/items/{item_id}")`, how does the handler receive `item_id`?'
+    options:
+      a: "As a function parameter with the same name, converted to its annotated type"
+      b: "Via `request.params[\"item_id\"]` only"
+      c: "As a global variable"
+      d: "It must be parsed manually from the URL"
+    correct: a
+    explanation: >
+      Path parameters bind by name; the type annotation drives conversion
+      and validation (e.g. `item_id: int`).
+
+  - id: fastapi-docs-1
+    tags: [python, backend]
+    difficulty: easy
+    prompt: "Where does FastAPI serve interactive API documentation by default?"
+    options:
+      a: "`/docs` (Swagger UI) and `/redoc`"
+      b: "`/api-docs.pdf`"
+      c: "`/openapi/ui` only"
+      d: "It doesn't — docs require a plugin"
+    correct: a
+    explanation: >
+      The OpenAPI schema is generated from your routes and type hints and
+      rendered automatically.
+
+  - id: fastapi-body-1
+    tags: [python, backend]
+    difficulty: easy
+    prompt: "How do you declare a JSON request body in FastAPI?"
+    options:
+      a: "Annotate a parameter with a Pydantic model: `def create(item: Item)`"
+      b: "Call `request.get_json()` inside the handler"
+      c: "Use the `@body` decorator"
+      d: "Read `sys.stdin`"
+    correct: a
+    explanation: >
+      Pydantic-model parameters are parsed from the JSON body and
+      validated before your code runs.
+
+  - id: fastapi-uvicorn-1
+    tags: [python, backend]
+    difficulty: easy
+    prompt: "What role does uvicorn play for a FastAPI app?"
+    options:
+      a: "It is the ASGI server that runs the application"
+      b: "It compiles the app to C"
+      c: "It is FastAPI's ORM"
+      d: "It manages database migrations"
+    correct: a
+    explanation: >
+      FastAPI is a framework; an ASGI server (uvicorn, hypercorn) actually
+      accepts connections and drives it.
+
+  - id: fastapi-query-1
+    tags: [python, backend]
+    difficulty: easy
+    prompt: "A handler parameter that is NOT in the path template becomes what by default?"
+    options:
+      a: "A query parameter"
+      b: "A required header"
+      c: "A cookie"
+      d: "Part of the request body"
+    correct: a
+    explanation: >
+      Simple-typed parameters not present in the path are read from the
+      query string (`?limit=10`).
+
+  - id: fastapi-422-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "What does FastAPI return when request validation fails?"
+    options:
+      a: "422 with a JSON list describing each invalid field"
+      b: "500 Internal Server Error"
+      c: "400 with an HTML error page"
+      d: "It calls the handler with None values"
+    correct: a
+    explanation: >
+      Validation errors short-circuit before your handler and produce a
+      structured 422 response.
+
+  - id: fastapi-depends-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "What is `Depends()` used for?"
+    options:
+      a: "Declaring injectable dependencies (db sessions, auth) resolved per request"
+      b: "Declaring pip package requirements"
+      c: "Ordering middleware"
+      d: "Marking endpoints as deprecated"
+    correct: a
+    explanation: >
+      FastAPI builds a dependency graph per request; dependencies can
+      themselves have dependencies and are easy to override in tests.
+
+  - id: fastapi-sync-def-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "How does FastAPI run a plain `def` (non-async) endpoint?"
+    options:
+      a: "In a thread pool, so it doesn't block the event loop"
+      b: "It refuses to start"
+      c: "Directly on the event loop, blocking it"
+      d: "In a subprocess"
+    correct: a
+    explanation: >
+      Sync handlers are dispatched to worker threads; async handlers run
+      on the loop and must not block.
+
+  - id: fastapi-response-model-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "What does `response_model=UserOut` on a route do?"
+    options:
+      a: "Validates and filters the returned data to exactly UserOut's fields"
+      b: "Documents the response without changing it"
+      c: "Caches responses of that shape"
+      d: "Converts the response to XML"
+    correct: a
+    explanation: >
+      Output passes through the model: extra attributes are dropped —
+      which is also a data-leak guard.
+
+  - id: fastapi-http-exception-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "The standard way to return a 404 from inside a handler?"
+    options:
+      a: "`raise HTTPException(status_code=404, detail=\"Not found\")`"
+      b: "`return 404`"
+      c: "`response.status = 404`"
+      d: "`raise KeyError`"
+    correct: a
+    explanation: >
+      HTTPException is converted to a proper JSON error response with the
+      given status and detail.
+
+  - id: fastapi-status-code-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "How do you make a POST route return 201 on success by default?"
+    options:
+      a: "`@app.post(\"/items\", status_code=201)`"
+      b: "Return the tuple `(body, 201)`"
+      c: "FastAPI always returns 201 for POST"
+      d: "Set `app.default_status = 201`"
+    correct: a
+    explanation: >
+      The decorator's status_code sets the success status; exceptions
+      still control error statuses.
+
+  - id: fastapi-background-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "What does `BackgroundTasks.add_task(fn, ...)` do?"
+    options:
+      a: "Runs fn after the response is sent, without delaying the client"
+      b: "Runs fn on a schedule like cron"
+      c: "Runs fn in a separate worker process"
+      d: "Queues fn in Redis"
+    correct: a
+    explanation: >
+      Background tasks execute in-process after the response — good for
+      small side jobs like sending an email.
+
+  - id: fastapi-router-1
+    tags: [python, backend]
+    difficulty: medium
+    prompt: "What is `APIRouter` for?"
+    options:
+      a: "Grouping related routes in modules, then including them in the app with a prefix"
+      b: "Load-balancing between app instances"
+      c: "Routing between microservices"
+      d: "Defining database routers"
+    correct: a
+    explanation: >
+      Routers keep large apps modular: `app.include_router(jobs.router,
+      prefix=\"/api/v1\")`.
+
+  - id: fastapi-yield-dep-1
+    tags: [python, backend]
+    difficulty: hard
+    prompt: "In a dependency written with `yield` (e.g. a DB session), when does the code after `yield` run?"
+    options:
+      a: "After the response is delivered — it's the cleanup phase, like closing the session"
+      b: "Before the handler starts"
+      c: "Only when an exception occurs"
+      d: "Never; code after yield is unreachable"
+    correct: a
+    explanation: >
+      Yield dependencies are generator context managers: setup before,
+      teardown after the request completes.
+
+  - id: fastapi-dep-cache-1
+    tags: [python, backend]
+    difficulty: hard
+    prompt: "Two dependencies in one request both depend on `get_db`. How many times does `get_db` run?"
+    options:
+      a: "Once — resolved dependencies are cached within a request by default"
+      b: "Twice, once per dependent"
+      c: "Zero — FastAPI mocks it"
+      d: "It's undefined behavior"
+    correct: a
+    explanation: >
+      Per-request caching (use_cache=True by default) means shared
+      sub-dependencies resolve once and are reused.
+
+  - id: fastapi-override-1
+    tags: [python, backend]
+    difficulty: hard
+    prompt: "The idiomatic way to swap a real dependency for a fake in tests?"
+    options:
+      a: "`app.dependency_overrides[get_db] = fake_get_db`"
+      b: "Monkeypatching the router table"
+      c: "Setting the FASTAPI_TEST env var"
+      d: "Editing the OpenAPI schema"
+    correct: a
+    explanation: >
+      dependency_overrides maps the original callable to a replacement —
+      the whole graph swaps without touching handlers.
+
+  - id: fastapi-pydantic-config-1
+    tags: [python, backend]
+    difficulty: hard
+    prompt: "What does `model_config = ConfigDict(from_attributes=True)` enable on a Pydantic model?"
+    options:
+      a: "Validating from object attributes (e.g. ORM instances), not just dicts"
+      b: "Loading values from environment variables"
+      c: "Making all fields optional"
+      d: "Freezing the model"
+    correct: a
+    explanation: >
+      from_attributes (Pydantic v2) lets response models read SQLAlchemy
+      objects directly — the ORM-to-schema bridge.
+
+  - id: fastapi-middleware-1
+    tags: [python, backend]
+    difficulty: hard
+    prompt: "What can HTTP middleware do that a dependency cannot?"
+    options:
+      a: "Wrap EVERY request/response — including 404s and other apps' routes — e.g. to add headers or timing"
+      b: "Access the request body"
+      c: "Raise HTTPException"
+      d: "Read query parameters"
+    correct: a
+    explanation: >
+      Middleware sits around the whole ASGI app and sees the response on
+      the way out; dependencies only run for matched routes on the way in.

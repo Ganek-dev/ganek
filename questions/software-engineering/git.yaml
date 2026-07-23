@@ -1,0 +1,208 @@
+domain: software-engineering
+tag: git
+questions:
+  - id: git-commit-1
+    difficulty: easy
+    prompt: "What is a git commit?"
+    options:
+      a: "A snapshot of the tracked files, with author, message and parent link"
+      b: "A diff file sent to the server"
+      c: "A compressed backup of the repo"
+      d: "A tag on the latest push"
+    correct: a
+    explanation: >
+      Commits are content snapshots linked into a history graph — diffs
+      are computed between them.
+
+  - id: git-branch-1
+    difficulty: easy
+    prompt: "What is a branch, technically?"
+    options:
+      a: "A movable pointer to a commit"
+      b: "A copy of the entire repository"
+      c: "A directory per feature"
+      d: "A locked series of commits"
+    correct: a
+    explanation: >
+      Branches are ~40-byte refs; creating one is instant because nothing
+      is copied.
+
+  - id: git-status-1
+    difficulty: easy
+    prompt: "What does `git status` show?"
+    options:
+      a: "Modified/staged/untracked files and your position relative to the upstream branch"
+      b: "The full commit history"
+      c: "The server's health"
+      d: "Who last edited each line"
+    correct: a
+    explanation: "It's the working-tree and index overview; history is `git log`."
+
+  - id: git-gitignore-1
+    difficulty: easy
+    prompt: "What does .gitignore do?"
+    options:
+      a: "Keeps matching UNTRACKED files from being added or shown as changes"
+      b: "Deletes matching files from history"
+      c: "Hides files from collaborators only"
+      d: "Stops tracking files that are already committed"
+    correct: a
+    explanation: >
+      Already-tracked files keep being tracked; you must `git rm --cached`
+      them first.
+
+  - id: git-pull-1
+    difficulty: easy
+    prompt: "`git pull` is equivalent to which two operations?"
+    options:
+      a: "`git fetch` then `git merge` (or rebase, if configured)"
+      b: "`git clone` then `git checkout`"
+      c: "`git add` then `git commit`"
+      d: "`git fetch` then `git push`"
+    correct: a
+    explanation: >
+      fetch downloads remote refs; pull additionally integrates them into
+      your current branch.
+
+  - id: git-staging-1
+    difficulty: medium
+    prompt: "What is the staging area (index) for?"
+    options:
+      a: "Composing exactly what the next commit will contain, separately from the working tree"
+      b: "A backup of the last commit"
+      c: "A queue of commits waiting to push"
+      d: "Temporary storage for conflicts"
+    correct: a
+    explanation: >
+      `git add` stages chosen changes (even partial files with -p) so
+      commits can be precise.
+
+  - id: git-head-1
+    difficulty: medium
+    prompt: "What is HEAD?"
+    options:
+      a: "The pointer to your current checkout — usually the tip of the current branch"
+      b: "The newest commit in the repository"
+      c: "The default branch on the server"
+      d: "The first commit ever made"
+    correct: a
+    explanation: >
+      HEAD normally references a branch; checking out a commit directly
+      detaches it.
+
+  - id: git-merge-rebase-1
+    difficulty: medium
+    prompt: "Merge vs rebase for integrating main into your feature branch?"
+    options:
+      a: "Merge adds a joining commit preserving both histories; rebase replays your commits on top for a linear history"
+      b: "Rebase is merge without conflicts"
+      c: "Merge rewrites your commits"
+      d: "They produce identical history"
+    correct: a
+    explanation: >
+      Same end content, different history shape — and rebase creates new
+      commits with new hashes.
+
+  - id: git-revert-reset-1
+    difficulty: medium
+    prompt: "On a shared branch, undo a bad commit with revert rather than reset — why?"
+    options:
+      a: "Revert adds a new inverse commit; reset rewrites history others already have"
+      b: "Reset only works locally on new repos"
+      c: "Revert is faster"
+      d: "Reset cannot touch pushed commits at all"
+    correct: a
+    explanation: >
+      Rewriting published history forces everyone downstream to recover;
+      revert moves history forward instead.
+
+  - id: git-stash-1
+    difficulty: medium
+    prompt: "What does `git stash` do?"
+    options:
+      a: "Shelves your uncommitted changes so you get a clean tree, restorable with stash pop"
+      b: "Creates a hidden commit on the current branch"
+      c: "Uploads changes to a private remote"
+      d: "Discards uncommitted changes permanently"
+    correct: a
+    explanation: >
+      Handy for switching context mid-work without committing half-done
+      changes.
+
+  - id: git-conflict-1
+    difficulty: medium
+    prompt: "What do `<<<<<<<`, `=======`, `>>>>>>>` markers in a file mean?"
+    options:
+      a: "A merge conflict: both sides changed the region — edit to the desired result, then stage"
+      b: "Corrupted repository data"
+      c: "Auto-resolved changes for review"
+      d: "Comments added by the remote"
+    correct: a
+    explanation: >
+      Git couldn't auto-merge; you resolve by editing out the markers and
+      `git add`ing the file.
+
+  - id: git-force-push-1
+    difficulty: medium
+    prompt: "Why is `git push --force` to a shared branch dangerous, and the safer flag?"
+    options:
+      a: "It can erase others' commits; --force-with-lease refuses if the remote moved since you fetched"
+      b: "It deletes the remote branch first; --force-safe"
+      c: "It bypasses CI; --force-verify"
+      d: "Nothing — force is required for every push"
+    correct: a
+    explanation: >
+      Force overwrites the remote ref unconditionally; with-lease at
+      least detects that someone else pushed meanwhile.
+
+  - id: git-rebase-shared-1
+    difficulty: hard
+    prompt: "Why must you not rebase commits that others have already based work on?"
+    options:
+      a: "Rebase creates new hashes — the old commits live on in their branches, causing duplicates and painful merges"
+      b: "Rebase deletes the reflog"
+      c: "The server blocks it automatically"
+      d: "Rebased commits lose their messages"
+    correct: a
+    explanation: >
+      History rewriting is fine for private branches; once shared, the
+      old and new histories diverge for everyone else.
+
+  - id: git-reflog-1
+    difficulty: hard
+    prompt: "You hard-reset away a commit you actually needed. Where can it usually still be found?"
+    options:
+      a: "`git reflog` — the local log of where HEAD has been; the commit is recoverable until GC"
+      b: "Nowhere; hard reset is immediate deletion"
+      c: "The remote keeps every local commit"
+      d: "In .gitignore history"
+    correct: a
+    explanation: >
+      Commits stay in the object store; reflog gives you the hash to
+      branch or reset back to.
+
+  - id: git-cherry-pick-1
+    difficulty: hard
+    prompt: "What does `git cherry-pick <hash>` do?"
+    options:
+      a: "Applies that commit's changes as a NEW commit on your current branch"
+      b: "Moves the commit out of its original branch"
+      c: "Merges the whole source branch"
+      d: "Marks the commit as reviewed"
+    correct: a
+    explanation: >
+      Useful for hotfix backports; the copy has a different hash than the
+      original.
+
+  - id: git-bisect-1
+    difficulty: hard
+    prompt: "What does `git bisect` automate?"
+    options:
+      a: "Binary-searching history to find the exact commit that introduced a bug"
+      b: "Splitting large commits in two"
+      c: "Halving repository size"
+      d: "Dividing a branch between two developers"
+    correct: a
+    explanation: >
+      Mark one good and one bad commit; git checks out midpoints until
+      the culprit is isolated in O(log n) steps.

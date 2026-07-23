@@ -1,0 +1,221 @@
+domain: software-engineering
+tag: typescript
+questions:
+  - id: ts-purpose-1
+    tags: [frontend, javascript]
+    difficulty: easy
+    prompt: "What does TypeScript add to JavaScript?"
+    options:
+      a: "Static types checked at compile time; it compiles to plain JS"
+      b: "A faster runtime engine"
+      c: "Multithreading"
+      d: "Runtime type enforcement in the browser"
+    correct: a
+    explanation: >
+      Types exist only at build time — they're erased in the emitted
+      JavaScript; nothing is checked at runtime.
+
+  - id: ts-annotation-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "Which is a valid type annotation?"
+    options:
+      a: "`let count: number = 0`"
+      b: "`let count = number(0)`"
+      c: "`number count = 0`"
+      d: "`let count :: number`"
+    correct: a
+    explanation: "Annotations follow the name after a colon."
+
+  - id: ts-interface-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What is an `interface` for?"
+    options:
+      a: "Describing the shape of an object — its properties and their types"
+      b: "Creating class instances"
+      c: "Importing modules"
+      d: "Declaring global variables"
+    correct: a
+    explanation: >
+      Interfaces are compile-time contracts; they generate no JS code.
+
+  - id: ts-any-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "What does typing a value as `any` do?"
+    options:
+      a: "Opts out of type checking for that value entirely"
+      b: "Accepts any value but keeps full checking"
+      c: "Restricts it to JSON-safe types"
+      d: "Makes it read-only"
+    correct: a
+    explanation: >
+      any silences the checker — you can call/assign anything, errors
+      surface only at runtime. Prefer unknown.
+
+  - id: ts-optional-1
+    tags: [frontend]
+    difficulty: easy
+    prompt: "In `interface User { nickname?: string }`, what does the `?` mean?"
+    options:
+      a: "The property may be absent (string | undefined)"
+      b: "The property is nullable but required"
+      c: "The property is read-only"
+      d: "The property is private"
+    correct: a
+    explanation: "Optional properties can be omitted from conforming objects."
+
+  - id: ts-union-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does the type `string | number` mean?"
+    options:
+      a: "The value is either a string or a number"
+      b: "The value is both at once"
+      c: "A tuple of a string and a number"
+      d: "A string containing digits"
+    correct: a
+    explanation: >
+      Union types list alternatives; you narrow them before using
+      type-specific operations.
+
+  - id: ts-narrowing-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "Inside `if (typeof x === \"string\")`, what does the checker know about `x: string | number`?"
+    options:
+      a: "x is narrowed to string; string methods are allowed"
+      b: "x is still string | number"
+      c: "x becomes any"
+      d: "The comparison is a type error"
+    correct: a
+    explanation: >
+      Control-flow narrowing applies type guards (typeof, in, instanceof,
+      equality) branch by branch.
+
+  - id: ts-unknown-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "How does `unknown` differ from `any`?"
+    options:
+      a: "unknown accepts any value but you must narrow it before use"
+      b: "They are aliases"
+      c: "unknown is only for errors in catch clauses"
+      d: "unknown values cannot be stored in variables"
+    correct: a
+    explanation: >
+      unknown is the type-safe top type: assignable from anything, usable
+      only after a check — the checker stays on.
+
+  - id: ts-generics-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What do generics like `function first<T>(xs: T[]): T` provide?"
+    options:
+      a: "Type-safe reuse: the relationship between input and output types is preserved per call"
+      b: "Faster execution through specialization"
+      c: "Runtime type information"
+      d: "Automatic memoization"
+    correct: a
+    explanation: >
+      T is inferred at each call site, so first([1,2]) is number without
+      casting.
+
+  - id: ts-readonly-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does `readonly` on a property enforce?"
+    options:
+      a: "No reassignment after initialization — checked at compile time only"
+      b: "Deep runtime immutability"
+      c: "The property is hidden from JSON"
+      d: "The property must be a constant literal"
+    correct: a
+    explanation: >
+      It's a compile-time guarantee; the emitted JS has no protection —
+      and nested objects remain mutable.
+
+  - id: ts-literal-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: 'What values does `type Mode = "light" | "dark"` allow?'
+    options:
+      a: 'Exactly the strings "light" and "dark"'
+      b: "Any string starting with those prefixes"
+      c: "Any string, with editor hints"
+      d: "Two enum objects"
+    correct: a
+    explanation: >
+      String-literal unions make illegal values compile errors — a
+      lightweight alternative to enums.
+
+  - id: ts-strict-null-1
+    tags: [frontend]
+    difficulty: medium
+    prompt: "What does `strictNullChecks` change?"
+    options:
+      a: "null/undefined stop being assignable to every type — absence must be explicit"
+      b: "null becomes a syntax error"
+      c: "All variables become optional"
+      d: "Runtime null checks are inserted"
+    correct: a
+    explanation: >
+      With it on, `string` means string only; use `string | null` to opt
+      into nullability. It kills a whole class of undefined errors.
+
+  - id: ts-structural-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "TypeScript's type system is structural. What does that mean?"
+    options:
+      a: "Compatibility is by shape: any object with the right members satisfies the type, regardless of declarations"
+      b: "Types match only by explicit `implements` clauses"
+      c: "Types are compared by class name"
+      d: "Only primitive types are checked"
+    correct: a
+    explanation: >
+      Unlike nominal systems (Java), an object literal with the same
+      members IS the type — duck typing, checked statically.
+
+  - id: ts-never-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "What does the `never` type represent?"
+    options:
+      a: "A value that cannot exist — functions that always throw, or exhausted unions"
+      b: "A value that is null"
+      c: "A function returning undefined"
+      d: "A deprecated API"
+    correct: a
+    explanation: >
+      never is the empty type. Assigning a leftover union member to never
+      is the classic exhaustiveness check in switch statements.
+
+  - id: ts-keyof-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "For `interface User { id: string; age: number }`, what is `keyof User`?"
+    options:
+      a: 'The union "id" | "age"'
+      b: "An array of the keys"
+      c: "The type string"
+      d: "The tuple [string, number]"
+    correct: a
+    explanation: >
+      keyof yields the property-name union — the foundation of typed
+      lookups like `<K extends keyof T>(obj: T, key: K): T[K]`.
+
+  - id: ts-discriminated-1
+    tags: [frontend]
+    difficulty: hard
+    prompt: "What makes a discriminated union like `{kind: \"ok\", data} | {kind: \"err\", error}` powerful?"
+    options:
+      a: "Switching on the shared literal `kind` narrows to the exact variant, typed fields included"
+      b: "It serializes faster"
+      c: "It allows inheritance between the variants"
+      d: "The checker prevents constructing the err case"
+    correct: a
+    explanation: >
+      The common literal tag lets control flow prove which variant you
+      hold — errors become impossible states, not runtime surprises.

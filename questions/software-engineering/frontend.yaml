@@ -1,0 +1,208 @@
+domain: software-engineering
+tag: frontend
+questions:
+  - id: fe-dom-1
+    difficulty: easy
+    prompt: "What is the DOM?"
+    options:
+      a: "The browser's live object tree of the page that scripts can read and modify"
+      b: "The raw HTML file on the server"
+      c: "A CSS naming convention"
+      d: "The browser's network cache"
+    correct: a
+    explanation: >
+      The Document Object Model is the in-memory representation of the
+      document; JS manipulates the page through it.
+
+  - id: fe-semantic-1
+    difficulty: easy
+    prompt: "Why prefer `<nav>`, `<main>`, `<button>` over styled `<div>`s?"
+    options:
+      a: "Semantics give assistive tech and browsers meaning: accessibility, SEO, keyboard behavior for free"
+      b: "They render faster"
+      c: "divs are deprecated"
+      d: "Only semantic tags accept CSS"
+    correct: a
+    explanation: >
+      A real button is focusable and clickable via keyboard by default; a
+      div needs all of that re-implemented.
+
+  - id: fe-alt-1
+    difficulty: easy
+    prompt: "What is the `alt` attribute on `<img>` for?"
+    options:
+      a: "Text for screen readers and when the image fails to load"
+      b: "The tooltip on hover"
+      c: "SEO keywords only"
+      d: "A backup image URL"
+    correct: a
+    explanation: >
+      alt text is the accessible name of the image; title, not alt, drives
+      tooltips.
+
+  - id: fe-viewport-1
+    difficulty: easy
+    prompt: 'What does `<meta name="viewport" content="width=device-width, initial-scale=1">` do?'
+    options:
+      a: "Makes the layout use the device's real width — the basis of responsive design on mobile"
+      b: "Locks the page orientation"
+      c: "Enables fullscreen mode"
+      d: "Disables zooming entirely"
+    correct: a
+    explanation: >
+      Without it, mobile browsers render a ~980px virtual viewport and
+      scale it down.
+
+  - id: fe-class-selector-1
+    difficulty: easy
+    prompt: 'Which CSS selector targets elements with class="card"?'
+    options:
+      a: "`.card`"
+      b: "`#card`"
+      c: "`card`"
+      d: "`*card`"
+    correct: a
+    explanation: "Dot = class, hash = id, bare name = element type."
+
+  - id: fe-storage-1
+    difficulty: easy
+    prompt: "localStorage vs sessionStorage?"
+    options:
+      a: "localStorage persists across browser restarts; sessionStorage lives only for the tab session"
+      b: "sessionStorage is shared across devices"
+      c: "localStorage is sent with every request"
+      d: "They are identical"
+    correct: a
+    explanation: >
+      Both are per-origin key-value stores; only cookies travel with HTTP
+      requests.
+
+  - id: fe-flexbox-1
+    difficulty: medium
+    prompt: "In a flex container, what does `justify-content` control?"
+    options:
+      a: "Distribution of items along the MAIN axis"
+      b: "Alignment along the cross axis"
+      c: "The wrapping behavior"
+      d: "The order of items"
+    correct: a
+    explanation: >
+      justify-content = main axis, align-items = cross axis; which is
+      horizontal depends on flex-direction.
+
+  - id: fe-rem-1
+    difficulty: medium
+    prompt: "What does the CSS unit `rem` scale with?"
+    options:
+      a: "The root element's font size"
+      b: "The parent element's font size"
+      c: "The viewport width"
+      d: "The device pixel ratio"
+    correct: a
+    explanation: >
+      rem is relative to <html>'s font size (em is relative to the current
+      context) — respecting user font-size settings.
+
+  - id: fe-defer-1
+    difficulty: medium
+    prompt: "What does the `defer` attribute on a `<script>` change?"
+    options:
+      a: "The script downloads in parallel and executes after HTML parsing, preserving order"
+      b: "The script never blocks anything and runs immediately when ready"
+      c: "The script loads only on user interaction"
+      d: "The script runs in a web worker"
+    correct: a
+    explanation: >
+      defer = ordered execution after parse; async = run as soon as
+      fetched, order not guaranteed.
+
+  - id: fe-debounce-1
+    difficulty: medium
+    prompt: "Debouncing a search input means what?"
+    options:
+      a: "Waiting until typing pauses (e.g. 300ms) before firing the request"
+      b: "Sending at most one request per keypress"
+      c: "Caching identical queries"
+      d: "Cancelling all requests"
+    correct: a
+    explanation: >
+      Debounce delays until inactivity; throttle instead guarantees at
+      most one call per interval.
+
+  - id: fe-xss-1
+    difficulty: medium
+    prompt: "The core defense against XSS when displaying user content?"
+    options:
+      a: "Escaping/encoding output for its context (or safe framework defaults) — never inject raw HTML"
+      b: "Validating input length"
+      c: "Using HTTPS"
+      d: "Obfuscating the JavaScript bundle"
+    correct: a
+    explanation: >
+      XSS is an output problem: user data rendered as markup. innerHTML
+      with user input is the classic hole; CSP is defense in depth.
+
+  - id: fe-aria-label-1
+    difficulty: medium
+    prompt: "When is `aria-label` appropriate?"
+    options:
+      a: "Giving an accessible name to a control with no visible text, like an icon-only button"
+      b: "Styling labels"
+      c: "Hiding elements from screen readers"
+      d: "Adding tooltips for mouse users"
+    correct: a
+    explanation: >
+      Prefer visible text or a <label>; aria-label fills the gap for
+      icon buttons and similar.
+
+  - id: fe-bubbling-1
+    difficulty: hard
+    prompt: "Event delegation attaches ONE listener on a list container instead of per item. What makes this work?"
+    options:
+      a: "Event bubbling: events propagate upward, and event.target tells you the origin"
+      b: "The browser clones the listener to each child"
+      c: "CSS pointer-events forwarding"
+      d: "It only works with jQuery"
+    correct: a
+    explanation: >
+      Bubbling means ancestor handlers fire for descendant events —
+      fewer listeners, and dynamically added items just work.
+
+  - id: fe-reflow-1
+    difficulty: hard
+    prompt: "Why does alternating style writes with reads like `offsetHeight` in a loop destroy performance?"
+    options:
+      a: "Each read forces a synchronous layout (reflow) so the browser can answer accurately — layout thrashing"
+      b: "offsetHeight is O(n²) by itself"
+      c: "Style writes are asynchronous and get lost"
+      d: "It triggers garbage collection"
+    correct: a
+    explanation: >
+      Batch reads, then writes; or use requestAnimationFrame so layout
+      happens once per frame instead of per iteration.
+
+  - id: fe-cls-1
+    difficulty: hard
+    prompt: "What causes Cumulative Layout Shift (CLS), and a standard prevention?"
+    options:
+      a: "Content jumping as late assets load — reserve space (width/height on images, skeletons)"
+      b: "Slow JavaScript — minify it"
+      c: "Large DOM trees — paginate"
+      d: "Unused CSS — purge it"
+    correct: a
+    explanation: >
+      Dimensionless images, injected banners and web fonts shift layout;
+      reserving space keeps the page stable while loading.
+
+  - id: fe-hydration-1
+    difficulty: hard
+    prompt: "In SSR frameworks, what is hydration?"
+    options:
+      a: "Attaching event listeners and state to server-rendered HTML so it becomes interactive"
+      b: "Streaming CSS with the HTML"
+      c: "Re-fetching the page as JSON"
+      d: "Caching HTML in the service worker"
+    correct: a
+    explanation: >
+      The server sends ready HTML for fast first paint; the client then
+      binds the framework to that DOM instead of re-creating it.
