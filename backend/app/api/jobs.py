@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import CurrentCompany, DbSession
+from app.api.deps import AdminUser, CurrentCompany, DbSession
 from app.models import Job, JobStatus
 from app.schemas.jobs import JobCreate, JobOut, JobUpdate
 from app.services import jobs as jobs_service
@@ -66,7 +66,9 @@ async def close_job(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_job(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -> None:
+async def delete_job(
+    job_id: uuid.UUID, db: DbSession, company: CurrentCompany, _admin: AdminUser
+) -> None:
     job = await _get_or_404(db, company, job_id)
     try:
         await jobs_service.delete_job(db, job)

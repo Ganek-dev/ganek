@@ -22,12 +22,12 @@ def test_verify_rejects_garbage_hash() -> None:
 
 def test_session_token_roundtrip() -> None:
     user_id = uuid.uuid4()
-    token = create_session_token(user_id)
-    assert read_session_token(token) == user_id
+    token = create_session_token(user_id, 0)
+    assert read_session_token(token) == (user_id, 0)
 
 
 def test_session_token_rejects_tampering() -> None:
-    token = create_session_token(uuid.uuid4())
+    token = create_session_token(uuid.uuid4(), 2)
     assert read_session_token(token[:-2] + "xx") is None
     assert read_session_token("completely-bogus") is None
 

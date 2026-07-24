@@ -26,15 +26,18 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_session_token(user_id: uuid.UUID) -> str:
-    return _serializer.dumps(str(user_id))
+def create_session_token(user_id: uuid.UUID, token_version: int) -> str:
+    return _serializer.dumps({"uid": str(user_id), "v": token_version})
 
 
-def read_session_token(token: str) -> uuid.UUID | None:
+def read_session_token(token: str) -> tuple[uuid.UUID, int] | None:
+    """Return (user_id, token_version) or None if unusable."""
     try:
-        raw: str = _serializer.loads(token, max_age=SESSION_MAX_AGE_SECONDS)
-        return uuid.UUID(raw)
-    except (BadSignature, SignatureExpired, ValueError):
+        raw = _serializer.loads(token, max_age=SESSION_MAX_AGE_SECONDS)
+        if not isinstance(raw, dict):
+            return None
+        return uuid.UUID(str(raw["uid"])), int(raw["v"])
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
         return None
 
 
