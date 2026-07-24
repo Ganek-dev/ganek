@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { CompanyHero, JobList, themeStyle } from "@/components/careers";
+import { CareersFooter, CompanyHero, themeStyle } from "@/components/careers";
+import { JobList } from "@/components/careers-list";
 import { fetchInstanceMode, publicApi } from "@/lib/public-api";
 
 export default async function Home() {
@@ -12,11 +13,14 @@ export default async function Home() {
 
   return (
     <main
-      className="mx-auto max-w-3xl space-y-8 px-4 py-12"
+      className="min-h-screen bg-surface text-foreground"
       style={themeStyle(page.company)}
     >
-      <CompanyHero company={page.company} />
-      <JobList jobs={page.jobs} hrefFor={(job) => `/jobs/${job.slug}`} />
+      <CompanyHero company={page.company} jobCount={page.jobs.length} />
+      <section className="mx-auto max-w-[720px] px-5 pt-[18px] pb-8 sm:px-6 sm:pt-8 sm:pb-12">
+        <JobList jobs={page.jobs} hrefPrefix="/jobs" />
+        <CareersFooter />
+      </section>
     </main>
   );
 }
