@@ -67,6 +67,12 @@
   --color-divider: var(--divider);
   --color-muted-fill: var(--muted-fill);
   --color-hover-fill: var(--hover-fill);
+  --color-g700: var(--gray-700);
+  --color-g600: var(--gray-600);
+  --color-g500: var(--gray-500);
+  --color-g400: var(--gray-400);
+  --color-inverse: var(--primary-btn);
+  --color-inverse-foreground: var(--primary-btn-foreground);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-sidebar: var(--sidebar);
