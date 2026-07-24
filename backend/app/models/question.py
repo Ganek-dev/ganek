@@ -2,17 +2,16 @@ import enum
 import uuid
 from typing import Any
 
-from sqlalchemy import Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Enum, ForeignKey, Index, Integer, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
 
-
-class Difficulty(enum.StrEnum):
-    EASY = "easy"
-    MEDIUM = "medium"
-    HARD = "hard"
+# Difficulty is a 1–5 scale (5-dot UI: ≤2 easy-ish, 3 medium, ≥4 hard).
+# Legacy 3-level values map as easy→2, medium→3, hard→4 (migration 0008).
+MIN_DIFFICULTY = 1
+MAX_DIFFICULTY = 5
 
 
 class QuestionStatus(enum.StrEnum):
@@ -51,7 +50,7 @@ class Question(TimestampMixin, Base):
     )
     domain: Mapped[str] = mapped_column(String(50), index=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
-    difficulty: Mapped[Difficulty] = mapped_column(_str_enum(Difficulty))
+    difficulty: Mapped[int] = mapped_column(SmallInteger)  # 1–5, CHECK-enforced
     prompt_md: Mapped[str] = mapped_column(Text)
     options: Mapped[dict[str, Any]] = mapped_column(JSONB)  # {"a": md, "b": md, ...}
     correct_key: Mapped[str] = mapped_column(String(1))

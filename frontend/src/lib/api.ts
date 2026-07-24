@@ -312,7 +312,8 @@ export const publicQuiz = {
     }),
 };
 
-export type Difficulty = "easy" | "medium" | "hard";
+/** Difficulty is a 1-5 scale (5-dot UI); legacy "easy/medium/hard" bands were migrated. */
+export type Difficulty = number;
 
 export interface QuestionOut {
   id: string;
@@ -370,7 +371,7 @@ export const questions = {
   }) => {
     const params = new URLSearchParams();
     if (filters?.tag) params.set("tag", filters.tag);
-    if (filters?.difficulty) params.set("difficulty", filters.difficulty);
+    if (filters?.difficulty !== undefined) params.set("difficulty", String(filters.difficulty));
     if (filters?.q) params.set("q", filters.q);
     if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
     if (filters?.offset !== undefined) params.set("offset", String(filters.offset));

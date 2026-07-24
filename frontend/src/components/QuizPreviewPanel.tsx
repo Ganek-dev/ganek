@@ -2,14 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DifficultyDots } from "@/components/DifficultyDots";
 import { api, type QuizPreview } from "@/lib/api";
 
 const badgeCls = "rounded-full px-2 py-0.5 text-xs font-medium";
-const DIFFICULTY_TONES: Record<string, string> = {
-  easy: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  hard: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-};
 
 /** Recruiter-side preview of a job's quiz pool with per-job exclude toggles.
  *  Excludes PATCH the job's quiz_config immediately (no form round-trip). */
@@ -129,9 +125,7 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
                       in sample
                     </span>
                   ) : null}
-                  <span className={`${badgeCls} ${DIFFICULTY_TONES[question.difficulty]}`}>
-                    {question.difficulty}
-                  </span>
+                  <DifficultyDots level={question.difficulty} />
                   {question.source === "company" ? (
                     <span className={`${badgeCls} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200`}>
                       yours

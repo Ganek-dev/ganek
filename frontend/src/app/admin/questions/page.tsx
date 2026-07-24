@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DifficultyDots } from "@/components/DifficultyDots";
 import {
   questions,
   type BankPage,
@@ -17,11 +18,6 @@ const selectCls =
 const OPTION_KEYS = ["a", "b", "c", "d"] as const;
 const PAGE_SIZE = 25;
 
-const DIFFICULTY_TONES: Record<Difficulty, string> = {
-  easy: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  hard: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-};
 
 function BankBrowser() {
   const [page, setPage] = useState<BankPage | null>(null);
@@ -89,14 +85,16 @@ function BankBrowser() {
           value={difficulty}
           onChange={(e) => {
             setOffset(0);
-            setDifficulty(e.target.value as Difficulty | "");
+            setDifficulty(e.target.value === "" ? "" : Number(e.target.value));
           }}
           className={selectCls}
         >
           <option value="">All difficulties</option>
-          <option value="easy">easy</option>
-          <option value="medium">medium</option>
-          <option value="hard">hard</option>
+          {[1, 2, 3, 4, 5].map((level) => (
+            <option key={level} value={level}>
+              difficulty {level}
+            </option>
+          ))}
         </select>
         <input
           aria-label="Search questions"
@@ -130,11 +128,7 @@ function BankBrowser() {
                     {question.prompt_md}
                   </p>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${DIFFICULTY_TONES[question.difficulty]}`}
-                    >
-                      {question.difficulty}
-                    </span>
+                    <DifficultyDots level={question.difficulty} />
                     <button
                       type="button"
                       disabled={busyId === question.id}
@@ -229,7 +223,7 @@ function CompanyQuestions() {
           .split(",")
           .map((tag) => tag.trim().toLowerCase())
           .filter(Boolean),
-        difficulty: str("difficulty") as Difficulty,
+        difficulty: Number(str("difficulty") || "3"),
         time_limit_seconds: Number(str("time_limit_seconds") || "15"),
       });
       setShowForm(false);
@@ -303,10 +297,12 @@ function CompanyQuestions() {
             </label>
             <label className="block space-y-1">
               <span className={labelCls}>Difficulty</span>
-              <select name="difficulty" className={inputCls} defaultValue="medium">
-                <option value="easy">easy</option>
-                <option value="medium">medium</option>
-                <option value="hard">hard</option>
+              <select name="difficulty" className={inputCls} defaultValue="3">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block space-y-1">
@@ -352,7 +348,7 @@ function CompanyQuestions() {
                   {question.prompt_md}
                 </p>
                 <p className="text-sm text-zinc-500">
-                  {[question.difficulty, `${question.time_limit_seconds}s`, ...question.tags].join(
+                  {[`d${question.difficulty}`, `${question.time_limit_seconds}s`, ...question.tags].join(
                     " · ",
                   )}
                 </p>

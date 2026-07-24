@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { Difficulty, EmploymentType, JobInput, JobOut, QuizConfig, RemotePolicy } from "@/lib/api";
 
-const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+const DIFFICULTIES: Difficulty[] = [1, 2, 3, 4, 5];
 
 const REMOTE_POLICIES: { value: RemotePolicy; label: string }[] = [
   { value: "onsite", label: "On-site" },

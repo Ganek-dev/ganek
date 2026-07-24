@@ -2,7 +2,7 @@ domain: software-engineering
 tag: python
 questions:
   - id: py-mutable-default-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What is the problem with `def f(items=[])` in Python?"
     options:
       a: "The default list is shared across all calls to the function"
@@ -15,7 +15,7 @@ questions:
       so the same list object is reused across calls — a classic footgun.
 
   - id: py-gil-1
-    difficulty: easy
+    difficulty: 2
     prompt: "In CPython, what does the GIL prevent?"
     options:
       a: "Multiple threads executing Python bytecode simultaneously"
@@ -29,7 +29,7 @@ questions:
       are still possible; multiprocessing is unaffected.
 
   - id: py-dict-ordering-1
-    difficulty: medium
+    difficulty: 3
     prompt: "Since which Python version is `dict` insertion order guaranteed by the language spec?"
     options:
       a: "3.7"
@@ -44,7 +44,7 @@ questions:
   # ── batch 1 (2026-07-23) ──────────────────────────────────────
 
   - id: py-fstring-eval-1
-    difficulty: easy
+    difficulty: 2
     prompt: 'What does `f"{2 + 3}"` evaluate to?'
     options:
       a: '`"5"`'
@@ -57,7 +57,7 @@ questions:
       the results into the string.
 
   - id: py-list-alias-1
-    difficulty: easy
+    difficulty: 2
     prompt: "After `a = [1]`, `b = a`, `b.append(2)` — what is `a`?"
     options:
       a: "`[1, 2]`"
@@ -70,7 +70,7 @@ questions:
       object, so mutating through either name is visible through both.
 
   - id: py-is-vs-eq-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What is the difference between `==` and `is`?"
     options:
       a: "`==` compares values, `is` compares object identity"
@@ -83,7 +83,7 @@ questions:
       point to the very same object in memory.
 
   - id: py-len-dict-1
-    difficulty: easy
+    difficulty: 2
     prompt: 'What does `len({"a": 1, "b": 2})` return?'
     options:
       a: "`2`"
@@ -94,7 +94,7 @@ questions:
     explanation: "`len` on a dict counts its keys."
 
   - id: py-tuple-immutable-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What happens when you run `t = (1, 2)` then `t[0] = 3`?"
     options:
       a: "A `TypeError` — tuples are immutable"
@@ -107,7 +107,7 @@ questions:
       TypeError.
 
   - id: py-slice-basic-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does `[1, 2, 3, 4][1:3]` return?"
     options:
       a: "`[2, 3]`"
@@ -119,7 +119,7 @@ questions:
       Slicing is start-inclusive and stop-exclusive: indices 1 and 2.
 
   - id: py-none-check-1
-    difficulty: easy
+    difficulty: 2
     prompt: "The idiomatic way to test whether `x` is `None`?"
     options:
       a: "`if x is None:`"
@@ -132,7 +132,7 @@ questions:
       because 0, "" and [] are also falsy.
 
   - id: py-set-dedup-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What is `len(set([1, 2, 2, 3, 3, 3]))`?"
     options:
       a: "`3`"
@@ -143,7 +143,7 @@ questions:
     explanation: "Sets keep unique elements only: {1, 2, 3}."
 
   - id: py-floor-div-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does `7 // 2` evaluate to?"
     options:
       a: "`3`"
@@ -154,7 +154,7 @@ questions:
     explanation: "`//` is floor division; for ints it yields an int, rounded down."
 
   - id: py-finally-1
-    difficulty: easy
+    difficulty: 2
     prompt: "When does a `finally:` block run?"
     options:
       a: "Always — even if the try block raises or returns"
@@ -167,7 +167,7 @@ questions:
       exception, return, break or continue.
 
   - id: py-venv-purpose-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What is the purpose of a virtual environment (venv)?"
     options:
       a: "Isolating a project's installed packages from other projects"
@@ -180,7 +180,7 @@ questions:
       site-packages, preventing dependency version conflicts.
 
   - id: py-dict-get-1
-    difficulty: easy
+    difficulty: 2
     prompt: 'What does `{"a": 1}.get("b", 0)` return?'
     options:
       a: "`0`"
@@ -193,7 +193,7 @@ questions:
       missing, instead of raising KeyError.
 
   - id: py-args-kwargs-1
-    difficulty: medium
+    difficulty: 3
     prompt: "In `def f(*args, **kwargs)`, what is `args` inside the function?"
     options:
       a: "A tuple of the extra positional arguments"
@@ -206,7 +206,7 @@ questions:
       `**kwargs` collects surplus keyword arguments into a dict.
 
   - id: py-generator-def-1
-    difficulty: medium
+    difficulty: 3
     prompt: "Calling a function whose body contains `yield` returns what?"
     options:
       a: "A generator object; the body has not run yet"
@@ -219,7 +219,7 @@ questions:
       creates a generator; the body executes lazily as you iterate.
 
   - id: py-decorator-equiv-1
-    difficulty: medium
+    difficulty: 3
     prompt: "`@decorator` above `def f(): ...` is equivalent to which statement?"
     options:
       a: "`f = decorator(f)`"
@@ -232,7 +232,7 @@ questions:
       the name to the result.
 
   - id: py-comprehension-scope-1
-    difficulty: medium
+    difficulty: 3
     prompt: "After `[x for x in range(3)]` at module level, is `x` defined?"
     options:
       a: "No — comprehensions have their own scope in Python 3"
@@ -245,7 +245,7 @@ questions:
       enclosing scope in Python 3.
 
   - id: py-with-open-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `with open(path) as f:` guarantee?"
     options:
       a: "The file is closed when the block exits, even on an exception"
@@ -258,7 +258,7 @@ questions:
       the block, which closes the file.
 
   - id: py-lru-cache-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `functools.lru_cache` do when applied to a function?"
     options:
       a: "Memoizes return values keyed by the call arguments"
@@ -271,7 +271,7 @@ questions:
       result instead of re-running the body.
 
   - id: py-shallow-copy-1
-    difficulty: medium
+    difficulty: 3
     prompt: "`b = a.copy()` on a list of lists is a shallow copy — meaning?"
     options:
       a: "The outer list is new, but inner lists are shared with `a`"
@@ -284,7 +284,7 @@ questions:
       Use `copy.deepcopy` for a full recursive copy.
 
   - id: py-str-join-1
-    difficulty: medium
+    difficulty: 3
     prompt: 'Why is `"".join(parts)` preferred over `s += part` in a loop?'
     options:
       a: "Strings are immutable, so each `+=` builds a whole new string"
@@ -297,7 +297,7 @@ questions:
       join builds the result in a single pass.
 
   - id: py-dataclass-gen-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What does the `@dataclass` decorator generate for a class by default?"
     options:
       a: "`__init__`, `__repr__` and `__eq__` from the declared fields"
@@ -310,7 +310,7 @@ questions:
       ordering and hashing are opt-in flags.
 
   - id: py-raise-from-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `raise NewError(...) from err` do?"
     options:
       a: "Chains explicitly: sets `err` as the new exception's `__cause__`"
@@ -323,7 +323,7 @@ questions:
       as "The above exception was the direct cause..." in tracebacks.
 
   - id: py-closure-late-binding-1
-    difficulty: hard
+    difficulty: 4
     prompt: "`funcs = [lambda: i for i in range(3)]` — what does `funcs[0]()` return?"
     options:
       a: "`2`"
@@ -337,7 +337,7 @@ questions:
       is a default argument: `lambda i=i: i`.
 
   - id: py-mro-1
-    difficulty: hard
+    difficulty: 4
     prompt: "With multiple inheritance, how does Python decide which parent method to call?"
     options:
       a: "The C3-linearized MRO (method resolution order)"
@@ -350,7 +350,7 @@ questions:
       `Class.__mro__` shows the exact lookup order that `super()` follows.
 
   - id: py-memory-mgmt-1
-    difficulty: hard
+    difficulty: 4
     prompt: "How does CPython primarily manage memory?"
     options:
       a: "Reference counting, plus a cyclic garbage collector"
@@ -363,7 +363,7 @@ questions:
       collector exists only to break reference cycles refcounting misses.
 
   - id: py-slots-1
-    difficulty: hard
+    difficulty: 4
     prompt: "What is the effect of defining `__slots__` on a class?"
     options:
       a: "Instances get fixed attributes and no per-instance `__dict__`, saving memory"
@@ -376,7 +376,7 @@ questions:
       memory and faster attribute access, at the cost of dynamic attrs.
 
   - id: py-generator-exhaust-1
-    difficulty: hard
+    difficulty: 4
     prompt: "`g = (n for n in range(3))`, then `list(g)` twice — what does the second `list(g)` give?"
     options:
       a: "`[]` — the generator is exhausted"
@@ -389,7 +389,7 @@ questions:
       returning nothing; re-create the generator to iterate again.
 
   - id: py-unhashable-key-1
-    difficulty: hard
+    difficulty: 4
     prompt: "What happens when you use a list as a dict key, e.g. `{[1, 2]: 'x'}`?"
     options:
       a: "A `TypeError` — lists are unhashable"

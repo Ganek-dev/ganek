@@ -3,7 +3,7 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Difficulty, Question, QuestionSource, QuestionStatus
+from app.models import Company, Question, QuestionSource, QuestionStatus
 from app.schemas.questions import QuestionCreate, QuestionUpdate
 
 COMPANY_QUESTION_DOMAIN = "company"
@@ -13,7 +13,7 @@ async def list_bank_questions(
     db: AsyncSession,
     *,
     tag: str | None = None,
-    difficulty: Difficulty | None = None,
+    difficulty: int | None = None,
     search: str | None = None,
     limit: int = 50,
     offset: int = 0,

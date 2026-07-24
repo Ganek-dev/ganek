@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import AdminUser, CurrentCompany, DbSession
-from app.models import Difficulty, Question
+from app.models import Question
 from app.schemas.questions import (
     BankQuestionOut,
     BankQuestionPage,
@@ -31,7 +31,7 @@ async def browse_bank(
     db: DbSession,
     company: CurrentCompany,
     tag: str | None = None,
-    difficulty: Difficulty | None = None,
+    difficulty: int | None = Query(default=None, ge=1, le=5),
     q: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),

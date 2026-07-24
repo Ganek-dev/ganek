@@ -2,7 +2,7 @@ domain: software-engineering
 tag: git
 questions:
   - id: git-commit-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What is a git commit?"
     options:
       a: "A snapshot of the tracked files, with author, message and parent link"
@@ -15,7 +15,7 @@ questions:
       are computed between them.
 
   - id: git-branch-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What is a branch, technically?"
     options:
       a: "A movable pointer to a commit"
@@ -28,7 +28,7 @@ questions:
       is copied.
 
   - id: git-status-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does `git status` show?"
     options:
       a: "Modified/staged/untracked files and your position relative to the upstream branch"
@@ -39,7 +39,7 @@ questions:
     explanation: "It's the working-tree and index overview; history is `git log`."
 
   - id: git-gitignore-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does .gitignore do?"
     options:
       a: "Keeps matching UNTRACKED files from being added or shown as changes"
@@ -52,7 +52,7 @@ questions:
       them first.
 
   - id: git-pull-1
-    difficulty: easy
+    difficulty: 2
     prompt: "`git pull` is equivalent to which two operations?"
     options:
       a: "`git fetch` then `git merge` (or rebase, if configured)"
@@ -65,7 +65,7 @@ questions:
       your current branch.
 
   - id: git-staging-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What is the staging area (index) for?"
     options:
       a: "Composing exactly what the next commit will contain, separately from the working tree"
@@ -78,7 +78,7 @@ questions:
       commits can be precise.
 
   - id: git-head-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What is HEAD?"
     options:
       a: "The pointer to your current checkout — usually the tip of the current branch"
@@ -91,7 +91,7 @@ questions:
       detaches it.
 
   - id: git-merge-rebase-1
-    difficulty: medium
+    difficulty: 3
     prompt: "Merge vs rebase for integrating main into your feature branch?"
     options:
       a: "Merge adds a joining commit preserving both histories; rebase replays your commits on top for a linear history"
@@ -104,7 +104,7 @@ questions:
       commits with new hashes.
 
   - id: git-revert-reset-1
-    difficulty: medium
+    difficulty: 3
     prompt: "On a shared branch, undo a bad commit with revert rather than reset — why?"
     options:
       a: "Revert adds a new inverse commit; reset rewrites history others already have"
@@ -117,7 +117,7 @@ questions:
       revert moves history forward instead.
 
   - id: git-stash-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `git stash` do?"
     options:
       a: "Shelves your uncommitted changes so you get a clean tree, restorable with stash pop"
@@ -130,7 +130,7 @@ questions:
       changes.
 
   - id: git-conflict-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What do `<<<<<<<`, `=======`, `>>>>>>>` markers in a file mean?"
     options:
       a: "A merge conflict: both sides changed the region — edit to the desired result, then stage"
@@ -143,7 +143,7 @@ questions:
       `git add`ing the file.
 
   - id: git-force-push-1
-    difficulty: medium
+    difficulty: 3
     prompt: "Why is `git push --force` to a shared branch dangerous, and the safer flag?"
     options:
       a: "It can erase others' commits; --force-with-lease refuses if the remote moved since you fetched"
@@ -156,7 +156,7 @@ questions:
       least detects that someone else pushed meanwhile.
 
   - id: git-rebase-shared-1
-    difficulty: hard
+    difficulty: 4
     prompt: "Why must you not rebase commits that others have already based work on?"
     options:
       a: "Rebase creates new hashes — the old commits live on in their branches, causing duplicates and painful merges"
@@ -169,7 +169,7 @@ questions:
       old and new histories diverge for everyone else.
 
   - id: git-reflog-1
-    difficulty: hard
+    difficulty: 4
     prompt: "You hard-reset away a commit you actually needed. Where can it usually still be found?"
     options:
       a: "`git reflog` — the local log of where HEAD has been; the commit is recoverable until GC"
@@ -182,7 +182,7 @@ questions:
       branch or reset back to.
 
   - id: git-cherry-pick-1
-    difficulty: hard
+    difficulty: 4
     prompt: "What does `git cherry-pick <hash>` do?"
     options:
       a: "Applies that commit's changes as a NEW commit on your current branch"
@@ -195,7 +195,7 @@ questions:
       original.
 
   - id: git-bisect-1
-    difficulty: hard
+    difficulty: 4
     prompt: "What does `git bisect` automate?"
     options:
       a: "Binary-searching history to find the exact commit that introduced a bug"

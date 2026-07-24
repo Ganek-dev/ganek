@@ -3,7 +3,7 @@ tag: asyncio
 questions:
   - id: py-asyncio-gather-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `asyncio.gather(a(), b())` do?"
     options:
       a: "Runs both coroutines concurrently and returns their results as a list"
@@ -18,7 +18,7 @@ questions:
 
   - id: py-asyncio-blocking-1
     tags: [python]
-    difficulty: easy
+    difficulty: 2
     prompt: "Why is calling `time.sleep(5)` inside a coroutine a bug?"
     options:
       a: "It blocks the entire event loop, freezing all other tasks"
@@ -32,7 +32,7 @@ questions:
 
   - id: py-asyncio-run-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "What happens if you call a coroutine function like `main()` without awaiting or running it?"
     options:
       a: "It returns a coroutine object; the body never executes"
@@ -49,7 +49,7 @@ questions:
 
   - id: py-asyncio-await-1
     tags: [python]
-    difficulty: easy
+    difficulty: 2
     prompt: "What does `await` do inside an `async def` function?"
     options:
       a: "Pauses this coroutine until the awaitable completes, letting the loop run other tasks"
@@ -63,7 +63,7 @@ questions:
 
   - id: py-asyncio-entry-1
     tags: [python]
-    difficulty: easy
+    difficulty: 2
     prompt: "What is the standard entry point for running an asyncio program?"
     options:
       a: "`asyncio.run(main())`"
@@ -77,7 +77,7 @@ questions:
 
   - id: py-asyncio-loop-1
     tags: [python]
-    difficulty: easy
+    difficulty: 2
     prompt: "What is the event loop in asyncio?"
     options:
       a: "The scheduler that runs tasks and callbacks, one at a time, switching at await points"
@@ -91,7 +91,7 @@ questions:
 
   - id: py-asyncio-requests-1
     tags: [python]
-    difficulty: easy
+    difficulty: 2
     prompt: "Why is calling the blocking `requests.get(...)` inside a coroutine a problem?"
     options:
       a: "It blocks the event loop, freezing every other task until it returns"
@@ -105,7 +105,7 @@ questions:
 
   - id: py-asyncio-create-task-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `asyncio.create_task(coro())` do?"
     options:
       a: "Schedules the coroutine to run concurrently and returns a Task immediately"
@@ -119,7 +119,7 @@ questions:
 
   - id: py-asyncio-wait-for-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "What happens when `asyncio.wait_for(op(), timeout=5)` exceeds the timeout?"
     options:
       a: "The inner task is cancelled and TimeoutError is raised"
@@ -133,7 +133,7 @@ questions:
 
   - id: py-asyncio-race-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "asyncio runs in one thread — can two tasks still corrupt shared state?"
     options:
       a: "Yes — interleaving at await points can produce lost updates between read and write"
@@ -147,7 +147,7 @@ questions:
 
   - id: py-asyncio-gather-exc-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "In `asyncio.gather(a(), b(), return_exceptions=True)`, what does the flag change?"
     options:
       a: "Exceptions are returned in the results list instead of being raised"
@@ -161,7 +161,7 @@ questions:
 
   - id: py-asyncio-cancel-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "How does a Task experience `task.cancel()`?"
     options:
       a: "CancelledError is raised inside the coroutine at its next await point"
@@ -175,7 +175,7 @@ questions:
 
   - id: py-asyncio-executor-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is `loop.run_in_executor` (or `asyncio.to_thread`) for?"
     options:
       a: "Running blocking code in a thread pool so the event loop stays responsive"
@@ -189,7 +189,7 @@ questions:
 
   - id: py-asyncio-semaphore-1
     tags: [python]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is `asyncio.Semaphore(10)` typically used for?"
     options:
       a: "Limiting how many tasks run a section concurrently (e.g. max 10 requests in flight)"
@@ -203,7 +203,7 @@ questions:
 
   - id: py-asyncio-taskgroup-1
     tags: [python]
-    difficulty: hard
+    difficulty: 4
     prompt: "How does `asyncio.TaskGroup` (3.11+) react when one child task fails?"
     options:
       a: "The remaining tasks are cancelled and the errors propagate as an ExceptionGroup"
@@ -217,7 +217,7 @@ questions:
 
   - id: py-asyncio-fire-forget-1
     tags: [python]
-    difficulty: hard
+    difficulty: 4
     prompt: "Why is `asyncio.create_task(coro())` without keeping the returned Task risky?"
     options:
       a: "The loop holds only a weak reference — the task can be garbage-collected mid-flight"
@@ -231,7 +231,7 @@ questions:
 
   - id: py-asyncio-shield-1
     tags: [python]
-    difficulty: hard
+    difficulty: 4
     prompt: "What does `asyncio.shield(op())` do?"
     options:
       a: "Protects the inner operation from cancellation aimed at the awaiting task"
@@ -245,7 +245,7 @@ questions:
 
   - id: py-asyncio-cpu-1
     tags: [python]
-    difficulty: hard
+    difficulty: 4
     prompt: "Why doesn't asyncio speed up CPU-bound work like hashing or parsing?"
     options:
       a: "Everything runs in one thread — a computing task never yields, so nothing else runs either"

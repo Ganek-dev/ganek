@@ -1,9 +1,12 @@
 import uuid
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models import Difficulty, EmploymentType, JobStatus, RemotePolicy
+from app.models import EmploymentType, JobStatus, RemotePolicy
+
+DifficultyLevel = Annotated[int, Field(ge=1, le=5)]
 
 
 class QuizConfigSchema(BaseModel):
@@ -19,8 +22,8 @@ class QuizConfigSchema(BaseModel):
         le=60,
         description="Seconds per question; None = each question's own limit",
     )
-    difficulties: list[Difficulty] | None = Field(
-        default=None, description="Allowed difficulties; None = all"
+    difficulties: list[DifficultyLevel] | None = Field(
+        default=None, description="Allowed difficulty levels 1-5; None = all"
     )
     exclude_ids: list[str] = Field(
         default_factory=list, max_length=500, description="Question ids excluded from this job"
@@ -33,7 +36,7 @@ class QuizPreviewQuestion(BaseModel):
     id: str
     source: str  # "seed" (open bank) or "company"
     tags: list[str]
-    difficulty: Difficulty
+    difficulty: int
     prompt_md: str
     options: dict[str, str]
     correct_key: str
@@ -46,7 +49,7 @@ class QuizPreviewOut(BaseModel):
     tags: list[str]
     question_count: int
     time_limit_seconds: int | None
-    difficulties: list[Difficulty]
+    difficulties: list[int]
     pool: list[QuizPreviewQuestion]
     eligible_count: int
     eligible_by_tag: dict[str, int]
