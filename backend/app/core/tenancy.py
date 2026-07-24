@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.security import SESSION_COOKIE_NAME, read_session_token
-from app.models import Company, User
+from app.models import Company, User, UserRole
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
@@ -24,16 +24,31 @@ _UNAUTHENTICATED = HTTPException(
 
 async def get_current_user(request: Request, db: DbSession) -> User:
     token = request.cookies.get(SESSION_COOKIE_NAME)
-    user_id = read_session_token(token) if token else None
-    if user_id is None:
+    parsed = read_session_token(token) if token else None
+    if parsed is None:
         raise _UNAUTHENTICATED
+    user_id, token_version = parsed
     user = await db.get(User, user_id)
-    if user is None:
+    if user is None or not user.is_active or user.token_version != token_version:
+        # unknown, deactivated, or a session predating a password change /
+        # forced logout — all rejected as unauthenticated
         raise _UNAUTHENTICATED
     return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def require_admin(user: CurrentUser) -> User:
+    if user.role is not UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This action requires an admin account",
+        )
+    return user
+
+
+AdminUser = Annotated[User, Depends(require_admin)]
 
 
 async def get_current_company(user: CurrentUser, db: DbSession) -> Company:

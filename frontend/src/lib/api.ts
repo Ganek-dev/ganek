@@ -92,6 +92,11 @@ export const api = {
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
   me: () => request<UserOut>("/api/v1/auth/me"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/api/v1/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
 
   jobs: {
     list: () => request<JobOut[]>("/api/v1/jobs"),
@@ -306,4 +311,26 @@ export const questions = {
   create: (payload: QuestionInput) =>
     request<QuestionOut>("/api/v1/questions", { method: "POST", body: JSON.stringify(payload) }),
   retire: (id: string) => request<QuestionOut>(`/api/v1/questions/${id}`, { method: "DELETE" }),
+};
+
+export type UserRole = "admin" | "member";
+
+export interface TeamUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  is_active: boolean;
+  last_login_at: string | null;
+  created_at: string;
+}
+
+export const team = {
+  list: () => request<TeamUser[]>("/api/v1/users"),
+  create: (email: string, password: string, role: UserRole) =>
+    request<TeamUser>("/api/v1/users", {
+      method: "POST",
+      body: JSON.stringify({ email, password, role }),
+    }),
+  update: (id: string, patch: { role?: UserRole; is_active?: boolean }) =>
+    request<TeamUser>(`/api/v1/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
 };

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     rate_limit_upload_per_minute: int = 10
     rate_limit_quiz_per_minute: int = 60
     rate_limit_public_per_minute: int = 120
+    lockout_enabled: bool = True
+    lockout_max_attempts: int = 10
+    lockout_window_seconds: int = 900  # 15 min
     quiz_network_grace_seconds: int = 2
     quiz_start_ttl_hours: int = 24
 

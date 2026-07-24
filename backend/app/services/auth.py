@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import lockout
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.models import Company, User, UserRole
@@ -15,6 +16,10 @@ class RegistrationClosedError(Exception):
 
 class EmailTakenError(Exception):
     """A user with this email already exists."""
+
+
+class AccountLockedError(Exception):
+    """Too many failed login attempts for this account."""
 
 
 async def _unique_slug(db: AsyncSession, base: str) -> str:
@@ -61,9 +66,35 @@ async def register_company_admin(
 
 
 async def authenticate(db: AsyncSession, *, email: str, password: str) -> User | None:
+    """Return the user on success, None on bad credentials.
+
+    Raises AccountLockedError when the account is temporarily locked from
+    repeated failures. Deactivated accounts never authenticate.
+    """
+    if await lockout.is_locked(email):
+        raise AccountLockedError
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
-    if user is None or not verify_password(password, user.password_hash):
+    if user is None or not user.is_active or not verify_password(password, user.password_hash):
+        await lockout.record_failure(email)
         return None
+    await lockout.clear(email)
     user.last_login_at = datetime.now(UTC)
     await db.commit()
     return user
+
+
+async def change_password(
+    db: AsyncSession, user: User, *, current_password: str, new_password: str
+) -> bool:
+    """Rotate the password and invalidate all existing sessions.
+
+    Bumping token_version makes every session token issued before now
+    fail validation, so a compromised session cannot survive a password
+    change.
+    """
+    if not verify_password(current_password, user.password_hash):
+        return False
+    user.password_hash = hash_password(new_password)
+    user.token_version += 1
+    await db.commit()
+    return True

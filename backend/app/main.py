@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from app.api import applications, auth, jobs, public, questions
+from app.api import applications, auth, jobs, public, questions, users
 from app.core.config import settings
 from app.services.storage import ensure_bucket_async
 
@@ -14,11 +14,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.secret_key == "change-me":  # noqa: S105
-        logger.critical(
+        message = (
             "VETD_SECRET_KEY is the default value — sessions and quiz tokens are "
-            "forgeable. Set a real secret before exposing this instance: "
-            "openssl rand -hex 32"
+            "forgeable. Set a real secret: openssl rand -hex 32"
         )
+        if settings.mode == "multi":
+            # a hosted (multi-tenant) instance must never boot forgeable
+            raise RuntimeError(message)
+        logger.critical(message)
     try:
         await ensure_bucket_async()
     except Exception:  # noqa: BLE001 - S3 is optional at boot (e.g. DB-less tests)
@@ -56,6 +59,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
 app.include_router(questions.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
 
 
 @app.get("/api/health")
