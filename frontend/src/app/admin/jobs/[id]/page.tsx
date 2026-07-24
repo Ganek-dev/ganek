@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { JobForm } from "@/components/JobForm";
+import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
 import { api, type JobOut } from "@/lib/api";
 
 export default function EditJobPage() {
@@ -46,6 +47,7 @@ export default function EditJobPage() {
           router.push("/admin/jobs");
         }}
       />
+      <QuizPreviewPanel jobId={job.id} />
     </section>
   );
 }

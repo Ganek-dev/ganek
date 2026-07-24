@@ -16,6 +16,12 @@ export interface QuizConfig {
   tags: string[] | null;
   question_count: number;
   include_company_questions: boolean;
+  /** Seconds per question; null = each question's own limit. */
+  time_limit_seconds: number | null;
+  /** Allowed difficulties; null/empty = all. */
+  difficulties: Difficulty[] | null;
+  /** Question ids excluded from this job's quiz. */
+  exclude_ids: string[];
 }
 
 export interface JobOut {
@@ -108,8 +114,33 @@ export const api = {
     publish: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/publish`, { method: "POST" }),
     close: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/close`, { method: "POST" }),
     delete: (id: string) => request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
+    quizPreview: (id: string) => request<QuizPreview>(`/api/v1/jobs/${id}/quiz-preview`),
   },
 };
+
+export interface QuizPreviewQuestion {
+  id: string;
+  source: "seed" | "company";
+  tags: string[];
+  difficulty: Difficulty;
+  prompt_md: string;
+  options: Record<string, string>;
+  correct_key: string;
+  excluded: boolean;
+  blocked: boolean;
+}
+
+export interface QuizPreview {
+  enabled: boolean;
+  tags: string[];
+  question_count: number;
+  time_limit_seconds: number | null;
+  difficulties: Difficulty[];
+  pool: QuizPreviewQuestion[];
+  eligible_count: number;
+  eligible_by_tag: Record<string, number>;
+  sample_question_ids: string[];
+}
 
 export interface CvUploadTicket {
   upload_url: string;
@@ -306,11 +337,82 @@ export interface QuestionInput {
   time_limit_seconds: number;
 }
 
+export interface BankQuestion {
+  id: string;
+  domain: string;
+  prompt_md: string;
+  options: Record<string, string>;
+  correct_key: string;
+  explanation_md: string;
+  tags: string[];
+  difficulty: Difficulty;
+  time_limit_seconds: number;
+  blocked: boolean;
+}
+
+export interface BankPage {
+  items: BankQuestion[];
+  total: number;
+  tags: string[];
+}
+
 export const questions = {
   list: () => request<QuestionOut[]>("/api/v1/questions"),
   create: (payload: QuestionInput) =>
     request<QuestionOut>("/api/v1/questions", { method: "POST", body: JSON.stringify(payload) }),
   retire: (id: string) => request<QuestionOut>(`/api/v1/questions/${id}`, { method: "DELETE" }),
+  bank: (filters?: {
+    tag?: string;
+    difficulty?: Difficulty;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.tag) params.set("tag", filters.tag);
+    if (filters?.difficulty) params.set("difficulty", filters.difficulty);
+    if (filters?.q) params.set("q", filters.q);
+    if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
+    if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
+    const qs = params.toString();
+    return request<BankPage>(`/api/v1/questions/bank${qs ? `?${qs}` : ""}`);
+  },
+  block: (id: string) =>
+    request<void>(`/api/v1/questions/bank/${id}/block`, { method: "PUT" }),
+  unblock: (id: string) =>
+    request<void>(`/api/v1/questions/bank/${id}/block`, { method: "DELETE" }),
+};
+
+export interface StatsOverview {
+  jobs: { draft: number; published: number; closed: number };
+  applications: { total: number; new: number; last_7_days: number };
+  quiz: {
+    attempts_total: number;
+    attempts_completed: number;
+    completion_rate: number | null;
+    avg_score: number | null;
+  };
+  per_job: {
+    job_id: string;
+    title: string;
+    status: JobStatus;
+    applications: number;
+    new: number;
+  }[];
+  weekly: { week_start: string; count: number }[];
+  recent: {
+    id: string;
+    candidate_name: string;
+    job_id: string;
+    job_title: string;
+    stage: ApplicationStage;
+    quiz_score: number | null;
+    created_at: string;
+  }[];
+}
+
+export const stats = {
+  overview: () => request<StatsOverview>("/api/v1/stats/overview"),
 };
 
 export type UserRole = "admin" | "member";

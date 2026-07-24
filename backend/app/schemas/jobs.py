@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models import EmploymentType, JobStatus, RemotePolicy
+from app.models import Difficulty, EmploymentType, JobStatus, RemotePolicy
 
 
 class QuizConfigSchema(BaseModel):
@@ -13,6 +13,44 @@ class QuizConfigSchema(BaseModel):
     )
     question_count: int = Field(default=6, ge=1, le=20)
     include_company_questions: bool = True
+    time_limit_seconds: int | None = Field(
+        default=20,
+        ge=10,
+        le=60,
+        description="Seconds per question; None = each question's own limit",
+    )
+    difficulties: list[Difficulty] | None = Field(
+        default=None, description="Allowed difficulties; None = all"
+    )
+    exclude_ids: list[str] = Field(
+        default_factory=list, max_length=500, description="Question ids excluded from this job"
+    )
+
+
+class QuizPreviewQuestion(BaseModel):
+    """Pool entry in the recruiter-side quiz preview. Admin-side only."""
+
+    id: str
+    source: str  # "seed" (open bank) or "company"
+    tags: list[str]
+    difficulty: Difficulty
+    prompt_md: str
+    options: dict[str, str]
+    correct_key: str
+    excluded: bool  # in this job's exclude_ids
+    blocked: bool  # on the company-wide blocklist
+
+
+class QuizPreviewOut(BaseModel):
+    enabled: bool
+    tags: list[str]
+    question_count: int
+    time_limit_seconds: int | None
+    difficulties: list[Difficulty]
+    pool: list[QuizPreviewQuestion]
+    eligible_count: int
+    eligible_by_tag: dict[str, int]
+    sample_question_ids: list[str]
 
 
 class JobCreate(BaseModel):

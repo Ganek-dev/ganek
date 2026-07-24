@@ -235,7 +235,7 @@ async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
                 QuizOptionOut(key=key, text_md=str(question.options[key]))
                 for key in answer.option_order
             ],
-            time_limit_seconds=question.time_limit_seconds,
+            time_limit_seconds=quiz_service.effective_time_limit(attempt, question),
             deadline_at=answer.deadline_at,
             index=answered + 1,
             total=len(attempt.question_ids),

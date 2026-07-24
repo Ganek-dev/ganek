@@ -36,6 +36,9 @@ describe("JobForm", () => {
           tags: null,
           question_count: 6,
           include_company_questions: true,
+          time_limit_seconds: 20,
+          difficulties: null,
+          exclude_ids: [],
         },
       }),
     );

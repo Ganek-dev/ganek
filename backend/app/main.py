@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from app.api import applications, auth, jobs, public, questions, users
+from app.api import applications, auth, jobs, public, questions, stats, users
 from app.core.config import settings
 from app.services.storage import ensure_bucket_async
 
@@ -59,6 +59,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
 app.include_router(questions.router, prefix="/api/v1")
+app.include_router(stats.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 
 

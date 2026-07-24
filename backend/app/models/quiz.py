@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -41,6 +41,9 @@ class QuizAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=AttemptStatus.PENDING,
     )
     question_ids: Mapped[list[str]] = mapped_column(ARRAY(String(100)))  # frozen serve order
+    # per-question seconds, frozen from the job's quiz_config at creation;
+    # NULL = fall back to each question's own time_limit_seconds
+    time_limit_seconds: Mapped[int | None] = mapped_column(Integer)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
