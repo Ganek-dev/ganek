@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Wordmark } from "@/components/Wordmark";
 import { api, ApiError, type UserOut } from "@/lib/api";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -31,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900">
         <nav className="flex items-center gap-4">
-          <span className="font-semibold text-zinc-900 dark:text-zinc-50">Vetd</span>
+          <Wordmark className="text-lg text-zinc-900 dark:text-zinc-50" />
           <Link
             href="/admin/jobs"
             className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
