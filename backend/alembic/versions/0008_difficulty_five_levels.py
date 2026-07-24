@@ -18,7 +18,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.drop_constraint("ck_questions_difficulty", "questions", type_="check")
+    # op.f() marks names as final — without it the naming convention
+    # double-prefixes to ck_questions_ck_questions_difficulty
+    op.drop_constraint(op.f("ck_questions_difficulty"), "questions", type_="check")
     op.execute(
         "UPDATE questions SET difficulty = CASE difficulty"
         " WHEN 'easy' THEN '2' WHEN 'medium' THEN '3' WHEN 'hard' THEN '4'"
@@ -27,11 +29,13 @@ def upgrade() -> None:
     op.execute(
         "ALTER TABLE questions ALTER COLUMN difficulty TYPE smallint USING difficulty::smallint"
     )
-    op.create_check_constraint("ck_questions_difficulty", "questions", "difficulty BETWEEN 1 AND 5")
+    op.create_check_constraint(
+        op.f("ck_questions_difficulty"), "questions", "difficulty BETWEEN 1 AND 5"
+    )
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_questions_difficulty", "questions", type_="check")
+    op.drop_constraint(op.f("ck_questions_difficulty"), "questions", type_="check")
     op.execute(
         "ALTER TABLE questions ALTER COLUMN difficulty TYPE varchar(20)"
         " USING CASE WHEN difficulty <= 2 THEN 'easy'"
