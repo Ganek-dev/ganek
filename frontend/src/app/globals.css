@@ -108,6 +108,69 @@ h4 {
   font-family: var(--font-heading);
 }
 
+/* editorial job-description body (screen 02): 16/27 text, Space Grotesk
+   subheads, restored list bullets, mono code chips */
+.job-body p {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 27px;
+  text-wrap: pretty;
+}
+
+.job-body h1,
+.job-body h2 {
+  margin: 30px 0 12px;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.job-body h3,
+.job-body h4 {
+  margin: 24px 0 10px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.job-body ul,
+.job-body ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+}
+
+.job-body ul {
+  list-style: disc;
+}
+
+.job-body ol {
+  list-style: decimal;
+}
+
+.job-body li {
+  margin-bottom: 6px;
+  font-size: 16px;
+  line-height: 27px;
+}
+
+.job-body code {
+  background: var(--muted-fill);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+}
+
+.job-body a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}
+
+.job-body blockquote {
+  margin: 0 0 18px;
+  border-left: 2px solid var(--edge);
+  padding-left: 16px;
+  color: var(--gray-600);
+}
+
 /* mono overline — 11px uppercase tracked label used across the design */
 .overline {
   font-family: var(--font-mono);
