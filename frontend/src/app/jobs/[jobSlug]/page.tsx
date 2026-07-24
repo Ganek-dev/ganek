@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ApplyForm } from "@/components/ApplyForm";
-import { JobPosting } from "@/components/JobPosting";
+import { HowWeHire, JobHero, JobPosting } from "@/components/JobPosting";
+import { themeStyle } from "@/components/careers";
 import { publicApi } from "@/lib/public-api";
 
 interface Props {
@@ -28,9 +29,27 @@ export default async function SingleModeJobPage({ params }: Props) {
   if (!page || !job) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl space-y-10 px-4 py-12">
-      <JobPosting company={page.company} job={job} backHref="/" />
-      <ApplyForm apiBasePath={`/api/v1/public/company/jobs/${job.slug}`} />
+    <main
+      className="min-h-screen bg-surface text-foreground"
+      style={themeStyle(page.company)}
+    >
+      <JobHero company={page.company} job={job} backHref="/" />
+      <div className="mx-auto max-w-[720px] px-5 pt-7 pb-10 sm:px-6 sm:pt-9 sm:pb-14">
+        <JobPosting company={page.company} job={job} />
+        <HowWeHire />
+        <a
+          href="#apply"
+          className="mt-6 flex h-[46px] w-full items-center justify-center rounded-md bg-brand text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94]"
+        >
+          Apply for this position
+        </a>
+        <p className="mt-3 text-center font-mono text-[11px] text-g400">
+          No account needed · Careers powered by vetd
+        </p>
+        <section id="apply" className="mt-12 scroll-mt-8">
+          <ApplyForm apiBasePath={`/api/v1/public/company/jobs/${job.slug}`} />
+        </section>
+      </div>
     </main>
   );
 }
