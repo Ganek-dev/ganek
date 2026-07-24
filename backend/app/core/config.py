@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="VETD_", env_file=".env", extra="ignore")
 
     mode: Literal["single", "multi"] = "single"
-    secret_key: str = "change-me"  # noqa: S105 - overridden in prod, validated below
+    secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
     database_url: str = "postgresql+asyncpg://vetd:vetd@localhost:5432/vetd"
     redis_url: str = "redis://localhost:6379/0"
 

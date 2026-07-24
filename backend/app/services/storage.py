@@ -76,8 +76,15 @@ def presign_cv_upload(object_key: str) -> str:
     )
 
 
+def sanitize_disposition_filename(filename: str) -> str:
+    """Strip anything that could break out of the quoted disposition value."""
+    cleaned = "".join(c for c in filename if c.isprintable() and c not in '"\\;')
+    cleaned = cleaned.strip() or "cv.pdf"
+    return cleaned[:150]
+
+
 def presign_cv_download(object_key: str, filename: str) -> str:
-    safe_name = filename.replace('"', "")
+    safe_name = sanitize_disposition_filename(filename)
     return _public_client().generate_presigned_url(
         "get_object",
         Params={
