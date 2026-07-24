@@ -4,8 +4,9 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, CurrentCompany, DbSession
 from app.models import Job, JobStatus
-from app.schemas.jobs import JobCreate, JobOut, JobUpdate
+from app.schemas.jobs import JobCreate, JobOut, JobUpdate, QuizPreviewOut, QuizPreviewQuestion
 from app.services import jobs as jobs_service
+from app.services import quiz as quiz_service
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -45,6 +46,42 @@ async def update_job(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from None
+
+
+@router.get("/{job_id}/quiz-preview", response_model=QuizPreviewOut)
+async def quiz_preview(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -> QuizPreviewOut:
+    """What this job's quiz draws from right now. Read-only; sample redraws per call."""
+    job = await _get_or_404(db, company, job_id)
+    config, pool, eligible_ids, sample = await quiz_service.build_quiz_preview(db, company, job)
+    blocked = set(company.blocked_question_ids or [])
+    excluded = set(config.exclude_ids)
+    return QuizPreviewOut(
+        enabled=config.enabled,
+        tags=config.tags,
+        question_count=config.question_count,
+        time_limit_seconds=config.time_limit_seconds,
+        difficulties=config.difficulties,
+        pool=[
+            QuizPreviewQuestion(
+                id=question.id,
+                source=question.source.value,
+                tags=question.tags,
+                difficulty=question.difficulty,
+                prompt_md=question.prompt_md,
+                options=question.options,
+                correct_key=question.correct_key,
+                excluded=question.id in excluded,
+                blocked=question.id in blocked,
+            )
+            for question in pool
+        ],
+        eligible_count=len(eligible_ids),
+        eligible_by_tag={
+            tag: sum(1 for q in pool if q.id in eligible_ids and tag in q.tags)
+            for tag in config.tags
+        },
+        sample_question_ids=sample,
+    )
 
 
 @router.post("/{job_id}/publish", response_model=JobOut)

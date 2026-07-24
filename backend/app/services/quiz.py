@@ -22,6 +22,7 @@ from app.models import (
     AttemptAnswer,
     AttemptStatus,
     Company,
+    Difficulty,
     Job,
     Question,
     QuestionStatus,
@@ -44,22 +45,39 @@ class NoOpenQuestionError(QuizError):
     """An answer arrived for a question that is not currently open."""
 
 
+DEFAULT_TIME_LIMIT_SECONDS = 20
+
+
 @dataclass(frozen=True)
 class QuizConfig:
     enabled: bool = False
     tags: list[str] = field(default_factory=list)
     question_count: int = 6
     include_company_questions: bool = True
+    time_limit_seconds: int | None = DEFAULT_TIME_LIMIT_SECONDS
+    difficulties: list[Difficulty] = field(default_factory=list)  # empty = all
+    exclude_ids: list[str] = field(default_factory=list)
+
+
+def _parse_difficulties(raw: Any) -> list[Difficulty]:
+    if not isinstance(raw, list):
+        return []
+    valid = {member.value for member in Difficulty}
+    return [Difficulty(value) for value in raw if value in valid]
 
 
 def parse_quiz_config(job: Job) -> QuizConfig:
     raw = job.quiz_config or {}
     tags = raw.get("tags") or job.tags
+    raw_limit = raw.get("time_limit_seconds", DEFAULT_TIME_LIMIT_SECONDS)
     return QuizConfig(
         enabled=bool(raw.get("enabled", False)),
         tags=list(tags),
         question_count=int(raw.get("question_count", 6)),
         include_company_questions=bool(raw.get("include_company_questions", True)),
+        time_limit_seconds=int(raw_limit) if raw_limit is not None else None,
+        difficulties=_parse_difficulties(raw.get("difficulties")),
+        exclude_ids=[str(qid) for qid in raw.get("exclude_ids") or []],
     )
 
 
@@ -67,7 +85,19 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-async def _question_pool(db: AsyncSession, company: Company, config: QuizConfig) -> list[Question]:
+async def _question_pool(
+    db: AsyncSession,
+    company: Company,
+    config: QuizConfig,
+    *,
+    apply_exclusions: bool = True,
+) -> list[Question]:
+    """Eligible questions for a job's quiz.
+
+    ``apply_exclusions=False`` returns the pool ignoring per-job excludes and
+    the company blocklist — the preview endpoint uses it so recruiters can see
+    (and un-exclude) what they filtered out.
+    """
     query = select(Question).where(
         Question.status == QuestionStatus.ACTIVE,
         Question.tags.overlap(config.tags),
@@ -76,6 +106,12 @@ async def _question_pool(db: AsyncSession, company: Company, config: QuizConfig)
         query = query.where((Question.company_id.is_(None)) | (Question.company_id == company.id))
     else:
         query = query.where(Question.company_id.is_(None))
+    if config.difficulties:
+        query = query.where(Question.difficulty.in_(config.difficulties))
+    if apply_exclusions:
+        excluded = set(config.exclude_ids) | set(company.blocked_question_ids or [])
+        if excluded:
+            query = query.where(Question.id.not_in(excluded))
     return list((await db.execute(query)).scalars().all())
 
 
@@ -122,6 +158,7 @@ async def create_attempt(
         company_id=company.id,
         application_id=application.id,
         question_ids=question_ids,
+        time_limit_seconds=config.time_limit_seconds,
         expires_at=_now() + timedelta(hours=settings.quiz_start_ttl_hours),
     )
     db.add(attempt)
@@ -297,6 +334,36 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
     await db.commit()
 
 
+def effective_time_limit(attempt: QuizAttempt, question: Question) -> int:
+    """Seconds the candidate gets: the attempt's frozen per-job limit, else the question's own."""
+    return attempt.time_limit_seconds or question.time_limit_seconds
+
+
+async def build_quiz_preview(
+    db: AsyncSession,
+    company: Company,
+    job: Job,
+    *,
+    rng: random.Random | None = None,
+) -> tuple[QuizConfig, list[Question], set[str], list[str]]:
+    """What this job's quiz would look like right now.
+
+    Returns (config, full pool WITHOUT exclusions applied, eligible ids after
+    exclusions, sample question ids drawn like a real attempt). Preview only —
+    never persisted; every call redraws the sample.
+    """
+    config = parse_quiz_config(job)
+    if not config.tags:
+        return config, [], set(), []
+    pool = await _question_pool(db, company, config, apply_exclusions=False)
+    blocked = set(company.blocked_question_ids or [])
+    excluded = set(config.exclude_ids) | blocked
+    eligible = [q for q in pool if q.id not in excluded]
+    eligible_ids = {q.id for q in eligible}
+    sample = stratified_sample(eligible, config.tags, config.question_count, rng or _default_rng)
+    return config, pool, eligible_ids, sample
+
+
 async def current_or_next_question(
     db: AsyncSession, attempt: QuizAttempt, *, rng: random.Random | None = None
 ) -> tuple[AttemptAnswer, Question] | None:
@@ -348,7 +415,9 @@ async def current_or_next_question(
         option_order=option_order,
         served_at=now,
         deadline_at=now
-        + timedelta(seconds=question.time_limit_seconds + settings.quiz_network_grace_seconds),
+        + timedelta(
+            seconds=effective_time_limit(attempt, question) + settings.quiz_network_grace_seconds
+        ),
     )
     db.add(answer)
     await db.commit()

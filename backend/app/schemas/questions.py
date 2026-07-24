@@ -68,3 +68,27 @@ class QuestionOut(BaseModel):
     time_limit_seconds: int
     status: QuestionStatus
     created_at: datetime
+
+
+class BankQuestionOut(BaseModel):
+    """Open-bank question as recruiters browse it. Admin-side only — the bank
+    is public content, but this schema must never be reused candidate-facing."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    domain: str
+    prompt_md: str
+    options: dict[str, str]
+    correct_key: str
+    explanation_md: str
+    tags: list[str]
+    difficulty: Difficulty
+    time_limit_seconds: int
+    blocked: bool = False  # on this company's blocklist
+
+
+class BankQuestionPage(BaseModel):
+    items: list[BankQuestionOut]
+    total: int
+    tags: list[str]  # all distinct bank tags, for filter UIs

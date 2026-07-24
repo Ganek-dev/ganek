@@ -11,8 +11,19 @@ const STATUS_STYLES: Record<JobStatus, string> = {
   closed: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
 };
 
+type JobFilter = "open" | "all" | JobStatus;
+
+const FILTERS: { value: JobFilter; label: string }[] = [
+  { value: "open", label: "Open" },
+  { value: "all", label: "All" },
+  { value: "draft", label: "Draft" },
+  { value: "published", label: "Published" },
+  { value: "closed", label: "Closed" },
+];
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<JobOut[] | null>(null);
+  const [filter, setFilter] = useState<JobFilter>("open");
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
@@ -36,16 +47,43 @@ export default function JobsPage() {
     }
   }
 
+  const visible =
+    jobs === null
+      ? null
+      : jobs.filter((job) => {
+          if (filter === "all") return true;
+          if (filter === "open") return job.status !== "closed";
+          return job.status === filter;
+        });
+
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Jobs</h1>
-        <Link
-          href="/admin/jobs/new"
-          className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          New job
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-lg border border-zinc-200 p-1 dark:border-zinc-800">
+            {FILTERS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setFilter(option.value)}
+                className={`rounded-md px-2.5 py-1 text-sm font-medium ${
+                  filter === option.value
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <Link
+            href="/admin/jobs/new"
+            className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            New job
+          </Link>
+        </div>
       </div>
 
       {error ? (
@@ -54,15 +92,17 @@ export default function JobsPage() {
         </p>
       ) : null}
 
-      {jobs === null ? (
+      {visible === null ? (
         <p className="text-sm text-zinc-500">Loading…</p>
-      ) : jobs.length === 0 ? (
+      ) : visible.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          No jobs yet. Create your first job posting to get started.
+          {jobs !== null && jobs.length > 0
+            ? "No jobs match this filter."
+            : "No jobs yet. Create your first job posting to get started."}
         </p>
       ) : (
         <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-          {jobs.map((job) => (
+          {visible.map((job) => (
             <li key={job.id} className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0">
                 <Link

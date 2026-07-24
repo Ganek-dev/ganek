@@ -1,0 +1,177 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+import { api, type QuizPreview } from "@/lib/api";
+
+const badgeCls = "rounded-full px-2 py-0.5 text-xs font-medium";
+const DIFFICULTY_TONES: Record<string, string> = {
+  easy: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  hard: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+};
+
+/** Recruiter-side preview of a job's quiz pool with per-job exclude toggles.
+ *  Excludes PATCH the job's quiz_config immediately (no form round-trip). */
+export function QuizPreviewPanel({ jobId }: { jobId: string }) {
+  const [preview, setPreview] = useState<QuizPreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [showPool, setShowPool] = useState(false);
+
+  const reload = useCallback(() => {
+    api.jobs
+      .quizPreview(jobId)
+      .then(setPreview)
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Failed to load quiz preview"),
+      );
+  }, [jobId]);
+  useEffect(reload, [reload]);
+
+  async function toggleExclude(questionId: string, currentlyExcluded: boolean) {
+    if (!preview) return;
+    setError(null);
+    setBusyId(questionId);
+    try {
+      const job = await api.jobs.get(jobId);
+      const current = job.quiz_config.exclude_ids ?? [];
+      const next = currentlyExcluded
+        ? current.filter((id) => id !== questionId)
+        : [...current, questionId];
+      await api.jobs.update(jobId, { quiz_config: { ...job.quiz_config, exclude_ids: next } });
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update exclusions");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (error) {
+    return (
+      <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        {error}
+      </p>
+    );
+  }
+  if (!preview) {
+    return <p className="text-sm text-zinc-500">Loading quiz preview…</p>;
+  }
+  if (!preview.enabled) {
+    return (
+      <p className="text-sm text-zinc-500">
+        Quiz is disabled for this job — enable it above to preview questions.
+      </p>
+    );
+  }
+
+  const sample = new Set(preview.sample_question_ids);
+  const sampleQuestions = preview.pool.filter((q) => sample.has(q.id));
+  const shown = showPool ? preview.pool : sampleQuestions;
+
+  return (
+    <section className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Quiz preview</h2>
+          <p className="text-xs text-zinc-500">
+            {preview.eligible_count} eligible question{preview.eligible_count === 1 ? "" : "s"}
+            {" · "}
+            {Object.entries(preview.eligible_by_tag)
+              .map(([tag, count]) => `${tag}: ${count}`)
+              .join(" · ")}
+            {" · "}
+            {preview.time_limit_seconds !== null
+              ? `${preview.time_limit_seconds}s per question`
+              : "per-question time limits"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPool((v) => !v)}
+            className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            {showPool ? `Show sample (${sampleQuestions.length})` : `Show pool (${preview.pool.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={reload}
+            className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            Redraw sample
+          </button>
+        </div>
+      </div>
+
+      {preview.eligible_count === 0 ? (
+        <p className="text-sm text-amber-700 dark:text-amber-400">
+          No eligible questions — loosen the difficulty filter, add tags, or un-exclude questions.
+        </p>
+      ) : null}
+
+      <ol className="space-y-3">
+        {shown.map((question) => {
+          const inactive = question.excluded || question.blocked;
+          return (
+            <li
+              key={question.id}
+              className={`rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800 ${
+                inactive ? "opacity-50" : ""
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="font-medium text-zinc-900 dark:text-zinc-50">{question.prompt_md}</p>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {sample.has(question.id) && showPool ? (
+                    <span className={`${badgeCls} bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900`}>
+                      in sample
+                    </span>
+                  ) : null}
+                  <span className={`${badgeCls} ${DIFFICULTY_TONES[question.difficulty]}`}>
+                    {question.difficulty}
+                  </span>
+                  {question.source === "company" ? (
+                    <span className={`${badgeCls} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200`}>
+                      yours
+                    </span>
+                  ) : null}
+                  {question.blocked ? (
+                    <span className={`${badgeCls} bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200`}>
+                      blocked company-wide
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busyId === question.id}
+                      onClick={() => toggleExclude(question.id, question.excluded)}
+                      className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    >
+                      {question.excluded ? "Include" : "Exclude"}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <ul className="mt-1.5 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {Object.entries(question.options).map(([key, text]) => (
+                  <li
+                    key={key}
+                    className={
+                      key === question.correct_key
+                        ? "text-green-700 dark:text-green-400"
+                        : "text-zinc-600 dark:text-zinc-400"
+                    }
+                  >
+                    {`${key === question.correct_key ? "✓" : "·"} ${key}) ${text}`}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs text-zinc-400">{question.tags.join(" · ")}</p>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}

@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -22,6 +22,8 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     socials: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     theme: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # bank question ids this company never wants served, across all its jobs
+    blocked_question_ids: Mapped[list[str]] = mapped_column(ARRAY(String(100)), default=list)
 
     users: Mapped[list["User"]] = relationship(back_populates="company")
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")

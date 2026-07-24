@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
-import type { EmploymentType, JobInput, JobOut, QuizConfig, RemotePolicy } from "@/lib/api";
+import type { Difficulty, EmploymentType, JobInput, JobOut, QuizConfig, RemotePolicy } from "@/lib/api";
+
+const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 
 const REMOTE_POLICIES: { value: RemotePolicy; label: string }[] = [
   { value: "onsite", label: "On-site" },
@@ -45,11 +47,18 @@ export function JobForm({
         .split(",")
         .map((tag) => tag.trim().toLowerCase())
         .filter(Boolean);
+      const checkedDifficulties = DIFFICULTIES.filter(
+        (level) => data.get(`quiz_difficulty_${level}`) === "on",
+      );
       const quiz_config: QuizConfig = {
         enabled: data.get("quiz_enabled") === "on",
         tags: quizTags.length > 0 ? quizTags : null,
         question_count: Number(str("quiz_question_count") || "6"),
         include_company_questions: true,
+        time_limit_seconds: Number(str("quiz_time_limit") || "20"),
+        difficulties: checkedDifficulties.length > 0 ? checkedDifficulties : null,
+        // excludes are managed from the quiz preview panel; carry them through
+        exclude_ids: initial?.quiz_config.exclude_ids ?? [],
       };
       await onSubmit({
         title: str("title"),
@@ -179,7 +188,7 @@ export function JobForm({
           />
           Ask candidates a short timed quiz after they apply
         </label>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="block space-y-1">
             <span className={labelCls}>Questions</span>
             <input
@@ -192,6 +201,17 @@ export function JobForm({
             />
           </label>
           <label className="block space-y-1">
+            <span className={labelCls}>Seconds per question</span>
+            <input
+              name="quiz_time_limit"
+              type="number"
+              min={10}
+              max={60}
+              defaultValue={initial?.quiz_config.time_limit_seconds ?? 20}
+              className={inputCls}
+            />
+          </label>
+          <label className="block space-y-1">
             <span className={labelCls}>Quiz tags (defaults to job tags)</span>
             <input
               name="quiz_tags"
@@ -200,6 +220,24 @@ export function JobForm({
               className={inputCls}
             />
           </label>
+        </div>
+        <div className="space-y-1">
+          <span className={labelCls}>Difficulty (none checked = all)</span>
+          <div className="flex gap-4">
+            {DIFFICULTIES.map((level) => (
+              <label
+                key={level}
+                className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300"
+              >
+                <input
+                  name={`quiz_difficulty_${level}`}
+                  type="checkbox"
+                  defaultChecked={initial?.quiz_config.difficulties?.includes(level) ?? false}
+                />
+                {level}
+              </label>
+            ))}
+          </div>
         </div>
       </fieldset>
 
