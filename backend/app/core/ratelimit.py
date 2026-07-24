@@ -63,6 +63,12 @@ def _hit_memory(key: str, window: int) -> int:
     return count + 1
 
 
+def _peek_memory(key: str, window: int) -> int:
+    """Read the current count without incrementing it (0 if the window rolled)."""
+    stored_window, count = _memory.get(key, (window, 0))
+    return count if stored_window == window else 0
+
+
 def client_ip(request: Request) -> str:
     """Client address; honors X-Forwarded-For when configured.
 

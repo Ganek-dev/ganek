@@ -9,7 +9,7 @@ import logging
 import time
 
 from app.core.config import settings
-from app.core.ratelimit import _get_redis, _hit_memory
+from app.core.ratelimit import _get_redis, _hit_memory, _peek_memory
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ async def is_locked(email: str) -> bool:
         except Exception:  # noqa: BLE001, S110 - degrade gracefully to memory fallback
             pass
     window = int(time.time() // settings.lockout_window_seconds)
-    count = _hit_memory(f"{key}:{window}", window) - 1  # peek without incrementing net
+    count = _peek_memory(f"{key}:{window}", window)  # peek: must NOT increment
     return count >= settings.lockout_max_attempts
 
 
