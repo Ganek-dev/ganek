@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { brandStyle } from "@/lib/brand";
 import type { PublicCompany, PublicJobSummary } from "@/lib/public-api";
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
@@ -17,9 +18,7 @@ const REMOTE_LABELS: Record<string, string> = {
 
 export function themeStyle(company: PublicCompany): React.CSSProperties {
   const theme = company.theme as { primary_color?: string };
-  return {
-    "--brand": typeof theme.primary_color === "string" ? theme.primary_color : "#18181b",
-  } as React.CSSProperties;
+  return brandStyle(theme.primary_color);
 }
 
 export function formatSalary(job: PublicJobSummary): string | null {
@@ -53,7 +52,7 @@ export function CompanyHero({ company }: { company: PublicCompany }) {
           href={company.website}
           rel="noopener noreferrer"
           className="text-sm underline"
-          style={{ color: "var(--brand)" }}
+          style={{ color: "var(--brand-primary)" }}
         >
           {company.website}
         </a>

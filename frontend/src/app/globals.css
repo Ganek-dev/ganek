@@ -1,24 +1,111 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Design tokens — source: design_handoff_vetd_redesign/README.md (§Design tokens).
+   Light values in :root, dark values swapped via prefers-color-scheme. */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+:root {
+  /* neutrals */
+  --background: #fafafa; /* page bg (admin); candidate pages may set bg-white */
+  --surface: #ffffff; /* cards */
+  --email-canvas: #eeeef0;
+  --foreground: oklch(0.145 0 0);
+  --strong: #18181b;
+  --gray-700: #3f3f46;
+  --gray-600: #52525c;
+  --gray-500: #71717a;
+  --gray-400: #a1a1aa;
+  --edge: oklch(0.922 0 0); /* border */
+  --divider: oklch(0.945 0 0);
+  --muted-fill: oklch(0.97 0 0);
+  --hover-fill: oklch(0.985 0 0);
+  --card-ring: 0 0 0 1px oklch(0.145 0 0 / 0.08);
+  --primary-btn: #18181b;
+  --primary-btn-foreground: #fafafa;
+
+  /* constants (same in both modes) */
+  --sidebar: #18181b;
+  --sidebar-foreground: #fafafa;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+
+  /* vetd admin accent */
+  --accent: #7e14ff;
+  --accent-soft: oklch(from #7e14ff calc(l + 0.25) c h);
+
+  /* per-company brand (candidate surfaces) — set at runtime via brandStyle() */
+  --brand-primary: #18181b;
+  --brand-primary-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #131316;
+    --surface: #1b1b1f;
+    --email-canvas: #0f0f12;
+    --foreground: oklch(0.93 0 0);
+    --strong: #f4f4f5;
+    --gray-700: #d4d4d8;
+    --gray-600: #b4b4bc;
+    --gray-500: #94949e;
+    --gray-400: #6f6f79;
+    --edge: rgba(255, 255, 255, 0.14);
+    --divider: rgba(255, 255, 255, 0.09);
+    --muted-fill: rgba(255, 255, 255, 0.08);
+    --hover-fill: rgba(255, 255, 255, 0.05);
+    --card-ring: 0 0 0 1px rgba(255, 255, 255, 0.1);
+    --primary-btn: #ededf0;
+    --primary-btn-foreground: #18181b;
   }
+}
+
+@theme inline {
+  /* colors → utilities like bg-surface, text-strong, border-edge, text-accent */
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-strong: var(--strong);
+  --color-edge: var(--edge);
+  --color-divider: var(--divider);
+  --color-muted-fill: var(--muted-fill);
+  --color-hover-fill: var(--hover-fill);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-brand: var(--brand-primary);
+  --color-brand-foreground: var(--brand-primary-foreground);
+
+  /* typography (fonts imported in app/layout.tsx) */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk Variable", var(--font-geist-sans), ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+
+  /* radii scale from the handoff: chips/inputs 8, buttons/inputs 10, cards 12,
+     large cards/frames 14 (existing rounded-* utilities pick these up) */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+}
+
+/* mono overline — 11px uppercase tracked label used across the design */
+.overline {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
