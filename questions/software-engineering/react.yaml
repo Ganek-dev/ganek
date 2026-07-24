@@ -3,7 +3,7 @@ tag: react
 questions:
   - id: react-jsx-1
     tags: [frontend, javascript]
-    difficulty: easy
+    difficulty: 2
     prompt: "What is JSX?"
     options:
       a: "A syntax extension that compiles to React element-creating function calls"
@@ -17,7 +17,7 @@ questions:
 
   - id: react-component-return-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What does a React function component return?"
     options:
       a: "The UI description (JSX / elements) to render"
@@ -31,7 +31,7 @@ questions:
 
   - id: react-props-readonly-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "Can a component modify the props it receives?"
     options:
       a: "No — props are read-only; data flows down, changes flow up via callbacks"
@@ -45,7 +45,7 @@ questions:
 
   - id: react-usestate-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What does `useState(0)` return?"
     options:
       a: "A pair: the current value and a setter function"
@@ -59,7 +59,7 @@ questions:
 
   - id: react-key-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "Why does React ask for a `key` on list items?"
     options:
       a: "To identify items across renders so it can reorder/reuse instead of rebuilding"
@@ -73,7 +73,7 @@ questions:
 
   - id: react-conditional-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "A common way to render something only when `show` is true?"
     options:
       a: "`{show ? <Panel /> : null}`"
@@ -87,7 +87,7 @@ questions:
 
   - id: react-useeffect-timing-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "When does `useEffect(fn, [dep])` run `fn`?"
     options:
       a: "After the render is committed, on mount and whenever dep changes"
@@ -101,7 +101,7 @@ questions:
 
   - id: react-effect-cleanup-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is the function returned from a useEffect callback for?"
     options:
       a: "Cleanup — it runs before the effect re-runs and on unmount"
@@ -115,7 +115,7 @@ questions:
 
   - id: react-state-async-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "Right after calling `setCount(count + 1)`, what does `count` hold in that same function?"
     options:
       a: "The old value — state updates apply on the next render"
@@ -129,7 +129,7 @@ questions:
 
   - id: react-lift-state-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: '"Lifting state up" means what?'
     options:
       a: "Moving shared state to the closest common ancestor and passing it down as props"
@@ -143,7 +143,7 @@ questions:
 
   - id: react-controlled-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is a controlled input?"
     options:
       a: "An input whose value comes from React state and changes via onChange"
@@ -157,7 +157,7 @@ questions:
 
   - id: react-hooks-rules-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "Why must hooks be called at the top level, never inside conditions or loops?"
     options:
       a: "React tracks hooks by call order — it must be identical every render"
@@ -171,7 +171,7 @@ questions:
 
   - id: react-fragment-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `<>...</>` (a Fragment) let you do?"
     options:
       a: "Return multiple siblings without adding a wrapper DOM node"
@@ -185,7 +185,7 @@ questions:
 
   - id: react-usememo-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "What problem do `useMemo`/`useCallback` primarily solve?"
     options:
       a: "Preserving referential identity (and skipping recomputation) across renders so memoized children and effect deps don't fire needlessly"
@@ -199,7 +199,7 @@ questions:
 
   - id: react-stale-closure-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "A setInterval callback set up in useEffect with `[]` deps always logs the initial count. Why?"
     options:
       a: "The callback closed over the first render's state; it never sees later values"
@@ -213,7 +213,7 @@ questions:
 
   - id: react-strictmode-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "In development, StrictMode mounts, unmounts and remounts components (double-invoking effects). Why?"
     options:
       a: "To surface missing effect cleanups and non-idempotent logic before they bite in production"
@@ -227,7 +227,7 @@ questions:
 
   - id: react-context-rerender-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "When a Context value changes, which components re-render?"
     options:
       a: "Every consumer of that context, regardless of memoization of intermediate parents"

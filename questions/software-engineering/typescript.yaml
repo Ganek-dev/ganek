@@ -3,7 +3,7 @@ tag: typescript
 questions:
   - id: ts-purpose-1
     tags: [frontend, javascript]
-    difficulty: easy
+    difficulty: 2
     prompt: "What does TypeScript add to JavaScript?"
     options:
       a: "Static types checked at compile time; it compiles to plain JS"
@@ -17,7 +17,7 @@ questions:
 
   - id: ts-annotation-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "Which is a valid type annotation?"
     options:
       a: "`let count: number = 0`"
@@ -29,7 +29,7 @@ questions:
 
   - id: ts-interface-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What is an `interface` for?"
     options:
       a: "Describing the shape of an object — its properties and their types"
@@ -42,7 +42,7 @@ questions:
 
   - id: ts-any-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What does typing a value as `any` do?"
     options:
       a: "Opts out of type checking for that value entirely"
@@ -56,7 +56,7 @@ questions:
 
   - id: ts-optional-1
     tags: [frontend]
-    difficulty: easy
+    difficulty: 2
     prompt: "In `interface User { nickname?: string }`, what does the `?` mean?"
     options:
       a: "The property may be absent (string | undefined)"
@@ -68,7 +68,7 @@ questions:
 
   - id: ts-union-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does the type `string | number` mean?"
     options:
       a: "The value is either a string or a number"
@@ -82,7 +82,7 @@ questions:
 
   - id: ts-narrowing-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "Inside `if (typeof x === \"string\")`, what does the checker know about `x: string | number`?"
     options:
       a: "x is narrowed to string; string methods are allowed"
@@ -96,7 +96,7 @@ questions:
 
   - id: ts-unknown-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "How does `unknown` differ from `any`?"
     options:
       a: "unknown accepts any value but you must narrow it before use"
@@ -110,7 +110,7 @@ questions:
 
   - id: ts-generics-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What do generics like `function first<T>(xs: T[]): T` provide?"
     options:
       a: "Type-safe reuse: the relationship between input and output types is preserved per call"
@@ -124,7 +124,7 @@ questions:
 
   - id: ts-readonly-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `readonly` on a property enforce?"
     options:
       a: "No reassignment after initialization — checked at compile time only"
@@ -138,7 +138,7 @@ questions:
 
   - id: ts-literal-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: 'What values does `type Mode = "light" | "dark"` allow?'
     options:
       a: 'Exactly the strings "light" and "dark"'
@@ -152,7 +152,7 @@ questions:
 
   - id: ts-strict-null-1
     tags: [frontend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `strictNullChecks` change?"
     options:
       a: "null/undefined stop being assignable to every type — absence must be explicit"
@@ -166,7 +166,7 @@ questions:
 
   - id: ts-structural-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "TypeScript's type system is structural. What does that mean?"
     options:
       a: "Compatibility is by shape: any object with the right members satisfies the type, regardless of declarations"
@@ -180,7 +180,7 @@ questions:
 
   - id: ts-never-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "What does the `never` type represent?"
     options:
       a: "A value that cannot exist — functions that always throw, or exhausted unions"
@@ -194,7 +194,7 @@ questions:
 
   - id: ts-keyof-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "For `interface User { id: string; age: number }`, what is `keyof User`?"
     options:
       a: 'The union "id" | "age"'
@@ -208,7 +208,7 @@ questions:
 
   - id: ts-discriminated-1
     tags: [frontend]
-    difficulty: hard
+    difficulty: 4
     prompt: "What makes a discriminated union like `{kind: \"ok\", data} | {kind: \"err\", error}` powerful?"
     options:
       a: "Switching on the shared literal `kind` narrows to the exact variant, typed fields included"

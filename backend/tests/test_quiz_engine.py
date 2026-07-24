@@ -190,7 +190,7 @@ async def test_company_questions_join_the_pool_and_stay_private(
             company_id=company.id,
             domain="company",
             tags=[unique_tag],
-            difficulty="easy",
+            difficulty=2,
             prompt_md="Company-internal question?",
             options={"a": "Yes", "b": "No", "c": "Maybe", "d": "42"},
             correct_key="a",

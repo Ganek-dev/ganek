@@ -3,7 +3,7 @@ tag: go
 questions:
   - id: go-goroutine-1
     tags: [backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "How do you start a goroutine?"
     options:
       a: "`go doWork()`"
@@ -17,7 +17,7 @@ questions:
 
   - id: go-declare-1
     tags: [backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What does `x := 5` do inside a function?"
     options:
       a: "Declares x with an inferred type and assigns 5"
@@ -30,7 +30,7 @@ questions:
 
   - id: go-entry-1
     tags: [backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "Where does an executable Go program start?"
     options:
       a: "func main() in package main"
@@ -43,7 +43,7 @@ questions:
 
   - id: go-exported-1
     tags: [backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What makes an identifier exported (public) in Go?"
     options:
       a: "Starting with an uppercase letter"
@@ -57,7 +57,7 @@ questions:
 
   - id: go-gofmt-1
     tags: [backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What is gofmt?"
     options:
       a: "The canonical code formatter — one standard style for all Go code"
@@ -71,7 +71,7 @@ questions:
 
   - id: go-error-convention-1
     tags: [backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "The idiomatic way a Go function reports failure?"
     options:
       a: "Returning an error as the last return value, checked with `if err != nil`"
@@ -85,7 +85,7 @@ questions:
 
   - id: go-slice-array-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "The key difference between a slice and an array in Go?"
     options:
       a: "Arrays have fixed length in their type; slices are resizable views over a backing array"
@@ -99,7 +99,7 @@ questions:
 
   - id: go-defer-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "When and in what order do `defer`red calls run?"
     options:
       a: "When the surrounding function returns, last-deferred first (LIFO)"
@@ -113,7 +113,7 @@ questions:
 
   - id: go-nil-map-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "`var m map[string]int` (nil map). What happens on `m[\"a\"] = 1`?"
     options:
       a: "A runtime panic — writes to nil maps are illegal"
@@ -127,7 +127,7 @@ questions:
 
   - id: go-channel-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is a channel for?"
     options:
       a: "Typed communication and synchronization between goroutines"
@@ -141,7 +141,7 @@ questions:
 
   - id: go-unbuffered-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "A send on an UNbuffered channel does what?"
     options:
       a: "Blocks until another goroutine is ready to receive"
@@ -155,7 +155,7 @@ questions:
 
   - id: go-range-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `for i, v := range xs` give you for a slice?"
     options:
       a: "Index and a copy of the element at that index"
@@ -169,7 +169,7 @@ questions:
 
   - id: go-waitgroup-1
     tags: [backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "How does sync.WaitGroup coordinate goroutines?"
     options:
       a: "Add(n) before starting, Done() in each goroutine, Wait() blocks until the counter is zero"
@@ -183,7 +183,7 @@ questions:
 
   - id: go-interface-implicit-1
     tags: [backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "How does a type implement an interface in Go?"
     options:
       a: "Implicitly — by having the right method set; no declaration needed"
@@ -197,7 +197,7 @@ questions:
 
   - id: go-closed-channel-1
     tags: [backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "Receiving from a CLOSED channel does what?"
     options:
       a: "Returns the zero value immediately, with ok=false in the two-value form"
@@ -211,7 +211,7 @@ questions:
 
   - id: go-select-1
     tags: [backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "What does `select` do when several of its channel cases are ready?"
     options:
       a: "Picks one of the ready cases at random (uniform pseudo-random)"
@@ -225,7 +225,7 @@ questions:
 
   - id: go-nil-interface-1
     tags: [backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "A function returns `error` by returning a nil *MyErr pointer. Why is `err != nil` then true?"
     options:
       a: "The interface holds a (type, value) pair; with a non-nil type it isn't nil even if the value is"
@@ -239,7 +239,7 @@ questions:
 
   - id: go-goroutine-leak-1
     tags: [backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "A goroutine blocked forever on a channel nobody will touch again is called what — and why does it matter?"
     options:
       a: "A goroutine leak — its stack and references are never freed"

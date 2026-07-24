@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import Difficulty, QuestionStatus
+from app.models import QuestionStatus
 
 OPTION_KEYS = ("a", "b", "c", "d")
 
@@ -19,7 +19,7 @@ class QuestionCreate(BaseModel):
     correct_key: str = Field(pattern=r"^[a-d]$")
     explanation_md: str = Field(default="", max_length=2000)
     tags: list[str] = Field(min_length=1, max_length=10)
-    difficulty: Difficulty = Difficulty.MEDIUM
+    difficulty: int = Field(default=3, ge=1, le=5)
     time_limit_seconds: int = Field(default=15, ge=10, le=60)
 
     @field_validator("options")
@@ -43,7 +43,7 @@ class QuestionUpdate(BaseModel):
     correct_key: str | None = Field(default=None, pattern=r"^[a-d]$")
     explanation_md: str | None = Field(default=None, max_length=2000)
     tags: list[str] | None = Field(default=None, min_length=1, max_length=10)
-    difficulty: Difficulty | None = None
+    difficulty: int | None = Field(default=None, ge=1, le=5)
     time_limit_seconds: int | None = Field(default=None, ge=10, le=60)
     status: QuestionStatus | None = None
 
@@ -64,7 +64,7 @@ class QuestionOut(BaseModel):
     correct_key: str
     explanation_md: str
     tags: list[str]
-    difficulty: Difficulty
+    difficulty: int
     time_limit_seconds: int
     status: QuestionStatus
     created_at: datetime
@@ -83,7 +83,7 @@ class BankQuestionOut(BaseModel):
     correct_key: str
     explanation_md: str
     tags: list[str]
-    difficulty: Difficulty
+    difficulty: int
     time_limit_seconds: int
     blocked: bool = False  # on this company's blocklist
 

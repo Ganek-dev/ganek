@@ -35,7 +35,7 @@ def _question_payload(**overrides: object) -> dict[str, object]:
         "correct_key": "a",
         "explanation_md": "It frobnicates, obviously.",
         "tags": ["  Frobnication ", "internal"],
-        "difficulty": "easy",
+        "difficulty": 2,
         "time_limit_seconds": 20,
     }
     payload.update(overrides)
@@ -57,9 +57,9 @@ async def test_question_crud_and_retire(client: AsyncClient) -> None:
     listed = (await client.get("/api/v1/questions")).json()
     assert [q["id"] for q in listed] == [question["id"]]
 
-    resp = await client.patch(f"/api/v1/questions/{question['id']}", json={"difficulty": "hard"})
+    resp = await client.patch(f"/api/v1/questions/{question['id']}", json={"difficulty": 5})
     assert resp.status_code == 200
-    assert resp.json()["difficulty"] == "hard"
+    assert resp.json()["difficulty"] == 5
 
     resp = await client.delete(f"/api/v1/questions/{question['id']}")
     assert resp.status_code == 200
@@ -87,6 +87,6 @@ async def test_questions_are_tenant_scoped(client: AsyncClient) -> None:
     assert (await client.get("/api/v1/questions")).json() == []
     assert (await client.get(f"/api/v1/questions/{question['id']}")).status_code == 405
     assert (
-        await client.patch(f"/api/v1/questions/{question['id']}", json={"difficulty": "hard"})
+        await client.patch(f"/api/v1/questions/{question['id']}", json={"difficulty": 4})
     ).status_code == 404
     assert (await client.delete(f"/api/v1/questions/{question['id']}")).status_code == 404

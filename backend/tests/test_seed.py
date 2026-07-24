@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Difficulty, Question, QuestionStatus
+from app.models import Question, QuestionStatus
 from app.services.seed import questions_dir, seed_questions
 from tests.db import database_reachable
 
@@ -39,7 +39,7 @@ async def test_seeded_question_shape(db_session: AsyncSession) -> None:
     ).scalar_one()
     assert question.domain == "software-engineering"
     assert set(question.tags) >= {"asyncio", "python"}  # file tag + extra tags merged
-    assert question.difficulty is Difficulty.MEDIUM
+    assert question.difficulty == 3
     assert question.status is QuestionStatus.ACTIVE
     assert question.company_id is None
     assert set(question.options) == {"a", "b", "c", "d"}

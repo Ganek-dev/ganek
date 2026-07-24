@@ -2,7 +2,7 @@ domain: software-engineering
 tag: backend
 questions:
   - id: be-get-post-1
-    difficulty: easy
+    difficulty: 2
     prompt: "Semantically, GET vs POST?"
     options:
       a: "GET retrieves without side effects; POST submits data / creates or changes state"
@@ -15,7 +15,7 @@ questions:
       submissions.
 
   - id: be-404-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does HTTP 404 mean?"
     options:
       a: "The requested resource was not found"
@@ -26,7 +26,7 @@ questions:
     explanation: "4xx = client-side issue; 404 specifically: no such resource."
 
   - id: be-500-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does HTTP 500 indicate?"
     options:
       a: "An unexpected error on the server"
@@ -38,7 +38,7 @@ questions:
       5xx = server-side failure; the client's request may have been fine.
 
   - id: be-https-1
-    difficulty: easy
+    difficulty: 2
     prompt: "What does HTTPS add over HTTP?"
     options:
       a: "TLS encryption plus server authentication in transit"
@@ -51,7 +51,7 @@ questions:
       it says nothing about what the server stores.
 
   - id: be-json-header-1
-    difficulty: easy
+    difficulty: 2
     prompt: "Which header tells the server a request body is JSON?"
     options:
       a: "`Content-Type: application/json`"
@@ -64,7 +64,7 @@ questions:
       response format the client wants.
 
   - id: be-rest-url-1
-    difficulty: easy
+    difficulty: 2
     prompt: "Which URL is most RESTful for fetching order 17 of user 4?"
     options:
       a: "`GET /users/4/orders/17`"
@@ -77,7 +77,7 @@ questions:
       method.
 
   - id: be-401-403-1
-    difficulty: medium
+    difficulty: 3
     prompt: "401 vs 403?"
     options:
       a: "401: not authenticated (who are you?); 403: authenticated but not allowed"
@@ -90,7 +90,7 @@ questions:
       access is denied.
 
   - id: be-idempotent-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What does it mean that PUT is idempotent?"
     options:
       a: "Repeating the same request leaves the same final state as doing it once"
@@ -103,7 +103,7 @@ questions:
       not idempotent (N creates).
 
   - id: be-stateless-1
-    difficulty: medium
+    difficulty: 3
     prompt: "HTTP is stateless — what follows for API design?"
     options:
       a: "Each request must carry everything needed (auth, context); the server keeps no per-connection memory"
@@ -116,7 +116,7 @@ questions:
       is what makes horizontal scaling straightforward.
 
   - id: be-pagination-1
-    difficulty: medium
+    difficulty: 3
     prompt: "Why paginate list endpoints?"
     options:
       a: "Unbounded responses grow with data: memory, latency and payload blow up"
@@ -129,7 +129,7 @@ questions:
       cursor pagination also survives concurrent inserts.
 
   - id: be-rate-limit-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What is rate limiting for?"
     options:
       a: "Protecting the service from abuse and overload by capping requests per client/time"
@@ -142,7 +142,7 @@ questions:
       and accidental retry storms.
 
   - id: be-etag-1
-    difficulty: medium
+    difficulty: 3
     prompt: "How do ETag and If-None-Match reduce bandwidth?"
     options:
       a: "The server replies 304 Not Modified with no body when the client's cached version is current"
@@ -155,7 +155,7 @@ questions:
       content costs a header roundtrip, not a payload.
 
   - id: be-patch-put-1
-    difficulty: medium
+    difficulty: 3
     prompt: "PUT vs PATCH?"
     options:
       a: "PUT replaces the whole resource; PATCH applies a partial modification"
@@ -168,7 +168,7 @@ questions:
       with PATCH.
 
   - id: be-cors-1
-    difficulty: medium
+    difficulty: 3
     prompt: "What problem does CORS address?"
     options:
       a: "Browsers block cross-origin reads by default; CORS headers let a server opt in to specific origins"
@@ -181,7 +181,7 @@ questions:
       irrelevant to curl or backend-to-backend calls.
 
   - id: be-optimistic-lock-1
-    difficulty: hard
+    difficulty: 4
     prompt: "Two users edit the same record; last write silently wins. A common fix?"
     options:
       a: "Optimistic locking: carry a version, reject the save if the version changed (409)"
@@ -194,7 +194,7 @@ questions:
       and let the client resolve the conflict explicitly.
 
   - id: be-idempotency-key-1
-    difficulty: hard
+    difficulty: 4
     prompt: "Why do payment APIs accept an Idempotency-Key header?"
     options:
       a: "So a retried request (timeout, crash) executes the operation once, returning the recorded result"
@@ -207,7 +207,7 @@ questions:
       "charge the card" without double-executing.
 
   - id: be-queue-1
-    difficulty: hard
+    difficulty: 4
     prompt: "What's the main architectural gain of a message queue between services?"
     options:
       a: "Decoupling: producers and consumers scale and fail independently; bursts are absorbed"
@@ -220,7 +220,7 @@ questions:
       processing and delivery-semantics complexity.
 
   - id: be-conn-pool-1
-    difficulty: hard
+    difficulty: 4
     prompt: "Why do backends use database connection pools?"
     options:
       a: "Connections are expensive to open and DBs cap them — reuse keeps latency low and load bounded"
@@ -233,7 +233,7 @@ questions:
       server limits; pooling amortizes it.
 
   - id: be-cache-stampede-1
-    difficulty: hard
+    difficulty: 4
     prompt: "A hot cache key expires and 1000 requests hit the DB at once. This is called — and mitigated by?"
     options:
       a: "Cache stampede — single-flight locks, staggered TTLs, or serving stale while revalidating"

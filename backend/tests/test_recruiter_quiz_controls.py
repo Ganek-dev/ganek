@@ -12,7 +12,6 @@ from app.models import (
     Application,
     Candidate,
     Company,
-    Difficulty,
     Job,
     JobStatus,
 )
@@ -82,12 +81,13 @@ async def _engine_fixture(db: AsyncSession, quiz_config: dict) -> tuple[Company,
 @pytest.mark.usefixtures("migrated_db")
 async def test_pool_honors_difficulty_excludes_and_blocklist(db_session: AsyncSession) -> None:
     company, job, _ = await _engine_fixture(
-        db_session, {"enabled": True, "tags": ["python"], "difficulties": ["easy"]}
+        db_session,
+        {"enabled": True, "tags": ["python"], "difficulties": ["easy"]},  # legacy band -> 1,2
     )
     config = quiz.parse_quiz_config(job)
     pool = await quiz._question_pool(db_session, company, config)
     assert pool, "bank should have easy python questions"
-    assert all(q.difficulty is Difficulty.EASY for q in pool)
+    assert all(q.difficulty <= 2 for q in pool)  # legacy "easy" maps to levels 1-2
 
     # per-job exclusion removes exactly that question
     target = pool[0].id
@@ -102,7 +102,11 @@ async def test_pool_honors_difficulty_excludes_and_blocklist(db_session: AsyncSe
     assert {q.id for q in pool2} == {q.id for q in pool} - {target}
 
     # company-wide blocklist removes it too, without per-job config
-    job.quiz_config = {"enabled": True, "tags": ["python"], "difficulties": ["easy"]}
+    job.quiz_config = {
+        "enabled": True,
+        "tags": ["python"],
+        "difficulties": ["easy"],
+    }  # legacy band -> 1,2
     company.blocked_question_ids = [target]
     await db_session.commit()
     pool3 = await quiz._question_pool(db_session, company, quiz.parse_quiz_config(job))
@@ -155,10 +159,10 @@ async def test_bank_browse_filters_and_tenancy(client: AsyncClient) -> None:
     assert page["tags"], "distinct tag list must be populated"
     assert all(item["correct_key"] in "abcd" for item in page["items"])
 
-    filtered = (await client.get("/api/v1/questions/bank?tag=python&difficulty=easy")).json()
+    filtered = (await client.get("/api/v1/questions/bank?tag=python&difficulty=2")).json()
     assert filtered["total"] > 0
     assert all("python" in item["tags"] for item in filtered["items"])
-    assert all(item["difficulty"] == "easy" for item in filtered["items"])
+    assert all(item["difficulty"] == 2 for item in filtered["items"])
 
     # company-private questions never surface in the bank
     marker = f"Zzq{uuid4().hex[:10]}"
@@ -169,7 +173,7 @@ async def test_bank_browse_filters_and_tenancy(client: AsyncClient) -> None:
             "options": {"a": "1", "b": "2", "c": "3", "d": "4"},
             "correct_key": "a",
             "tags": ["python"],
-            "difficulty": "easy",
+            "difficulty": 2,
         },
     )
     assert resp.status_code == 201, resp.text
@@ -223,7 +227,7 @@ async def test_quiz_preview_reflects_config(client: AsyncClient) -> None:
                     "tags": ["python"],
                     "question_count": 3,
                     "time_limit_seconds": 25,
-                    "difficulties": ["easy", "medium"],
+                    "difficulties": [1, 2, 3],
                 },
             },
         )
@@ -237,7 +241,7 @@ async def test_quiz_preview_reflects_config(client: AsyncClient) -> None:
     assert 0 < len(preview["sample_question_ids"]) <= 3
     pool_ids = {q["id"] for q in preview["pool"]}
     assert set(preview["sample_question_ids"]) <= pool_ids
-    assert all(q["difficulty"] in {"easy", "medium"} for q in preview["pool"])
+    assert all(q["difficulty"] <= 3 for q in preview["pool"])
 
     # exclude one pooled question: flag flips, sample avoids it
     excluded_id = preview["pool"][0]["id"]
@@ -249,7 +253,7 @@ async def test_quiz_preview_reflects_config(client: AsyncClient) -> None:
                 "tags": ["python"],
                 "question_count": 3,
                 "time_limit_seconds": 25,
-                "difficulties": ["easy", "medium"],
+                "difficulties": [1, 2, 3],
                 "exclude_ids": [excluded_id],
             }
         },

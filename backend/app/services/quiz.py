@@ -18,11 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import (
+    MAX_DIFFICULTY,
+    MIN_DIFFICULTY,
     Application,
     AttemptAnswer,
     AttemptStatus,
     Company,
-    Difficulty,
     Job,
     Question,
     QuestionStatus,
@@ -55,15 +56,28 @@ class QuizConfig:
     question_count: int = 6
     include_company_questions: bool = True
     time_limit_seconds: int | None = DEFAULT_TIME_LIMIT_SECONDS
-    difficulties: list[Difficulty] = field(default_factory=list)  # empty = all
+    difficulties: list[int] = field(default_factory=list)  # 1-5; empty = all
     exclude_ids: list[str] = field(default_factory=list)
 
 
-def _parse_difficulties(raw: Any) -> list[Difficulty]:
+# configs written before the 5-level migration stored named bands
+_LEGACY_DIFFICULTIES = {"easy": (1, 2), "medium": (3,), "hard": (4, 5)}
+
+
+def _parse_difficulties(raw: Any) -> list[int]:
     if not isinstance(raw, list):
         return []
-    valid = {member.value for member in Difficulty}
-    return [Difficulty(value) for value in raw if value in valid]
+    levels: set[int] = set()
+    for value in raw:
+        if isinstance(value, str) and value in _LEGACY_DIFFICULTIES:
+            levels.update(_LEGACY_DIFFICULTIES[value])
+        elif (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and MIN_DIFFICULTY <= value <= MAX_DIFFICULTY
+        ):
+            levels.add(value)
+    return sorted(levels)
 
 
 def parse_quiz_config(job: Job) -> QuizConfig:

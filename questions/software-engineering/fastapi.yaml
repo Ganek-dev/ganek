@@ -3,7 +3,7 @@ tag: fastapi
 questions:
   - id: fastapi-foundation-1
     tags: [python, backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "FastAPI is built on top of which two libraries?"
     options:
       a: "Starlette (ASGI toolkit) and Pydantic (validation)"
@@ -17,7 +17,7 @@ questions:
 
   - id: fastapi-path-param-1
     tags: [python, backend]
-    difficulty: easy
+    difficulty: 2
     prompt: 'In `@app.get("/items/{item_id}")`, how does the handler receive `item_id`?'
     options:
       a: "As a function parameter with the same name, converted to its annotated type"
@@ -31,7 +31,7 @@ questions:
 
   - id: fastapi-docs-1
     tags: [python, backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "Where does FastAPI serve interactive API documentation by default?"
     options:
       a: "`/docs` (Swagger UI) and `/redoc`"
@@ -45,7 +45,7 @@ questions:
 
   - id: fastapi-body-1
     tags: [python, backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "How do you declare a JSON request body in FastAPI?"
     options:
       a: "Annotate a parameter with a Pydantic model: `def create(item: Item)`"
@@ -59,7 +59,7 @@ questions:
 
   - id: fastapi-uvicorn-1
     tags: [python, backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "What role does uvicorn play for a FastAPI app?"
     options:
       a: "It is the ASGI server that runs the application"
@@ -73,7 +73,7 @@ questions:
 
   - id: fastapi-query-1
     tags: [python, backend]
-    difficulty: easy
+    difficulty: 2
     prompt: "A handler parameter that is NOT in the path template becomes what by default?"
     options:
       a: "A query parameter"
@@ -87,7 +87,7 @@ questions:
 
   - id: fastapi-422-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does FastAPI return when request validation fails?"
     options:
       a: "422 with a JSON list describing each invalid field"
@@ -101,7 +101,7 @@ questions:
 
   - id: fastapi-depends-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is `Depends()` used for?"
     options:
       a: "Declaring injectable dependencies (db sessions, auth) resolved per request"
@@ -115,7 +115,7 @@ questions:
 
   - id: fastapi-sync-def-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "How does FastAPI run a plain `def` (non-async) endpoint?"
     options:
       a: "In a thread pool, so it doesn't block the event loop"
@@ -129,7 +129,7 @@ questions:
 
   - id: fastapi-response-model-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `response_model=UserOut` on a route do?"
     options:
       a: "Validates and filters the returned data to exactly UserOut's fields"
@@ -143,7 +143,7 @@ questions:
 
   - id: fastapi-http-exception-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "The standard way to return a 404 from inside a handler?"
     options:
       a: "`raise HTTPException(status_code=404, detail=\"Not found\")`"
@@ -157,7 +157,7 @@ questions:
 
   - id: fastapi-status-code-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "How do you make a POST route return 201 on success by default?"
     options:
       a: "`@app.post(\"/items\", status_code=201)`"
@@ -171,7 +171,7 @@ questions:
 
   - id: fastapi-background-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What does `BackgroundTasks.add_task(fn, ...)` do?"
     options:
       a: "Runs fn after the response is sent, without delaying the client"
@@ -185,7 +185,7 @@ questions:
 
   - id: fastapi-router-1
     tags: [python, backend]
-    difficulty: medium
+    difficulty: 3
     prompt: "What is `APIRouter` for?"
     options:
       a: "Grouping related routes in modules, then including them in the app with a prefix"
@@ -199,7 +199,7 @@ questions:
 
   - id: fastapi-yield-dep-1
     tags: [python, backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "In a dependency written with `yield` (e.g. a DB session), when does the code after `yield` run?"
     options:
       a: "After the response is delivered — it's the cleanup phase, like closing the session"
@@ -213,7 +213,7 @@ questions:
 
   - id: fastapi-dep-cache-1
     tags: [python, backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "Two dependencies in one request both depend on `get_db`. How many times does `get_db` run?"
     options:
       a: "Once — resolved dependencies are cached within a request by default"
@@ -227,7 +227,7 @@ questions:
 
   - id: fastapi-override-1
     tags: [python, backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "The idiomatic way to swap a real dependency for a fake in tests?"
     options:
       a: "`app.dependency_overrides[get_db] = fake_get_db`"
@@ -241,7 +241,7 @@ questions:
 
   - id: fastapi-pydantic-config-1
     tags: [python, backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "What does `model_config = ConfigDict(from_attributes=True)` enable on a Pydantic model?"
     options:
       a: "Validating from object attributes (e.g. ORM instances), not just dicts"
@@ -255,7 +255,7 @@ questions:
 
   - id: fastapi-middleware-1
     tags: [python, backend]
-    difficulty: hard
+    difficulty: 4
     prompt: "What can HTTP middleware do that a dependency cannot?"
     options:
       a: "Wrap EVERY request/response — including 404s and other apps' routes — e.g. to add headers or timing"
