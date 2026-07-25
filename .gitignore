@@ -19,3 +19,6 @@ coverage/
 # Build
 dist/
 build/
+
+# uv lockfile is generated per-environment; deps are pinned in pyproject
+backend/uv.lock
