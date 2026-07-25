@@ -1,6 +1,7 @@
 """M6 recruiter controls: pool filters, timer config, bank browsing, preview, stats."""
 
 import random
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -10,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models import (
     Application,
+    AttemptStatus,
     Candidate,
     Company,
     Job,
     JobStatus,
+    QuizAttempt,
 )
 from app.services import quiz
 from app.services import stats as stats_service
@@ -280,6 +283,66 @@ async def test_stats_overview_endpoint_shape(client: AsyncClient) -> None:
     assert body["quiz"]["attempts_total"] == 0
     assert len(body["weekly"]) == 8
     assert body["per_job"] == [] and body["recent"] == []
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_stats_score_distribution_median_and_duration(db_session: AsyncSession) -> None:
+    company, job, first_app = await _engine_fixture(
+        db_session, {"enabled": False, "tags": ["python"]}
+    )
+    now = datetime.now(UTC)
+    scores = [0.0, 35.0, 55.0, 60.0, 82.5, 100.0]
+
+    applications = [first_app]
+    for i in range(1, len(scores)):
+        candidate = Candidate(
+            company_id=company.id, email=f"s{i}-{uuid4().hex[:6]}@vetd-ci.dev", name=f"S{i}"
+        )
+        db_session.add(candidate)
+        await db_session.flush()
+        application = Application(
+            company_id=company.id,
+            job_id=job.id,
+            candidate_id=candidate.id,
+            cv_object_key=f"cvs/{company.id}/{uuid4().hex}.pdf",
+            cv_filename="cv.pdf",
+            cv_size=1000,
+        )
+        db_session.add(application)
+        await db_session.flush()
+        applications.append(application)
+
+    for application, score in zip(applications, scores, strict=True):
+        db_session.add(
+            QuizAttempt(
+                company_id=company.id,
+                application_id=application.id,
+                question_ids=["python-basics-1"],
+                time_limit_seconds=20,
+                status=AttemptStatus.COMPLETED,
+                score=score,
+                started_at=now - timedelta(seconds=300),
+                completed_at=now,
+                expires_at=now + timedelta(hours=1),
+            )
+        )
+    await db_session.commit()
+
+    quiz_stats = (await stats_service.overview(db_session, company)).quiz
+    assert quiz_stats.attempts_completed == 6
+    assert quiz_stats.score_distribution is not None
+    assert len(quiz_stats.score_distribution) == 10
+    assert sum(quiz_stats.score_distribution) == 6
+    # 0 → [0,10); 35 → [30,40); 55 → [50,60); 60 → [60,70); 82.5 → [80,90); 100 folds into [90,100]
+    assert quiz_stats.score_distribution[0] == 1
+    assert quiz_stats.score_distribution[3] == 1
+    assert quiz_stats.score_distribution[5] == 1
+    assert quiz_stats.score_distribution[6] == 1
+    assert quiz_stats.score_distribution[8] == 1
+    assert quiz_stats.score_distribution[9] == 1
+    assert quiz_stats.median_score == pytest.approx(57.5)
+    assert quiz_stats.avg_duration_seconds == pytest.approx(300.0)
+    assert quiz_stats.avg_score == pytest.approx(sum(scores) / len(scores))
 
 
 @pytest.mark.usefixtures("migrated_db")
