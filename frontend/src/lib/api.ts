@@ -411,6 +411,10 @@ export interface StatsOverview {
     attempts_completed: number;
     completion_rate: number | null;
     avg_score: number | null;
+    median_score: number | null;
+    avg_duration_seconds: number | null;
+    /** ten 10%-wide buckets over 0-1 scores; index 9 includes 1.0 */
+    score_distribution: number[];
   };
   per_job: {
     job_id: string;
