@@ -168,14 +168,33 @@ export const publicApply = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  uploadCv: async (ticket: CvUploadTicket, file: File): Promise<void> => {
-    const resp = await fetch(ticket.upload_url, {
-      method: "PUT",
-      body: file,
-      headers: { "Content-Type": ticket.content_type },
-    });
-    if (!resp.ok) throw new ApiError(resp.status, "CV upload failed — please try again");
-  },
+  /** PUT the CV to the presigned URL. Uses XHR so callers can observe upload
+   * progress (screen 03's mono % + progress bar); fetch has no upload events. */
+  uploadCv: (
+    ticket: CvUploadTicket,
+    file: File,
+    onProgress?: (fraction: number) => void,
+  ): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", ticket.upload_url);
+      xhr.setRequestHeader("Content-Type", ticket.content_type);
+      if (onProgress) {
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            onProgress(event.loaded / event.total);
+          }
+        });
+      }
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new ApiError(xhr.status, "CV upload failed — please try again"));
+      });
+      xhr.addEventListener("error", () =>
+        reject(new ApiError(0, "CV upload failed — please try again")),
+      );
+      xhr.send(file);
+    }),
 };
 
 export type ApplicationStage =
