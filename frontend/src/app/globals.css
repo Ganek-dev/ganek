@@ -171,6 +171,13 @@ h4 {
   color: var(--gray-600);
 }
 
+/* admin card (screen 06+): surface + 12px radius + hairline ring */
+.card {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--card-ring);
+}
+
 /* quiz stem (screen 05): inline code chips inside the question heading */
 .quiz-stem code {
   background: var(--muted-fill);
