@@ -171,6 +171,15 @@ h4 {
   color: var(--gray-600);
 }
 
+/* quiz stem (screen 05): inline code chips inside the question heading */
+.quiz-stem code {
+  background: var(--muted-fill);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
 /* mono overline — 11px uppercase tracked label used across the design */
 .overline {
   font-family: var(--font-mono);
