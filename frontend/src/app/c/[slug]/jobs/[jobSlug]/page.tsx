@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ApplyForm } from "@/components/ApplyForm";
-import { HowWeHire, JobHero, JobPosting } from "@/components/JobPosting";
+import { HowWeHire, JobGone, JobHero, JobPosting } from "@/components/JobPosting";
 import { themeStyle } from "@/components/careers";
 import { publicApi } from "@/lib/public-api";
 
@@ -26,7 +26,19 @@ export default async function CompanyJobPage({ params }: Props) {
     publicApi.companyPage(slug),
     publicApi.companyJob(slug, jobSlug),
   ]);
-  if (!page || !job) notFound();
+  if (!page) notFound();
+  if (!job) {
+    // screen 27a: job gone, company still live — themed, with a way back
+    return (
+      <main style={themeStyle(page.company)}>
+        <JobGone
+          company={page.company}
+          jobsHref={`/c/${slug}`}
+          jobCount={page.jobs.length}
+        />
+      </main>
+    );
+  }
 
   return (
     <main

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PublicCompany, PublicJobDetail } from "@/lib/public-api";
 
-import { HowWeHire, JobHero, JobPosting } from "./JobPosting";
+import { HowWeHire, JobGone, JobHero, JobPosting } from "./JobPosting";
 
 const company: PublicCompany = {
   slug: "acme",
@@ -58,6 +58,24 @@ describe("HowWeHire", () => {
     expect(screen.getByText("01")).toBeInTheDocument();
     expect(screen.getByText(/three fields/)).toBeInTheDocument();
     expect(screen.getByText(/timed, one shot/)).toBeInTheDocument();
+  });
+});
+
+describe("JobGone", () => {
+  it("renders the 404 state with a link back to open positions", () => {
+    render(<JobGone company={company} jobsHref="/c/acme" jobCount={3} />);
+    expect(screen.getByText("404")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "This role is gone" })).toBeInTheDocument();
+    expect(screen.getByText(/3 other open positions/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See open positions" })).toHaveAttribute(
+      "href",
+      "/c/acme",
+    );
+  });
+
+  it("omits the open-positions count when there are none", () => {
+    render(<JobGone company={company} jobsHref="/" jobCount={0} />);
+    expect(screen.queryByText(/other open position/)).toBeNull();
   });
 });
 

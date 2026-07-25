@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-import { Lock } from "lucide-react";
+import { Check, Clock, Lock } from "lucide-react";
 
 import { ApiError, publicQuiz, type QuizQuestion, type QuizState } from "@/lib/api";
 
@@ -180,6 +180,11 @@ export default function QuizPage() {
         if (next.done || next.question === null) {
           setQuestion(null);
           setPhase("done");
+          // refresh the answered/total counters for the finished screen
+          publicQuiz
+            .state(token)
+            .then(setState)
+            .catch(() => {});
         } else {
           setQuestion(next.question);
           setPhase("question");
@@ -264,23 +269,89 @@ export default function QuizPage() {
     );
   }
   if (phase === "expired") {
+    // screen 27c (visuals; request-a-new-link flow lands with D5)
     return (
       <main className={centered}>
-        <h1 className="font-heading text-[22px] font-semibold">This quiz has expired</h1>
-        <p className="mt-2 text-[15px] leading-[23px] text-g600">
-          Quizzes must be started within 24 hours of applying. Your application itself was
-          received — the team can still review it.
-        </p>
+        <div className="text-center">
+          <div
+            className="mx-auto flex h-11 w-11 items-center justify-center rounded-full"
+            style={{ background: "oklch(0.96 0.04 55)" }}
+          >
+            <Clock
+              aria-hidden
+              className="h-5 w-5"
+              strokeWidth={2.5}
+              style={{ color: "oklch(0.55 0.16 55)" }}
+            />
+          </div>
+          <h1 className="mt-5 font-heading text-[25px] leading-[1.2] font-semibold">
+            This assessment link expired
+          </h1>
+          <p className="mx-auto mt-2.5 max-w-[420px] text-[14.5px] leading-[22px] text-g600 [text-wrap:pretty]">
+            Links are valid for 24 hours after applying, and this one ran out. Your
+            application itself was received — the team can still review it.
+          </p>
+        </div>
       </main>
     );
   }
   if (phase === "done") {
+    // screen 20 — no score shown, ever
     return (
-      <main className={centered}>
-        <h1 className="font-heading text-[22px] font-semibold">Quiz completed — thank you!</h1>
-        <p className="mt-2 text-[15px] leading-[23px] text-g600">
-          Your answers were recorded alongside your application. The team will be in touch.
-        </p>
+      <main className="flex min-h-screen flex-col bg-surface text-foreground">
+        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-divider px-4 sm:h-[60px] sm:px-7">
+          <span className="text-[13px] font-medium text-g500 sm:text-sm">
+            Skills assessment
+          </span>
+          {state ? (
+            <span className="font-mono text-xs text-g600 sm:text-[13px]">
+              {state.answered} / {state.total}
+            </span>
+          ) : null}
+        </header>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex w-full max-w-[560px] flex-col items-center px-5 py-12">
+            <div className="relative h-24 w-24">
+              <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90">
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="41"
+                  fill="none"
+                  stroke="var(--brand-primary)"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Check aria-hidden className="h-[34px] w-[34px] text-brand" strokeWidth={2.5} />
+              </div>
+            </div>
+            <h1 className="mt-6 text-center font-heading text-[24px] leading-[1.2] font-semibold tracking-[-0.005em] sm:text-[28px]">
+              That&apos;s it — submitted
+            </h1>
+            <p className="mt-3 max-w-[420px] text-center text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
+              Your answers went straight to the hiring team, alongside your application.
+            </p>
+            {state ? (
+              <div className="mt-6 font-mono text-xs text-g600">
+                {state.answered} of {state.total} answered
+              </div>
+            ) : null}
+            <div className="mt-6 w-full rounded-lg border border-edge px-5 py-[18px]">
+              <div className="overline text-g500">What happens next</div>
+              <div className="mt-2.5 flex items-center gap-2.5 text-sm leading-[21px] text-g700">
+                <span className="font-mono text-xs font-semibold text-brand">01</span>
+                <span>The team reviews your application and assessment together</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2.5 text-sm leading-[21px] text-g700">
+                <span className="font-mono text-xs font-semibold text-brand">02</span>
+                <span>You hear back by email, either way</span>
+              </div>
+            </div>
+            <p className="mt-4 font-mono text-[11px] text-g400">You can close this tab now.</p>
+          </div>
+        </div>
       </main>
     );
   }
