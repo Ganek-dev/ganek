@@ -1,48 +1,110 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+import { Check, FileText } from "lucide-react";
 
 import { ApiError, publicApply } from "@/lib/api";
 
-const inputCls =
-  "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
-const labelCls = "text-sm font-medium text-zinc-700 dark:text-zinc-300";
+/** Apply flow, screens 03 (form + CV upload states) and 04 (assessment
+ * invite). The CV uploads as soon as it is picked; submit stays disabled
+ * until the upload finishes. All numbers shown are platform truths (24h
+ * start TTL), not per-job quiz config, which is not public. */
 
-export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
+type CvState =
+  | { status: "empty" }
+  | { status: "uploading"; file: File; fraction: number }
+  | { status: "ready"; file: File; objectKey: string };
+
+const inputCls =
+  "h-[42px] w-full rounded-md border-[1.5px] border-edge bg-transparent px-3.5 text-[15px] text-foreground focus:border-brand focus:outline-none";
+const labelCls = "text-sm font-medium";
+
+function formatMB(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const ASSESSMENT_FACTS: [string, string][] = [
+  ["1×", "one attempt — no going back between questions"],
+  ["0:00", "each question locks itself when its time is up"],
+  ["24h", "start any time in the next 24 hours"],
+];
+
+export function ApplyForm({
+  apiBasePath,
+  jobTitle,
+}: {
+  apiBasePath: string;
+  jobTitle?: string;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const [quizToken, setQuizToken] = useState<string | null>(null);
+  const [done, setDone] = useState<{ firstName: string; quizToken: string | null } | null>(
+    null,
+  );
+  const [cv, setCv] = useState<CvState>({ status: "empty" });
+  const fileRef = useRef<HTMLInputElement>(null);
+  const uploadSeq = useRef(0);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     setError(null);
-
-    const data = new FormData(event.currentTarget);
-    // read the file off the input element: works in browsers and in jsdom,
-    // whose FormData does not surface file-input contents
-    const fileInput = event.currentTarget.elements.namedItem("cv") as HTMLInputElement | null;
-    const file = fileInput?.files?.[0];
     if (!file || file.size === 0) {
-      setError("Please attach your CV as a PDF.");
+      setCv({ status: "empty" });
       return;
     }
     if (!file.name.toLowerCase().endsWith(".pdf")) {
+      input.value = "";
+      setCv({ status: "empty" });
       setError("Your CV must be a PDF file.");
       return;
     }
 
-    const str = (name: string) => String(data.get(name) ?? "").trim();
-    const opt = (name: string) => (str(name) === "" ? null : str(name));
-
-    setBusy(true);
+    const seq = ++uploadSeq.current;
+    setCv({ status: "uploading", file, fraction: 0 });
     try {
       const ticket = await publicApply.uploadTicket(apiBasePath);
       if (file.size > ticket.max_size_mb * 1024 * 1024) {
         throw new ApiError(413, `Your CV exceeds the ${ticket.max_size_mb} MB limit.`);
       }
-      await publicApply.uploadCv(ticket, file);
+      await publicApply.uploadCv(ticket, file, (fraction) => {
+        if (uploadSeq.current === seq) setCv({ status: "uploading", file, fraction });
+      });
+      if (uploadSeq.current === seq) {
+        setCv({ status: "ready", file, objectKey: ticket.object_key });
+      }
+    } catch (err) {
+      if (uploadSeq.current === seq) {
+        input.value = "";
+        setCv({ status: "empty" });
+        setError(
+          err instanceof Error ? err.message : "CV upload failed — please try again",
+        );
+      }
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (cv.status === "uploading") {
+      setError("Please wait for the CV upload to finish.");
+      return;
+    }
+    if (cv.status !== "ready") {
+      setError("Please attach your CV as a PDF.");
+      return;
+    }
+
+    const data = new FormData(event.currentTarget);
+    const str = (name: string) => String(data.get(name) ?? "").trim();
+    const opt = (name: string) => (str(name) === "" ? null : str(name));
+
+    setBusy(true);
+    try {
       const received = await publicApply.submit(apiBasePath, {
         name: str("name"),
         email: str("email"),
@@ -50,11 +112,13 @@ export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
         github: opt("github"),
         linkedin: opt("linkedin"),
         portfolio: opt("portfolio"),
-        cv_object_key: ticket.object_key,
-        cv_filename: file.name,
+        cv_object_key: cv.objectKey,
+        cv_filename: cv.file.name,
       });
-      setQuizToken(received.quiz_token);
-      setDone(true);
+      setDone({
+        firstName: str("name").split(/\s+/)[0] ?? "",
+        quizToken: received.quiz_token,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong — please try again");
       setBusy(false);
@@ -62,87 +126,192 @@ export function ApplyForm({ apiBasePath }: { apiBasePath: string }) {
   }
 
   if (done) {
+    const quizPath = done.quizToken ? `/quiz/${done.quizToken}` : null;
+    const quizUrl =
+      quizPath && typeof window !== "undefined"
+        ? new URL(quizPath, window.location.origin).toString()
+        : (quizPath ?? "");
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6 dark:border-green-900 dark:bg-green-950">
-        <h2 className="font-semibold text-green-900 dark:text-green-100">
-          Application received
+      <div className="mx-auto max-w-[560px] text-center">
+        <div
+          className="mx-auto flex h-11 w-11 items-center justify-center rounded-full"
+          style={{ background: "oklch(0.95 0.052 163)" }}
+        >
+          <Check
+            aria-hidden
+            className="h-5 w-5"
+            strokeWidth={2.5}
+            style={{ color: "oklch(0.37 0.084 168)" }}
+          />
+        </div>
+        <h2 className="mt-5 font-heading text-[27px] leading-[1.2] font-semibold tracking-[-0.01em]">
+          Application received{done.firstName ? `, ${done.firstName}` : ""}
         </h2>
-        <p className="mt-1 text-sm text-green-800 dark:text-green-200">
-          Thanks for applying — the team will be in touch.
-        </p>
-        {quizToken ? (
-          <div className="mt-4">
-            <p className="text-sm text-green-800 dark:text-green-200">
-              One more step: a short skills quiz (a few 15-second questions).
+        {quizPath ? (
+          <>
+            <p className="mx-auto mt-3 max-w-[420px] text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
+              One step left: a short skills assessment. It&apos;s how this team
+              shortlists — your CV alone won&apos;t be filtered out by keywords.
             </p>
-            <Link
-              href={`/quiz/${quizToken}`}
-              className="mt-2 inline-block rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-            >
-              Take the quiz now
-            </Link>
-          </div>
-        ) : null}
+            <div className="mx-auto mt-7 max-w-[440px] rounded-xl border border-edge p-5 text-left sm:p-[22px]">
+              <span className="font-heading text-[16px] font-semibold">
+                Skills assessment
+              </span>
+              <div className="mt-3.5 flex flex-col gap-2 text-sm leading-5 text-g700">
+                {ASSESSMENT_FACTS.map(([marker, fact]) => (
+                  <div key={marker} className="flex gap-2.5">
+                    <span className="w-[34px] shrink-0 font-mono text-xs font-semibold text-brand">
+                      {marker}
+                    </span>
+                    <span>{fact}</span>
+                  </div>
+                ))}
+              </div>
+              <Link
+                href={quizPath}
+                className="mt-[18px] flex h-11 w-full items-center justify-center rounded-md bg-brand text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94]"
+              >
+                Start assessment now
+              </Link>
+              <p className="mt-2.5 text-center text-[13px] text-g500">
+                or later — save your personal link:
+              </p>
+              <input
+                readOnly
+                aria-label="Assessment link"
+                value={quizUrl}
+                onFocus={(event) => event.currentTarget.select()}
+                className="mt-1.5 h-9 w-full rounded-sm border border-edge bg-transparent px-2.5 text-center font-mono text-[11.5px] text-g600 focus:outline-none"
+              />
+            </div>
+            <p className="mt-6 font-mono text-[11px] text-g400">
+              Find a quiet 10 minutes — tab switches are recorded
+            </p>
+          </>
+        ) : (
+          <p className="mx-auto mt-3 max-w-[420px] text-[15px] leading-[23px] text-g600">
+            Thanks for applying — the team will be in touch.
+          </p>
+        )}
       </div>
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="max-w-xl space-y-4">
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-        Apply for this position
-      </h2>
+  const uploading = cv.status === "uploading";
+  const pct = uploading ? Math.round(cv.fraction * 100) : 0;
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block space-y-1">
+  return (
+    <form onSubmit={handleSubmit} className="mx-auto max-w-[560px]">
+      <h2 className="font-heading text-[26px] leading-[1.2] font-semibold tracking-[-0.01em]">
+        Apply{jobTitle ? ` — ${jobTitle}` : " for this position"}
+      </h2>
+      <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600">
+        Three fields, about two minutes.
+      </p>
+
+      <div className="mt-7 flex flex-col gap-[18px]">
+        <label className="block space-y-2">
           <span className={labelCls}>Name</span>
           <input name="name" required maxLength={200} className={inputCls} />
         </label>
-        <label className="block space-y-1">
+        <label className="block space-y-2">
           <span className={labelCls}>Email</span>
           <input name="email" type="email" required className={inputCls} />
         </label>
+
+        <div className="space-y-2">
+          <label htmlFor="apply-cv" className={labelCls}>
+            CV (PDF)
+          </label>
+          {/* no native `required`: jsdom cannot validate file inputs and the JS guard gives a friendlier message */}
+          <input
+            id="apply-cv"
+            ref={fileRef}
+            name="cv"
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handleFileChange}
+            className={cv.status === "empty" ? inputCls + " py-2" : "sr-only"}
+          />
+          {cv.status !== "empty" ? (
+            <div className="rounded-lg border-[1.5px] border-edge px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <FileText aria-hidden className="h-[18px] w-[18px] shrink-0 text-g500" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{cv.file.name}</div>
+                  <div className="mt-0.5 font-mono text-[11px] text-g500">
+                    {uploading
+                      ? `uploading — ${pct}% of ${formatMB(cv.file.size)}`
+                      : `uploaded · ${formatMB(cv.file.size)}`}
+                  </div>
+                </div>
+                {uploading ? (
+                  <span className="shrink-0 font-mono text-xs text-brand">{pct}%</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="shrink-0 text-[13px] text-g500 underline hover:text-foreground"
+                  >
+                    Replace
+                  </button>
+                )}
+              </div>
+              {uploading ? (
+                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-divider">
+                  <div className="h-full bg-brand" style={{ width: `${pct}%` }} />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <label className="block space-y-1">
-        <span className={labelCls}>CV (PDF)</span>
-        {/* no native `required`: jsdom cannot validate file inputs and the JS guard below gives a friendlier message */}
-        <input name="cv" type="file" accept="application/pdf,.pdf" className={inputCls} />
-      </label>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <label className="block space-y-1">
-          <span className={labelCls}>GitHub</span>
-          <input name="github" type="url" placeholder="https://" className={inputCls} />
-        </label>
-        <label className="block space-y-1">
-          <span className={labelCls}>LinkedIn</span>
-          <input name="linkedin" type="url" placeholder="https://" className={inputCls} />
-        </label>
-        <label className="block space-y-1">
-          <span className={labelCls}>Portfolio</span>
-          <input name="portfolio" type="url" placeholder="https://" className={inputCls} />
+      <div className="mt-8">
+        <span className="overline text-g500">Optional</span>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <label className="block space-y-2">
+            <span className={labelCls}>GitHub</span>
+            <input name="github" type="url" placeholder="https://" className={inputCls} />
+          </label>
+          <label className="block space-y-2">
+            <span className={labelCls}>LinkedIn</span>
+            <input name="linkedin" type="url" placeholder="https://" className={inputCls} />
+          </label>
+          <label className="block space-y-2">
+            <span className={labelCls}>Portfolio</span>
+            <input name="portfolio" type="url" placeholder="https://" className={inputCls} />
+          </label>
+        </div>
+        <label className="mt-4 block space-y-2">
+          <span className={labelCls}>Message (optional)</span>
+          <textarea
+            name="message"
+            rows={4}
+            maxLength={5000}
+            className="w-full rounded-md border-[1.5px] border-edge bg-transparent px-3.5 py-2.5 text-[15px] text-foreground focus:border-brand focus:outline-none"
+          />
         </label>
       </div>
-
-      <label className="block space-y-1">
-        <span className={labelCls}>Message (optional)</span>
-        <textarea name="message" rows={4} maxLength={5000} className={inputCls} />
-      </label>
 
       {error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="mt-4 text-sm" style={{ color: "oklch(0.45 0.120 25)" }}>
           {error}
         </p>
       ) : null}
 
       <button
         type="submit"
-        disabled={busy}
-        className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+        disabled={busy || uploading}
+        className="mt-7 flex h-[46px] w-full items-center justify-center rounded-md bg-brand text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500 disabled:hover:brightness-100"
       >
         {busy ? "Submitting…" : "Submit application"}
       </button>
+      {uploading ? (
+        <p className="mt-3 text-center font-mono text-[11px] text-g400">
+          Waiting for upload to finish…
+        </p>
+      ) : null}
     </form>
   );
 }

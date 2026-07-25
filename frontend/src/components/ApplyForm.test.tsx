@@ -20,6 +20,16 @@ vi.mock("@/lib/api", async (importOriginal) => {
 
 const mocked = vi.mocked(publicApply);
 
+async function fillAndUpload(file?: File) {
+  await userEvent.type(screen.getByLabelText("Name"), "Jane Doe");
+  await userEvent.type(screen.getByLabelText("Email"), "jane@example.com");
+  if (file) {
+    await userEvent.upload(screen.getByLabelText("CV (PDF)"), file, {
+      applyAccept: false,
+    });
+  }
+}
+
 describe("ApplyForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,21 +43,22 @@ describe("ApplyForm", () => {
     mocked.submit.mockResolvedValue({ status: "received", quiz_token: null });
   });
 
-  it("uploads the CV then submits and shows confirmation", async () => {
-    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
-    await userEvent.type(screen.getByLabelText("Name"), "Jane");
-    await userEvent.type(screen.getByLabelText("Email"), "jane@example.com");
+  it("uploads the CV on selection, then submits with the ticket key", async () => {
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" jobTitle="Developer" />);
     const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
-    await userEvent.upload(screen.getByLabelText("CV (PDF)"), file);
-    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    await fillAndUpload(file);
 
-    expect(await screen.findByText("Application received")).toBeInTheDocument();
+    // upload happens on selection, before any submit
     expect(mocked.uploadTicket).toHaveBeenCalledWith("/api/v1/public/company/jobs/dev");
     expect(mocked.uploadCv).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/uploaded · /)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(await screen.findByText(/Application received, Jane/)).toBeInTheDocument();
     expect(mocked.submit).toHaveBeenCalledWith(
       "/api/v1/public/company/jobs/dev",
       expect.objectContaining({
-        name: "Jane",
+        name: "Jane Doe",
         email: "jane@example.com",
         cv_object_key: "cvs/co/abc.pdf",
         cv_filename: "cv.pdf",
@@ -55,15 +66,48 @@ describe("ApplyForm", () => {
     );
   });
 
-  it("rejects non-PDF files client-side", async () => {
+  it("rejects non-PDF files client-side without requesting a ticket", async () => {
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
-    await userEvent.type(screen.getByLabelText("Name"), "Jane");
-    await userEvent.type(screen.getByLabelText("Email"), "jane@example.com");
     const file = new File(["plain"], "cv.docx", { type: "text/plain" });
-    await userEvent.upload(screen.getByLabelText("CV (PDF)"), file, { applyAccept: false });
-    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    await fillAndUpload(file);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("must be a PDF");
     expect(mocked.uploadTicket).not.toHaveBeenCalled();
+  });
+
+  it("blocks submit until a CV is attached", async () => {
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    await fillAndUpload();
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("attach your CV");
+    expect(mocked.submit).not.toHaveBeenCalled();
+  });
+
+  it("shows the assessment invite with quiz link and 24h copy", async () => {
+    mocked.submit.mockResolvedValue({ status: "received", quiz_token: "tok123" });
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+
+    const start = await screen.findByRole("link", { name: "Start assessment now" });
+    expect(start).toHaveAttribute("href", "/quiz/tok123");
+    expect(screen.getByText(/next 24 hours/)).toBeInTheDocument();
+    const linkBox = screen.getByLabelText("Assessment link") as HTMLInputElement;
+    expect(linkBox.value).toContain("/quiz/tok123");
+    expect(screen.getByText(/tab switches are recorded/)).toBeInTheDocument();
+  });
+
+  it("surfaces upload errors and lets the candidate retry", async () => {
+    mocked.uploadCv.mockRejectedValueOnce(new Error("CV upload failed — please try again"));
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    await fillAndUpload(file);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("upload failed");
+    // retry succeeds
+    await userEvent.upload(screen.getByLabelText("CV (PDF)"), file, { applyAccept: false });
+    expect(await screen.findByText(/uploaded · /)).toBeInTheDocument();
   });
 });

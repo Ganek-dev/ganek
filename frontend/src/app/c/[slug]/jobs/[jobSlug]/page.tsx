@@ -47,7 +47,10 @@ export default async function CompanyJobPage({ params }: Props) {
           No account needed · Careers powered by vetd
         </p>
         <section id="apply" className="mt-12 scroll-mt-8">
-          <ApplyForm apiBasePath={`/api/v1/public/companies/${slug}/jobs/${job.slug}`} />
+          <ApplyForm
+            apiBasePath={`/api/v1/public/companies/${slug}/jobs/${job.slug}`}
+            jobTitle={job.title}
+          />
         </section>
       </div>
     </main>
