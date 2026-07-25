@@ -291,7 +291,8 @@ async def test_stats_score_distribution_median_and_duration(db_session: AsyncSes
         db_session, {"enabled": False, "tags": ["python"]}
     )
     now = datetime.now(UTC)
-    scores = [0.0, 35.0, 55.0, 60.0, 82.5, 100.0]
+    # scores are 0–1 fractions, exactly as the quiz engine stores them
+    scores = [0.0, 0.35, 0.55, 0.60, 0.825, 1.0]
 
     applications = [first_app]
     for i in range(1, len(scores)):
@@ -333,14 +334,14 @@ async def test_stats_score_distribution_median_and_duration(db_session: AsyncSes
     assert quiz_stats.score_distribution is not None
     assert len(quiz_stats.score_distribution) == 10
     assert sum(quiz_stats.score_distribution) == 6
-    # 0 → [0,10); 35 → [30,40); 55 → [50,60); 60 → [60,70); 82.5 → [80,90); 100 folds into [90,100]
+    # 0 → [0,.1); .35 → [.3,.4); .55 → [.5,.6); .6 → [.6,.7); .825 → [.8,.9); 1.0 folds into [.9,1]
     assert quiz_stats.score_distribution[0] == 1
     assert quiz_stats.score_distribution[3] == 1
     assert quiz_stats.score_distribution[5] == 1
     assert quiz_stats.score_distribution[6] == 1
     assert quiz_stats.score_distribution[8] == 1
     assert quiz_stats.score_distribution[9] == 1
-    assert quiz_stats.median_score == pytest.approx(57.5)
+    assert quiz_stats.median_score == pytest.approx(0.575)
     assert quiz_stats.avg_duration_seconds == pytest.approx(300.0)
     assert quiz_stats.avg_score == pytest.approx(sum(scores) / len(scores))
 

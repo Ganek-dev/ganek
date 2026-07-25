@@ -83,8 +83,9 @@ async def _quiz_counts(db: AsyncSession, company: Company) -> QuizCounts:
     ).one()
     total, completed, avg_score, median_score, avg_duration = row
 
-    # histogram of completed scores; scores of exactly 100 fold into the top bucket
-    bucket = func.least(func.width_bucket(QuizAttempt.score, 0, 100, SCORE_BUCKETS), SCORE_BUCKETS)
+    # histogram of completed scores (stored as 0–1 fractions); a perfect 1.0
+    # folds into the top bucket
+    bucket = func.least(func.width_bucket(QuizAttempt.score, 0, 1, SCORE_BUCKETS), SCORE_BUCKETS)
     bucket_rows = (
         await db.execute(
             select(bucket, func.count())
