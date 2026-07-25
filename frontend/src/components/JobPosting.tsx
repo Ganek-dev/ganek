@@ -160,6 +160,59 @@ export function HowWeHire() {
   );
 }
 
+/** Screen 27a — the posting is gone but the company still exists. Rendered
+ * inside the company theme, with a way back to the open positions. */
+export function JobGone({
+  company,
+  jobsHref,
+  jobCount,
+}: {
+  company: PublicCompany;
+  jobsHref: string;
+  jobCount: number;
+}) {
+  return (
+    <div className="flex min-h-screen flex-col bg-surface text-foreground">
+      <div className="border-b border-edge">
+        <div className="mx-auto flex h-[60px] max-w-[720px] items-center gap-2.5 px-5 sm:px-6">
+          <div
+            aria-hidden
+            className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-brand font-heading text-[13px] font-bold text-brand-foreground"
+          >
+            {company.name.charAt(0).toUpperCase()}
+          </div>
+          <span className="font-heading text-[16px] font-semibold">{company.name}</span>
+        </div>
+      </div>
+      <div className="flex flex-1 items-center justify-center px-6 py-16">
+        <div className="max-w-[380px] text-center">
+          <div className="font-mono text-xs tracking-[0.08em] text-brand">404</div>
+          <h1 className="mt-3 font-heading text-[25px] leading-[1.2] font-semibold">
+            This role is gone
+          </h1>
+          <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600 [text-wrap:pretty]">
+            The posting was filled or taken down.
+            {jobCount > 0
+              ? ` ${company.name} has ${jobCount} other open position${
+                  jobCount === 1 ? "" : "s"
+                } right now.`
+              : ""}
+          </p>
+          <Link
+            href={jobsHref}
+            className="mt-[22px] inline-flex h-[42px] items-center rounded-md bg-brand px-5 text-sm font-semibold text-brand-foreground hover:brightness-[0.94]"
+          >
+            See open positions
+          </Link>
+        </div>
+      </div>
+      <div className="flex h-11 shrink-0 items-center justify-center">
+        <span className="font-mono text-[10.5px] text-g400">Careers powered by vetd</span>
+      </div>
+    </div>
+  );
+}
+
 /** Editorial job description (screen 02): JSON-LD + markdown body. */
 export function JobPosting({
   company,

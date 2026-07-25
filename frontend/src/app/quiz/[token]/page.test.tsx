@@ -90,7 +90,9 @@ describe("QuizPage", () => {
     await waitFor(() =>
       expect(mocked.answer).toHaveBeenCalledWith("tok-123", "py-gil-1", "c"),
     );
-    expect(await screen.findByText(/Quiz completed/)).toBeInTheDocument();
+    expect(await screen.findByText(/submitted/)).toBeInTheDocument();
+    expect(screen.getByText(/What happens next/i)).toBeInTheDocument();
+    expect(screen.queryByText(/%|score/i)).toBeNull(); // no score, ever
   });
 
   it("supports A–D selection and Enter to lock", async () => {
@@ -115,7 +117,15 @@ describe("QuizPage", () => {
   it("shows the completed state directly for finished attempts", async () => {
     mocked.state.mockResolvedValue({ status: "completed", answered: 2, total: 2 });
     render(<QuizPage />);
-    expect(await screen.findByText(/Quiz completed/)).toBeInTheDocument();
+    expect(await screen.findByText(/submitted/)).toBeInTheDocument();
+    expect(screen.getByText("2 of 2 answered")).toBeInTheDocument();
     expect(mocked.next).not.toHaveBeenCalled();
+  });
+
+  it("shows the expired-link state for expired attempts", async () => {
+    mocked.state.mockResolvedValue({ status: "expired", answered: 0, total: 2 });
+    render(<QuizPage />);
+    expect(await screen.findByText(/This assessment link expired/)).toBeInTheDocument();
+    expect(screen.getByText(/application itself was received/)).toBeInTheDocument();
   });
 });
