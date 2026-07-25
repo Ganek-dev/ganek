@@ -58,22 +58,58 @@ async def _application_counts(db: AsyncSession, company: Company) -> Application
     return ApplicationCounts(total=row[0], new=row[1], last_7_days=row[2])
 
 
+SCORE_BUCKETS = 10  # 10-point-wide histogram buckets over 0–100
+
+
 async def _quiz_counts(db: AsyncSession, company: Company) -> QuizCounts:
+    completed_filter = QuizAttempt.status == AttemptStatus.COMPLETED
     row = (
         await db.execute(
             select(
                 func.count(),
-                func.count().filter(QuizAttempt.status == AttemptStatus.COMPLETED),
-                func.avg(QuizAttempt.score).filter(QuizAttempt.status == AttemptStatus.COMPLETED),
+                func.count().filter(completed_filter),
+                func.avg(QuizAttempt.score).filter(completed_filter),
+                func.percentile_cont(0.5)
+                .within_group(QuizAttempt.score.asc())
+                .filter(completed_filter),
+                func.extract(
+                    "epoch",
+                    func.avg(QuizAttempt.completed_at - QuizAttempt.started_at).filter(
+                        completed_filter, QuizAttempt.started_at.is_not(None)
+                    ),
+                ),
             ).where(QuizAttempt.company_id == company.id)
         )
     ).one()
-    total, completed, avg_score = row
+    total, completed, avg_score, median_score, avg_duration = row
+
+    # histogram of completed scores (stored as 0–1 fractions); a perfect 1.0
+    # folds into the top bucket
+    bucket = func.least(func.width_bucket(QuizAttempt.score, 0, 1, SCORE_BUCKETS), SCORE_BUCKETS)
+    bucket_rows = (
+        await db.execute(
+            select(bucket, func.count())
+            .where(
+                QuizAttempt.company_id == company.id,
+                completed_filter,
+                QuizAttempt.score.is_not(None),
+            )
+            .group_by(bucket)
+        )
+    ).all()
+    distribution = [0] * SCORE_BUCKETS
+    for bucket_index, count in bucket_rows:
+        if bucket_index is not None and 1 <= int(bucket_index) <= SCORE_BUCKETS:
+            distribution[int(bucket_index) - 1] = count
+
     return QuizCounts(
         attempts_total=total,
         attempts_completed=completed,
         completion_rate=(completed / total) if total else None,
         avg_score=float(avg_score) if avg_score is not None else None,
+        median_score=float(median_score) if median_score is not None else None,
+        avg_duration_seconds=float(avg_duration) if avg_duration is not None else None,
+        score_distribution=distribution,
     )
 
 

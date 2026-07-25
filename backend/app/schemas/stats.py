@@ -25,6 +25,12 @@ class QuizCounts(BaseModel):
     attempts_completed: int = 0
     completion_rate: float | None = None  # None when no attempts yet
     avg_score: float | None = None  # across completed attempts
+    median_score: float | None = None  # across completed attempts (0–1 fraction)
+    avg_duration_seconds: float | None = None  # completed_at - started_at
+    # Histogram of completed scores (0–1 fractions) in ten 10%-wide buckets:
+    # index 0 = [0, 0.1), ..., index 9 = [0.9, 1.0]. Purely informational —
+    # any "pass" line drawn over it is visualization only (never auto-rejects).
+    score_distribution: list[int] = []
 
 
 class PerJobStats(BaseModel):
