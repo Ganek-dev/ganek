@@ -2,6 +2,7 @@
 
 import {
   Briefcase,
+  ClipboardList,
   Inbox,
   LayoutGrid,
   ListChecks,
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
   { href: "/admin/applicants", label: "Applicants", icon: Inbox },
   { href: "/admin/questions", label: "Questions", icon: ListChecks },
+  { href: "/admin/questionnaires", label: "Questionnaires", icon: ClipboardList },
   { href: "/admin/team", label: "Team", icon: Users },
   { href: "/admin/account", label: "Settings", icon: Settings },
 ] as const;

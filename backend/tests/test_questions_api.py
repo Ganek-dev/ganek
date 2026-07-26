@@ -78,6 +78,47 @@ async def test_question_validation(client: AsyncClient) -> None:
 
 
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_resolve_returns_bank_and_own_questions_in_order(
+    client: AsyncClient,
+) -> None:
+    await _register(client)
+    company_q = (await client.post("/api/v1/questions", json=_question_payload())).json()
+    ids = ",".join(["py-gil-1", company_q["id"], "missing-ref"])
+
+    resp = await client.get(f"/api/v1/questions/resolve?ids={ids}")
+    assert resp.status_code == 200
+    rows = resp.json()
+    # missing/unknown refs are silently omitted; own order preserved
+    assert [r["id"] for r in rows] == ["py-gil-1", company_q["id"]]
+
+    bank_row = next(r for r in rows if r["id"] == "py-gil-1")
+    assert bank_row["source"] == "seed"
+    assert "correct_key" not in bank_row  # resolve shape stays metadata-only
+
+    company_row = next(r for r in rows if r["id"] == company_q["id"])
+    assert company_row["source"] == "company"
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_resolve_does_not_leak_other_workspaces_questions(
+    client: AsyncClient,
+) -> None:
+    await _register(client)
+    company_q = (await client.post("/api/v1/questions", json=_question_payload())).json()
+
+    await client.post("/api/v1/auth/logout")
+    await _register(client)
+    resp = await client.get(f"/api/v1/questions/resolve?ids={company_q['id']}")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_resolve_requires_auth(client: AsyncClient) -> None:
+    assert (await client.get("/api/v1/questions/resolve?ids=py-gil-1")).status_code == 401
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
 async def test_questions_are_tenant_scoped(client: AsyncClient) -> None:
     await _register(client)
     question = (await client.post("/api/v1/questions", json=_question_payload())).json()

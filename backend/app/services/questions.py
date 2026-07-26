@@ -113,3 +113,31 @@ async def retire_company_question(db: AsyncSession, question: Question) -> Quest
     await db.commit()
     await db.refresh(question)
     return question
+
+
+MAX_RESOLVE_IDS = 300
+
+
+async def resolve_questions(db: AsyncSession, company: Company, ids: list[str]) -> list[Question]:
+    """Fetch Question rows visible to this workspace for the given ids —
+    bank rows and this company's own questions (active OR retired), in
+    the order requested. Missing / cross-tenant refs are silently
+    omitted; the caller can diff against its ref list to spot gaps and
+    render retired refs with a warning."""
+    unique_ids = [qid for qid in dict.fromkeys(ids) if qid]
+    if not unique_ids:
+        return []
+    rows = (
+        (
+            await db.execute(
+                select(Question).where(
+                    Question.id.in_(unique_ids[:MAX_RESOLVE_IDS]),
+                    (Question.company_id.is_(None)) | (Question.company_id == company.id),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_id = {q.id: q for q in rows}
+    return [by_id[qid] for qid in unique_ids if qid in by_id]
