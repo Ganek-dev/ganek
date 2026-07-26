@@ -200,7 +200,9 @@ export default function QuestionnaireBuilderPage() {
   const [name, setName] = useState("");
   const [shuffle, setShuffle] = useState(false);
   const [refs, setRefs] = useState<string[]>([]);
-  const [resolved, setResolved] = useState<Record<string, ResolvedQuestion>>({});
+  // null = we asked and the workspace can't see it (the builder shows a
+  // "missing" warning row); undefined = we haven't asked yet.
+  const [resolved, setResolved] = useState<Record<string, ResolvedQuestion | null>>({});
   const [libraryQuery, setLibraryQuery] = useState("");
   const [library, setLibrary] = useState<BankPage | null>(null);
   const [saving, setSaving] = useState<SavingState>("clean");
@@ -230,6 +232,8 @@ export default function QuestionnaireBuilderPage() {
 
   // Resolve the currently-referenced questions whenever refs change; keep a
   // cache so scrubbing through drag-to-reorder doesn't re-fetch each move.
+  // Refs we already asked about (whether found or not) are skipped — we mark
+  // "not found" as `null` in the cache so the effect can't infinite-loop.
   useEffect(() => {
     const missing = refs.filter((ref) => !(ref in resolved));
     if (missing.length === 0) return;
@@ -238,14 +242,26 @@ export default function QuestionnaireBuilderPage() {
       .resolve(missing)
       .then((rows) => {
         if (cancelled) return;
+        const returned = new Set(rows.map((row) => row.id));
         setResolved((prev) => {
           const next = { ...prev };
           for (const row of rows) next[row.id] = row;
+          for (const ref of missing) {
+            if (!returned.has(ref)) next[ref] = null;
+          }
           return next;
         });
       })
       .catch(() => {
-        // best-effort — unresolved refs render as "missing"
+        if (cancelled) return;
+        // best-effort — mark as tried so we don't retry-loop
+        setResolved((prev) => {
+          const next = { ...prev };
+          for (const ref of missing) {
+            if (!(ref in next)) next[ref] = null;
+          }
+          return next;
+        });
       });
     return () => {
       cancelled = true;
@@ -301,7 +317,7 @@ export default function QuestionnaireBuilderPage() {
   }, [name, shuffle, refs, questionnaire]);
 
   const attachedRows = useMemo(
-    () => refs.map((ref) => resolved[ref]),
+    () => refs.map((ref) => resolved[ref] ?? undefined),
     [refs, resolved],
   );
   const attachedResolved = attachedRows.filter(
@@ -462,7 +478,7 @@ export default function QuestionnaireBuilderPage() {
                   <BuilderRow
                     key={refId}
                     index={index}
-                    question={resolved[refId]}
+                    question={resolved[refId] ?? undefined}
                     refId={refId}
                     onRemove={() => removeRef(refId)}
                     isDragging={dragIndex === index}

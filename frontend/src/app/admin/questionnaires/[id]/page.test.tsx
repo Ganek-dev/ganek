@@ -183,14 +183,16 @@ describe("QuestionnaireBuilderPage", () => {
     mockedQ.resolve.mockResolvedValueOnce([RESOLVED[0]]);
     render(<QuestionnaireBuilderPage />);
 
-    // wait for the resolve promise to settle by anchoring on the resolved row
-    await screen.findByText("What does the GIL prevent?");
-
+    // Poll until exactly one "missing" warning is present (py-gil-1 has
+    // resolved, ghost-ref hasn't) — waiting on `findByText` for the GIL prompt
+    // is not enough because the library sidebar also renders that prompt.
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(/not visible to this workspace — remove to clean up/),
+      ).toHaveLength(1),
+    );
     expect(screen.getByText("Missing question ghost-ref")).toBeInTheDocument();
-    // exactly one warning row — py-gil-1 rendered normally
-    expect(
-      screen.getAllByText(/not visible to this workspace — remove to clean up/),
-    ).toHaveLength(1);
+    expect(screen.queryByText("Missing question py-gil-1")).not.toBeInTheDocument();
   });
 
   it("deletes and routes back to the index", async () => {
