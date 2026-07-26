@@ -1,8 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api, applications, type ApplicationOut } from "@/lib/api";
+import {
+  api,
+  applications,
+  type ApplicationOut,
+  type ApplicationStage,
+  type QuizAnswerReview,
+} from "@/lib/api";
 
 import ApplicantsPage from "./page";
 
@@ -18,104 +24,203 @@ vi.mock("@/lib/api", async (importOriginal) => {
 const mockedApps = vi.mocked(applications);
 const mockedJobs = vi.mocked(api.jobs);
 
-const application: ApplicationOut = {
-  id: "app-1",
-  job_id: "job-1",
-  candidate: {
-    id: "cand-1",
-    name: "Jane Applicant",
-    email: "jane@example.com",
-    links: { github: "https://github.com/jane" },
-  },
-  cv_filename: "jane.pdf",
-  cv_size: 250_000,
-  message: "Hello!",
-  stage: "new",
-  source: null,
-  quiz_attempt: {
-    status: "completed",
-    score: 0.75,
-    per_tag_scores: { python: { correct: 3, total: 4 } },
-    completed_at: "2026-07-22T10:05:00Z",
-    question_ids: ["q1", "q2", "q3", "q4"],
-    integrity: {
-      blur_count: 2,
-      flags: [
-        {
-          code: "tab_hidden",
-          summary: "left the tab 2x (~20s)",
-          detail: "The quiz tab was hidden 2 time(s) for about 20s total. Occurred during Q1.",
-          question_ids: ["py-gil-1"],
-        },
-      ],
+const RECENT = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+const OLDER = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+function makeApp(overrides: Partial<ApplicationOut>): ApplicationOut {
+  return {
+    id: "app-1",
+    job_id: "job-1",
+    candidate: {
+      id: "cand-1",
+      name: "Jane Applicant",
+      email: "jane@example.com",
+      links: { github: "https://github.com/jane" },
     },
+    cv_filename: "jane.pdf",
+    cv_size: 250_000,
+    message: "Hello!",
+    stage: "new",
+    source: null,
+    quiz_attempt: {
+      status: "completed",
+      score: 0.75,
+      per_tag_scores: { python: { correct: 3, total: 4 } },
+      completed_at: "2026-07-22T10:05:00Z",
+      question_ids: ["q1", "q2", "q3", "q4"],
+      integrity: {
+        blur_count: 2,
+        flags: [
+          {
+            code: "tab_hidden",
+            summary: "left the tab 2x (~20s)",
+            detail: "The quiz tab was hidden 2 time(s) for about 20s total.",
+            question_ids: ["py-gil-1"],
+          },
+        ],
+      },
+    },
+    created_at: RECENT,
+    ...overrides,
+  };
+}
+
+const ANSWERS: QuizAnswerReview[] = [
+  {
+    question_id: "q1",
+    prompt_md: "What does box-sizing: border-box do?",
+    options: { a: "Include padding", b: "Ignore padding", c: "Wraps", d: "Nothing" },
+    correct_key: "a",
+    explanation_md: "",
+    tags: ["css"],
+    answer_key: "a",
+    is_correct: true,
+    response_ms: 11_000,
+    integrity_events: [],
   },
-  created_at: "2026-07-21T10:00:00Z",
-};
+  {
+    question_id: "q2",
+    prompt_md: "Which hook memoizes a value?",
+    options: { a: "useMemo", b: "useState", c: "useRef", d: "useEffect" },
+    correct_key: "a",
+    explanation_md: "",
+    tags: ["react"],
+    answer_key: "b",
+    is_correct: false,
+    response_ms: 4_200,
+    integrity_events: [{ type: "blur", duration_ms: 12_000 }],
+  },
+  {
+    question_id: "q3",
+    prompt_md: "Correct one",
+    options: { a: "Yes", b: "No", c: "?", d: "!" },
+    correct_key: "a",
+    explanation_md: "",
+    tags: ["misc"],
+    answer_key: "a",
+    is_correct: true,
+    response_ms: 5_000,
+    integrity_events: [],
+  },
+  {
+    question_id: "q4",
+    prompt_md: "Timed-out question",
+    options: { a: "A", b: "B", c: "C", d: "D" },
+    correct_key: "a",
+    explanation_md: "",
+    tags: ["misc"],
+    answer_key: null,
+    is_correct: false,
+    response_ms: null,
+    integrity_events: [],
+  },
+];
 
 describe("ApplicantsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedApps.list.mockResolvedValue([application]);
-    mockedApps.setStage.mockResolvedValue({ ...application, stage: "screening" });
-    mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
-    mockedJobs.list.mockResolvedValue([{ id: "job-1", title: "Backend Engineer" } as never]);
-  });
-
-  it("lists applicants with score badge and flag count", async () => {
-    render(<ApplicantsPage />);
-    expect(await screen.findByText("Jane Applicant")).toBeInTheDocument();
-    expect(screen.getByText("quiz 75% (3/4)")).toBeInTheDocument();
-    expect(screen.getByText("⚠ 1 flag")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /CV \(244 KB\)/ })).toBeInTheDocument();
-  });
-
-  it("changes the stage via the dropdown", async () => {
-    render(<ApplicantsPage />);
-    const select = await screen.findByLabelText("Stage for Jane Applicant");
-    await userEvent.selectOptions(select, "screening");
-    await waitFor(() => expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "screening"));
-  });
-
-  it("expands answers with flag reasoning and per-question chips", async () => {
-    mockedApps.quizAnswers.mockResolvedValue([
-      {
-        question_id: "py-gil-1",
-        prompt_md: "What does the GIL prevent?",
-        options: { a: "Parallel bytecode", b: "Threads", c: "Processes", d: "Races" },
-        correct_key: "a",
-        explanation_md: "One thread runs bytecode at a time.",
-        tags: ["python"],
-        answer_key: "b",
-        is_correct: false,
-        response_ms: 4200,
-        integrity_events: [{ type: "blur", duration_ms: 12000 }],
-      },
-      {
-        question_id: "py-x-2",
-        prompt_md: "Timed out one?",
-        options: { a: "Yes", b: "No", c: "?", d: "!" },
-        correct_key: "a",
-        explanation_md: "",
-        tags: ["python"],
-        answer_key: null,
-        is_correct: false,
-        response_ms: null,
-        integrity_events: [],
-      },
+    mockedApps.list.mockResolvedValue([
+      makeApp({ id: "app-1", stage: "new" }),
+      makeApp({
+        id: "app-2",
+        stage: "screening",
+        created_at: OLDER,
+        candidate: {
+          id: "cand-2",
+          name: "Kenji Sato",
+          email: "kenji@example.com",
+          links: {},
+        },
+        quiz_attempt: {
+          status: "completed",
+          score: 0.35,
+          per_tag_scores: {},
+          completed_at: null,
+          question_ids: ["q1", "q2", "q3", "q4"],
+          integrity: { flags: [] },
+        },
+      }),
     ]);
-    render(<ApplicantsPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Answers" }));
+    mockedApps.setStage.mockImplementation(async (id, stage) =>
+      makeApp({ id, stage: stage as ApplicationStage }),
+    );
+    mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
+    mockedApps.quizAnswers.mockResolvedValue(ANSWERS);
+    mockedJobs.list.mockResolvedValue([
+      { id: "job-1", title: "Backend Engineer" } as never,
+    ]);
+  });
 
-    // reasoning block visible (not just a hover tooltip)
-    expect(await screen.findByText("Integrity flags")).toBeInTheDocument();
-    expect(screen.getByText(/Occurred during Q1/)).toBeInTheDocument();
-    // per-question review + chip on the exact question
-    expect(screen.getByText("What does the GIL prevent?")).toBeInTheDocument();
-    expect(screen.getByText("⚠ left the tab 12.0s")).toBeInTheDocument();
-    expect(screen.getByText(/answered: Threads \(4.2s\)/)).toBeInTheDocument();
-    expect(screen.getByText(/correct: Parallel bytecode/)).toBeInTheDocument();
-    expect(screen.getByText(/no answer — time ran out/)).toBeInTheDocument();
-    expect(mockedApps.quizAnswers).toHaveBeenCalledWith("app-1");
+  it("renders the list with score chips, flag dot and stage-pill counts", async () => {
+    render(<ApplicantsPage />);
+    const janeButton = (await screen.findByRole("button", { name: /Jane Applicant/ }))!;
+    expect(within(janeButton).getByText("75")).toBeInTheDocument();
+    expect(within(janeButton).getByLabelText("integrity flag")).toBeInTheDocument();
+    expect(within(janeButton).getByText(/applied .* · new/)).toBeInTheDocument();
+
+    const kenjiButton = screen.getByRole("button", { name: /Kenji Sato/ });
+    expect(within(kenjiButton).getByText("35")).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: /^All · 2/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^New · 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Screening · 1/ })).toBeInTheDocument();
+  });
+
+  it("selecting an applicant loads answers and renders per-question rows", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    await waitFor(() => expect(mockedApps.quizAnswers).toHaveBeenCalledWith("app-1"));
+
+    const wrongRow = (
+      await screen.findByText("Which hook memoizes a value?")
+    ).closest("li")!;
+    expect(within(wrongRow).getByText("useMemo")).toBeInTheDocument();
+    expect(within(wrongRow).getByText("useState")).toBeInTheDocument();
+    expect(within(wrongRow).getByText("left the tab 12.0s")).toBeInTheDocument();
+    // timed-out row
+    expect(screen.getByText("time ran out — no answer")).toBeInTheDocument();
+    // score strip totals
+    expect(screen.getByLabelText(/2 correct, 1 wrong, 1 timed out/)).toBeInTheDocument();
+    // integrity card summary pill
+    expect(screen.getByText("1 flag")).toBeInTheDocument();
+  });
+
+  it("Advance advances to the next stage, Reject sets rejected", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Advance" }));
+    await waitFor(() => expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "screening"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await waitFor(() => expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected"));
+  });
+
+  it("stage-pill filter narrows the list and shows the empty state", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    mockedApps.list.mockResolvedValueOnce([]);
+    await userEvent.click(screen.getByRole("button", { name: /^Rejected · 0/ }));
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ stage: "rejected" }),
+      ),
+    );
+    expect(await screen.findByText("No applications match.")).toBeInTheDocument();
+  });
+
+  it("opens the CV in a new tab from the detail panel", async () => {
+    const spy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    await userEvent.click(screen.getByRole("button", { name: /jane\.pdf/ }));
+    expect(mockedApps.cvUrl).toHaveBeenCalledWith("app-1");
+    await waitFor(() =>
+      expect(spy).toHaveBeenCalledWith("http://minio.test/cv", "_blank", "noopener"),
+    );
+    spy.mockRestore();
   });
 });
