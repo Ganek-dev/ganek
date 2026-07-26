@@ -393,7 +393,9 @@ def send_rejection(
         logger.warning("failed to send rejection email to %s", to, exc_info=True)
 
 
-ROLE_LABELS = {"admin": "Admin", "member": "Recruiter"}
+# Matches the team page's role select labels (Owner/Recruiter naming is
+# still an open design decision — the shipped UI says Member).
+ROLE_LABELS = {"admin": "Admin", "member": "Member"}
 
 
 def send_team_invite(

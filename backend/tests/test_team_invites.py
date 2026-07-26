@@ -203,7 +203,7 @@ def test_team_invite_email_content(monkeypatch: pytest.MonkeyPatch) -> None:
     assert sent["to"] == "dana@vetd-ci.dev"
     assert sent["subject"] == "You're invited to join Acme Labs on vetd"
     assert "grumpy@vetd-ci.dev" in sent["body"]
-    assert "Recruiter" in sent["body"]
+    assert "as Member" in sent["body"]
     assert "http://localhost:3000/invite/tok123" in sent["body"]
     html = sent["html"]
     assert html is not None
