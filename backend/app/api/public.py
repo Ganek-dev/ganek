@@ -1,9 +1,10 @@
 import random
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
 from sqlalchemy import select
 
+from app.api.auth import _set_session_cookie
 from app.api.deps import DbSession, PublicCompany, SingleCompany
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
@@ -13,7 +14,16 @@ from app.core.security import (
     read_quiz_token,
     read_status_token,
 )
-from app.models import Application, ApplicationStage, AttemptStatus, Company, Job, QuizAttempt
+from app.models import (
+    Application,
+    ApplicationStage,
+    AttemptStatus,
+    Company,
+    Job,
+    QuizAttempt,
+    UserInvite,
+)
+from app.schemas.auth import UserOut
 from app.schemas.public import (
     ApplicationReceived,
     ApplicationStatusOut,
@@ -35,8 +45,10 @@ from app.schemas.public import (
     QuizStateOut,
     StatusQuizOut,
 )
+from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import applications as applications_service
 from app.services import email as email_service
+from app.services import invites as invites_service
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
 from app.services import storage
@@ -417,3 +429,54 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
         application.stage = ApplicationStage.WITHDRAWN
         await db.commit()
     return {"withdrawn": True}
+
+
+async def _invite_by_token_or_error(db: DbSession, token: str) -> UserInvite:
+    """Resolve a team-invite token: 404 unknown/revoked, 410 past deadline."""
+    invite = await invites_service.invite_by_token(db, token)
+    if invite is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+    if invite.expires_at <= datetime.now(UTC):
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="This invite has expired")
+    return invite
+
+
+@router.get(
+    "/invites/{token}",
+    response_model=PublicInviteOut,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def invite_info(token: str, db: DbSession) -> PublicInviteOut:
+    """Accept-page context: who's being invited where, before any account exists."""
+    invite = await _invite_by_token_or_error(db, token)
+    return PublicInviteOut(
+        email=invite.email,
+        company_name=invite.company.name,
+        role=invite.role,
+    )
+
+
+@router.post(
+    "/invites/{token}/accept",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def accept_invite(
+    token: str, payload: InviteAcceptRequest, response: Response, db: DbSession
+) -> UserOut:
+    """Create the invited user, consume the invite, and log the new user in."""
+    invite = await _invite_by_token_or_error(db, token)
+    try:
+        user = await invites_service.accept_invite(db, invite, payload.password)
+    except invites_service.InviteExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail="This invite has expired"
+        ) from None
+    except invites_service.EmailTakenError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists",
+        ) from None
+    _set_session_cookie(response, user)
+    return UserOut.model_validate(user)
