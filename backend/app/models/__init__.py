@@ -13,6 +13,7 @@ from app.models.question import (
 from app.models.questionnaire import Questionnaire
 from app.models.quiz import AttemptAnswer, AttemptStatus, QuizAttempt
 from app.models.user import User, UserRole
+from app.models.user_invite import UserInvite
 
 __all__ = [
     "Application",
@@ -34,5 +35,6 @@ __all__ = [
     "QuestionStatus",
     "RemotePolicy",
     "User",
+    "UserInvite",
     "UserRole",
 ]

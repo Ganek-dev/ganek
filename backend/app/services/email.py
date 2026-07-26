@@ -391,3 +391,64 @@ def send_rejection(
         send_email(to=to, subject=subject, body=body, html=html)
     except Exception:  # noqa: BLE001 - email must never break a recruiter flow
         logger.warning("failed to send rejection email to %s", to, exc_info=True)
+
+
+# Matches the team page's role select labels (Owner/Recruiter naming is
+# still an open design decision — the shipped UI says Member).
+ROLE_LABELS = {"admin": "Admin", "member": "Member"}
+
+
+def send_team_invite(
+    *,
+    to: str,
+    company_name: str,
+    inviter_email: str,
+    role: str,
+    invite_url: str,
+    expires_at: datetime,
+    brand_primary: str | None,
+) -> None:
+    """Team invite (D6): join-the-workspace link for a future recruiter/admin."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_company = escape(company_name)
+    safe_inviter = escape(inviter_email)
+    role_label = ROLE_LABELS.get(role, role)
+    valid_until = f"{expires_at:%a}, {expires_at:%b} {expires_at.day}"
+    subject = f"You're invited to join {company_name} on vetd"
+
+    body = (
+        f"Hi,\n"
+        f"\n"
+        f"{inviter_email} invited you to join {company_name}'s hiring workspace\n"
+        f"on vetd as {role_label}.\n"
+        f"\n"
+        f"Accept the invite and set your password: {invite_url}\n"
+        f"\n"
+        f"Invite valid until {valid_until}.\n"
+        f"\n"
+        f"— {company_name} (via Vetd)\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"Join {safe_company} on vetd</h1>"
+        + _paragraph(
+            f'<b style="font-weight: 600;">{safe_inviter}</b> invited you to join '
+            f"{safe_company}'s hiring workspace as "
+            f'<b style="font-weight: 600;">{role_label}</b>.'
+        )
+        + f'<a href="{invite_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Accept invite</a>"
+        f'<div style="margin-top: 12px; text-align: center; font-family: monospace; '
+        f'font-size: 11px; color: #a1a1aa;">invite valid until {valid_until}</div>'
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
+        logger.warning("failed to send team invite to %s", to, exc_info=True)

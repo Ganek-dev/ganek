@@ -15,6 +15,10 @@ _quiz_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-quiz")
 QUIZ_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 _status_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-application-status")
 STATUS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 60  # candidates check back late; 60 days
+_invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-team-invite")
+# generous signature window — the invite row's expires_at is the real
+# deadline (resend pushes it forward without re-emailing a new token)
+INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 
 def hash_password(password: str) -> str:
@@ -62,6 +66,18 @@ def create_status_token(application_id: uuid.UUID) -> str:
 def read_status_token(token: str) -> uuid.UUID | None:
     try:
         raw: str = _status_serializer.loads(token, max_age=STATUS_TOKEN_MAX_AGE_SECONDS)
+        return uuid.UUID(raw)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+
+
+def create_invite_token(invite_id: uuid.UUID) -> str:
+    return _invite_serializer.dumps(str(invite_id))
+
+
+def read_invite_token(token: str) -> uuid.UUID | None:
+    try:
+        raw: str = _invite_serializer.loads(token, max_age=INVITE_TOKEN_MAX_AGE_SECONDS)
         return uuid.UUID(raw)
     except (BadSignature, SignatureExpired, ValueError):
         return None
