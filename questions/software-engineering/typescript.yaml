@@ -3,7 +3,7 @@ tag: typescript
 questions:
   - id: ts-purpose-1
     tags: [frontend, javascript]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does TypeScript add to JavaScript?"
     options:
       a: "Static types checked at compile time; it compiles to plain JS"
@@ -17,7 +17,7 @@ questions:
 
   - id: ts-annotation-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "Which is a valid type annotation?"
     options:
       a: "`let count: number = 0`"
@@ -29,7 +29,7 @@ questions:
 
   - id: ts-interface-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What is an `interface` for?"
     options:
       a: "Describing the shape of an object — its properties and their types"

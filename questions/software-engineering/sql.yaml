@@ -3,7 +3,7 @@ tag: sql
 questions:
   - id: sql-where-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does the WHERE clause do?"
     options:
       a: "Filters rows before they are returned or modified"
@@ -29,7 +29,7 @@ questions:
 
   - id: sql-count-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `SELECT COUNT(*) FROM users` return?"
     options:
       a: "The number of rows in users"
@@ -53,7 +53,7 @@ questions:
 
   - id: sql-insert-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "Which statement adds a row?"
     options:
       a: "`INSERT INTO users (name) VALUES ('Jane')`"

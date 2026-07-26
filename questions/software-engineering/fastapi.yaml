@@ -17,7 +17,7 @@ questions:
 
   - id: fastapi-path-param-1
     tags: [python, backend]
-    difficulty: 2
+    difficulty: 1
     prompt: 'In `@app.get("/items/{item_id}")`, how does the handler receive `item_id`?'
     options:
       a: "As a function parameter with the same name, converted to its annotated type"
@@ -31,7 +31,7 @@ questions:
 
   - id: fastapi-docs-1
     tags: [python, backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "Where does FastAPI serve interactive API documentation by default?"
     options:
       a: "`/docs` (Swagger UI) and `/redoc`"
@@ -59,7 +59,7 @@ questions:
 
   - id: fastapi-uvicorn-1
     tags: [python, backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What role does uvicorn play for a FastAPI app?"
     options:
       a: "It is the ASGI server that runs the application"

@@ -2,7 +2,7 @@ domain: software-engineering
 tag: git
 questions:
   - id: git-commit-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What is a git commit?"
     options:
       a: "A snapshot of the tracked files, with author, message and parent link"
@@ -28,7 +28,7 @@ questions:
       is copied.
 
   - id: git-status-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `git status` show?"
     options:
       a: "Modified/staged/untracked files and your position relative to the upstream branch"

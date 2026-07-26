@@ -3,7 +3,7 @@ tag: go
 questions:
   - id: go-goroutine-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "How do you start a goroutine?"
     options:
       a: "`go doWork()`"
@@ -17,7 +17,7 @@ questions:
 
   - id: go-declare-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `x := 5` do inside a function?"
     options:
       a: "Declares x with an inferred type and assigns 5"
@@ -30,7 +30,7 @@ questions:
 
   - id: go-entry-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "Where does an executable Go program start?"
     options:
       a: "func main() in package main"
@@ -57,7 +57,7 @@ questions:
 
   - id: go-gofmt-1
     tags: [backend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What is gofmt?"
     options:
       a: "The canonical code formatter — one standard style for all Go code"

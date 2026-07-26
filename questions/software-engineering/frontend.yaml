@@ -2,7 +2,7 @@ domain: software-engineering
 tag: frontend
 questions:
   - id: fe-dom-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What is the DOM?"
     options:
       a: "The browser's live object tree of the page that scripts can read and modify"
@@ -54,7 +54,7 @@ questions:
       scale it down.
 
   - id: fe-class-selector-1
-    difficulty: 2
+    difficulty: 1
     prompt: 'Which CSS selector targets elements with class="card"?'
     options:
       a: "`.card`"
