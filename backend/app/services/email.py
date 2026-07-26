@@ -200,6 +200,76 @@ def _paragraph(inner: str) -> str:
 NEUTRAL_BAR = "#d4d4d8"  # rejections never carry brand accents
 
 
+def send_quiz_reminder(
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    brand_primary: str | None,
+    quiz_url: str,
+    expires_at: datetime,
+    days_left: int,
+) -> None:
+    """Assessment reminder (design 17b), sent manually by a recruiter.
+
+    Never claims the application auto-closes — only the link expires.
+    """
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    expires_on = f"{expires_at:%a}, {expires_at:%b} {expires_at.day}"
+
+    if days_left <= 0:
+        window = "today"
+        heading_tail = "last day"
+    elif days_left == 1:
+        window = "in 1 day"
+        heading_tail = "1 day left"
+    else:
+        window = f"in {days_left} days"
+        heading_tail = f"{days_left} days left"
+    subject = f"Your assessment link expires {window}"
+    heading = f"Still in — {heading_tail}"
+
+    body = (
+        f"Hi {candidate_name},\n"
+        f"\n"
+        f"{heading}. Your assessment for {job_title} at {company_name} is\n"
+        f"waiting. It takes about 10 minutes.\n"
+        f"\n"
+        f"The link stops working after {expires_on}.\n"
+        f"\n"
+        f"Take it now: {quiz_url}\n"
+        f"\n"
+        f"— {company_name} (via Vetd)\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"{heading}</h1>"
+        + _paragraph(
+            f'Your assessment for <b style="font-weight: 600;">{safe_job}</b> is waiting. '
+            f"It takes about 10 minutes."
+        )
+        + f'<div style="margin-top: 18px; border: 1px solid #f0d9b5; background: #fdf9f2; '
+        f'border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #7c5a2b;">'
+        f'Link stops working after <b style="font-weight: 600;">{expires_on}</b>.</div>'
+        + f'<a href="{quiz_url}" style="margin-top: 20px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Take it now — ~10 min</a>"
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
+        logger.warning("failed to send quiz reminder to %s", to, exc_info=True)
+
+
 def send_stage_advance(
     *,
     to: str,
