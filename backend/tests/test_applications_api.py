@@ -21,7 +21,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
 
 
-async def _publishing_company(client: AsyncClient) -> tuple[str, str]:
+async def _publishing_company(client: AsyncClient, *, with_quiz: bool = False) -> tuple[str, str]:
     """Registers a company with one published job; returns (company_slug, job_slug)."""
     name = f"Apply Co {uuid4().hex[:6]}"
     resp = await client.post(
@@ -33,7 +33,11 @@ async def _publishing_company(client: AsyncClient) -> tuple[str, str]:
         },
     )
     assert resp.status_code == 201, resp.text
-    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
+    job_payload: dict[str, object] = {"title": "Backend Engineer"}
+    if with_quiz:
+        job_payload["tags"] = ["python"]
+        job_payload["quiz_config"] = {"enabled": True, "question_count": 3}
+    job = (await client.post("/api/v1/jobs", json=job_payload)).json()
     assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
     await client.post("/api/v1/auth/logout")
     return name.lower().replace(" ", "-"), job["slug"]
@@ -142,3 +146,35 @@ async def test_apply_sends_confirmation_email(
     assert len(sent) == 1
     assert sent[0]["to"] == email
     assert sent[0]["job_title"] == "Backend Engineer"
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_apply_sends_quiz_invite_when_assessment_enabled(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    invites: list[dict[str, object]] = []
+    received: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: invites.append(kwargs))
+    monkeypatch.setattr(
+        email_service, "send_application_received", lambda **kwargs: received.append(kwargs)
+    )
+    company_slug, job_slug = await _publishing_company(client, with_quiz=True)
+    key = await _uploaded_cv(client, company_slug, job_slug)
+    email = f"jane-{uuid4().hex[:8]}@vetd-ci.dev"
+    resp = await client.post(
+        f"/api/v1/public/companies/{company_slug}/jobs/{job_slug}/apply",
+        json=_submission(key, email=email),
+    )
+    assert resp.status_code == 201
+    quiz_token = resp.json()["quiz_token"]
+    assert quiz_token
+
+    # the invite replaces the generic confirmation and links the same attempt
+    assert received == []
+    assert len(invites) == 1
+    invite = invites[0]
+    assert invite["to"] == email
+    assert str(invite["quiz_url"]).endswith(f"/quiz/{quiz_token}")
+    assert str(invite["quiz_url"]).startswith(settings.public_base_url)
+    assert invite["question_count"] == 3
+    assert invite["company_name"].startswith("Apply Co")

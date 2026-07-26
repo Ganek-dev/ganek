@@ -1,5 +1,7 @@
 import smtplib
+from datetime import UTC, datetime
 from email.message import EmailMessage
+from typing import Any
 
 import pytest
 
@@ -66,6 +68,81 @@ def test_sends_via_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Backend Engineer position at Acme" in message.get_content()
     assert FakeSMTP.logins == [("mailer", "hunter2")]
     assert FakeSMTP.starttls_calls == 1
+
+
+def _invite_kwargs(**overrides: Any) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "to": "marta@example.com",
+        "candidate_name": "Marta",
+        "job_title": "Senior Frontend Engineer",
+        "company_name": "Northwind Robotics",
+        "brand_primary": "#3d5afe",
+        "quiz_url": "https://jobs.example.com/quiz/tok123",
+        "question_count": 12,
+        "seconds_per_question": 25,
+        "expires_at": datetime(2026, 7, 31, 12, 0, tzinfo=UTC),
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _sent_parts(message: EmailMessage) -> tuple[str, str]:
+    plain = message.get_body(preferencelist=("plain",))
+    html = message.get_body(preferencelist=("html",))
+    assert plain is not None and html is not None, "invite must be multipart/alternative"
+    return str(plain.get_content()), str(html.get_content())
+
+
+def test_quiz_invite_renders_link_details_and_branding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_quiz_invite(**_invite_kwargs())
+
+    assert len(FakeSMTP.sent) == 1
+    message = FakeSMTP.sent[0]
+    assert message["To"] == "marta@example.com"
+    assert message["Subject"] == "Your Northwind Robotics assessment — one step left"
+    text, html = _sent_parts(message)
+    for part in (text, html):
+        assert "https://jobs.example.com/quiz/tok123" in part
+        assert "Marta" in part
+        assert "Senior Frontend Engineer" in part
+        assert "12" in part  # question count
+        assert "25s" in part  # per-question timer
+        assert "one attempt" in part
+        assert "Jul 31" in part  # link validity from expires_at
+    assert "#3d5afe" in html  # brand top bar + CTA
+    assert "Sent by vetd on behalf of Northwind Robotics" in html
+
+
+def test_quiz_invite_defaults_brand_and_omits_timer_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_quiz_invite(**_invite_kwargs(brand_primary=None, seconds_per_question=None))
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert "#18181b" in html  # default brand
+    assert "per question" not in text
+    assert "per question" not in html
+
+
+def test_quiz_invite_transport_errors_are_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+
+    class ExplodingSMTP(FakeSMTP):
+        def send_message(self, message: EmailMessage) -> None:
+            raise smtplib.SMTPException("boom")
+
+    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
+    email_service.send_quiz_invite(**_invite_kwargs())  # must not raise
 
 
 def test_transport_errors_are_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
