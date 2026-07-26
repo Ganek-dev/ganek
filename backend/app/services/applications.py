@@ -115,6 +115,22 @@ async def get_application(
     ).scalar_one_or_none()
 
 
+async def get_application_by_id(db: AsyncSession, application_id: uuid.UUID) -> Application | None:
+    """Token-authenticated candidate lookup (status page) — no tenancy scope;
+    the signed status token is the authorization."""
+    return (
+        await db.execute(
+            select(Application)
+            .where(Application.id == application_id)
+            .options(
+                selectinload(Application.candidate),
+                selectinload(Application.quiz_attempt),
+                selectinload(Application.job),
+            )
+        )
+    ).scalar_one_or_none()
+
+
 async def set_stage(
     db: AsyncSession, application: Application, stage: ApplicationStage
 ) -> Application:
