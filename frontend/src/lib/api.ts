@@ -260,10 +260,10 @@ export const applications = {
     const qs = params.toString();
     return request<ApplicationOut[]>(`/api/v1/applications${qs ? `?${qs}` : ""}`);
   },
-  setStage: (id: string, stage: ApplicationStage) =>
+  setStage: (id: string, stage: ApplicationStage, notifyCandidate = false) =>
     request<ApplicationOut>(`/api/v1/applications/${id}/stage`, {
       method: "PATCH",
-      body: JSON.stringify({ stage }),
+      body: JSON.stringify({ stage, notify_candidate: notifyCandidate }),
     }),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),

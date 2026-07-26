@@ -339,10 +339,11 @@ function DetailPanel({
   app: ApplicationOut;
   jobTitle: string;
   answers: QuizAnswerReview[] | null;
-  onStage: (stage: ApplicationStage) => void;
+  onStage: (stage: ApplicationStage, notify: boolean) => void;
   onDownloadCv: () => void;
   now: Date;
 }) {
+  const [notify, setNotify] = useState(false);
   const nextStage = useMemo(() => {
     const currentIndex = STAGE_ORDER.indexOf(app.stage);
     if (currentIndex < 0 || currentIndex >= STAGE_ORDER.length - 1) return null;
@@ -372,46 +373,58 @@ function DetailPanel({
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {nextStage && app.stage !== "rejected" ? (
-            <button
-              type="button"
-              onClick={() => onStage(nextStage)}
-              className="inline-flex h-8 items-center rounded-md bg-accent px-3.5 text-[13.5px] font-semibold text-white hover:brightness-[0.94]"
-            >
-              Advance
-            </button>
-          ) : null}
-          {app.stage !== "rejected" ? (
-            <button
-              type="button"
-              onClick={() => onStage("rejected")}
-              className={`inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium hover:bg-muted-fill ${SCORE_TONE.red.text}`}
-            >
-              Reject
-            </button>
-          ) : null}
-          <label className="sr-only" htmlFor={`stage-${app.id}`}>
-            {`Stage for ${app.candidate.name}`}
-          </label>
-          <div className="relative">
-            <select
-              id={`stage-${app.id}`}
-              value={app.stage}
-              onChange={(event) => onStage(event.target.value as ApplicationStage)}
-              className="inline-flex h-8 appearance-none items-center rounded-md border border-edge bg-surface pr-7 pl-3 text-[13px] font-medium text-g700 outline-none focus:border-g400"
-            >
-              {STAGE_ORDER.concat("rejected").map((stage) => (
-                <option key={stage} value={stage}>
-                  Stage: {stage}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-g500"
-            />
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            {nextStage && app.stage !== "rejected" ? (
+              <button
+                type="button"
+                onClick={() => onStage(nextStage, notify)}
+                className="inline-flex h-8 items-center rounded-md bg-accent px-3.5 text-[13.5px] font-semibold text-white hover:brightness-[0.94]"
+              >
+                Advance
+              </button>
+            ) : null}
+            {app.stage !== "rejected" ? (
+              <button
+                type="button"
+                onClick={() => onStage("rejected", notify)}
+                className={`inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium hover:bg-muted-fill ${SCORE_TONE.red.text}`}
+              >
+                Reject
+              </button>
+            ) : null}
+            <label className="sr-only" htmlFor={`stage-${app.id}`}>
+              {`Stage for ${app.candidate.name}`}
+            </label>
+            <div className="relative">
+              <select
+                id={`stage-${app.id}`}
+                value={app.stage}
+                onChange={(event) => onStage(event.target.value as ApplicationStage, notify)}
+                className="inline-flex h-8 appearance-none items-center rounded-md border border-edge bg-surface pr-7 pl-3 text-[13px] font-medium text-g700 outline-none focus:border-g400"
+              >
+                {STAGE_ORDER.concat("rejected").map((stage) => (
+                  <option key={stage} value={stage}>
+                    Stage: {stage}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-g500"
+              />
+            </div>
           </div>
+          <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-g600">
+            <input
+              type="checkbox"
+              checked={notify}
+              onChange={(event) => setNotify(event.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+            />
+            Email the candidate
+            <span className="font-mono text-[10.5px] text-g400">interview · rejection</span>
+          </label>
         </div>
       </div>
 
@@ -554,10 +567,10 @@ export default function ApplicantsPage() {
     return base;
   }, [items]);
 
-  async function changeStage(id: string, stage: ApplicationStage) {
+  async function changeStage(id: string, stage: ApplicationStage, notify: boolean) {
     setError(null);
     try {
-      await applications.setStage(id, stage);
+      await applications.setStage(id, stage, notify);
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stage change failed");
@@ -682,10 +695,11 @@ export default function ApplicantsPage() {
 
         {selected ? (
           <DetailPanel
+            key={selected.id}
             app={selected}
             jobTitle={jobLookup[selected.job_id] ?? "—"}
             answers={answersById[selected.id] ?? null}
-            onStage={(stage) => changeStage(selected.id, stage)}
+            onStage={(stage, notify) => changeStage(selected.id, stage, notify)}
             onDownloadCv={() => downloadCv(selected.id)}
             now={now}
           />
