@@ -560,6 +560,14 @@ export interface TeamUser {
   created_at: string;
 }
 
+export interface TeamInvite {
+  id: string;
+  email: string;
+  role: UserRole;
+  created_at: string;
+  expires_at: string;
+}
+
 export const team = {
   list: () => request<TeamUser[]>("/api/v1/users"),
   create: (email: string, password: string, role: UserRole) =>
@@ -569,4 +577,30 @@ export const team = {
     }),
   update: (id: string, patch: { role?: UserRole; is_active?: boolean }) =>
     request<TeamUser>(`/api/v1/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  listInvites: () => request<TeamInvite[]>("/api/v1/users/invites"),
+  invite: (email: string, role: UserRole) =>
+    request<TeamInvite>("/api/v1/users/invites", {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
+  resendInvite: (id: string) =>
+    request<TeamInvite>(`/api/v1/users/invites/${id}/resend`, { method: "POST" }),
+  revokeInvite: (id: string) =>
+    request<void>(`/api/v1/users/invites/${id}`, { method: "DELETE" }),
+};
+
+export interface PublicInvite {
+  email: string;
+  company_name: string;
+  role: UserRole;
+}
+
+/** Invite accept page (magic link from the team-invite email). */
+export const publicInvites = {
+  get: (token: string) => request<PublicInvite>(`/api/v1/public/invites/${token}`),
+  accept: (token: string, password: string) =>
+    request<UserOut>(`/api/v1/public/invites/${token}/accept`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
 };
