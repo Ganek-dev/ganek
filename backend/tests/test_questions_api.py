@@ -119,6 +119,44 @@ async def test_resolve_requires_auth(client: AsyncClient) -> None:
 
 
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_usage_counts_questionnaires_that_reference_each_id(
+    client: AsyncClient,
+) -> None:
+    await _register(client)
+    await client.post(
+        "/api/v1/questionnaires",
+        json={"name": "A", "question_refs": ["py-gil-1", "js-closure-3"]},
+    )
+    await client.post(
+        "/api/v1/questionnaires",
+        json={"name": "B", "question_refs": ["py-gil-1"]},
+    )
+    resp = await client.get("/api/v1/questions/usage?ids=py-gil-1,js-closure-3,ghost-ref")
+    assert resp.status_code == 200
+    # ghost-ref has zero usage → omitted from the response
+    assert resp.json() == {"py-gil-1": 2, "js-closure-3": 1}
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_usage_is_tenant_scoped(client: AsyncClient) -> None:
+    await _register(client)
+    await client.post(
+        "/api/v1/questionnaires",
+        json={"name": "Mine", "question_refs": ["py-gil-1"]},
+    )
+    await client.post("/api/v1/auth/logout")
+    await _register(client)
+    resp = await client.get("/api/v1/questions/usage?ids=py-gil-1")
+    assert resp.status_code == 200
+    assert resp.json() == {}
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_usage_requires_auth(client: AsyncClient) -> None:
+    assert (await client.get("/api/v1/questions/usage?ids=py-gil-1")).status_code == 401
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
 async def test_questions_are_tenant_scoped(client: AsyncClient) -> None:
     await _register(client)
     question = (await client.post("/api/v1/questions", json=_question_payload())).json()

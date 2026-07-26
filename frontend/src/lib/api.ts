@@ -419,6 +419,11 @@ export const questions = {
     const qs = new URLSearchParams({ ids: ids.join(",") }).toString();
     return request<ResolvedQuestion[]>(`/api/v1/questions/resolve?${qs}`);
   },
+  usage: (ids: string[]) => {
+    if (ids.length === 0) return Promise.resolve({} as Record<string, number>);
+    const qs = new URLSearchParams({ ids: ids.join(",") }).toString();
+    return request<Record<string, number>>(`/api/v1/questions/usage?${qs}`);
+  },
 };
 
 export interface QuestionnaireOut {
