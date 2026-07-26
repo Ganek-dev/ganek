@@ -191,10 +191,25 @@ describe("ApplicantsPage", () => {
     await screen.findByRole("heading", { name: "Jane Applicant" });
 
     await userEvent.click(screen.getByRole("button", { name: "Advance" }));
-    await waitFor(() => expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "screening"));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "screening", false),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Reject" }));
-    await waitFor(() => expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected"));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false),
+    );
+  });
+
+  it("Email-the-candidate checkbox passes notify through stage changes", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true),
+    );
   });
 
   it("stage-pill filter narrows the list and shows the empty state", async () => {
