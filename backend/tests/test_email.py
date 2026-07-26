@@ -145,6 +145,101 @@ def test_quiz_invite_transport_errors_are_swallowed(
     email_service.send_quiz_invite(**_invite_kwargs())  # must not raise
 
 
+def test_stage_advance_renders_branding_and_team_signoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_stage_advance(
+        to="marta@example.com",
+        candidate_name="Marta",
+        job_title="Senior Frontend Engineer",
+        company_name="Northwind Robotics",
+        brand_primary="#3d5afe",
+    )
+
+    message = FakeSMTP.sent[0]
+    assert message["Subject"] == "Next step: interviews at Northwind Robotics"
+    text, html = _sent_parts(message)
+    for part in (text, html):
+        assert "Good news, Marta" in part
+        assert "Senior Frontend Engineer" in part
+        assert "move you to interviews" in part
+        assert "hiring team" in part
+    assert "#3d5afe" in html
+    assert "Sent by vetd on behalf of Northwind Robotics" in html
+
+
+def test_rejection_renders_neutral_with_assessment_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_rejection(
+        to="tomas@example.com",
+        candidate_name="Tomas",
+        job_title="Backend Engineer (Python)",
+        company_name="Northwind Robotics",
+        careers_url="https://jobs.example.com/c/northwind-robotics",
+        completed_assessment=True,
+    )
+
+    message = FakeSMTP.sent[0]
+    assert message["Subject"] == "Your application to Northwind Robotics"
+    text, html = _sent_parts(message)
+    for part in (text, html):
+        assert "Thank you, Tomas" in part
+        assert "Backend Engineer (Python)" in part
+        assert "won't be moving forward" in part
+        assert "a real person reviewed it" in part
+        assert "https://jobs.example.com/c/northwind-robotics" in part
+    # neutral gray top bar — a rejection never carries brand accents
+    assert "#d4d4d8" in html
+
+
+def test_rejection_omits_assessment_line_without_completed_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_rejection(
+        to="tomas@example.com",
+        candidate_name="Tomas",
+        job_title="Backend Engineer (Python)",
+        company_name="Northwind Robotics",
+        careers_url="https://jobs.example.com/c/northwind-robotics",
+        completed_assessment=False,
+    )
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert "a real person reviewed it" not in text
+    assert "a real person reviewed it" not in html
+
+
+def test_stage_emails_swallow_transport_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+
+    class ExplodingSMTP(FakeSMTP):
+        def send_message(self, message: EmailMessage) -> None:
+            raise smtplib.SMTPException("boom")
+
+    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
+    email_service.send_stage_advance(
+        to="a@b.c", candidate_name="A", job_title="T", company_name="C", brand_primary=None
+    )
+    email_service.send_rejection(
+        to="a@b.c",
+        candidate_name="A",
+        job_title="T",
+        company_name="C",
+        careers_url="https://x.example",
+        completed_assessment=False,
+    )
+
+
 def test_transport_errors_are_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
 

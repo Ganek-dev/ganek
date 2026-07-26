@@ -308,3 +308,44 @@ async def test_admin_reviews_quiz_answers_with_integrity(client: AsyncClient) ->
     assert (
         await client.get(f"/api/v1/applications/{application['id']}/quiz-answers")
     ).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_stage_change_emails_candidate_only_when_asked(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    advances: list[dict[str, object]] = []
+    rejections: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_stage_advance", lambda **kw: advances.append(kw))
+    monkeypatch.setattr(email_service, "send_rejection", lambda **kw: rejections.append(kw))
+
+    _, email = await _company_with_applicant(client)
+    app = (await client.get("/api/v1/applications")).json()[0]
+    url = f"/api/v1/applications/{app['id']}/stage"
+
+    # default stays silent
+    assert (await client.patch(url, json={"stage": "interview"})).status_code == 200
+    assert advances == [] and rejections == []
+
+    # advance with notify → 22a with candidate + branding context
+    resp = await client.patch(url, json={"stage": "interview", "notify_candidate": True})
+    assert resp.status_code == 200
+    assert len(advances) == 1
+    assert advances[0]["to"] == email
+    assert advances[0]["candidate_name"] == "Jane Applicant"
+    assert advances[0]["job_title"] == "Backend Engineer"
+
+    # reject with notify → 22b; no completed assessment on this application
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
+    assert resp.status_code == 200
+    assert len(rejections) == 1
+    assert rejections[0]["to"] == email
+    assert rejections[0]["completed_assessment"] is False
+    assert "/c/hire-co-" in str(rejections[0]["careers_url"])  # multi-mode careers page
+
+    # notify on a stage without a template (e.g. screening) is a no-op
+    resp = await client.patch(url, json={"stage": "screening", "notify_candidate": True})
+    assert resp.status_code == 200
+    assert len(advances) == 1 and len(rejections) == 1

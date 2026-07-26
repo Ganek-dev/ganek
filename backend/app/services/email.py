@@ -135,18 +135,7 @@ def send_quiz_invite(
         f"<span>{label}</span></div>"
         for figure, label in detail_rows
     )
-    html = (
-        f'<div style="margin: 0 auto; max-width: 480px; background: #ffffff; '
-        f"border-radius: 12px; border: 1px solid #e4e4e7; overflow: hidden; "
-        f"font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; "
-        f'color: #18181b;">'
-        f'<div style="height: 5px; background: {brand};"></div>'
-        f'<div style="padding: 28px 32px;">'
-        f'<div><span style="display: inline-block; width: 24px; height: 24px; '
-        f"border-radius: 7px; background: {brand}; color: {brand_fg}; text-align: center; "
-        f'line-height: 24px; font-size: 13px; font-weight: 700;">{safe_company[:1].upper()}</span>'
-        f'<span style="margin-left: 9px; font-size: 15px; font-weight: 600;">'
-        f"{safe_company}</span></div>"
+    content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
         f"One step left, {safe_candidate}</h1>"
         f'<p style="margin: 12px 0 0; font-size: 14.5px; line-height: 22px; color: #3f3f46;">'
@@ -162,13 +151,164 @@ def send_quiz_invite(
         f'<div style="margin-top: 12px; text-align: center; font-family: monospace; '
         f'font-size: 11px; color: #a1a1aa;">'
         f"link valid until {valid_until} · works on any device</div>"
-        f"</div></div>"
-        f'<div style="margin: 16px auto 0; max-width: 480px; text-align: center; '
-        f'font-family: monospace; font-size: 10.5px; color: #a1a1aa; line-height: 17px;">'
-        f"Sent by vetd on behalf of {safe_company}</div>"
+    )
+    html = _card_html(
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
     )
 
     try:
         send_email(to=to, subject=subject, body=body, html=html)
     except Exception:  # noqa: BLE001 - email must never break the apply flow
         logger.warning("failed to send quiz invite to %s", to, exc_info=True)
+
+
+def _card_html(
+    *, bar_color: str, brand: str, brand_fg: str, safe_company: str, content: str
+) -> str:
+    """Shared email card (handoff 17/22): top bar, logo chip, content, footer."""
+    return (
+        f'<div style="margin: 0 auto; max-width: 480px; background: #ffffff; '
+        f"border-radius: 12px; border: 1px solid #e4e4e7; overflow: hidden; "
+        f"font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; "
+        f'color: #18181b;">'
+        f'<div style="height: 5px; background: {bar_color};"></div>'
+        f'<div style="padding: 28px 32px;">'
+        f'<div><span style="display: inline-block; width: 24px; height: 24px; '
+        f"border-radius: 7px; background: {brand}; color: {brand_fg}; text-align: center; "
+        f'line-height: 24px; font-size: 13px; font-weight: 700;">{safe_company[:1].upper()}</span>'
+        f'<span style="margin-left: 9px; font-size: 15px; font-weight: 600;">'
+        f"{safe_company}</span></div>"
+        f"{content}"
+        f"</div></div>"
+        f'<div style="margin: 16px auto 0; max-width: 480px; text-align: center; '
+        f'font-family: monospace; font-size: 10.5px; color: #a1a1aa; line-height: 17px;">'
+        f"Sent by vetd on behalf of {safe_company}</div>"
+    )
+
+
+def _paragraph(inner: str) -> str:
+    return (
+        f'<p style="margin: 12px 0 0; font-size: 14.5px; line-height: 22px; '
+        f'color: #3f3f46;">{inner}</p>'
+    )
+
+
+NEUTRAL_BAR = "#d4d4d8"  # rejections never carry brand accents
+
+
+def send_stage_advance(
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    brand_primary: str | None,
+) -> None:
+    """Advance-to-interview email (design 22a); scheduling details follow later."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    subject = f"Next step: interviews at {company_name}"
+
+    body = (
+        f"Good news, {candidate_name} — let's talk.\n"
+        f"\n"
+        f"Your application for {job_title} stood out, and we'd like to\n"
+        f"move you to interviews. We'll follow up shortly with scheduling details.\n"
+        f"\n"
+        f"Looking forward to it,\n"
+        f"The {company_name} hiring team\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"Good news, {safe_candidate} — let's talk</h1>"
+        + _paragraph(
+            f'Your application for <b style="font-weight: 600;">{safe_job}</b> stood out, '
+            f"and we'd like to move you to interviews. We'll follow up shortly with "
+            f"scheduling details."
+        )
+        + f'<p style="margin: 22px 0 0; font-size: 14px; line-height: 21px; color: #3f3f46;">'
+        f'Looking forward to it,<br><b style="font-weight: 600;">'
+        f"The {safe_company} hiring team</b></p>"
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
+        logger.warning("failed to send advance email to %s", to, exc_info=True)
+
+
+def send_rejection(
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    careers_url: str,
+    completed_assessment: bool,
+) -> None:
+    """Humane rejection (design 22b): neutral bar, no score, no brand accents."""
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    subject = f"Your application to {company_name}"
+
+    assessment_line = (
+        " We were glad you took the time to complete the assessment — "
+        "a real person reviewed it, not a filter."
+        if completed_assessment
+        else ""
+    )
+    body = (
+        f"Thank you, {candidate_name}.\n"
+        f"\n"
+        f"We've finished reviewing applications for {job_title},\n"
+        f"and we won't be moving forward with yours this time.\n"
+        f"\n"
+        f"This was a competitive round and the decision was close.{assessment_line}\n"
+        f"\n"
+        f"We'd genuinely welcome another application for a future role.\n"
+        f"See open positions: {careers_url}\n"
+        f"\n"
+        f"All the best,\n"
+        f"The {company_name} hiring team\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"Thank you, {safe_candidate}</h1>"
+        + _paragraph(
+            f'We\'ve finished reviewing applications for <b style="font-weight: 600;">'
+            f"{safe_job}</b>, and we won't be moving forward with yours this time."
+        )
+        + _paragraph(f"This was a competitive round and the decision was close.{assessment_line}")
+        + _paragraph("We'd genuinely welcome another application for a future role.")
+        + f'<div style="margin-top: 20px; text-align: center;">'
+        f'<a href="{careers_url}" style="display: inline-block; height: 40px; '
+        f"line-height: 40px; padding: 0 20px; border: 1.5px solid #d4d4d8; "
+        f"border-radius: 10px; font-size: 13.5px; font-weight: 600; color: #3f3f46; "
+        f'text-decoration: none;">See open positions</a></div>'
+        + f'<p style="margin: 22px 0 0; font-size: 14px; line-height: 21px; color: #3f3f46;">'
+        f'All the best,<br><b style="font-weight: 600;">'
+        f"The {safe_company} hiring team</b></p>"
+    )
+    html = _card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=safe_company,
+        content=content,
+    )
+
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
+        logger.warning("failed to send rejection email to %s", to, exc_info=True)
