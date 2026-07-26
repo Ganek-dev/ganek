@@ -1,14 +1,22 @@
 import random
+from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from sqlalchemy import select
 
 from app.api.deps import DbSession, PublicCompany, SingleCompany
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
-from app.core.security import create_quiz_token, read_quiz_token
-from app.models import AttemptStatus, Company, Job, QuizAttempt
+from app.core.security import (
+    create_quiz_token,
+    create_status_token,
+    read_quiz_token,
+    read_status_token,
+)
+from app.models import Application, ApplicationStage, AttemptStatus, Company, Job, QuizAttempt
 from app.schemas.public import (
     ApplicationReceived,
+    ApplicationStatusOut,
     ApplicationSubmit,
     CvUploadTicket,
     PracticeOut,
@@ -25,6 +33,7 @@ from app.schemas.public import (
     QuizOptionOut,
     QuizQuestionOut,
     QuizStateOut,
+    StatusQuizOut,
 )
 from app.services import applications as applications_service
 from app.services import email as email_service
@@ -144,7 +153,9 @@ async def _apply(
             job_title=job.title,
             company_name=company.name,
         )
-    return ApplicationReceived(quiz_token=quiz_token)
+    return ApplicationReceived(
+        quiz_token=quiz_token, status_token=create_status_token(application.id)
+    )
 
 
 @router.post(
@@ -336,3 +347,72 @@ async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizE
     attempt = await _attempt_or_404(db, token)
     await quiz_service.record_events(db, attempt, [event.model_dump() for event in payload.events])
     return QuizEventsOut()
+
+
+DECISION_WINDOW = timedelta(days=14)  # "you'll hear back within two weeks of applying"
+
+
+async def _application_by_status_token_or_404(db: DbSession, token: str) -> Application:
+    application_id = read_status_token(token)
+    application = (
+        await applications_service.get_application_by_id(db, application_id)
+        if application_id is not None
+        else None
+    )
+    if application is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    return application
+
+
+@router.get(
+    "/applications/{token}",
+    response_model=ApplicationStatusOut,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
+    """Candidate status page (screen 21) behind its signed magic-link token."""
+    application = await _application_by_status_token_or_404(db, token)
+    company = (
+        await db.execute(select(Company).where(Company.id == application.company_id))
+    ).scalar_one()
+    attempt = application.quiz_attempt
+    quiz = (
+        StatusQuizOut(
+            status=attempt.status.value,
+            answered=await _answered_count(db, attempt),
+            total=len(attempt.question_ids),
+            completed_at=attempt.completed_at,
+        )
+        if attempt is not None
+        else None
+    )
+    return ApplicationStatusOut(
+        company_name=company.name,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        job_title=application.job.title,
+        candidate_name=application.candidate.name,
+        cv_filename=application.cv_filename,
+        applied_at=application.created_at,
+        stage=application.stage.value,
+        quiz=quiz,
+        decision_expected_by=application.created_at + DECISION_WINDOW,
+    )
+
+
+@router.post(
+    "/applications/{token}/withdraw",
+    response_model=dict[str, bool],
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
+    """Candidate-initiated withdrawal. Decided applications stay decided."""
+    application = await _application_by_status_token_or_404(db, token)
+    if application.stage in (ApplicationStage.HIRED, ApplicationStage.REJECTED):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This application already has a decision",
+        )
+    if application.stage is not ApplicationStage.WITHDRAWN:
+        application.stage = ApplicationStage.WITHDRAWN
+        await db.commit()
+    return {"withdrawn": True}

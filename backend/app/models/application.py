@@ -20,6 +20,7 @@ class ApplicationStage(enum.StrEnum):
     OFFER = "offer"
     HIRED = "hired"
     REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"  # candidate-initiated via the status page
 
 
 class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):

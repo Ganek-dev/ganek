@@ -80,6 +80,28 @@ class ApplicationSubmit(BaseModel):
 class ApplicationReceived(BaseModel):
     status: str = "received"
     quiz_token: str | None = None
+    status_token: str | None = None
+
+
+class StatusQuizOut(BaseModel):
+    """Quiz progress on the candidate status page. Never carries a score."""
+
+    status: str
+    answered: int
+    total: int
+    completed_at: datetime | None
+
+
+class ApplicationStatusOut(BaseModel):
+    company_name: str
+    brand_primary: str | None
+    job_title: str
+    candidate_name: str
+    cv_filename: str
+    applied_at: datetime
+    stage: str
+    quiz: StatusQuizOut | None
+    decision_expected_by: datetime
 
 
 class QuizOptionOut(BaseModel):

@@ -13,6 +13,8 @@ _hasher = PasswordHasher()
 _serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-session")
 _quiz_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-quiz")
 QUIZ_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
+_status_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-application-status")
+STATUS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 60  # candidates check back late; 60 days
 
 
 def hash_password(password: str) -> str:
@@ -48,6 +50,18 @@ def create_quiz_token(attempt_id: uuid.UUID) -> str:
 def read_quiz_token(token: str) -> uuid.UUID | None:
     try:
         raw: str = _quiz_serializer.loads(token, max_age=QUIZ_TOKEN_MAX_AGE_SECONDS)
+        return uuid.UUID(raw)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+
+
+def create_status_token(application_id: uuid.UUID) -> str:
+    return _status_serializer.dumps(str(application_id))
+
+
+def read_status_token(token: str) -> uuid.UUID | None:
+    try:
+        raw: str = _status_serializer.loads(token, max_age=STATUS_TOKEN_MAX_AGE_SECONDS)
         return uuid.UUID(raw)
     except (BadSignature, SignatureExpired, ValueError):
         return None
