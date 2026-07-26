@@ -28,6 +28,13 @@ class QuizConfigSchema(BaseModel):
     exclude_ids: list[str] = Field(
         default_factory=list, max_length=500, description="Question ids excluded from this job"
     )
+    questionnaire_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Attach a curated questionnaire — its ordered question_refs replace "
+            "tag-auto selection; tags and question_count are ignored while attached."
+        ),
+    )
 
 
 class QuizPreviewQuestion(BaseModel):

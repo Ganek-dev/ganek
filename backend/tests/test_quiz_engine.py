@@ -13,6 +13,7 @@ from app.models import (
     Company,
     Job,
     Question,
+    Questionnaire,
 )
 from app.services import quiz
 from app.services.seed import questions_dir, seed_questions
@@ -231,3 +232,105 @@ async def test_company_questions_join_the_pool_and_stay_private(
     db_session.add(other_application)
     await db_session.commit()
     assert await quiz.create_attempt(db_session, other, other_application, other_job) is None
+
+
+# Curated questionnaire attach path (D4). The engine must swap tag-auto
+# selection for the questionnaire's ordered refs while still honouring
+# time limits, exclusions and tenant scoping.
+
+
+async def _attach_questionnaire(
+    db_session: AsyncSession,
+    company: Company,
+    job: Job,
+    *,
+    refs: list[str],
+    shuffle: bool = False,
+    excludes: list[str] | None = None,
+) -> Questionnaire:
+    questionnaire = Questionnaire(
+        company_id=company.id,
+        name=f"Q-{uuid4().hex[:6]}",
+        shuffle=shuffle,
+        question_refs=refs,
+    )
+    db_session.add(questionnaire)
+    await db_session.flush()
+    job.quiz_config = {
+        **job.quiz_config,
+        "enabled": True,
+        "questionnaire_id": str(questionnaire.id),
+        "exclude_ids": excludes or [],
+    }
+    await db_session.commit()
+    return questionnaire
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_attached_questionnaire_freezes_curated_order(
+    db_session: AsyncSession,
+) -> None:
+    company, job, application = await _fixture(db_session)
+    refs = ["py-mutable-default-1", "py-gil-1", "py-dict-ordering-1"]
+    await _attach_questionnaire(db_session, company, job, refs=refs)
+    attempt = await quiz.create_attempt(
+        db_session, company, application, job, rng=random.Random(11)
+    )
+    assert attempt is not None
+    # order preserved, count = refs length (question_count ignored)
+    assert attempt.question_ids == refs
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_attached_questionnaire_shuffle_reorders_but_keeps_set(
+    db_session: AsyncSession,
+) -> None:
+    company, job, application = await _fixture(db_session)
+    refs = ["py-mutable-default-1", "py-gil-1", "py-dict-ordering-1", "py-fstring-eval-1"]
+    await _attach_questionnaire(db_session, company, job, refs=refs, shuffle=True)
+    attempt = await quiz.create_attempt(db_session, company, application, job, rng=random.Random(7))
+    assert attempt is not None
+    assert sorted(attempt.question_ids) == sorted(refs)
+    assert attempt.question_ids != refs  # rng=7 does reshuffle these four
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_attached_questionnaire_honors_excludes(
+    db_session: AsyncSession,
+) -> None:
+    company, job, application = await _fixture(db_session)
+    refs = ["py-mutable-default-1", "py-gil-1", "py-dict-ordering-1"]
+    await _attach_questionnaire(db_session, company, job, refs=refs, excludes=["py-gil-1"])
+    attempt = await quiz.create_attempt(db_session, company, application, job, rng=random.Random(1))
+    assert attempt is not None
+    assert attempt.question_ids == ["py-mutable-default-1", "py-dict-ordering-1"]
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_missing_questionnaire_yields_no_attempt(
+    db_session: AsyncSession,
+) -> None:
+    company, job, application = await _fixture(db_session)
+    job.quiz_config = {
+        **job.quiz_config,
+        "enabled": True,
+        "questionnaire_id": str(uuid4()),
+    }
+    await db_session.commit()
+    assert await quiz.create_attempt(db_session, company, application, job) is None
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_preview_reflects_attached_questionnaire(
+    db_session: AsyncSession,
+) -> None:
+    company, job, application = await _fixture(db_session)
+    refs = ["py-mutable-default-1", "py-gil-1", "py-dict-ordering-1"]
+    await _attach_questionnaire(db_session, company, job, refs=refs, excludes=["py-gil-1"])
+    config, pool, eligible, sample = await quiz.build_quiz_preview(
+        db_session, company, job, rng=random.Random(1)
+    )
+    assert config.questionnaire_id is not None
+    assert {q.id for q in pool} == set(refs)
+    assert eligible == {"py-mutable-default-1", "py-dict-ordering-1"}
+    assert sample == ["py-mutable-default-1", "py-dict-ordering-1"]
