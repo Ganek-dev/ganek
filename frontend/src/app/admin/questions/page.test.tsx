@@ -2,7 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { questions, type BankPage, type QuestionOut } from "@/lib/api";
+import {
+  questionnaires,
+  questions,
+  type BankPage,
+  type QuestionOut,
+  type QuestionnaireOut,
+} from "@/lib/api";
 
 import QuestionsPage from "./page";
 
@@ -17,11 +23,30 @@ vi.mock("@/lib/api", async (importOriginal) => {
       bank: vi.fn(),
       block: vi.fn(),
       unblock: vi.fn(),
+      resolve: vi.fn(),
+    },
+    questionnaires: {
+      list: vi.fn(),
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
   };
 });
 
 const mocked = vi.mocked(questions);
+const mockedQnr = vi.mocked(questionnaires);
+
+const questionnaire: QuestionnaireOut = {
+  id: "qnr-1",
+  name: "Frontend basics v2",
+  description: "",
+  shuffle: false,
+  question_refs: ["css-box-2"],
+  created_at: "2026-07-25T10:00:00Z",
+  updated_at: "2026-07-25T10:00:00Z",
+};
 
 const existing: QuestionOut = {
   id: "co-abc",
@@ -64,6 +89,12 @@ describe("QuestionsPage", () => {
     mocked.bank.mockResolvedValue(bankPage);
     mocked.block.mockResolvedValue(undefined);
     mocked.unblock.mockResolvedValue(undefined);
+    mockedQnr.list.mockResolvedValue([questionnaire]);
+    mockedQnr.update.mockImplementation(async (id, patch) => ({
+      ...questionnaire,
+      id,
+      question_refs: patch.question_refs ?? questionnaire.question_refs,
+    }));
   });
 
   it("defaults to the bank tab with filters and blocks a question", async () => {
@@ -106,6 +137,43 @@ describe("QuestionsPage", () => {
     expect(await screen.findByText("What does our deploy script do?")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retire" }));
     await waitFor(() => expect(mocked.retire).toHaveBeenCalledWith("co-abc"));
+  });
+
+  it("bulk-select bar appends selected refs to a questionnaire", async () => {
+    render(<QuestionsPage />);
+    const row = (await screen.findByText("What does the GIL prevent?")).closest("tr")!;
+
+    // no bar until something is selected
+    expect(screen.queryByRole("region", { name: "Bulk actions" })).not.toBeInTheDocument();
+    await userEvent.click(
+      row.querySelector('input[type="checkbox"]') as HTMLInputElement,
+    );
+
+    const bar = await screen.findByRole("region", { name: "Bulk actions" });
+    expect(bar).toHaveTextContent("1 selected");
+
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Add selected questions to questionnaire" }),
+      "qnr-1",
+    );
+
+    await waitFor(() =>
+      expect(mockedQnr.update).toHaveBeenCalledWith("qnr-1", {
+        question_refs: ["css-box-2", "py-gil-1"],
+      }),
+    );
+    // flash sits inside the bar; selection persists so the user can add to
+    // a second questionnaire without re-selecting
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Added 1 question to "Frontend basics v2"/,
+    );
+    expect(screen.getByRole("region", { name: "Bulk actions" })).toHaveTextContent(
+      "1 selected",
+    );
+
+    // Deselect clears the selection and hides the bar
+    await userEvent.click(screen.getByRole("button", { name: "Deselect" }));
+    expect(screen.queryByRole("region", { name: "Bulk actions" })).not.toBeInTheDocument();
   });
 
   it("creates a question with normalized tags", async () => {
