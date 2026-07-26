@@ -8,6 +8,7 @@ from app.schemas.questions import (
     QuestionCreate,
     QuestionOut,
     QuestionUpdate,
+    ResolvedQuestion,
 )
 from app.services import questions as questions_service
 
@@ -60,6 +61,39 @@ async def browse_bank(
         total=total,
         tags=await questions_service.list_bank_tags(db),
     )
+
+
+@router.get("/resolve", response_model=list[ResolvedQuestion])
+async def resolve_questions(
+    db: DbSession,
+    company: CurrentCompany,
+    ids: str = Query(
+        default="",
+        max_length=8000,
+        description="Comma-separated question ids (bank slugs and/or company UUIDs)",
+    ),
+) -> list[ResolvedQuestion]:
+    """Resolve question refs to metadata for the questionnaire builder.
+
+    Order matches the request; missing/unauthorized/retired refs are omitted
+    so the caller can diff against its own list to detect gaps.
+    """
+    id_list = [qid.strip() for qid in ids.split(",") if qid.strip()]
+    rows = await questions_service.resolve_questions(db, company, id_list)
+    blocked = set(company.blocked_question_ids or [])
+    return [
+        ResolvedQuestion(
+            id=question.id,
+            prompt_md=question.prompt_md,
+            tags=question.tags,
+            difficulty=question.difficulty,
+            time_limit_seconds=question.time_limit_seconds,
+            source=question.source,
+            status=question.status,
+            blocked=question.id in blocked,
+        )
+        for question in rows
+    ]
 
 
 @router.put("/bank/{question_id}/block", status_code=status.HTTP_204_NO_CONTENT)

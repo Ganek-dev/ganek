@@ -28,6 +28,7 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
       time_limit_seconds: 25,
       difficulties: [2, 3],
       exclude_ids: [],
+      questionnaire_id: null,
     },
     published_at: "2026-07-10T00:00:00Z",
     created_at: "2026-07-01T00:00:00Z",
@@ -86,6 +87,7 @@ describe("JobForm", () => {
           time_limit_seconds: 25,
           difficulties: [2, 3],
           exclude_ids: [],
+          questionnaire_id: null,
         },
       }),
     );
@@ -103,6 +105,7 @@ describe("JobForm", () => {
             time_limit_seconds: 45,
             difficulties: null,
             exclude_ids: [],
+            questionnaire_id: null,
           },
         })}
         submitLabel="Save changes"

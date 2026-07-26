@@ -50,6 +50,7 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
       time_limit_seconds: 20,
       difficulties: null,
       exclude_ids: [],
+      questionnaire_id: null,
     },
     published_at: "2026-07-10T00:00:00Z",
     created_at: "2026-07-01T00:00:00Z",

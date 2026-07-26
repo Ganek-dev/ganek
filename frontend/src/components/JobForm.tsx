@@ -142,8 +142,9 @@ export function JobForm({
         include_company_questions: true,
         time_limit_seconds: timeLimit,
         difficulties: difficulties.length > 0 ? [...difficulties].sort() : null,
-        // excludes are managed from the quiz preview panel; carry them through
+        // excludes and questionnaire attach are managed elsewhere; carry them through
         exclude_ids: initial?.quiz_config.exclude_ids ?? [],
+        questionnaire_id: initial?.quiz_config.questionnaire_id ?? null,
       };
       await onSubmit({
         title: str("title"),

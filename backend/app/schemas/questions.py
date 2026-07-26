@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import QuestionStatus
+from app.models import QuestionSource, QuestionStatus
 
 OPTION_KEYS = ("a", "b", "c", "d")
 
@@ -92,3 +92,20 @@ class BankQuestionPage(BaseModel):
     items: list[BankQuestionOut]
     total: int
     tags: list[str]  # all distinct bank tags, for filter UIs
+
+
+class ResolvedQuestion(BaseModel):
+    """Question metadata resolved from a ref id — same shape whether it comes
+    from the open bank or a company-private set. Used by the questionnaire
+    builder to render rows and compute the difficulty mix + total time."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    prompt_md: str
+    tags: list[str]
+    difficulty: int
+    time_limit_seconds: int
+    source: QuestionSource
+    status: QuestionStatus
+    blocked: bool = False  # on this company's blocklist (bank only)

@@ -22,6 +22,8 @@ export interface QuizConfig {
   difficulties: Difficulty[] | null;
   /** Question ids excluded from this job's quiz. */
   exclude_ids: string[];
+  /** Attached questionnaire — its ordered refs replace tag-auto selection. */
+  questionnaire_id: string | null;
 }
 
 export interface JobOut {
@@ -376,6 +378,17 @@ export interface BankPage {
   tags: string[];
 }
 
+export interface ResolvedQuestion {
+  id: string;
+  prompt_md: string;
+  tags: string[];
+  difficulty: Difficulty;
+  time_limit_seconds: number;
+  source: "seed" | "company";
+  status: "active" | "retired";
+  blocked: boolean;
+}
+
 export const questions = {
   list: () => request<QuestionOut[]>("/api/v1/questions"),
   create: (payload: QuestionInput) =>
@@ -401,6 +414,45 @@ export const questions = {
     request<void>(`/api/v1/questions/bank/${id}/block`, { method: "PUT" }),
   unblock: (id: string) =>
     request<void>(`/api/v1/questions/bank/${id}/block`, { method: "DELETE" }),
+  resolve: (ids: string[]) => {
+    if (ids.length === 0) return Promise.resolve([] as ResolvedQuestion[]);
+    const qs = new URLSearchParams({ ids: ids.join(",") }).toString();
+    return request<ResolvedQuestion[]>(`/api/v1/questions/resolve?${qs}`);
+  },
+};
+
+export interface QuestionnaireOut {
+  id: string;
+  name: string;
+  description: string;
+  shuffle: boolean;
+  question_refs: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuestionnaireInput {
+  name: string;
+  description?: string;
+  shuffle?: boolean;
+  question_refs?: string[];
+}
+
+export const questionnaires = {
+  list: () => request<QuestionnaireOut[]>("/api/v1/questionnaires"),
+  get: (id: string) => request<QuestionnaireOut>(`/api/v1/questionnaires/${id}`),
+  create: (payload: QuestionnaireInput) =>
+    request<QuestionnaireOut>("/api/v1/questionnaires", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  update: (id: string, patch: Partial<QuestionnaireInput>) =>
+    request<QuestionnaireOut>(`/api/v1/questionnaires/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  delete: (id: string) =>
+    request<void>(`/api/v1/questionnaires/${id}`, { method: "DELETE" }),
 };
 
 export interface StatsOverview {

@@ -66,6 +66,7 @@ const job = {
     time_limit_seconds: 25,
     difficulties: null,
     exclude_ids: [],
+    questionnaire_id: null,
   },
 } as unknown as JobOut;
 
