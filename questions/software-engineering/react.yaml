@@ -3,7 +3,7 @@ tag: react
 questions:
   - id: react-jsx-1
     tags: [frontend, javascript]
-    difficulty: 2
+    difficulty: 1
     prompt: "What is JSX?"
     options:
       a: "A syntax extension that compiles to React element-creating function calls"
@@ -17,7 +17,7 @@ questions:
 
   - id: react-component-return-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does a React function component return?"
     options:
       a: "The UI description (JSX / elements) to render"
@@ -45,7 +45,7 @@ questions:
 
   - id: react-usestate-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `useState(0)` return?"
     options:
       a: "A pair: the current value and a setter function"
@@ -73,7 +73,7 @@ questions:
 
   - id: react-conditional-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "A common way to render something only when `show` is true?"
     options:
       a: "`{show ? <Panel /> : null}`"

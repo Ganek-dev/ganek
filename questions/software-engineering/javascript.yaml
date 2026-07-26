@@ -3,7 +3,7 @@ tag: javascript
 questions:
   - id: js-triple-eq-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What is the difference between `==` and `===`?"
     options:
       a: "`===` compares without type coercion; `==` coerces types first"
@@ -45,7 +45,7 @@ questions:
 
   - id: js-json-parse-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `JSON.parse('{\"a\": 1}')` return?"
     options:
       a: "The object `{ a: 1 }`"
@@ -57,7 +57,7 @@ questions:
 
   - id: js-template-literal-1
     tags: [frontend]
-    difficulty: 2
+    difficulty: 1
     prompt: "Which syntax embeds an expression in a template literal?"
     options:
       a: "`` `Total: ${a + b}` ``"

@@ -44,7 +44,7 @@ questions:
   # ── batch 1 (2026-07-23) ──────────────────────────────────────
 
   - id: py-fstring-eval-1
-    difficulty: 2
+    difficulty: 1
     prompt: 'What does `f"{2 + 3}"` evaluate to?'
     options:
       a: '`"5"`'
@@ -83,7 +83,7 @@ questions:
       point to the very same object in memory.
 
   - id: py-len-dict-1
-    difficulty: 2
+    difficulty: 1
     prompt: 'What does `len({"a": 1, "b": 2})` return?'
     options:
       a: "`2`"
@@ -94,7 +94,7 @@ questions:
     explanation: "`len` on a dict counts its keys."
 
   - id: py-tuple-immutable-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What happens when you run `t = (1, 2)` then `t[0] = 3`?"
     options:
       a: "A `TypeError` — tuples are immutable"
@@ -132,7 +132,7 @@ questions:
       because 0, "" and [] are also falsy.
 
   - id: py-set-dedup-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What is `len(set([1, 2, 2, 3, 3, 3]))`?"
     options:
       a: "`3`"
@@ -143,7 +143,7 @@ questions:
     explanation: "Sets keep unique elements only: {1, 2, 3}."
 
   - id: py-floor-div-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `7 // 2` evaluate to?"
     options:
       a: "`3`"
@@ -323,7 +323,7 @@ questions:
       as "The above exception was the direct cause..." in tracebacks.
 
   - id: py-closure-late-binding-1
-    difficulty: 4
+    difficulty: 5
     prompt: "`funcs = [lambda: i for i in range(3)]` — what does `funcs[0]()` return?"
     options:
       a: "`2`"

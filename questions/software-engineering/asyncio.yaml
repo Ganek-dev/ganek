@@ -49,7 +49,7 @@ questions:
 
   - id: py-asyncio-await-1
     tags: [python]
-    difficulty: 2
+    difficulty: 1
     prompt: "What does `await` do inside an `async def` function?"
     options:
       a: "Pauses this coroutine until the awaitable completes, letting the loop run other tasks"
@@ -63,7 +63,7 @@ questions:
 
   - id: py-asyncio-entry-1
     tags: [python]
-    difficulty: 2
+    difficulty: 1
     prompt: "What is the standard entry point for running an asyncio program?"
     options:
       a: "`asyncio.run(main())`"
@@ -77,7 +77,7 @@ questions:
 
   - id: py-asyncio-loop-1
     tags: [python]
-    difficulty: 2
+    difficulty: 1
     prompt: "What is the event loop in asyncio?"
     options:
       a: "The scheduler that runs tasks and callbacks, one at a time, switching at await points"

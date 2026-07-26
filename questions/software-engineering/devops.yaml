@@ -2,7 +2,7 @@ domain: software-engineering
 tag: devops
 questions:
   - id: devops-image-container-1
-    difficulty: 2
+    difficulty: 1
     prompt: "Docker image vs container?"
     options:
       a: "An image is the immutable template; a container is a running instance of it"
@@ -15,7 +15,7 @@ questions:
       layer and lifecycle.
 
   - id: devops-dockerfile-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What is a Dockerfile?"
     options:
       a: "A recipe of instructions for building an image"
@@ -27,7 +27,7 @@ questions:
       FROM/COPY/RUN etc. build the image layer by layer, reproducibly.
 
   - id: devops-ci-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What is Continuous Integration (CI)?"
     options:
       a: "Automatically building and testing every change pushed to the repository"

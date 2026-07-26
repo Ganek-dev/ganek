@@ -15,7 +15,7 @@ questions:
       submissions.
 
   - id: be-404-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What does HTTP 404 mean?"
     options:
       a: "The requested resource was not found"
@@ -26,7 +26,7 @@ questions:
     explanation: "4xx = client-side issue; 404 specifically: no such resource."
 
   - id: be-500-1
-    difficulty: 2
+    difficulty: 1
     prompt: "What does HTTP 500 indicate?"
     options:
       a: "An unexpected error on the server"
@@ -51,7 +51,7 @@ questions:
       it says nothing about what the server stores.
 
   - id: be-json-header-1
-    difficulty: 2
+    difficulty: 1
     prompt: "Which header tells the server a request body is JSON?"
     options:
       a: "`Content-Type: application/json`"
