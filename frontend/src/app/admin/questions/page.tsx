@@ -187,6 +187,31 @@ function BulkActionBar({
   );
 }
 
+function useUsageCounts(ids: string[]): Record<string, number> {
+  // keyed cache so state updates only happen inside promise handlers
+  // (react-hooks/set-state-in-effect); reads for the current key fall
+  // back to {} until the fetch settles.
+  const [cache, setCache] = useState<Record<string, Record<string, number>>>({});
+  const key = ids.join(",");
+  useEffect(() => {
+    if (ids.length === 0 || cache[key] !== undefined) return;
+    let cancelled = false;
+    questions
+      .usage(ids)
+      .then((result) => {
+        if (!cancelled) setCache((current) => ({ ...current, [key]: result }));
+      })
+      .catch(() => {
+        if (!cancelled) setCache((current) => ({ ...current, [key]: {} }));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return cache[key] ?? {};
+}
+
 function BankBrowser() {
   const [page, setPage] = useState<BankPage | null>(null);
   const [tag, setTag] = useState("");
@@ -196,6 +221,7 @@ function BankBrowser() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const usage = useUsageCounts(page?.items.map((q) => q.id) ?? []);
 
   const reload = useCallback(() => {
     questions
@@ -346,6 +372,7 @@ function BankBrowser() {
                   <th className="h-10 px-3 font-medium">Question</th>
                   <th className="h-10 px-3 font-medium">Difficulty</th>
                   <th className="h-10 px-3 font-medium">Source</th>
+                  <th className="h-10 px-3 font-medium">Used in</th>
                   <th className="h-10 px-3" />
                 </tr>
               </thead>
@@ -380,6 +407,11 @@ function BankBrowser() {
                     </td>
                     <td className="px-3 py-3 align-middle whitespace-nowrap">
                       <SourcePill label="open bank" />
+                    </td>
+                    <td className="px-3 py-3 align-middle whitespace-nowrap font-mono text-[11.5px] text-g500">
+                      {usage[question.id]
+                        ? `${usage[question.id]} questionnaire${usage[question.id] === 1 ? "" : "s"}`
+                        : "—"}
                     </td>
                     <td className="px-3 py-3 text-right align-middle">
                       <button
@@ -431,6 +463,7 @@ function CompanyQuestions() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const usage = useUsageCounts(items?.map((q) => q.id) ?? []);
 
   const reload = useCallback(() => {
     questions
@@ -611,6 +644,7 @@ function CompanyQuestions() {
                 <th className="h-10 px-3 font-medium">Question</th>
                 <th className="h-10 px-3 font-medium">Difficulty</th>
                 <th className="h-10 px-3 font-medium">Source</th>
+                <th className="h-10 px-3 font-medium">Used in</th>
                 <th className="h-10 px-3" />
               </tr>
             </thead>
@@ -643,6 +677,11 @@ function CompanyQuestions() {
                   </td>
                   <td className="px-3 py-3 align-middle whitespace-nowrap">
                     <SourcePill label={question.status === "retired" ? "retired" : "company"} />
+                  </td>
+                  <td className="px-3 py-3 align-middle whitespace-nowrap font-mono text-[11.5px] text-g500">
+                    {usage[question.id]
+                      ? `${usage[question.id]} questionnaire${usage[question.id] === 1 ? "" : "s"}`
+                      : "—"}
                   </td>
                   <td className="px-3 py-3 text-right align-middle">
                     {question.status === "active" ? (

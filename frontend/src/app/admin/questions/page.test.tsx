@@ -24,6 +24,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       block: vi.fn(),
       unblock: vi.fn(),
       resolve: vi.fn(),
+      usage: vi.fn(),
     },
     questionnaires: {
       list: vi.fn(),
@@ -90,6 +91,7 @@ describe("QuestionsPage", () => {
     mocked.block.mockResolvedValue(undefined);
     mocked.unblock.mockResolvedValue(undefined);
     mockedQnr.list.mockResolvedValue([questionnaire]);
+    mocked.usage.mockResolvedValue({});
     mockedQnr.update.mockImplementation(async (id, patch) => ({
       ...questionnaire,
       id,
@@ -137,6 +139,15 @@ describe("QuestionsPage", () => {
     expect(await screen.findByText("What does our deploy script do?")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retire" }));
     await waitFor(() => expect(mocked.retire).toHaveBeenCalledWith("co-abc"));
+  });
+
+  it("renders the Used-in column when a question is referenced by questionnaires", async () => {
+    mocked.usage.mockResolvedValue({ "py-gil-1": 3 });
+    render(<QuestionsPage />);
+    const row = (await screen.findByText("What does the GIL prevent?")).closest("tr")!;
+    await waitFor(() =>
+      expect(row).toHaveTextContent("3 questionnaires"),
+    );
   });
 
   it("bulk-select bar appends selected refs to a questionnaire", async () => {

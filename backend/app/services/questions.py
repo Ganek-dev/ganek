@@ -3,7 +3,7 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Question, QuestionSource, QuestionStatus
+from app.models import Company, Question, Questionnaire, QuestionSource, QuestionStatus
 from app.schemas.questions import QuestionCreate, QuestionUpdate
 
 COMPANY_QUESTION_DOMAIN = "company"
@@ -116,6 +116,28 @@ async def retire_company_question(db: AsyncSession, question: Question) -> Quest
 
 
 MAX_RESOLVE_IDS = 300
+
+
+async def questionnaire_usage_counts(
+    db: AsyncSession, company: Company, ids: list[str]
+) -> dict[str, int]:
+    """For each requested id, how many of the workspace's questionnaires
+    reference it. Recruiters use this before retiring/blocking to see
+    what would be affected."""
+    unique_ids = [qid for qid in dict.fromkeys(ids) if qid]
+    if not unique_ids:
+        return {}
+    ref = func.unnest(Questionnaire.question_refs).label("ref")
+    query = (
+        select(ref, func.count().label("n"))
+        .where(Questionnaire.company_id == company.id)
+        .group_by(ref)
+        .having(ref.in_(unique_ids[:MAX_RESOLVE_IDS]))
+    )
+    rows = (await db.execute(query)).all()
+    counts = {row.ref: int(row.n) for row in rows}
+    # 0 counts stay implicit — the frontend treats a missing key as zero
+    return counts
 
 
 async def resolve_questions(db: AsyncSession, company: Company, ids: list[str]) -> list[Question]:

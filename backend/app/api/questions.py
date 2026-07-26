@@ -63,6 +63,22 @@ async def browse_bank(
     )
 
 
+@router.get("/usage", response_model=dict[str, int])
+async def question_usage(
+    db: DbSession,
+    company: CurrentCompany,
+    ids: str = Query(
+        default="",
+        max_length=8000,
+        description="Comma-separated question ids to look up questionnaire usage for",
+    ),
+) -> dict[str, int]:
+    """For each requested id, how many of this workspace's questionnaires
+    reference it. Ids with zero usage are omitted from the response."""
+    id_list = [qid.strip() for qid in ids.split(",") if qid.strip()]
+    return await questions_service.questionnaire_usage_counts(db, company, id_list)
+
+
 @router.get("/resolve", response_model=list[ResolvedQuestion])
 async def resolve_questions(
     db: DbSession,
