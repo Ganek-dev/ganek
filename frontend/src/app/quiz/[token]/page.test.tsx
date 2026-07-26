@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { publicQuiz, type QuizQuestion } from "@/lib/api";
+import { publicQuiz, type PracticeQuestion, type QuizQuestion, type QuizState } from "@/lib/api";
 
 import QuizPage from "./page";
 
@@ -14,7 +14,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    publicQuiz: { state: vi.fn(), next: vi.fn(), answer: vi.fn(), events: vi.fn() },
+    publicQuiz: {
+      state: vi.fn(),
+      next: vi.fn(),
+      answer: vi.fn(),
+      events: vi.fn(),
+      practice: vi.fn(),
+    },
   };
 });
 
@@ -35,6 +41,22 @@ const question: QuizQuestion = {
   total: 2,
 };
 
+function makeState(overrides: Partial<QuizState> = {}): QuizState {
+  return {
+    status: "pending",
+    answered: 0,
+    total: 2,
+    candidate_name: "Jane Applicant",
+    company_name: "Quiz Co",
+    job_title: "Python Dev",
+    brand_primary: "#3d5afe",
+    seconds_per_question: 15,
+    expires_at: new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString(),
+    practice_available: true,
+    ...overrides,
+  };
+}
+
 function lockButton() {
   // desktop + mobile lock buttons both exist in the DOM; either works
   return screen.getAllByRole("button", { name: /Lock answer/ })[0];
@@ -43,19 +65,23 @@ function lockButton() {
 describe("QuizPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocked.state.mockResolvedValue({ status: "pending", answered: 0, total: 2 });
+    mocked.state.mockResolvedValue(makeState());
     mocked.answer.mockResolvedValue({ recorded: true });
     mocked.events.mockResolvedValue({ recorded: true });
   });
 
-  it("shows the intro with the rules, then serves a question", async () => {
+  it("shows the start gate with the rules, then serves a question", async () => {
     mocked.next.mockResolvedValue({ done: false, question });
     render(<QuizPage />);
-    expect(await screen.findByText("Quick skills check")).toBeInTheDocument();
-    expect(screen.getByText(/2 multiple-choice questions/)).toBeInTheDocument();
-    expect(screen.getByText(/tab switches are recorded/)).toBeInTheDocument();
+    expect(await screen.findByText("Ready when you are, Jane")).toBeInTheDocument();
+    expect(screen.getByText(/no pause button/)).toBeInTheDocument();
+    expect(screen.getByText(/questions — single choice/)).toBeInTheDocument();
+    expect(screen.getByText(/locks automatically at 0:00/)).toBeInTheDocument();
+    expect(screen.getByText(/tab switches and resizes/)).toBeInTheDocument();
+    expect(screen.getByText("Quiz Co")).toBeInTheDocument();
+    expect(screen.getByText(/come back with the same link/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Start the quiz" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start the real assessment" }));
     expect(await screen.findByText(/Question 1/)).toBeInTheDocument();
     expect(screen.getByText("What does the GIL prevent?")).toBeInTheDocument();
     // options rendered in served order, lettered A–D
@@ -67,7 +93,7 @@ describe("QuizPage", () => {
   it("locks nothing until an option is selected", async () => {
     mocked.next.mockResolvedValue({ done: false, question });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the quiz" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
     await screen.findByText(/Question 1/);
 
     expect(lockButton()).toBeDisabled();
@@ -79,7 +105,7 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the quiz" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
 
     const option = await screen.findByRole("button", { name: /Any use of threads/ });
     await userEvent.click(option);
@@ -100,7 +126,7 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the quiz" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
     await screen.findByText(/Question 1/);
 
     await userEvent.keyboard("b");
@@ -115,7 +141,7 @@ describe("QuizPage", () => {
   });
 
   it("shows the completed state directly for finished attempts", async () => {
-    mocked.state.mockResolvedValue({ status: "completed", answered: 2, total: 2 });
+    mocked.state.mockResolvedValue(makeState({ status: "completed", answered: 2 }));
     render(<QuizPage />);
     expect(await screen.findByText(/submitted/)).toBeInTheDocument();
     expect(screen.getByText("2 of 2 answered")).toBeInTheDocument();
@@ -123,9 +149,66 @@ describe("QuizPage", () => {
   });
 
   it("shows the expired-link state for expired attempts", async () => {
-    mocked.state.mockResolvedValue({ status: "expired", answered: 0, total: 2 });
+    mocked.state.mockResolvedValue(makeState({ status: "expired" }));
     render(<QuizPage />);
     expect(await screen.findByText(/This assessment link expired/)).toBeInTheDocument();
     expect(screen.getByText(/application itself was received/)).toBeInTheDocument();
+  });
+});
+
+describe("practice run", () => {
+  const practiceQuestion: PracticeQuestion = {
+    id: "js-arr-1",
+    prompt_md: "Which array method returns a new array?",
+    options: [
+      { key: "a", text_md: "sort()" },
+      { key: "b", text_md: "toSorted()" },
+      { key: "c", text_md: "splice()" },
+      { key: "d", text_md: "reverse()" },
+    ],
+    time_limit_seconds: 15,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.state.mockResolvedValue(makeState());
+    mocked.practice.mockResolvedValue({ question: practiceQuestion });
+    mocked.answer.mockResolvedValue({ recorded: true });
+    mocked.events.mockResolvedValue({ recorded: true });
+  });
+
+  it("hides the practice button when no practice pool exists", async () => {
+    mocked.state.mockResolvedValue(makeState({ practice_available: false }));
+    render(<QuizPage />);
+    await screen.findByText("Ready when you are, Jane");
+    expect(screen.queryByRole("button", { name: /practice run/i })).not.toBeInTheDocument();
+  });
+
+  it("runs an unrecorded practice question: pick locks, nothing is submitted", async () => {
+    mocked.next.mockResolvedValue({ done: false, question });
+    render(<QuizPage />);
+    await screen.findByText("Ready when you are, Jane");
+
+    await userEvent.click(screen.getByRole("button", { name: /Try a practice run first/ }));
+    expect(await screen.findByText("Practice — not recorded")).toBeInTheDocument();
+    expect(screen.getByText("Which array method returns a new array?")).toBeInTheDocument();
+    expect(screen.getByText(/never revealed/)).toBeInTheDocument();
+
+    // picking locks immediately — and never calls the real answer endpoint
+    await userEvent.click(screen.getByRole("button", { name: /toSorted/ }));
+    expect(await screen.findByText(/your answer — locked/)).toBeInTheDocument();
+    expect(mocked.answer).not.toHaveBeenCalled();
+    expect(mocked.events).not.toHaveBeenCalled();
+
+    // another practice question re-fetches
+    await userEvent.click(screen.getByRole("button", { name: /Another practice question/ }));
+    await waitFor(() => expect(mocked.practice).toHaveBeenCalledTimes(2));
+
+    // and the real assessment can start from here
+    await userEvent.click(
+      screen.getByRole("button", { name: /I'm ready — start the real assessment/ }),
+    );
+    expect(await screen.findByText(/Question 1/)).toBeInTheDocument();
+    expect(mocked.next).toHaveBeenCalledTimes(1);
   });
 });

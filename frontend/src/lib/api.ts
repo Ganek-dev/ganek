@@ -310,6 +310,20 @@ export interface QuizState {
   status: "pending" | "in_progress" | "completed" | "expired";
   answered: number;
   total: number;
+  candidate_name: string;
+  company_name: string;
+  job_title: string;
+  brand_primary: string | null;
+  seconds_per_question: number | null;
+  expires_at: string;
+  practice_available: boolean;
+}
+
+export interface PracticeQuestion {
+  id: string;
+  prompt_md: string;
+  options: QuizOption[];
+  time_limit_seconds: number;
 }
 
 export interface QuizNext {
@@ -320,6 +334,10 @@ export interface QuizNext {
 export const publicQuiz = {
   state: (token: string) => request<QuizState>(`/api/v1/public/quiz/${token}`),
   next: (token: string) => request<QuizNext>(`/api/v1/public/quiz/${token}/next`, { method: "POST" }),
+  practice: (token: string) =>
+    request<{ question: PracticeQuestion | null }>(`/api/v1/public/quiz/${token}/practice`, {
+      method: "POST",
+    }),
   answer: (token: string, questionId: string, answerKey: string) =>
     request<{ recorded: boolean }>(`/api/v1/public/quiz/${token}/answer`, {
       method: "POST",
