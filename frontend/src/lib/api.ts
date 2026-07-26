@@ -331,6 +331,34 @@ export interface QuizNext {
   question: QuizQuestion | null;
 }
 
+export interface StatusQuiz {
+  status: "pending" | "in_progress" | "completed" | "expired";
+  answered: number;
+  total: number;
+  completed_at: string | null;
+}
+
+export interface ApplicationStatus {
+  company_name: string;
+  brand_primary: string | null;
+  job_title: string;
+  candidate_name: string;
+  cv_filename: string;
+  applied_at: string;
+  stage: string;
+  quiz: StatusQuiz | null;
+  decision_expected_by: string;
+}
+
+export const publicApplications = {
+  status: (token: string) =>
+    request<ApplicationStatus>(`/api/v1/public/applications/${token}`),
+  withdraw: (token: string) =>
+    request<{ withdrawn: boolean }>(`/api/v1/public/applications/${token}/withdraw`, {
+      method: "POST",
+    }),
+};
+
 export const publicQuiz = {
   state: (token: string) => request<QuizState>(`/api/v1/public/quiz/${token}`),
   next: (token: string) => request<QuizNext>(`/api/v1/public/quiz/${token}/next`, { method: "POST" }),
