@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ChevronDown, Plus, Search } from "lucide-react";
+
 import { DifficultyDots } from "@/components/DifficultyDots";
 import {
   questions,
@@ -10,14 +12,36 @@ import {
   type QuestionOut,
 } from "@/lib/api";
 
-const inputCls =
-  "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
-const labelCls = "text-sm font-medium text-zinc-700 dark:text-zinc-300";
-const selectCls =
-  "rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
+/** Question library, handoff screen 09: card table with the 5-dot difficulty
+ * scale, Source pill, handoff-styled search + filters. Bulk-select
+ * ("Add to questionnaire") is explicitly D4 and lands with questionnaires. */
+
 const OPTION_KEYS = ["a", "b", "c", "d"] as const;
 const PAGE_SIZE = 25;
 
+const inputCls =
+  "h-9 w-full rounded-md border border-edge bg-transparent px-3 text-sm outline-none focus:border-g400";
+const filterCls =
+  "inline-flex h-[34px] items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] text-g700 outline-none focus:border-g400";
+const labelCls = "text-[13.5px] font-medium";
+const rowActionCls =
+  "inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50";
+
+function SourcePill({ label }: { label: "open bank" | "company" | "retired" }) {
+  const cls =
+    label === "company"
+      ? "border-accent/30 bg-accent/10 text-accent"
+      : label === "retired"
+        ? "border-edge bg-muted-fill text-g500"
+        : "border-edge text-g600";
+  return (
+    <span
+      className={`inline-flex h-5 items-center rounded-full border px-2 text-[11px] font-medium ${cls}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 function BankBrowser() {
   const [page, setPage] = useState<BankPage | null>(null);
@@ -44,6 +68,8 @@ function BankBrowser() {
   }, [tag, difficulty, search, offset]);
   useEffect(reload, [reload]);
 
+  const filtersActive = tag !== "" || difficulty !== "" || search !== "";
+
   async function toggleBlock(id: string, blocked: boolean) {
     setError(null);
     setBusyId(id);
@@ -59,53 +85,85 @@ function BankBrowser() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-g500">
         The open-source bank your quizzes draw from. Blocking a question here removes it from
         every quiz across your company; per-job exclusions live on each job&apos;s quiz preview.
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label="Filter by tag"
-          value={tag}
-          onChange={(e) => {
-            setOffset(0);
-            setTag(e.target.value);
-          }}
-          className={selectCls}
-        >
-          <option value="">All tags</option>
-          {(page?.tags ?? []).map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Filter by difficulty"
-          value={difficulty}
-          onChange={(e) => {
-            setOffset(0);
-            setDifficulty(e.target.value === "" ? "" : Number(e.target.value));
-          }}
-          className={selectCls}
-        >
-          <option value="">All difficulties</option>
-          {[1, 2, 3, 4, 5].map((level) => (
-            <option key={level} value={level}>
-              difficulty {level}
-            </option>
-          ))}
-        </select>
-        <input
-          aria-label="Search questions"
-          placeholder="Search prompts…"
-          value={search}
-          onChange={(e) => {
-            setOffset(0);
-            setSearch(e.target.value);
-          }}
-          className={`${selectCls} min-w-48 flex-1`}
-        />
+        <div className="relative w-[260px]">
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-[11px] h-[15px] w-[15px] -translate-y-1/2 text-g400"
+          />
+          <input
+            aria-label="Search questions"
+            placeholder="Search questions…"
+            value={search}
+            onChange={(event) => {
+              setOffset(0);
+              setSearch(event.target.value);
+            }}
+            className="h-[34px] w-full rounded-md border border-edge bg-surface pr-3 pl-[34px] text-[13.5px] outline-none focus:border-g400"
+          />
+        </div>
+        <div className="relative">
+          <select
+            aria-label="Filter by tag"
+            value={tag}
+            onChange={(event) => {
+              setOffset(0);
+              setTag(event.target.value);
+            }}
+            className={`${filterCls} appearance-none pr-8`}
+          >
+            <option value="">Tag: all</option>
+            {(page?.tags ?? []).map((t) => (
+              <option key={t} value={t}>
+                Tag: {t}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 right-2.5 h-3.5 w-3.5 -translate-y-1/2 text-g500"
+          />
+        </div>
+        <div className="relative">
+          <select
+            aria-label="Filter by difficulty"
+            value={difficulty}
+            onChange={(event) => {
+              setOffset(0);
+              setDifficulty(event.target.value === "" ? "" : Number(event.target.value));
+            }}
+            className={`${filterCls} appearance-none pr-8`}
+          >
+            <option value="">Difficulty: any</option>
+            {[1, 2, 3, 4, 5].map((level) => (
+              <option key={level} value={level}>
+                Difficulty: {level}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 right-2.5 h-3.5 w-3.5 -translate-y-1/2 text-g500"
+          />
+        </div>
+        {filtersActive ? (
+          <button
+            type="button"
+            onClick={() => {
+              setTag("");
+              setDifficulty("");
+              setSearch("");
+              setOffset(0);
+            }}
+            className="ml-1 text-[12.5px] font-medium text-accent hover:underline"
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
 
       {error ? (
@@ -115,58 +173,75 @@ function BankBrowser() {
       ) : null}
 
       {page === null ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <div aria-busy="true" className="space-y-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted-fill" />
+          ))}
+        </div>
       ) : page.items.length === 0 ? (
-        <p className="text-sm text-zinc-500">No questions match.</p>
+        <p className="text-sm text-g500">No questions match.</p>
       ) : (
         <>
-          <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-            {page.items.map((question) => (
-              <li key={question.id} className={`p-4 ${question.blocked ? "opacity-60" : ""}`}>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="font-medium text-zinc-900 dark:text-zinc-50">
-                    {question.prompt_md}
-                  </p>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <DifficultyDots level={question.difficulty} />
-                    <button
-                      type="button"
-                      disabled={busyId === question.id}
-                      onClick={() => toggleBlock(question.id, question.blocked)}
-                      className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                    >
-                      {question.blocked ? "Unblock" : "Block"}
-                    </button>
-                  </div>
-                </div>
-                <ul className="mt-1.5 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
-                  {Object.entries(question.options).map(([key, text]) => (
-                    <li
-                      key={key}
-                      className={
-                        key === question.correct_key
-                          ? "text-green-700 dark:text-green-400"
-                          : "text-zinc-600 dark:text-zinc-400"
-                      }
-                    >
-                      {`${key === question.correct_key ? "✓" : "·"} ${key}) ${text}`}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1 text-xs text-zinc-400">
-                  {[...question.tags, `${question.time_limit_seconds}s`, question.id].join(" · ")}
-                </p>
-              </li>
-            ))}
-          </ul>
-          <div className="flex items-center justify-between text-sm text-zinc-500">
-            <span>{`${offset + 1}–${offset + page.items.length} of ${page.total}`}</span>
+          <div className="card overflow-hidden">
+            <table className="w-full text-[13.5px]">
+              <thead>
+                <tr className="border-b border-divider text-left text-[12.5px] font-medium text-g500">
+                  <th className="h-10 px-4 font-medium">Question</th>
+                  <th className="h-10 px-3 font-medium">Difficulty</th>
+                  <th className="h-10 px-3 font-medium">Source</th>
+                  <th className="h-10 px-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {page.items.map((question) => (
+                  <tr
+                    key={question.id}
+                    className={`border-b border-divider last:border-b-0 hover:bg-hover-fill ${
+                      question.blocked ? "opacity-60" : ""
+                    }`}
+                  >
+                    <td className="max-w-[520px] px-4 py-3 align-middle">
+                      <p className="truncate font-medium">{question.prompt_md}</p>
+                      <p className="mt-1 truncate font-mono text-[10.5px] text-g400">
+                        {[...question.tags, `${question.time_limit_seconds}s`].join(" · ")}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3 align-middle whitespace-nowrap">
+                      <span className="inline-flex items-center gap-2">
+                        <DifficultyDots level={question.difficulty} />
+                        <span className="font-mono text-[11px] text-g500">
+                          d{question.difficulty}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 align-middle whitespace-nowrap">
+                      <SourcePill label="open bank" />
+                    </td>
+                    <td className="px-3 py-3 text-right align-middle">
+                      <button
+                        type="button"
+                        disabled={busyId === question.id}
+                        onClick={() => toggleBlock(question.id, question.blocked)}
+                        className={rowActionCls}
+                      >
+                        {question.blocked ? "Unblock" : "Block"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between text-sm text-g500">
+            <span className="font-mono text-[11.5px]">
+              {`${offset + 1}–${offset + page.items.length} of ${page.total}`}
+            </span>
             <div className="flex gap-2">
               <button
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                className="rounded-md border border-zinc-300 px-2 py-1 hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className={rowActionCls}
               >
                 Previous
               </button>
@@ -174,7 +249,7 @@ function BankBrowser() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= page.total}
                 onClick={() => setOffset(offset + PAGE_SIZE)}
-                className="rounded-md border border-zinc-300 px-2 py-1 hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className={rowActionCls}
               >
                 Next
               </button>
@@ -248,15 +323,16 @@ function CompanyQuestions() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-g500">
           Private to your company; mixed into quizzes whose tags match. The open-source bank
           covers general topics — add questions about your stack and domain here.
         </p>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-inverse pr-3 pl-2 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94]"
         >
+          <Plus aria-hidden className="h-[15px] w-[15px]" />
           {showForm ? "Cancel" : "New question"}
         </button>
       </div>
@@ -268,24 +344,27 @@ function CompanyQuestions() {
       ) : null}
 
       {showForm ? (
-        <form
-          onSubmit={handleCreate}
-          className="space-y-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <label className="block space-y-1">
+        <form onSubmit={handleCreate} className="card space-y-4 p-5">
+          <label className="flex flex-col gap-2">
             <span className={labelCls}>Question (markdown, answerable in ~15s)</span>
-            <textarea name="prompt_md" required minLength={10} rows={2} className={inputCls} />
+            <textarea
+              name="prompt_md"
+              required
+              minLength={10}
+              rows={2}
+              className="w-full rounded-md border border-edge bg-transparent px-3 py-2 text-sm outline-none focus:border-g400"
+            />
           </label>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {OPTION_KEYS.map((key) => (
-              <label key={key} className="block space-y-1">
+              <label key={key} className="flex flex-col gap-2">
                 <span className={labelCls}>Option {key.toUpperCase()}</span>
                 <input name={`option_${key}`} required className={inputCls} />
               </label>
             ))}
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <label className="block space-y-1">
+            <label className="flex flex-col gap-2">
               <span className={labelCls}>Correct</span>
               <select name="correct_key" className={inputCls} defaultValue="a">
                 {OPTION_KEYS.map((key) => (
@@ -295,7 +374,7 @@ function CompanyQuestions() {
                 ))}
               </select>
             </label>
-            <label className="block space-y-1">
+            <label className="flex flex-col gap-2">
               <span className={labelCls}>Difficulty</span>
               <select name="difficulty" className={inputCls} defaultValue="3">
                 {[1, 2, 3, 4, 5].map((level) => (
@@ -305,7 +384,7 @@ function CompanyQuestions() {
                 ))}
               </select>
             </label>
-            <label className="block space-y-1">
+            <label className="flex flex-col gap-2">
               <span className={labelCls}>Seconds</span>
               <input
                 name="time_limit_seconds"
@@ -316,19 +395,23 @@ function CompanyQuestions() {
                 className={inputCls}
               />
             </label>
-            <label className="block space-y-1">
+            <label className="flex flex-col gap-2">
               <span className={labelCls}>Tags</span>
               <input name="tags" required placeholder="python, internal" className={inputCls} />
             </label>
           </div>
-          <label className="block space-y-1">
+          <label className="flex flex-col gap-2">
             <span className={labelCls}>Explanation (shown to reviewers)</span>
-            <textarea name="explanation_md" rows={2} className={inputCls} />
+            <textarea
+              name="explanation_md"
+              rows={2}
+              className="w-full rounded-md border border-edge bg-transparent px-3 py-2 text-sm outline-none focus:border-g400"
+            />
           </label>
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            className="inline-flex h-8 items-center justify-center rounded-md bg-inverse px-3 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
           >
             {busy ? "…" : "Create question"}
           </button>
@@ -336,41 +419,63 @@ function CompanyQuestions() {
       ) : null}
 
       {items === null ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-zinc-500">No company questions yet.</p>
-      ) : (
-        <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-          {items.map((question) => (
-            <li key={question.id} className="flex items-center justify-between gap-4 p-4">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-zinc-900 dark:text-zinc-50">
-                  {question.prompt_md}
-                </p>
-                <p className="text-sm text-zinc-500">
-                  {[`d${question.difficulty}`, `${question.time_limit_seconds}s`, ...question.tags].join(
-                    " · ",
-                  )}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {question.status === "retired" ? (
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                    retired
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => retire(question.id)}
-                    className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                  >
-                    Retire
-                  </button>
-                )}
-              </div>
-            </li>
+        <div aria-busy="true" className="space-y-2">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted-fill" />
           ))}
-        </ul>
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-g500">No company questions yet.</p>
+      ) : (
+        <div className="card overflow-hidden">
+          <table className="w-full text-[13.5px]">
+            <thead>
+              <tr className="border-b border-divider text-left text-[12.5px] font-medium text-g500">
+                <th className="h-10 px-4 font-medium">Question</th>
+                <th className="h-10 px-3 font-medium">Difficulty</th>
+                <th className="h-10 px-3 font-medium">Source</th>
+                <th className="h-10 px-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((question) => (
+                <tr
+                  key={question.id}
+                  className="border-b border-divider last:border-b-0 hover:bg-hover-fill"
+                >
+                  <td className="max-w-[520px] px-4 py-3 align-middle">
+                    <p className="truncate font-medium">{question.prompt_md}</p>
+                    <p className="mt-1 truncate font-mono text-[10.5px] text-g400">
+                      {[...question.tags, `${question.time_limit_seconds}s`].join(" · ")}
+                    </p>
+                  </td>
+                  <td className="px-3 py-3 align-middle whitespace-nowrap">
+                    <span className="inline-flex items-center gap-2">
+                      <DifficultyDots level={question.difficulty} />
+                      <span className="font-mono text-[11px] text-g500">
+                        d{question.difficulty}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 align-middle whitespace-nowrap">
+                    <SourcePill label={question.status === "retired" ? "retired" : "company"} />
+                  </td>
+                  <td className="px-3 py-3 text-right align-middle">
+                    {question.status === "active" ? (
+                      <button
+                        type="button"
+                        onClick={() => retire(question.id)}
+                        className={rowActionCls}
+                      >
+                        Retire
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -380,17 +485,19 @@ export default function QuestionsPage() {
   const [tab, setTab] = useState<"bank" | "company">("bank");
 
   const tabCls = (active: boolean) =>
-    `rounded-md px-3 py-1.5 text-sm font-medium ${
+    `inline-flex h-7 items-center rounded-full px-[11px] text-[12.5px] font-medium ${
       active
-        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-        : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        ? "bg-inverse text-inverse-foreground"
+        : "border border-edge bg-surface text-g700 hover:border-g400"
     }`;
 
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Questions</h1>
-        <div className="flex gap-1 rounded-lg border border-zinc-200 p-1 dark:border-zinc-800">
+        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">
+          Question library
+        </h1>
+        <div className="flex gap-1.5">
           <button type="button" onClick={() => setTab("bank")} className={tabCls(tab === "bank")}>
             Open bank
           </button>

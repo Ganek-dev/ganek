@@ -71,8 +71,11 @@ describe("QuestionsPage", () => {
     expect(await screen.findByText("What does the GIL prevent?")).toBeInTheDocument();
     expect(screen.getByText("1–1 of 42")).toBeInTheDocument();
 
-    // correct answer is highlighted, tag filter options come from the payload
-    expect(screen.getByText(/✓ a\)/)).toBeInTheDocument();
+    // 5-dot scale + Source pill replace the old options list
+    expect(screen.getByRole("img", { name: "Difficulty 3 of 5" })).toBeInTheDocument();
+    expect(screen.getByText("open bank")).toBeInTheDocument();
+    expect(screen.queryByText(/✓ a\)/)).not.toBeInTheDocument();
+
     await userEvent.selectOptions(screen.getByLabelText("Filter by tag"), "python");
     await waitFor(() =>
       expect(mocked.bank).toHaveBeenLastCalledWith(expect.objectContaining({ tag: "python" })),
@@ -80,6 +83,21 @@ describe("QuestionsPage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Block" }));
     await waitFor(() => expect(mocked.block).toHaveBeenCalledWith("py-gil-1"));
+  });
+
+  it("clears active filters via the Clear link", async () => {
+    render(<QuestionsPage />);
+    await screen.findByText("What does the GIL prevent?");
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Search questions"), "gil");
+    expect(await screen.findByRole("button", { name: "Clear" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    await waitFor(() =>
+      expect(mocked.bank).toHaveBeenLastCalledWith(expect.objectContaining({ q: undefined })),
+    );
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
   });
 
   it("lists company questions and retires one", async () => {
