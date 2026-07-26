@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,12 +18,12 @@ const admin: TeamUser = {
   email: "admin@x.dev",
   role: "admin",
   is_active: true,
-  last_login_at: "2026-07-24T10:00:00Z",
+  last_login_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
   created_at: "2026-07-01T00:00:00Z",
 };
 const member: TeamUser = {
   id: "u2",
-  email: "member@x.dev",
+  email: "dana.kowalska@x.dev",
   role: "member",
   is_active: true,
   last_login_at: null,
@@ -38,16 +38,20 @@ describe("TeamPage", () => {
     mocked.update.mockResolvedValue({ ...member, role: "admin" });
   });
 
-  it("lists the team with roles and login state", async () => {
+  it("lists members with display name, activity string, and count header", async () => {
     render(<TeamPage />);
-    expect(await screen.findByText("admin@x.dev")).toBeInTheDocument();
-    expect(screen.getByText("member@x.dev")).toBeInTheDocument();
+    expect(await screen.findByText("Admin")).toBeInTheDocument();
+    expect(screen.getByText("Dana Kowalska")).toBeInTheDocument();
+    expect(screen.getByText("admin@x.dev")).toBeInTheDocument();
+    expect(screen.getByText("dana.kowalska@x.dev")).toBeInTheDocument();
+    expect(screen.getByText("2 members")).toBeInTheDocument();
+    expect(screen.getByText("active 1h ago")).toBeInTheDocument();
     expect(screen.getByText("never logged in")).toBeInTheDocument();
   });
 
-  it("creates a member", async () => {
+  it("creates a member via the Add-member card", async () => {
     render(<TeamPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Add user" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Add member/ }));
     await userEvent.type(screen.getByLabelText("Email"), "new@x.dev");
     await userEvent.type(screen.getByLabelText("Password (min 10)"), "password12345");
     await userEvent.click(screen.getByRole("button", { name: "Create user" }));
@@ -56,18 +60,21 @@ describe("TeamPage", () => {
     );
   });
 
-  it("promotes a member to admin", async () => {
+  it("promotes a member to admin via the role select", async () => {
     render(<TeamPage />);
-    const select = await screen.findByLabelText("Role for member@x.dev");
+    const select = await screen.findByLabelText("Role for dana.kowalska@x.dev");
     await userEvent.selectOptions(select, "admin");
     await waitFor(() => expect(mocked.update).toHaveBeenCalledWith("u2", { role: "admin" }));
   });
 
-  it("deactivates a user", async () => {
+  it("deactivates a user through the row action menu", async () => {
     render(<TeamPage />);
-    await screen.findByText("member@x.dev");
-    const buttons = screen.getAllByRole("button", { name: "Deactivate" });
-    await userEvent.click(buttons[0]);
-    await waitFor(() => expect(mocked.update).toHaveBeenCalledWith("u1", { is_active: false }));
+    await screen.findByText("Dana Kowalska");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Actions for dana.kowalska@x.dev" }),
+    );
+    const menu = screen.getByRole("menu");
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Deactivate" }));
+    await waitFor(() => expect(mocked.update).toHaveBeenCalledWith("u2", { is_active: false }));
   });
 });
