@@ -267,6 +267,8 @@ export const applications = {
     }),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
+  remind: (id: string) =>
+    request<{ sent: boolean }>(`/api/v1/applications/${id}/remind`, { method: "POST" }),
   quizAnswers: (id: string) =>
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
 };

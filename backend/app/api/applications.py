@@ -1,10 +1,14 @@
+import math
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import CurrentCompany, DbSession
 from app.core.config import settings
+from app.core.security import create_quiz_token
 from app.models import Application, ApplicationStage
+from app.models.quiz import AttemptStatus
 from app.schemas.applications import (
     ApplicationOut,
     CvDownload,
@@ -59,6 +63,37 @@ async def set_stage(
     if payload.notify_candidate:
         _schedule_stage_email(background, company, application, payload.stage)
     return updated
+
+
+@router.post("/{application_id}/remind", response_model=dict[str, bool])
+async def remind_candidate(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    background: BackgroundTasks,
+) -> dict[str, bool]:
+    """Manually resend the assessment link (17b) while the attempt is untouched."""
+    application = await _get_or_404(db, company, application_id)
+    attempt = application.quiz_attempt
+    now = datetime.now(UTC)
+    if attempt is None or attempt.status is not AttemptStatus.PENDING or attempt.expires_at <= now:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending assessment to remind about",
+        )
+    days_left = max(0, math.ceil((attempt.expires_at - now).total_seconds() / 86400))
+    background.add_task(
+        email_service.send_quiz_reminder,
+        to=application.candidate.email,
+        candidate_name=application.candidate.name,
+        job_title=application.job.title,
+        company_name=company.name,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
+        expires_at=attempt.expires_at,
+        days_left=days_left,
+    )
+    return {"sent": True}
 
 
 def _schedule_stage_email(

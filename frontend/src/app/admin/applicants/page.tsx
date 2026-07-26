@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AlertTriangle, Check, ChevronDown, Clock, FileText, X } from "lucide-react";
+import { AlertTriangle, BellRing, Check, ChevronDown, Clock, FileText, X } from "lucide-react";
 
 import {
   api,
@@ -334,6 +334,7 @@ function DetailPanel({
   answers,
   onStage,
   onDownloadCv,
+  onRemind,
   now,
 }: {
   app: ApplicationOut;
@@ -341,9 +342,11 @@ function DetailPanel({
   answers: QuizAnswerReview[] | null;
   onStage: (stage: ApplicationStage, notify: boolean) => void;
   onDownloadCv: () => void;
+  onRemind: () => Promise<boolean>;
   now: Date;
 }) {
   const [notify, setNotify] = useState(false);
+  const [reminded, setReminded] = useState(false);
   const nextStage = useMemo(() => {
     const currentIndex = STAGE_ORDER.indexOf(app.stage);
     if (currentIndex < 0 || currentIndex >= STAGE_ORDER.length - 1) return null;
@@ -415,16 +418,36 @@ function DetailPanel({
               />
             </div>
           </div>
-          <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-g600">
-            <input
-              type="checkbox"
-              checked={notify}
-              onChange={(event) => setNotify(event.target.checked)}
-              className="h-3.5 w-3.5 accent-[var(--color-accent)]"
-            />
-            Email the candidate
-            <span className="font-mono text-[10.5px] text-g400">interview · rejection</span>
-          </label>
+          <div className="flex items-center gap-3">
+            {app.quiz_attempt?.status === "pending" ? (
+              reminded ? (
+                <span className="font-mono text-[11px] text-g500">Reminder sent</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void onRemind().then((ok) => {
+                      if (ok) setReminded(true);
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-accent hover:underline"
+                >
+                  <BellRing aria-hidden className="h-3 w-3" />
+                  Send reminder
+                </button>
+              )
+            ) : null}
+            <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-g600">
+              <input
+                type="checkbox"
+                checked={notify}
+                onChange={(event) => setNotify(event.target.checked)}
+                className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+              />
+              Email the candidate
+              <span className="font-mono text-[10.5px] text-g400">interview · rejection</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -577,6 +600,17 @@ export default function ApplicantsPage() {
     }
   }
 
+  async function remindCandidate(id: string): Promise<boolean> {
+    setError(null);
+    try {
+      await applications.remind(id);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reminder failed");
+      return false;
+    }
+  }
+
   async function downloadCv(id: string) {
     setError(null);
     try {
@@ -701,6 +735,7 @@ export default function ApplicantsPage() {
             answers={answersById[selected.id] ?? null}
             onStage={(stage, notify) => changeStage(selected.id, stage, notify)}
             onDownloadCv={() => downloadCv(selected.id)}
+            onRemind={() => remindCandidate(selected.id)}
             now={now}
           />
         ) : items === null ? (

@@ -17,7 +17,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     api: { ...original.api, jobs: { ...original.api.jobs, list: vi.fn() } },
-    applications: { list: vi.fn(), setStage: vi.fn(), cvUrl: vi.fn(), quizAnswers: vi.fn() },
+    applications: {
+      list: vi.fn(),
+      setStage: vi.fn(),
+      cvUrl: vi.fn(),
+      quizAnswers: vi.fn(),
+      remind: vi.fn(),
+    },
   };
 });
 
@@ -199,6 +205,34 @@ describe("ApplicantsPage", () => {
     await waitFor(() =>
       expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false),
     );
+  });
+
+  it("Send reminder appears for pending attempts and calls the endpoint", async () => {
+    mockedApps.list.mockResolvedValue([
+      makeApp({
+        quiz_attempt: {
+          status: "pending",
+          score: null,
+          per_tag_scores: {},
+          completed_at: null,
+          question_ids: ["q1", "q2"],
+          integrity: { blur_count: 0, flags: [] },
+        },
+      }),
+    ]);
+    mockedApps.remind.mockResolvedValue({ sent: true });
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    await userEvent.click(screen.getByRole("button", { name: /send reminder/i }));
+    await waitFor(() => expect(mockedApps.remind).toHaveBeenCalledWith("app-1"));
+    expect(await screen.findByText(/reminder sent/i)).toBeInTheDocument();
+  });
+
+  it("Send reminder is absent for completed attempts", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(screen.queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
   });
 
   it("Email-the-candidate checkbox passes notify through stage changes", async () => {

@@ -20,7 +20,9 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
 
 
-async def _company_with_applicant(client: AsyncClient) -> tuple[str, str]:
+async def _company_with_applicant(
+    client: AsyncClient, *, with_quiz: bool = False
+) -> tuple[str, str]:
     """Registers a company, publishes a job, applies as a candidate.
 
     Ends logged in as the admin; returns (job_id, candidate_email).
@@ -34,7 +36,11 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str]:
     assert resp.status_code == 201, resp.text
     slug = name.lower().replace(" ", "-")
 
-    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
+    job_payload: dict[str, object] = {"title": "Backend Engineer"}
+    if with_quiz:
+        job_payload["tags"] = ["python"]
+        job_payload["quiz_config"] = {"enabled": True, "question_count": 2}
+    job = (await client.post("/api/v1/jobs", json=job_payload)).json()
     assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
     await client.post("/api/v1/auth/logout")
 
@@ -349,3 +355,44 @@ async def test_stage_change_emails_candidate_only_when_asked(
     resp = await client.patch(url, json={"stage": "screening", "notify_candidate": True})
     assert resp.status_code == 200
     assert len(advances) == 1 and len(rejections) == 1
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_remind_sends_reminder_for_pending_attempt(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    reminders: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_reminder", lambda **kw: reminders.append(kw))
+
+    _, email = await _company_with_applicant(client, with_quiz=True)
+    app = (await client.get("/api/v1/applications")).json()[0]
+
+    resp = await client.post(f"/api/v1/applications/{app['id']}/remind")
+    assert resp.status_code == 200, resp.text
+    assert len(reminders) == 1
+    assert reminders[0]["to"] == email
+    assert "/quiz/" in str(reminders[0]["quiz_url"])
+    assert isinstance(reminders[0]["days_left"], int)
+
+    # reminding again is allowed (recruiter's call how often)
+    assert (await client.post(f"/api/v1/applications/{app['id']}/remind")).status_code == 200
+    assert len(reminders) == 2
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_remind_409s_without_pending_attempt(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    reminders: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_reminder", lambda **kw: reminders.append(kw))
+
+    await _company_with_applicant(client)  # job without assessment → no attempt
+    app = (await client.get("/api/v1/applications")).json()[0]
+
+    resp = await client.post(f"/api/v1/applications/{app['id']}/remind")
+    assert resp.status_code == 409
+    assert reminders == []

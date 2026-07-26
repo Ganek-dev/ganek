@@ -145,6 +145,54 @@ def test_quiz_invite_transport_errors_are_swallowed(
     email_service.send_quiz_invite(**_invite_kwargs())  # must not raise
 
 
+def test_quiz_reminder_renders_expiry_and_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_quiz_reminder(
+        to="marta@example.com",
+        candidate_name="Marta",
+        job_title="Senior Frontend Engineer",
+        company_name="Northwind Robotics",
+        brand_primary="#3d5afe",
+        quiz_url="https://jobs.example.com/quiz/tok123",
+        expires_at=datetime(2026, 7, 31, 18, 0, tzinfo=UTC),
+        days_left=2,
+    )
+
+    message = FakeSMTP.sent[0]
+    assert message["Subject"] == "Your assessment link expires in 2 days"
+    text, html = _sent_parts(message)
+    for part in (text, html):
+        assert "Still in — 2 days left" in part
+        assert "Senior Frontend Engineer" in part
+        assert "https://jobs.example.com/quiz/tok123" in part
+        assert "Jul 31" in part
+        assert "stops working" in part  # never claims the application auto-closes
+    assert "#3d5afe" in html
+
+
+def test_quiz_reminder_singular_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_quiz_reminder(
+        to="marta@example.com",
+        candidate_name="Marta",
+        job_title="T",
+        company_name="C",
+        brand_primary=None,
+        quiz_url="https://x.example/quiz/t",
+        expires_at=datetime(2026, 7, 31, 18, 0, tzinfo=UTC),
+        days_left=1,
+    )
+
+    message = FakeSMTP.sent[0]
+    assert message["Subject"] == "Your assessment link expires in 1 day"
+    text, _ = _sent_parts(message)
+    assert "Still in — 1 day left" in text
+
+
 def test_stage_advance_renders_branding_and_team_signoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
