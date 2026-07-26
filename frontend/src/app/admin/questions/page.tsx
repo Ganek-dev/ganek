@@ -2,22 +2,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Plus, Search } from "lucide-react";
 
 import { DifficultyDots } from "@/components/DifficultyDots";
 import {
+  questionnaires,
   questions,
   type BankPage,
   type Difficulty,
   type QuestionOut,
+  type QuestionnaireOut,
 } from "@/lib/api";
 
 /** Question library, handoff screen 09: card table with the 5-dot difficulty
- * scale, Source pill, handoff-styled search + filters. Bulk-select
- * ("Add to questionnaire") is explicitly D4 and lands with questionnaires. */
+ * scale, Source pill, handoff-styled search + filters, and the D4 bulk-select
+ * bar that appends selected refs to a questionnaire via questionnaires.update
+ * (the backend dedupes ref lists preserving order). */
 
 const OPTION_KEYS = ["a", "b", "c", "d"] as const;
 const PAGE_SIZE = 25;
+const FLASH_MS = 3500;
 
 const inputCls =
   "h-9 w-full rounded-md border border-edge bg-transparent px-3 text-sm outline-none focus:border-g400";
@@ -43,6 +47,146 @@ function SourcePill({ label }: { label: "open bank" | "company" | "retired" }) {
   );
 }
 
+function BulkSelectCheckbox({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="inline-flex items-center justify-center">
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-[15px] w-[15px] cursor-pointer accent-accent"
+      />
+    </label>
+  );
+}
+
+function BulkActionBar({
+  selected,
+  onClear,
+}: {
+  selected: Set<string>;
+  onClear: () => void;
+}) {
+  const [list, setList] = useState<QuestionnaireOut[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (list !== null) return;
+    questionnaires
+      .list()
+      .then(setList)
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Failed to load questionnaires"),
+      );
+  }, [list]);
+
+  useEffect(() => {
+    if (flash === null) return;
+    const id = setTimeout(() => setFlash(null), FLASH_MS);
+    return () => clearTimeout(id);
+  }, [flash]);
+
+  if (selected.size === 0) return null;
+
+  async function addTo(questionnaireId: string) {
+    if (list === null) return;
+    const target = list.find((q) => q.id === questionnaireId);
+    if (!target) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const merged = [...target.question_refs, ...selected];
+      const updated = await questionnaires.update(questionnaireId, {
+        question_refs: merged,
+      });
+      const added = updated.question_refs.length - target.question_refs.length;
+      setList((current) =>
+        current === null
+          ? current
+          : current.map((row) => (row.id === updated.id ? updated : row)),
+      );
+      setFlash(
+        added === 0
+          ? `Already in "${updated.name}" — no changes`
+          : `Added ${added} question${added === 1 ? "" : "s"} to "${updated.name}"`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update questionnaire");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      role="region"
+      aria-label="Bulk actions"
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-accent/25 bg-accent/[0.06] px-3.5 py-2"
+    >
+      <span className="text-sm font-semibold text-accent">{selected.size} selected</span>
+      <label className="flex items-center gap-2">
+        <span className="text-[12.5px] text-g700">Add to questionnaire</span>
+        <select
+          aria-label="Add selected questions to questionnaire"
+          value=""
+          disabled={busy || list === null || list.length === 0}
+          onChange={(event) => {
+            const id = event.target.value;
+            event.target.value = "";
+            if (id) void addTo(id);
+          }}
+          className="inline-flex h-7 appearance-none items-center rounded-sm border border-edge bg-surface pr-7 pl-3 text-[12.5px] font-medium text-g700 outline-none focus:border-g400 disabled:opacity-50"
+        >
+          <option value="">
+            {list === null
+              ? "loading…"
+              : list.length === 0
+                ? "no questionnaires yet"
+                : "pick one…"}
+          </option>
+          {list?.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.name} ({row.question_refs.length}q)
+            </option>
+          ))}
+        </select>
+      </label>
+      {flash ? (
+        <span
+          role="status"
+          className="inline-flex items-center gap-1 text-[12.5px] text-emerald-700 dark:text-emerald-400"
+        >
+          <Check aria-hidden className="h-3.5 w-3.5" />
+          {flash}
+        </span>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-[12.5px] text-red-600 dark:text-red-400">
+          {error}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        onClick={onClear}
+        className="ml-auto text-[12.5px] text-g500 hover:underline"
+      >
+        Deselect
+      </button>
+    </div>
+  );
+}
+
 function BankBrowser() {
   const [page, setPage] = useState<BankPage | null>(null);
   const [tag, setTag] = useState("");
@@ -51,6 +195,7 @@ function BankBrowser() {
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const reload = useCallback(() => {
     questions
@@ -69,6 +214,15 @@ function BankBrowser() {
   useEffect(reload, [reload]);
 
   const filtersActive = tag !== "" || difficulty !== "" || search !== "";
+
+  function toggle(id: string, checked: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
 
   async function toggleBlock(id: string, blocked: boolean) {
     setError(null);
@@ -166,6 +320,8 @@ function BankBrowser() {
         ) : null}
       </div>
 
+      <BulkActionBar selected={selected} onClear={() => setSelected(new Set())} />
+
       {error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {error}
@@ -186,7 +342,8 @@ function BankBrowser() {
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-divider text-left text-[12.5px] font-medium text-g500">
-                  <th className="h-10 px-4 font-medium">Question</th>
+                  <th className="h-10 w-10 px-3" />
+                  <th className="h-10 px-3 font-medium">Question</th>
                   <th className="h-10 px-3 font-medium">Difficulty</th>
                   <th className="h-10 px-3 font-medium">Source</th>
                   <th className="h-10 px-3" />
@@ -200,7 +357,14 @@ function BankBrowser() {
                       question.blocked ? "opacity-60" : ""
                     }`}
                   >
-                    <td className="max-w-[520px] px-4 py-3 align-middle">
+                    <td className="px-3 py-3 align-middle">
+                      <BulkSelectCheckbox
+                        checked={selected.has(question.id)}
+                        onChange={(checked) => toggle(question.id, checked)}
+                        label={`Select ${question.id}`}
+                      />
+                    </td>
+                    <td className="max-w-[520px] px-3 py-3 align-middle">
                       <p className="truncate font-medium">{question.prompt_md}</p>
                       <p className="mt-1 truncate font-mono text-[10.5px] text-g400">
                         {[...question.tags, `${question.time_limit_seconds}s`].join(" · ")}
@@ -266,6 +430,7 @@ function CompanyQuestions() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const reload = useCallback(() => {
     questions
@@ -276,6 +441,15 @@ function CompanyQuestions() {
       );
   }, []);
   useEffect(reload, [reload]);
+
+  function toggle(id: string, checked: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -336,6 +510,8 @@ function CompanyQuestions() {
           {showForm ? "Cancel" : "New question"}
         </button>
       </div>
+
+      <BulkActionBar selected={selected} onClear={() => setSelected(new Set())} />
 
       {error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
@@ -431,7 +607,8 @@ function CompanyQuestions() {
           <table className="w-full text-[13.5px]">
             <thead>
               <tr className="border-b border-divider text-left text-[12.5px] font-medium text-g500">
-                <th className="h-10 px-4 font-medium">Question</th>
+                <th className="h-10 w-10 px-3" />
+                <th className="h-10 px-3 font-medium">Question</th>
                 <th className="h-10 px-3 font-medium">Difficulty</th>
                 <th className="h-10 px-3 font-medium">Source</th>
                 <th className="h-10 px-3" />
@@ -443,7 +620,14 @@ function CompanyQuestions() {
                   key={question.id}
                   className="border-b border-divider last:border-b-0 hover:bg-hover-fill"
                 >
-                  <td className="max-w-[520px] px-4 py-3 align-middle">
+                  <td className="px-3 py-3 align-middle">
+                    <BulkSelectCheckbox
+                      checked={selected.has(question.id)}
+                      onChange={(checked) => toggle(question.id, checked)}
+                      label={`Select ${question.id}`}
+                    />
+                  </td>
+                  <td className="max-w-[520px] px-3 py-3 align-middle">
                     <p className="truncate font-medium">{question.prompt_md}</p>
                     <p className="mt-1 truncate font-mono text-[10.5px] text-g400">
                       {[...question.tags, `${question.time_limit_seconds}s`].join(" · ")}
