@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
-from app.schemas.public import QuizQuestionOut
+from app.schemas.public import PracticeQuestionOut, QuizQuestionOut
 from tests.db import database_reachable, s3_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -85,6 +85,7 @@ def test_candidate_schema_has_no_answer_fields() -> None:
     # the serializer-level guard from ANTI_CHEAT.md / CLAUDE hard rule #1
     forbidden = {"correct_key", "correct", "explanation_md", "explanation"}
     assert not forbidden & set(QuizQuestionOut.model_fields)
+    assert not forbidden & set(PracticeQuestionOut.model_fields)
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
@@ -93,7 +94,16 @@ async def test_apply_issues_quiz_token_and_full_run(client: AsyncClient) -> None
     assert token is not None
 
     state = (await client.get(f"/api/v1/public/quiz/{token}")).json()
-    assert state == {"status": "pending", "answered": 0, "total": 4}
+    assert state["status"] == "pending"
+    assert state["answered"] == 0
+    assert state["total"] == 4
+    # intro context for the start gate (screen 18)
+    assert state["candidate_name"] == "Jane"
+    assert state["company_name"].startswith("Quiz Co")
+    assert state["job_title"] == "Python Dev"
+    assert state["expires_at"] is not None
+    assert state["practice_available"] is True
+    assert "correct" not in str(state)
 
     seen: set[str] = set()
     for expected_index in range(1, 5):
@@ -224,3 +234,56 @@ async def test_integrity_events_validation(client: AsyncClient) -> None:
         json={"events": [{"type": "webcam_off"}]},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_practice_serves_sample_questions_without_recording(client: AsyncClient) -> None:
+    token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
+    assert token is not None
+    real_ids = set()
+
+    # practice while pending: sample question, never from the real quiz
+    for _ in range(3):
+        resp = await client.post(f"/api/v1/public/quiz/{token}/practice")
+        assert resp.status_code == 200, resp.text
+        assert "correct_key" not in resp.text
+        assert "explanation" not in resp.text
+        question = resp.json()["question"]
+        assert question is not None
+        assert len(question["options"]) == 4
+        assert question["time_limit_seconds"] > 0
+
+    # the attempt is untouched: still pending, nothing answered
+    state = (await client.get(f"/api/v1/public/quiz/{token}")).json()
+    assert state["status"] == "pending"
+    assert state["answered"] == 0
+
+    # the real run never serves a practice-served question? No — practice
+    # questions are excluded FROM the real set, so collect the real ids
+    # and assert practice never overlapped them.
+    practice_ids = set()
+    resp = await client.post(f"/api/v1/public/quiz/{token}/practice")
+    practice_ids.add(resp.json()["question"]["id"])
+    while True:
+        body = (await client.post(f"/api/v1/public/quiz/{token}/next")).json()
+        if body["done"]:
+            break
+        real_ids.add(body["question"]["id"])
+        await client.post(
+            f"/api/v1/public/quiz/{token}/answer",
+            json={
+                "question_id": body["question"]["id"],
+                "answer_key": body["question"]["options"][0]["key"],
+            },
+        )
+    assert practice_ids.isdisjoint(real_ids)
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_practice_is_gated_to_pending_attempts(client: AsyncClient) -> None:
+    token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)
+    assert token is not None
+    # starting the real assessment closes the practice window
+    assert (await client.post(f"/api/v1/public/quiz/{token}/next")).status_code == 200
+    resp = await client.post(f"/api/v1/public/quiz/{token}/practice")
+    assert resp.status_code == 409
