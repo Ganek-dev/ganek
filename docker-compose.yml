@@ -21,6 +21,9 @@ services:
       context: ./frontend
       args:
         BACKEND_URL: http://backend:8000
+        # Baked into the CSP (connect-src) — must match what the backend
+        # signs upload URLs against, or browsers block the CV upload.
+        VETD_S3_PUBLIC_ENDPOINT_URL: ${VETD_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     environment:
       BACKEND_URL: http://backend:8000
     depends_on: [backend]
