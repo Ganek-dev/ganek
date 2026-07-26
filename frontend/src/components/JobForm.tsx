@@ -1,14 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
-import { Bold, Heading2, Italic, Link2, List, X } from "lucide-react";
+import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
+import { questionnaires, questions } from "@/lib/api";
 import type {
   Difficulty,
   EmploymentType,
   JobInput,
   JobOut,
+  QuestionnaireOut,
   QuizConfig,
   RemotePolicy,
 } from "@/lib/api";
@@ -81,7 +84,67 @@ export function JobForm({
   const [timeLimit, setTimeLimit] = useState<number | null>(
     initial ? initial.quiz_config.time_limit_seconds : 20,
   );
+  const [questionnaireId, setQuestionnaireId] = useState<string | null>(
+    initial?.quiz_config.questionnaire_id ?? null,
+  );
+  const [availableQuestionnaires, setAvailableQuestionnaires] = useState<
+    QuestionnaireOut[] | null
+  >(null);
+  const [mixCache, setMixCache] = useState<
+    Record<string, { easy: number; medium: number; hard: number; total: number; seconds: number }>
+  >({});
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load the list once the assessment section is expanded — populates the picker
+  // and lets us look up the attached one by name without another fetch.
+  useEffect(() => {
+    if (!quizEnabled || availableQuestionnaires !== null) return;
+    questionnaires
+      .list()
+      .then(setAvailableQuestionnaires)
+      .catch(() => setAvailableQuestionnaires([]));
+  }, [quizEnabled, availableQuestionnaires]);
+
+  // Fetch the difficulty mix for the attached questionnaire once; cache by
+  // id so switching between attach targets doesn't re-fetch every time. All
+  // state updates live inside the resolve promise handler (lint rule
+  // `react-hooks/set-state-in-effect`).
+  useEffect(() => {
+    if (questionnaireId === null) return;
+    if (mixCache[questionnaireId] !== undefined) return;
+    const attached = availableQuestionnaires?.find((q) => q.id === questionnaireId);
+    if (!attached) return;
+    let cancelled = false;
+    const refs = attached.question_refs;
+    const total = refs.length;
+    const fetchMix = total === 0 ? Promise.resolve([]) : questions.resolve(refs);
+    fetchMix
+      .then((rows) => {
+        if (cancelled) return;
+        setMixCache((current) => ({
+          ...current,
+          [questionnaireId]: {
+            easy: rows.filter((r) => r.difficulty <= 2).length,
+            medium: rows.filter((r) => r.difficulty === 3).length,
+            hard: rows.filter((r) => r.difficulty >= 4).length,
+            total,
+            seconds: rows.reduce((sum, r) => sum + r.time_limit_seconds, 0),
+          },
+        }));
+      })
+      .catch(() => {
+        // best-effort — the card falls back to the "no mix yet" branch
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [questionnaireId, availableQuestionnaires, mixCache]);
+
+  const attachedQuestionnaire =
+    questionnaireId === null
+      ? null
+      : (availableQuestionnaires?.find((q) => q.id === questionnaireId) ?? null);
+  const attachedMix = questionnaireId === null ? null : (mixCache[questionnaireId] ?? null);
 
   const timerOptions: { value: number | null; label: string }[] = TIMER_PRESETS.map(
     (seconds) => ({ value: seconds, label: `${seconds}s` }),
@@ -142,9 +205,9 @@ export function JobForm({
         include_company_questions: true,
         time_limit_seconds: timeLimit,
         difficulties: difficulties.length > 0 ? [...difficulties].sort() : null,
-        // excludes and questionnaire attach are managed elsewhere; carry them through
+        // excludes are managed from the quiz preview panel; carry them through
         exclude_ids: initial?.quiz_config.exclude_ids ?? [],
-        questionnaire_id: initial?.quiz_config.questionnaire_id ?? null,
+        questionnaire_id: questionnaireId,
       };
       await onSubmit({
         title: str("title"),
@@ -368,57 +431,162 @@ export function JobForm({
 
           {quizEnabled ? (
             <div className="mt-3.5 flex flex-col gap-3.5">
-              <label className="flex flex-col gap-2">
-                <span className="text-[12.5px] font-medium text-g700">Questions</span>
-                <input
-                  name="quiz_question_count"
-                  type="number"
-                  min={1}
-                  max={20}
-                  defaultValue={initial?.quiz_config.question_count ?? 6}
-                  className={inputCls}
-                />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-[12.5px] font-medium text-g700">
-                  Question tags (defaults to job tags)
-                </span>
-                <input
-                  name="quiz_tags"
-                  placeholder="python, asyncio"
-                  defaultValue={initial?.quiz_config.tags?.join(", ") ?? ""}
-                  className={`${inputCls} font-mono text-[12.5px]`}
-                />
-              </label>
-              <div className="flex flex-col gap-2">
-                <span className="text-[12.5px] font-medium text-g700">
-                  Difficulty (none = all)
-                </span>
-                <div className="flex gap-1.5">
-                  {DIFFICULTIES.map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      aria-pressed={difficulties.includes(level)}
-                      aria-label={`Difficulty ${level}`}
-                      onClick={() =>
-                        setDifficulties((current) =>
-                          current.includes(level)
-                            ? current.filter((d) => d !== level)
-                            : [...current, level],
-                        )
-                      }
-                      className={`inline-flex h-[30px] flex-1 items-center justify-center rounded-sm font-mono text-xs ${
-                        difficulties.includes(level)
-                          ? "border-[1.5px] border-accent font-semibold text-accent"
-                          : "border border-edge text-g500 hover:border-g400"
-                      }`}
+              {attachedQuestionnaire && attachedMix ? (
+                <div className="rounded-md border border-edge p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold">
+                      {attachedQuestionnaire.name}
+                    </span>
+                    <span className="shrink-0 font-mono text-[10.5px] text-g500">
+                      {attachedMix.seconds > 0
+                        ? `~${Math.max(1, Math.round(attachedMix.seconds / 60))} min`
+                        : ""}
+                    </span>
+                  </div>
+                  {attachedMix.total > 0 ? (
+                    <>
+                      <div className="mt-2 flex h-1.5 overflow-hidden rounded-full">
+                        <span
+                          className="block bg-emerald-200 dark:bg-emerald-900"
+                          style={{ width: `${(attachedMix.easy / attachedMix.total) * 100}%` }}
+                        />
+                        <span
+                          className="block bg-amber-200 dark:bg-amber-900"
+                          style={{ width: `${(attachedMix.medium / attachedMix.total) * 100}%` }}
+                        />
+                        <span
+                          className="block bg-red-200 dark:bg-red-900"
+                          style={{ width: `${(attachedMix.hard / attachedMix.total) * 100}%` }}
+                        />
+                      </div>
+                      <p className="mt-2 font-mono text-[10.5px] text-g500">
+                        {attachedMix.total} questions · {attachedMix.easy} easy ·{" "}
+                        {attachedMix.medium} medium · {attachedMix.hard} hard
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 font-mono text-[10.5px] text-amber-700 dark:text-amber-400">
+                      empty questionnaire — no quiz will be served until it has questions
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-1.5">
+                    <label
+                      htmlFor="questionnaire_picker"
+                      className="inline-flex h-7 flex-1 cursor-pointer items-center justify-center rounded-sm border border-edge bg-surface text-[12.5px] font-medium text-g700 hover:bg-muted-fill"
                     >
-                      {level}
+                      Change
+                    </label>
+                    <Link
+                      href={`/admin/questionnaires/${attachedQuestionnaire.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-sm border border-edge bg-surface text-[12.5px] font-medium text-g700 hover:bg-muted-fill"
+                    >
+                      Preview
+                      <ExternalLink aria-hidden className="h-3 w-3" />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setQuestionnaireId(null)}
+                      className="inline-flex h-7 items-center rounded-sm px-2.5 text-[12.5px] font-medium text-g500 hover:bg-muted-fill hover:text-red-600 dark:hover:text-red-400"
+                    >
+                      Detach
                     </button>
-                  ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
+
+              {availableQuestionnaires !== null && availableQuestionnaires.length > 0 ? (
+                <label className="flex flex-col gap-2">
+                  <span className="text-[12.5px] font-medium text-g700">
+                    {attachedQuestionnaire ? "Change questionnaire" : "Use a questionnaire"}
+                  </span>
+                  <select
+                    id="questionnaire_picker"
+                    aria-label="Attach questionnaire"
+                    value={questionnaireId ?? ""}
+                    onChange={(event) =>
+                      setQuestionnaireId(event.target.value === "" ? null : event.target.value)
+                    }
+                    className={inputCls}
+                  >
+                    <option value="">— tag-auto (default) —</option>
+                    {availableQuestionnaires.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name} ({option.question_refs.length}q)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : availableQuestionnaires !== null ? (
+                <p className="text-[12.5px] text-g500">
+                  No questionnaires yet.{" "}
+                  <Link
+                    href="/admin/questionnaires"
+                    className="text-accent hover:underline"
+                  >
+                    Build one
+                  </Link>{" "}
+                  for a curated set of questions.
+                </p>
+              ) : null}
+
+              {questionnaireId === null ? (
+                <>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[12.5px] font-medium text-g700">Questions</span>
+                    <input
+                      name="quiz_question_count"
+                      type="number"
+                      min={1}
+                      max={20}
+                      defaultValue={initial?.quiz_config.question_count ?? 6}
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[12.5px] font-medium text-g700">
+                      Question tags (defaults to job tags)
+                    </span>
+                    <input
+                      name="quiz_tags"
+                      placeholder="python, asyncio"
+                      defaultValue={initial?.quiz_config.tags?.join(", ") ?? ""}
+                      className={`${inputCls} font-mono text-[12.5px]`}
+                    />
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[12.5px] font-medium text-g700">
+                      Difficulty (none = all)
+                    </span>
+                    <div className="flex gap-1.5">
+                      {DIFFICULTIES.map((level) => (
+                        <button
+                          key={level}
+                          type="button"
+                          aria-pressed={difficulties.includes(level)}
+                          aria-label={`Difficulty ${level}`}
+                          onClick={() =>
+                            setDifficulties((current) =>
+                              current.includes(level)
+                                ? current.filter((d) => d !== level)
+                                : [...current, level],
+                            )
+                          }
+                          className={`inline-flex h-[30px] flex-1 items-center justify-center rounded-sm font-mono text-xs ${
+                            difficulties.includes(level)
+                              ? "border-[1.5px] border-accent font-semibold text-accent"
+                              : "border border-edge text-g500 hover:border-g400"
+                          }`}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
               <div className="flex flex-col gap-2">
                 <span className="text-[12.5px] font-medium text-g700">Time per question</span>
                 <div className="flex gap-1.5">

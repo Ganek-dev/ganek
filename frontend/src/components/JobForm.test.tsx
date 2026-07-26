@@ -1,10 +1,72 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { JobInput, JobOut } from "@/lib/api";
+import {
+  questionnaires,
+  questions,
+  type JobInput,
+  type JobOut,
+  type QuestionnaireOut,
+  type ResolvedQuestion,
+} from "@/lib/api";
 
 import { JobForm } from "./JobForm";
+
+vi.mock("@/lib/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...original,
+    questionnaires: { ...original.questionnaires, list: vi.fn() },
+    questions: { ...original.questions, resolve: vi.fn() },
+  };
+});
+
+const mockedQnr = vi.mocked(questionnaires);
+const mockedQ = vi.mocked(questions);
+
+const SAMPLE_QUESTIONNAIRE: QuestionnaireOut = {
+  id: "qnr-1",
+  name: "Frontend basics v2",
+  description: "",
+  shuffle: false,
+  question_refs: ["py-gil-1", "js-closure-3", "css-box-2"],
+  created_at: "2026-07-25T10:00:00Z",
+  updated_at: "2026-07-25T10:00:00Z",
+};
+
+const SAMPLE_RESOLVED: ResolvedQuestion[] = [
+  {
+    id: "py-gil-1",
+    prompt_md: "GIL?",
+    tags: ["python"],
+    difficulty: 2,
+    time_limit_seconds: 20,
+    source: "seed",
+    status: "active",
+    blocked: false,
+  },
+  {
+    id: "js-closure-3",
+    prompt_md: "Closure?",
+    tags: ["javascript"],
+    difficulty: 3,
+    time_limit_seconds: 20,
+    source: "seed",
+    status: "active",
+    blocked: false,
+  },
+  {
+    id: "css-box-2",
+    prompt_md: "Box?",
+    tags: ["css"],
+    difficulty: 4,
+    time_limit_seconds: 20,
+    source: "seed",
+    status: "active",
+    blocked: false,
+  },
+];
 
 function makeJob(overrides: Partial<JobOut>): JobOut {
   return {
@@ -38,6 +100,12 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
 }
 
 describe("JobForm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedQnr.list.mockResolvedValue([]);
+    mockedQ.resolve.mockResolvedValue([]);
+  });
+
   it("renders fields with defaults and assessment collapsed", () => {
     render(<JobForm submitLabel="Create job" onSubmit={vi.fn()} />);
     expect(screen.getByLabelText("Job title")).toBeRequired();
@@ -130,5 +198,66 @@ describe("JobForm", () => {
   it("renders extra rail content", () => {
     render(<JobForm submitLabel="Save" onSubmit={vi.fn()} rail={<div>Status card</div>} />);
     expect(screen.getByText("Status card")).toBeInTheDocument();
+  });
+
+  it("attaching a questionnaire hides tag-auto controls and submits questionnaire_id", async () => {
+    mockedQnr.list.mockResolvedValue([SAMPLE_QUESTIONNAIRE]);
+    mockedQ.resolve.mockResolvedValue(SAMPLE_RESOLVED);
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+
+    await userEvent.type(screen.getByLabelText("Job title"), "Frontend Dev");
+    await userEvent.click(screen.getByRole("switch", { name: "Skills assessment" }));
+
+    const picker = await screen.findByLabelText("Attach questionnaire");
+    await userEvent.selectOptions(picker, "qnr-1");
+
+    // attached summary appears; tag-auto controls disappear
+    await waitFor(() =>
+      expect(screen.getAllByText("Frontend basics v2").length).toBeGreaterThan(0),
+    );
+    expect(screen.queryByLabelText("Questions")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Question tags/)).not.toBeInTheDocument();
+    // mix bar summary from the resolved questions
+    expect(
+      screen.getByText(/3 questions · 1 easy · 1 medium · 1 hard/),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quiz_config: expect.objectContaining({ questionnaire_id: "qnr-1" }),
+      }),
+    );
+  });
+
+  it("detach clears the attach and brings tag-auto controls back", async () => {
+    mockedQnr.list.mockResolvedValue([SAMPLE_QUESTIONNAIRE]);
+    mockedQ.resolve.mockResolvedValue(SAMPLE_RESOLVED);
+    render(
+      <JobForm
+        initial={makeJob({
+          quiz_config: {
+            enabled: true,
+            tags: null,
+            question_count: 6,
+            include_company_questions: true,
+            time_limit_seconds: 25,
+            difficulties: null,
+            exclude_ids: [],
+            questionnaire_id: "qnr-1",
+          },
+        })}
+        submitLabel="Save changes"
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    await screen.findByRole("button", { name: "Detach" });
+    expect(screen.queryByLabelText("Questions")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Detach" }));
+    expect(await screen.findByLabelText("Questions")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Question tags/)).toBeInTheDocument();
   });
 });
