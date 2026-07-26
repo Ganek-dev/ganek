@@ -250,6 +250,7 @@ async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
         seconds_per_question=attempt.time_limit_seconds,
         expires_at=attempt.expires_at,
         practice_available=practice_available,
+        status_token=create_status_token(attempt.application_id),
     )
 
 

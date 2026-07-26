@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import CurrentCompany, DbSession
 from app.core.config import settings
-from app.core.security import create_quiz_token
+from app.core.security import create_quiz_token, create_status_token
 from app.models import Application, ApplicationStage
 from app.models.quiz import AttemptStatus
 from app.schemas.applications import (
@@ -105,6 +105,7 @@ def _schedule_stage_email(
     """Queue 22a/22b for stages with a template; other stages are a no-op."""
     candidate = application.candidate
     job = application.job
+    base = settings.public_base_url.rstrip("/")
     if stage is ApplicationStage.INTERVIEW:
         background.add_task(
             email_service.send_stage_advance,
@@ -113,9 +114,9 @@ def _schedule_stage_email(
             job_title=job.title,
             company_name=company.name,
             brand_primary=(company.theme or {}).get("primary_color"),
+            status_url=f"{base}/application/{create_status_token(application.id)}",
         )
     elif stage is ApplicationStage.REJECTED:
-        base = settings.public_base_url.rstrip("/")
         careers_url = base if settings.mode == "single" else f"{base}/c/{company.slug}"
         attempt = application.quiz_attempt
         background.add_task(

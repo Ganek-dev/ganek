@@ -40,7 +40,7 @@ describe("ApplyForm", () => {
       max_size_mb: 10,
     });
     mocked.uploadCv.mockResolvedValue(undefined);
-    mocked.submit.mockResolvedValue({ status: "received", quiz_token: null });
+    mocked.submit.mockResolvedValue({ status: "received", quiz_token: null, status_token: "st-tok" });
   });
 
   it("uploads the CV on selection, then submits with the ticket key", async () => {
@@ -55,6 +55,9 @@ describe("ApplyForm", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
     expect(await screen.findByText(/Application received, Jane/)).toBeInTheDocument();
+    // status magic link offered on the confirmation
+    const statusLink = screen.getByRole("link", { name: /track your application/i });
+    expect(statusLink).toHaveAttribute("href", "/application/st-tok");
     expect(mocked.submit).toHaveBeenCalledWith(
       "/api/v1/public/company/jobs/dev",
       expect.objectContaining({
@@ -85,7 +88,11 @@ describe("ApplyForm", () => {
   });
 
   it("shows the assessment invite with quiz link and 24h copy", async () => {
-    mocked.submit.mockResolvedValue({ status: "received", quiz_token: "tok123" });
+    mocked.submit.mockResolvedValue({
+      status: "received",
+      quiz_token: "tok123",
+      status_token: "st-tok",
+    });
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
     const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
     await fillAndUpload(file);

@@ -378,6 +378,17 @@ export default function QuizPage() {
                 <span>You hear back by email, either way</span>
               </div>
             </div>
+            {state ? (
+              <p className="mt-5 text-[13px] text-g500">
+                <a
+                  href={`/application/${state.status_token}`}
+                  className="text-brand hover:underline"
+                >
+                  Track your application
+                </a>{" "}
+                — private link, no account needed.
+              </p>
+            ) : null}
             <p className="mt-4 font-mono text-[11px] text-g400">You can close this tab now.</p>
           </div>
         </div>

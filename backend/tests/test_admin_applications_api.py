@@ -342,6 +342,7 @@ async def test_stage_change_emails_candidate_only_when_asked(
     assert advances[0]["to"] == email
     assert advances[0]["candidate_name"] == "Jane Applicant"
     assert advances[0]["job_title"] == "Backend Engineer"
+    assert "/application/" in str(advances[0]["status_url"])
 
     # reject with notify → 22b; no completed assessment on this application
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})

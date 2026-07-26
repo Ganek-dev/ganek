@@ -219,6 +219,27 @@ def test_stage_advance_renders_branding_and_team_signoff(
     assert "Sent by vetd on behalf of Northwind Robotics" in html
 
 
+def test_stage_advance_links_status_page_when_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_stage_advance(
+        to="marta@example.com",
+        candidate_name="Marta",
+        job_title="T",
+        company_name="C",
+        brand_primary=None,
+        status_url="https://jobs.example.com/application/status-tok",
+    )
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert "https://jobs.example.com/application/status-tok" in text
+    assert "https://jobs.example.com/application/status-tok" in html
+    assert "application status" in html
+
+
 def test_rejection_renders_neutral_with_assessment_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

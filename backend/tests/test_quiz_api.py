@@ -104,6 +104,10 @@ async def test_apply_issues_quiz_token_and_full_run(client: AsyncClient) -> None
     assert state["expires_at"] is not None
     assert state["practice_available"] is True
     assert "correct" not in str(state)
+    # the finished screen links the status page via the same payload
+    status = await client.get(f"/api/v1/public/applications/{state['status_token']}")
+    assert status.status_code == 200
+    assert status.json()["job_title"] == "Python Dev"
 
     seen: set[str] = set()
     for expected_index in range(1, 5):
