@@ -127,12 +127,17 @@ async def questionnaire_usage_counts(
     unique_ids = [qid for qid in dict.fromkeys(ids) if qid]
     if not unique_ids:
         return {}
-    ref = func.unnest(Questionnaire.question_refs).label("ref")
-    query = (
-        select(ref, func.count().label("n"))
+    # unnest is a set-returning function, so it can't be filtered in
+    # HAVING — unnest in a subquery and filter with a plain WHERE.
+    refs = (
+        select(func.unnest(Questionnaire.question_refs).label("ref"))
         .where(Questionnaire.company_id == company.id)
-        .group_by(ref)
-        .having(ref.in_(unique_ids[:MAX_RESOLVE_IDS]))
+        .subquery()
+    )
+    query = (
+        select(refs.c.ref, func.count().label("n"))
+        .where(refs.c.ref.in_(unique_ids[:MAX_RESOLVE_IDS]))
+        .group_by(refs.c.ref)
     )
     rows = (await db.execute(query)).all()
     counts = {row.ref: int(row.n) for row in rows}
