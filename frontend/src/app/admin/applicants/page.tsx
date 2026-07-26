@@ -32,6 +32,7 @@ const STAGE_PILLS: StagePill[] = [
   { value: "offer", label: "Offer" },
   { value: "hired", label: "Hired" },
   { value: "rejected", label: "Rejected" },
+  { value: "withdrawn", label: "Withdrawn" },
 ];
 
 const STAGE_ORDER: ApplicationStage[] = ["new", "screening", "interview", "offer", "hired"];
@@ -112,6 +113,8 @@ function StagePill({ stage }: { stage: ApplicationStage }) {
   const cls =
     stage === "rejected"
       ? SCORE_TONE.red.chip
+      : stage === "withdrawn"
+        ? SCORE_TONE.muted.chip
       : stage === "hired" || stage === "offer"
         ? SCORE_TONE.green.chip
         : stage === "new"
@@ -378,7 +381,7 @@ function DetailPanel({
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <div className="flex items-center gap-2">
-            {nextStage && app.stage !== "rejected" ? (
+            {nextStage && app.stage !== "rejected" && app.stage !== "withdrawn" ? (
               <button
                 type="button"
                 onClick={() => onStage(nextStage, notify)}
@@ -387,7 +390,7 @@ function DetailPanel({
                 Advance
               </button>
             ) : null}
-            {app.stage !== "rejected" ? (
+            {app.stage !== "rejected" && app.stage !== "withdrawn" ? (
               <button
                 type="button"
                 onClick={() => onStage("rejected", notify)}
@@ -585,6 +588,7 @@ export default function ApplicantsPage() {
       offer: 0,
       hired: 0,
       rejected: 0,
+      withdrawn: 0,
     };
     for (const app of items ?? []) base[app.stage] += 1;
     return base;

@@ -246,6 +246,18 @@ describe("ApplicantsPage", () => {
     );
   });
 
+  it("withdrawn applications get a chip, a count and a filter", async () => {
+    mockedApps.list.mockResolvedValue([makeApp({ stage: "withdrawn" })]);
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(screen.getByRole("button", { name: /^Withdrawn · 1/ })).toBeInTheDocument();
+    // the recruiter stage select never offers withdrawn (candidate-only)
+    expect(screen.queryByRole("option", { name: /withdrawn/i })).not.toBeInTheDocument();
+    // and a withdrawn application offers no Advance/Reject actions
+    expect(screen.queryByRole("button", { name: "Advance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+  });
+
   it("stage-pill filter narrows the list and shows the empty state", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });

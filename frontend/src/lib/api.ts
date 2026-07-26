@@ -208,7 +208,8 @@ export type ApplicationStage =
   | "interview"
   | "offer"
   | "hired"
-  | "rejected";
+  | "rejected"
+  | "withdrawn"; // candidate-initiated via the status page; recruiters never set it
 
 export interface CandidateOut {
   id: string;
