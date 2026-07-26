@@ -179,11 +179,18 @@ describe("QuestionnaireBuilderPage", () => {
     mockedQnr.get.mockResolvedValueOnce(
       baseQuestionnaire({ question_refs: ["py-gil-1", "ghost-ref"] }),
     );
+    // Only py-gil-1 resolves — ghost-ref stays missing after the promise settles.
+    mockedQ.resolve.mockResolvedValueOnce([RESOLVED[0]]);
     render(<QuestionnaireBuilderPage />);
-    expect(await screen.findByText("Missing question ghost-ref")).toBeInTheDocument();
+
+    // wait for the resolve promise to settle by anchoring on the resolved row
+    await screen.findByText("What does the GIL prevent?");
+
+    expect(screen.getByText("Missing question ghost-ref")).toBeInTheDocument();
+    // exactly one warning row — py-gil-1 rendered normally
     expect(
-      screen.getByText(/not visible to this workspace — remove to clean up/),
-    ).toBeInTheDocument();
+      screen.getAllByText(/not visible to this workspace — remove to clean up/),
+    ).toHaveLength(1);
   });
 
   it("deletes and routes back to the index", async () => {
