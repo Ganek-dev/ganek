@@ -166,10 +166,13 @@ export const publicApply = {
   uploadTicket: (basePath: string) =>
     request<CvUploadTicket>(`${basePath}/apply/upload-url`, { method: "POST" }),
   submit: (basePath: string, payload: ApplicationPayload) =>
-    request<{ status: string; quiz_token: string | null }>(`${basePath}/apply`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
+    request<{ status: string; quiz_token: string | null; status_token: string | null }>(
+      `${basePath}/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
   /** PUT the CV to the presigned URL. Uses XHR so callers can observe upload
    * progress (screen 03's mono % + progress bar); fetch has no upload events. */
   uploadCv: (
@@ -317,6 +320,7 @@ export interface QuizState {
   seconds_per_question: number | null;
   expires_at: string;
   practice_available: boolean;
+  status_token: string;
 }
 
 export interface PracticeQuestion {

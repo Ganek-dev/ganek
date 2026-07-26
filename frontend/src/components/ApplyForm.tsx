@@ -40,7 +40,11 @@ export function ApplyForm({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ firstName: string; quizToken: string | null } | null>(
+  const [done, setDone] = useState<{
+    firstName: string;
+    quizToken: string | null;
+    statusToken: string | null;
+  } | null>(
     null,
   );
   const [cv, setCv] = useState<CvState>({ status: "empty" });
@@ -118,6 +122,7 @@ export function ApplyForm({
       setDone({
         firstName: str("name").split(/\s+/)[0] ?? "",
         quizToken: received.quiz_token,
+        statusToken: received.status_token,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong — please try again");
@@ -193,6 +198,17 @@ export function ApplyForm({
             Thanks for applying — the team will be in touch.
           </p>
         )}
+        {done.statusToken ? (
+          <p className="mt-4 text-[13px] text-g500">
+            <Link
+              href={`/application/${done.statusToken}`}
+              className="text-brand hover:underline"
+            >
+              Track your application
+            </Link>{" "}
+            — private link, no account needed.
+          </p>
+        ) : null}
       </div>
     );
   }

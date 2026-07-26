@@ -277,6 +277,7 @@ def send_stage_advance(
     job_title: str,
     company_name: str,
     brand_primary: str | None,
+    status_url: str | None = None,
 ) -> None:
     """Advance-to-interview email (design 22a); scheduling details follow later."""
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
@@ -292,7 +293,8 @@ def send_stage_advance(
         f"Your application for {job_title} stood out, and we'd like to\n"
         f"move you to interviews. We'll follow up shortly with scheduling details.\n"
         f"\n"
-        f"Looking forward to it,\n"
+        + (f"Track your application: {status_url}\n\n" if status_url else "")
+        + f"Looking forward to it,\n"
         f"The {company_name} hiring team\n"
     )
     content = (
@@ -306,6 +308,13 @@ def send_stage_advance(
         + f'<p style="margin: 22px 0 0; font-size: 14px; line-height: 21px; color: #3f3f46;">'
         f'Looking forward to it,<br><b style="font-weight: 600;">'
         f"The {safe_company} hiring team</b></p>"
+        + (
+            f'<div style="margin-top: 16px; font-family: monospace; font-size: 11px; '
+            f'color: #a1a1aa;"><a href="{status_url}" style="color: #a1a1aa; '
+            f'text-decoration: underline;">application status</a></div>'
+            if status_url
+            else ""
+        )
     )
     html = _card_html(
         bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content

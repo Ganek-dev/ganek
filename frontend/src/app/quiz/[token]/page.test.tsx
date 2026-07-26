@@ -53,6 +53,7 @@ function makeState(overrides: Partial<QuizState> = {}): QuizState {
     seconds_per_question: 15,
     expires_at: new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString(),
     practice_available: true,
+    status_token: "st-tok",
     ...overrides,
   };
 }
@@ -146,6 +147,11 @@ describe("QuizPage", () => {
     expect(await screen.findByText(/submitted/)).toBeInTheDocument();
     expect(screen.getByText("2 of 2 answered")).toBeInTheDocument();
     expect(mocked.next).not.toHaveBeenCalled();
+    // finished screen links the status page
+    expect(screen.getByRole("link", { name: /track your application/i })).toHaveAttribute(
+      "href",
+      "/application/st-tok",
+    );
   });
 
   it("shows the expired-link state for expired attempts", async () => {

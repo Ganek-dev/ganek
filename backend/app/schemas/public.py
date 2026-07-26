@@ -134,6 +134,8 @@ class QuizStateOut(BaseModel):
     seconds_per_question: int | None
     expires_at: datetime
     practice_available: bool
+    # the finished screen links the candidate status page with this
+    status_token: str
 
 
 class QuizNextOut(BaseModel):
