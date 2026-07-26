@@ -100,14 +100,37 @@ class QuizQuestionOut(BaseModel):
 
 
 class QuizStateOut(BaseModel):
+    """Attempt progress + the intro context the start gate (screen 18) shows."""
+
     status: str
     answered: int
     total: int
+    candidate_name: str
+    company_name: str
+    job_title: str
+    brand_primary: str | None
+    seconds_per_question: int | None
+    expires_at: datetime
+    practice_available: bool
 
 
 class QuizNextOut(BaseModel):
     done: bool
     question: QuizQuestionOut | None = None
+
+
+class PracticeQuestionOut(BaseModel):
+    """Practice question (screen 19). correct_key/explanation MUST never appear
+    here either — practice never reveals answers."""
+
+    id: str
+    prompt_md: str
+    options: list[QuizOptionOut]  # shuffled per serve
+    time_limit_seconds: int
+
+
+class PracticeOut(BaseModel):
+    question: PracticeQuestionOut | None = None
 
 
 class QuizAnswerIn(BaseModel):

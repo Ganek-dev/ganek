@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models import (
@@ -571,3 +572,48 @@ async def get_attempt_by_id(db: AsyncSession, attempt_id: uuid.UUID) -> QuizAtte
     return (
         await db.execute(select(QuizAttempt).where(QuizAttempt.id == attempt_id))
     ).scalar_one_or_none()
+
+
+async def attempt_context(
+    db: AsyncSession, attempt: QuizAttempt
+) -> tuple[Application, Company, Job]:
+    """The application (with candidate), company and job behind an attempt —
+    the start-gate intro (screen 18) renders from these."""
+    application = (
+        await db.execute(
+            select(Application)
+            .where(Application.id == attempt.application_id)
+            .options(selectinload(Application.candidate), selectinload(Application.job))
+        )
+    ).scalar_one()
+    company = (
+        await db.execute(select(Company).where(Company.id == attempt.company_id))
+    ).scalar_one()
+    return application, company, application.job
+
+
+async def practice_pool(
+    db: AsyncSession, attempt: QuizAttempt, company: Company, job: Job
+) -> list[Question]:
+    """Questions eligible for unrecorded practice runs: the job's tag pool
+    minus the attempt's frozen (real) questions. Empty when the job's pool
+    has nothing to spare."""
+    config = parse_quiz_config(job)
+    pool = await _question_pool(db, company, config)
+    frozen = set(attempt.question_ids)
+    return [question for question in pool if question.id not in frozen]
+
+
+async def practice_question(
+    db: AsyncSession,
+    attempt: QuizAttempt,
+    company: Company,
+    job: Job,
+    *,
+    rng: random.Random | None = None,
+) -> Question | None:
+    """One random sample question for a practice run. Nothing is recorded."""
+    pool = await practice_pool(db, attempt, company, job)
+    if not pool:
+        return None
+    return (rng or _default_rng).choice(pool)

@@ -1,14 +1,18 @@
+import random
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import DbSession, PublicCompany, SingleCompany
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import create_quiz_token, read_quiz_token
-from app.models import Company, Job, QuizAttempt
+from app.models import AttemptStatus, Company, Job, QuizAttempt
 from app.schemas.public import (
     ApplicationReceived,
     ApplicationSubmit,
     CvUploadTicket,
+    PracticeOut,
+    PracticeQuestionOut,
     PublicCompanyOut,
     PublicCompanyPage,
     PublicJobDetail,
@@ -29,6 +33,9 @@ from app.services import quiz as quiz_service
 from app.services import storage
 
 router = APIRouter(prefix="/public", tags=["public"])
+
+# practice options reshuffle per serve, same anti-cheat CSPRNG stance as the engine
+_practice_rng = random.SystemRandom()
 
 
 async def _company_page(db: DbSession, company: Company) -> PublicCompanyPage:
@@ -217,10 +224,55 @@ async def _answered_count(db: DbSession, attempt: "QuizAttempt") -> int:
 )
 async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
     attempt = await _attempt_or_404(db, token)
+    application, company, job = await quiz_service.attempt_context(db, attempt)
+    practice_available = attempt.status is AttemptStatus.PENDING and bool(
+        await quiz_service.practice_pool(db, attempt, company, job)
+    )
     return QuizStateOut(
         status=attempt.status.value,
         answered=await _answered_count(db, attempt),
         total=len(attempt.question_ids),
+        candidate_name=application.candidate.name,
+        company_name=company.name,
+        job_title=job.title,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        seconds_per_question=attempt.time_limit_seconds,
+        expires_at=attempt.expires_at,
+        practice_available=practice_available,
+    )
+
+
+@router.post(
+    "/quiz/{token}/practice",
+    response_model=PracticeOut,
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
+async def quiz_practice(token: str, db: DbSession) -> PracticeOut:
+    """Serve one sample question for an unrecorded practice run (screen 19).
+
+    Only available before the real assessment starts; nothing is written.
+    """
+    attempt = await _attempt_or_404(db, token)
+    if attempt.status is not AttemptStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Practice is only available before the assessment starts",
+        )
+    _, company, job = await quiz_service.attempt_context(db, attempt)
+    question = await quiz_service.practice_question(db, attempt, company, job)
+    if question is None:
+        return PracticeOut(question=None)
+    option_keys = list(question.options.keys())
+    _practice_rng.shuffle(option_keys)
+    return PracticeOut(
+        question=PracticeQuestionOut(
+            id=question.id,
+            prompt_md=question.prompt_md,
+            options=[
+                QuizOptionOut(key=key, text_md=str(question.options[key])) for key in option_keys
+            ],
+            time_limit_seconds=quiz_service.effective_time_limit(attempt, question),
+        )
     )
 
 
