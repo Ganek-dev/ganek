@@ -10,6 +10,7 @@ from app.models.question import (
     QuestionSource,
     QuestionStatus,
 )
+from app.models.questionnaire import Questionnaire
 from app.models.quiz import AttemptAnswer, AttemptStatus, QuizAttempt
 from app.models.user import User, UserRole
 
@@ -27,6 +28,7 @@ __all__ = [
     "Job",
     "JobStatus",
     "Question",
+    "Questionnaire",
     "QuizAttempt",
     "QuestionSource",
     "QuestionStatus",
