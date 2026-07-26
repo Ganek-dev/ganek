@@ -26,6 +26,7 @@ from app.models import (
     Company,
     Job,
     Question,
+    Questionnaire,
     QuestionStatus,
     QuizAttempt,
 )
@@ -58,6 +59,10 @@ class QuizConfig:
     time_limit_seconds: int | None = DEFAULT_TIME_LIMIT_SECONDS
     difficulties: list[int] = field(default_factory=list)  # 1-5; empty = all
     exclude_ids: list[str] = field(default_factory=list)
+    # When set, the referenced Questionnaire's ordered question_refs replace
+    # tag-auto selection — tags and question_count no longer influence pool
+    # composition (they may still be edited but are ignored on attempt).
+    questionnaire_id: uuid.UUID | None = None
 
 
 # configs written before the 5-level migration stored named bands
@@ -84,6 +89,17 @@ def parse_quiz_config(job: Job) -> QuizConfig:
     raw = job.quiz_config or {}
     tags = raw.get("tags") or job.tags
     raw_limit = raw.get("time_limit_seconds", DEFAULT_TIME_LIMIT_SECONDS)
+    raw_questionnaire = raw.get("questionnaire_id")
+    questionnaire_id: uuid.UUID | None
+    if raw_questionnaire in (None, ""):
+        questionnaire_id = None
+    elif isinstance(raw_questionnaire, uuid.UUID):
+        questionnaire_id = raw_questionnaire
+    else:
+        try:
+            questionnaire_id = uuid.UUID(str(raw_questionnaire))
+        except ValueError:
+            questionnaire_id = None
     return QuizConfig(
         enabled=bool(raw.get("enabled", False)),
         tags=list(tags),
@@ -92,6 +108,7 @@ def parse_quiz_config(job: Job) -> QuizConfig:
         time_limit_seconds=int(raw_limit) if raw_limit is not None else None,
         difficulties=_parse_difficulties(raw.get("difficulties")),
         exclude_ids=[str(qid) for qid in raw.get("exclude_ids") or []],
+        questionnaire_id=questionnaire_id,
     )
 
 
@@ -129,6 +146,46 @@ async def _question_pool(
     return list((await db.execute(query)).scalars().all())
 
 
+async def get_questionnaire_for_company(
+    db: AsyncSession, company: Company, questionnaire_id: uuid.UUID
+) -> Questionnaire | None:
+    return (
+        await db.execute(
+            select(Questionnaire).where(
+                Questionnaire.company_id == company.id,
+                Questionnaire.id == questionnaire_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def _resolve_questionnaire_pool(
+    db: AsyncSession,
+    company: Company,
+    questionnaire: Questionnaire,
+) -> list[Question]:
+    """Load active + tenant-visible Question rows for a questionnaire's refs,
+    preserving the curated order. Missing/retired refs are silently skipped —
+    the recruiter sees the difference in the preview endpoint."""
+    if not questionnaire.question_refs:
+        return []
+    rows = (
+        (
+            await db.execute(
+                select(Question).where(
+                    Question.id.in_(questionnaire.question_refs),
+                    Question.status == QuestionStatus.ACTIVE,
+                    (Question.company_id.is_(None)) | (Question.company_id == company.id),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_id = {q.id: q for q in rows}
+    return [by_id[ref] for ref in questionnaire.question_refs if ref in by_id]
+
+
 def stratified_sample(
     pool: list[Question], tags: list[str], count: int, rng: random.Random
 ) -> list[str]:
@@ -162,10 +219,24 @@ async def create_attempt(
 ) -> QuizAttempt | None:
     """Create the (single) attempt for an application. None if quiz disabled/empty."""
     config = parse_quiz_config(job)
-    if not config.enabled or not config.tags:
+    if not config.enabled:
         return None
-    pool = await _question_pool(db, company, config)
-    question_ids = stratified_sample(pool, config.tags, config.question_count, rng or _default_rng)
+    picker = rng or _default_rng
+    if config.questionnaire_id is not None:
+        questionnaire = await get_questionnaire_for_company(db, company, config.questionnaire_id)
+        if questionnaire is None:
+            return None
+        pool = await _resolve_questionnaire_pool(db, company, questionnaire)
+        excluded = set(config.exclude_ids) | set(company.blocked_question_ids or [])
+        eligible = [q for q in pool if q.id not in excluded]
+        question_ids = [q.id for q in eligible]
+        if questionnaire.shuffle:
+            picker.shuffle(question_ids)
+    else:
+        if not config.tags:
+            return None
+        pool = await _question_pool(db, company, config)
+        question_ids = stratified_sample(pool, config.tags, config.question_count, picker)
     if not question_ids:
         return None
     attempt = QuizAttempt(
@@ -367,12 +438,24 @@ async def build_quiz_preview(
     never persisted; every call redraws the sample.
     """
     config = parse_quiz_config(job)
+    blocked = set(company.blocked_question_ids or [])
+    excluded_ids = set(config.exclude_ids) | blocked
+
+    if config.questionnaire_id is not None:
+        questionnaire = await get_questionnaire_for_company(db, company, config.questionnaire_id)
+        if questionnaire is None:
+            return config, [], set(), []
+        pool = await _resolve_questionnaire_pool(db, company, questionnaire)
+        eligible = [q for q in pool if q.id not in excluded_ids]
+        sample = [q.id for q in eligible]
+        if questionnaire.shuffle:
+            (rng or _default_rng).shuffle(sample)
+        return config, pool, {q.id for q in eligible}, sample
+
     if not config.tags:
         return config, [], set(), []
     pool = await _question_pool(db, company, config, apply_exclusions=False)
-    blocked = set(company.blocked_question_ids or [])
-    excluded = set(config.exclude_ids) | blocked
-    eligible = [q for q in pool if q.id not in excluded]
+    eligible = [q for q in pool if q.id not in excluded_ids]
     eligible_ids = {q.id for q in eligible}
     sample = stratified_sample(eligible, config.tags, config.question_count, rng or _default_rng)
     return config, pool, eligible_ids, sample

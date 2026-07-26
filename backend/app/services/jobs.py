@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Job, JobStatus
+from app.models import Company, Job, JobStatus, Questionnaire
 from app.schemas.jobs import JobCreate, JobUpdate
 from app.services.slugs import slugify, with_random_suffix
 
@@ -14,6 +14,25 @@ class InvalidTransitionError(Exception):
         super().__init__(f"cannot go from {current.value} to {target.value}")
         self.current = current
         self.target = target
+
+
+async def _ensure_questionnaire_visible(
+    db: AsyncSession, company: Company, questionnaire_id: uuid.UUID | None
+) -> None:
+    if questionnaire_id is None:
+        return
+    exists = (
+        await db.execute(
+            select(func.count())
+            .select_from(Questionnaire)
+            .where(
+                Questionnaire.company_id == company.id,
+                Questionnaire.id == questionnaire_id,
+            )
+        )
+    ).scalar_one()
+    if not exists:
+        raise ValueError(f"questionnaire {questionnaire_id} not found in this workspace")
 
 
 async def _unique_slug(db: AsyncSession, company_id: uuid.UUID, base: str) -> str:
@@ -32,7 +51,8 @@ async def _unique_slug(db: AsyncSession, company_id: uuid.UUID, base: str) -> st
 
 
 async def create_job(db: AsyncSession, company: Company, payload: JobCreate) -> Job:
-    values = payload.model_dump()
+    await _ensure_questionnaire_visible(db, company, payload.quiz_config.questionnaire_id)
+    values = payload.model_dump(mode="json")
     job = Job(
         company_id=company.id,
         slug=await _unique_slug(db, company.id, slugify(payload.title)),
@@ -58,8 +78,10 @@ async def list_jobs(
     return list((await db.execute(query)).scalars().all())
 
 
-async def update_job(db: AsyncSession, job: Job, payload: JobUpdate) -> Job:
-    values = payload.model_dump(exclude_unset=True)
+async def update_job(db: AsyncSession, company: Company, job: Job, payload: JobUpdate) -> Job:
+    if payload.quiz_config is not None:
+        await _ensure_questionnaire_visible(db, company, payload.quiz_config.questionnaire_id)
+    values = payload.model_dump(mode="json", exclude_unset=True)
     for field, value in values.items():
         setattr(job, field, value)
     if (

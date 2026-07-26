@@ -161,3 +161,49 @@ async def test_default_quiz_config_is_disabled(client: AsyncClient) -> None:
     await _register(client)
     job = (await client.post("/api/v1/jobs", json=_job_payload())).json()
     assert job["quiz_config"]["enabled"] is False
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_attach_questionnaire_roundtrips_and_is_tenant_scoped(
+    client: AsyncClient,
+) -> None:
+    await _register(client)
+    questionnaire = (
+        await client.post(
+            "/api/v1/questionnaires",
+            json={"name": "Ordered set", "question_refs": ["py-gil-1"]},
+        )
+    ).json()
+
+    # own questionnaire attaches cleanly on both create and patch
+    payload = _job_payload()
+    payload["quiz_config"] = {"enabled": True, "questionnaire_id": questionnaire["id"]}
+    job = (await client.post("/api/v1/jobs", json=payload)).json()
+    assert job["quiz_config"]["questionnaire_id"] == questionnaire["id"]
+
+    patched = await client.patch(
+        f"/api/v1/jobs/{job['id']}",
+        json={"quiz_config": {"enabled": True, "questionnaire_id": questionnaire["id"]}},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["quiz_config"]["questionnaire_id"] == questionnaire["id"]
+
+    # detach by setting to null
+    detached = await client.patch(
+        f"/api/v1/jobs/{job['id']}",
+        json={"quiz_config": {"enabled": True, "questionnaire_id": None}},
+    )
+    assert detached.json()["quiz_config"]["questionnaire_id"] is None
+
+    # a different workspace can't attach the first workspace's questionnaire
+    await client.post("/api/v1/auth/logout")
+    await _register(client)
+    bad_create = await client.post(
+        "/api/v1/jobs",
+        json={
+            **_job_payload(),
+            "quiz_config": {"enabled": True, "questionnaire_id": questionnaire["id"]},
+        },
+    )
+    assert bad_create.status_code == 422
+    assert "not found in this workspace" in bad_create.json()["detail"]

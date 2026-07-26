@@ -27,7 +27,12 @@ async def list_jobs(
 
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
 async def create_job(payload: JobCreate, db: DbSession, company: CurrentCompany) -> Job:
-    return await jobs_service.create_job(db, company, payload)
+    try:
+        return await jobs_service.create_job(db, company, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from None
 
 
 @router.get("/{job_id}", response_model=JobOut)
@@ -41,7 +46,7 @@ async def update_job(
 ) -> Job:
     job = await _get_or_404(db, company, job_id)
     try:
-        return await jobs_service.update_job(db, job, payload)
+        return await jobs_service.update_job(db, company, job, payload)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
