@@ -8,7 +8,10 @@ import AccountPage from "./page";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
-  return { ...original, api: { ...original.api, changePassword: vi.fn() } };
+  return {
+    ...original,
+    api: { ...original.api, changePassword: vi.fn(), me: vi.fn() },
+  };
 });
 
 const mocked = vi.mocked(api);
@@ -17,6 +20,20 @@ describe("AccountPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.changePassword.mockResolvedValue();
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      role: "admin",
+    });
+  });
+
+  it("renders the profile card with email and role from api.me()", async () => {
+    render(<AccountPage />);
+    expect(await screen.findByRole("textbox", { name: "Email" })).toHaveValue(
+      "grumpy.miner@acmelabs.io",
+    );
+    expect(screen.getAllByText(/admin/i).length).toBeGreaterThan(0);
   });
 
   it("changes the password when confirmation matches", async () => {
