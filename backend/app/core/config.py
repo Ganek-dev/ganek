@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"  # noqa: S105
 
+    # Origin candidates reach the frontend on (quiz links in emails are built
+    # against this base).
+    public_base_url: str = "http://localhost:3000"
+
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

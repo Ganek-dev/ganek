@@ -113,15 +113,30 @@ async def _apply(
             status_code=status.HTTP_409_CONFLICT,
             detail="You already applied for this position",
         ) from None
-    background.add_task(
-        email_service.send_application_received,
-        to=payload.email,
-        candidate_name=payload.name,
-        job_title=job.title,
-        company_name=company.name,
-    )
     attempt = await quiz_service.create_attempt(db, company, application, job)
     quiz_token = create_quiz_token(attempt.id) if attempt is not None else None
+    if attempt is not None and quiz_token is not None:
+        # assessment attached → the invite (17a) subsumes the generic confirmation
+        background.add_task(
+            email_service.send_quiz_invite,
+            to=payload.email,
+            candidate_name=payload.name,
+            job_title=job.title,
+            company_name=company.name,
+            brand_primary=(company.theme or {}).get("primary_color"),
+            quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{quiz_token}",
+            question_count=len(attempt.question_ids),
+            seconds_per_question=attempt.time_limit_seconds,
+            expires_at=attempt.expires_at,
+        )
+    else:
+        background.add_task(
+            email_service.send_application_received,
+            to=payload.email,
+            candidate_name=payload.name,
+            job_title=job.title,
+            company_name=company.name,
+        )
     return ApplicationReceived(quiz_token=quiz_token)
 
 
