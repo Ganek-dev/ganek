@@ -4,9 +4,16 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-import { Check, Clock, Lock } from "lucide-react";
+import { Check, Clock, Eye, Lock } from "lucide-react";
 
-import { ApiError, publicQuiz, type QuizQuestion, type QuizState } from "@/lib/api";
+import {
+  ApiError,
+  publicQuiz,
+  type PracticeQuestion,
+  type QuizQuestion,
+  type QuizState,
+} from "@/lib/api";
+import { brandStyle } from "@/lib/brand";
 
 /** Quiz exam surface (screens 05 / 26b): countdown ring above the stem,
  * A–D option cards, explicit lock step, keyboard controls. Layout is fixed
@@ -75,7 +82,7 @@ const inlineMd = {
   p: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 };
 
-type Phase = "loading" | "intro" | "question" | "done" | "expired" | "invalid";
+type Phase = "loading" | "intro" | "practice" | "question" | "done" | "expired" | "invalid";
 
 type IntegrityEvent = {
   type: "blur" | "paste" | "resize";
@@ -127,12 +134,6 @@ function useIntegrityTelemetry(token: string, active: boolean, questionId: strin
     });
   }, [token]);
 }
-
-const INTRO_RULES: [string, string][] = [
-  ["1×", "a single attempt — once a question is shown, its clock runs"],
-  ["0:00", "each question locks itself when its time is up"],
-  ["→", "no going back between questions"],
-];
 
 export default function QuizPage() {
   const params = useParams<{ token: string }>();
@@ -189,6 +190,34 @@ export default function QuizPage() {
           setQuestion(next.question);
           setPhase("question");
         }
+      })
+      .catch(fail)
+      .finally(() => setBusy(false));
+  }, [token, fail]);
+
+  const [practiceQ, setPracticeQ] = useState<PracticeQuestion | null>(null);
+  const [practiceDeadline, setPracticeDeadline] = useState<string | null>(null);
+  const [practiceSelected, setPracticeSelected] = useState<string | null>(null);
+  const [practiceCount, setPracticeCount] = useState(0);
+  const practiceRemaining = useCountdownMs(phase === "practice" ? practiceDeadline : null);
+  // picking locks immediately (mirrors the real flow); 0:00 locks an empty pick
+  const practiceLocked = practiceSelected !== null || practiceRemaining === 0;
+
+  const startPractice = useCallback(() => {
+    setBusy(true);
+    setError(null);
+    publicQuiz
+      .practice(token)
+      .then(({ question: sample }) => {
+        if (sample === null) {
+          setError("No practice questions are available right now.");
+          return;
+        }
+        setPracticeQ(sample);
+        setPracticeSelected(null);
+        setPracticeDeadline(new Date(Date.now() + sample.time_limit_seconds * 1000).toISOString());
+        setPracticeCount((count) => count + 1);
+        setPhase("practice");
       })
       .catch(fail)
       .finally(() => setBusy(false));
@@ -356,42 +385,230 @@ export default function QuizPage() {
     );
   }
   if (phase === "intro" && state !== null) {
+    // screen 18 — the rules gate; the timer only runs once they start
+    const firstName = state.candidate_name.split(" ")[0] || state.candidate_name;
+    const estimatedMinutes =
+      state.seconds_per_question === null
+        ? null
+        : Math.max(1, Math.ceil((state.total * state.seconds_per_question) / 60));
+    const validUntil = new Date(state.expires_at).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+    const rules: [React.ReactNode, string][] = [
+      [state.total, "questions — single choice, some with code"],
+      ...(state.seconds_per_question !== null
+        ? ([
+            [
+              `${state.seconds_per_question}s`,
+              "per question — it locks automatically at 0:00",
+            ],
+          ] as [React.ReactNode, string][])
+        : []),
+      ["1×", "one shot — once you lock an answer there's no going back"],
+      [
+        <Eye key="eye" aria-hidden className="h-4 w-4 text-g500" />,
+        "we record tab switches and resizes — stay on this screen and you're fine",
+      ],
+    ];
     return (
-      <main className={centered}>
-        <div className="overline text-g500">Skills assessment</div>
-        <h1 className="mt-2 font-heading text-[27px] leading-[1.2] font-semibold tracking-[-0.01em]">
-          Quick skills check
-        </h1>
-        <p className="mt-3 text-[15px] leading-[23px] text-g600">
-          {state.total} multiple-choice question{state.total === 1 ? "" : "s"}, served one at
-          a time with a short per-question timer.
-        </p>
-        <div className="mt-6 flex flex-col gap-2.5 text-sm leading-5 text-g700">
-          {INTRO_RULES.map(([marker, rule]) => (
-            <div key={marker} className="flex gap-2.5">
-              <span className="w-[34px] shrink-0 font-mono text-xs font-semibold text-brand">
-                {marker}
-              </span>
-              <span>{rule}</span>
+      <main
+        className="flex min-h-screen flex-col bg-surface text-foreground"
+        style={brandStyle(state.brand_primary)}
+      >
+        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-divider px-4 sm:h-[60px] sm:px-7">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-brand font-heading text-[13px] font-bold text-brand-foreground">
+              {state.company_name[0]?.toUpperCase()}
+            </span>
+            <span className="text-sm font-medium">{state.company_name}</span>
+            <span aria-hidden className="hidden text-g400 sm:inline">
+              ·
+            </span>
+            <span className="hidden text-sm text-g500 sm:inline">{state.job_title}</span>
+          </div>
+        </header>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-[620px] px-5 py-10">
+            <h1 className="text-center font-heading text-[24px] leading-[1.2] font-semibold tracking-[-0.005em] sm:text-[28px]">
+              Ready when you are, {firstName}
+            </h1>
+            <p className="mx-auto mt-2.5 max-w-[460px] text-center text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
+              This is a timed assessment. Read the rules once — there&apos;s no pause button.
+            </p>
+            <div className="mt-6 rounded-[14px] border border-edge px-5 py-1">
+              {rules.map(([marker, rule], index) => (
+                <div
+                  key={index}
+                  className={
+                    "flex items-center gap-3.5 py-[13px] text-[14.5px] leading-5 text-g700" +
+                    (index < rules.length - 1 ? " border-b border-divider" : "")
+                  }
+                >
+                  <span className="flex w-[34px] shrink-0 items-center font-mono text-[13px] font-semibold text-brand">
+                    {marker}
+                  </span>
+                  <span>{rule}</span>
+                </div>
+              ))}
             </div>
-          ))}
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              {state.practice_available ? (
+                <button
+                  type="button"
+                  onClick={startPractice}
+                  disabled={busy}
+                  className="flex h-12 w-full items-center justify-center rounded-[10px] border-[1.5px] border-edge px-5 text-[15px] font-semibold hover:border-brand hover:text-brand disabled:text-g500 sm:w-auto"
+                >
+                  Try a practice run first
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={advance}
+                disabled={busy}
+                className="flex h-12 w-full items-center justify-center rounded-[10px] bg-brand px-6 text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500 sm:w-auto"
+              >
+                {busy ? "…" : "Start the real assessment"}
+              </button>
+            </div>
+            {state.practice_available ? (
+              <p className="mt-3 text-center font-mono text-[11px] text-g400">
+                practice: sample questions, unlimited runs, nothing recorded · real: timer
+                starts immediately
+              </p>
+            ) : null}
+            <p className="mt-3 text-center text-[13px] text-g500">
+              Not now — come back with the same link.
+            </p>
+            {error ? (
+              <p role="alert" className="mt-3 text-center text-sm" style={{ color: RED }}>
+                {error}
+              </p>
+            ) : null}
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={advance}
-          disabled={busy}
-          className="mt-8 flex h-[46px] w-full items-center justify-center rounded-md bg-brand text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500"
-        >
-          {busy ? "…" : "Start the quiz"}
-        </button>
-        <p className="mt-4 text-center font-mono text-[11px] text-g400">
-          Find a quiet spot — tab switches are recorded
-        </p>
-        {error ? (
-          <p role="alert" className="mt-3 text-sm" style={{ color: RED }}>
-            {error}
-          </p>
-        ) : null}
+        <footer className="flex h-11 shrink-0 flex-wrap items-center justify-center gap-x-6 font-mono text-[11px] text-g400">
+          {estimatedMinutes !== null ? <span>~{estimatedMinutes} minutes total</span> : null}
+          <span>works best on a laptop</span>
+          <span>link valid until {validUntil}</span>
+        </footer>
+      </main>
+    );
+  }
+  if (phase === "practice" && state !== null && practiceQ !== null) {
+    // screen 19 — unlimited unrecorded practice; nothing leaves the browser
+    const practiceMs = practiceRemaining ?? practiceQ.time_limit_seconds * 1000;
+    return (
+      <main
+        className="flex min-h-screen flex-col bg-surface text-foreground"
+        style={brandStyle(state.brand_primary)}
+      >
+        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-dashed border-g400 px-4 sm:h-[60px] sm:px-7">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-brand font-heading text-[13px] font-bold text-brand-foreground">
+              {state.company_name[0]?.toUpperCase()}
+            </span>
+            <span className="hidden text-sm font-medium sm:inline">{state.company_name}</span>
+            <span className="overline inline-flex h-[22px] items-center rounded-full border border-dashed border-g400 bg-muted-fill px-2.5 text-[11px] text-g600">
+              Practice — not recorded
+            </span>
+          </div>
+          <span className="font-mono text-xs text-g600 sm:text-[13px]">
+            practice question {practiceCount}
+          </span>
+        </header>
+        <div className="flex-1">
+          <div className="mx-auto flex w-full max-w-[680px] flex-col items-center px-4 pt-6 pb-8 sm:px-6 sm:pt-9">
+            <CountdownRing remainingMs={practiceMs} limitSeconds={practiceQ.time_limit_seconds} />
+            <div className="overline mt-3.5 text-[10.5px] text-g500 sm:mt-5 sm:text-[11.5px]">
+              Sample question · Single choice · {practiceQ.time_limit_seconds}s
+            </div>
+            <h1 className="quiz-stem mt-2.5 text-center font-heading text-[19px] leading-[1.35] font-medium [text-wrap:pretty] sm:mt-3.5 sm:text-[25px] sm:tracking-[-0.005em]">
+              <ReactMarkdown components={inlineMd}>{practiceQ.prompt_md}</ReactMarkdown>
+            </h1>
+            <div className="mt-[18px] flex w-full flex-col gap-2 sm:mt-7 sm:gap-2.5">
+              {practiceQ.options.map((option, index) => {
+                const letter = String.fromCharCode(65 + index);
+                const isSelected = practiceSelected === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={practiceLocked}
+                    aria-pressed={isSelected}
+                    onClick={() => setPracticeSelected(option.key)}
+                    className={
+                      "flex min-h-11 w-full items-center gap-3 rounded-lg border-[1.5px] px-3.5 py-[13px] text-left sm:gap-3.5 sm:px-4 sm:py-3.5 " +
+                      (isSelected ? "border-brand" : "border-edge") +
+                      (practiceLocked && !isSelected ? " opacity-60" : "")
+                    }
+                    style={
+                      isSelected
+                        ? {
+                            background:
+                              "color-mix(in oklab, var(--brand-primary) 5%, var(--surface))",
+                          }
+                        : undefined
+                    }
+                  >
+                    <span
+                      className={
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] font-mono text-[11.5px] font-semibold sm:h-[26px] sm:w-[26px] sm:text-[12.5px] " +
+                        (isSelected
+                          ? "bg-brand text-brand-foreground"
+                          : "border border-edge text-g500")
+                      }
+                    >
+                      {isSelected ? <Lock aria-hidden className="h-3 w-3" /> : letter}
+                    </span>
+                    <span className="text-[14.5px] leading-[21px] sm:text-base sm:leading-6">
+                      <ReactMarkdown components={inlineMd}>{option.text_md}</ReactMarkdown>
+                    </span>
+                    {isSelected && practiceLocked ? (
+                      <span className="ml-auto shrink-0 font-mono text-[11px] text-g500">
+                        your answer — locked
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex w-full items-center gap-2.5 rounded-[10px] border border-edge px-3.5 py-3 text-[13px] leading-[19px] text-g600">
+              <span>
+                Practice works exactly like the real thing — you pick, it locks, you move on.
+                Correct answers are never revealed, in practice or in the real run.
+              </span>
+            </div>
+            <div className="mt-[18px] flex w-full flex-col items-stretch justify-between gap-2.5 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={startPractice}
+                disabled={busy}
+                className="flex h-11 items-center justify-center rounded-[10px] border-[1.5px] border-edge px-4 text-[14.5px] font-semibold hover:border-g400 disabled:text-g500"
+              >
+                Another practice question
+              </button>
+              <button
+                type="button"
+                onClick={advance}
+                disabled={busy}
+                className="flex h-11 items-center justify-center rounded-[10px] bg-brand px-5 text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500"
+              >
+                {busy ? "…" : "I'm ready — start the real assessment"}
+              </button>
+            </div>
+            {error ? (
+              <p role="alert" className="mt-3 text-sm" style={{ color: RED }}>
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <footer className="flex h-11 shrink-0 flex-wrap items-center justify-center gap-x-6 font-mono text-[11px] text-g400">
+          <span>practice as many times as you like</span>
+          <span>sample questions only — never from the real quiz</span>
+        </footer>
       </main>
     );
   }
