@@ -46,6 +46,9 @@ class ApplicationOut(BaseModel):
 
 class StageUpdate(BaseModel):
     stage: ApplicationStage
+    # opt-in: emails the candidate for stages with a template (22a/22b);
+    # silently ignored for the rest
+    notify_candidate: bool = False
 
 
 class CvDownload(BaseModel):

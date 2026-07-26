@@ -1,8 +1,9 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import CurrentCompany, DbSession
+from app.core.config import settings
 from app.models import Application, ApplicationStage
 from app.schemas.applications import (
     ApplicationOut,
@@ -12,6 +13,7 @@ from app.schemas.applications import (
     StageUpdate,
 )
 from app.services import applications as applications_service
+from app.services import email as email_service
 from app.services import quiz as quiz_service
 from app.services import storage
 
@@ -46,10 +48,50 @@ async def get_application(
 
 @router.patch("/{application_id}/stage", response_model=ApplicationOut)
 async def set_stage(
-    application_id: uuid.UUID, payload: StageUpdate, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID,
+    payload: StageUpdate,
+    db: DbSession,
+    company: CurrentCompany,
+    background: BackgroundTasks,
 ) -> Application:
     application = await _get_or_404(db, company, application_id)
-    return await applications_service.set_stage(db, application, payload.stage)
+    updated = await applications_service.set_stage(db, application, payload.stage)
+    if payload.notify_candidate:
+        _schedule_stage_email(background, company, application, payload.stage)
+    return updated
+
+
+def _schedule_stage_email(
+    background: BackgroundTasks,
+    company: CurrentCompany,
+    application: Application,
+    stage: ApplicationStage,
+) -> None:
+    """Queue 22a/22b for stages with a template; other stages are a no-op."""
+    candidate = application.candidate
+    job = application.job
+    if stage is ApplicationStage.INTERVIEW:
+        background.add_task(
+            email_service.send_stage_advance,
+            to=candidate.email,
+            candidate_name=candidate.name,
+            job_title=job.title,
+            company_name=company.name,
+            brand_primary=(company.theme or {}).get("primary_color"),
+        )
+    elif stage is ApplicationStage.REJECTED:
+        base = settings.public_base_url.rstrip("/")
+        careers_url = base if settings.mode == "single" else f"{base}/c/{company.slug}"
+        attempt = application.quiz_attempt
+        background.add_task(
+            email_service.send_rejection,
+            to=candidate.email,
+            candidate_name=candidate.name,
+            job_title=job.title,
+            company_name=company.name,
+            careers_url=careers_url,
+            completed_assessment=attempt is not None and attempt.completed_at is not None,
+        )
 
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)

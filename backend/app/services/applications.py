@@ -109,6 +109,7 @@ async def get_application(
             .options(
                 selectinload(Application.candidate),
                 selectinload(Application.quiz_attempt),
+                selectinload(Application.job),
             )
         )
     ).scalar_one_or_none()
