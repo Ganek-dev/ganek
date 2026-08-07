@@ -52,4 +52,11 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     candidate: Mapped["Candidate"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship()
-    quiz_attempt: Mapped["QuizAttempt | None"] = relationship(back_populates="application")
+    quiz_attempts: Mapped[list["QuizAttempt"]] = relationship(
+        back_populates="application", order_by="QuizAttempt.created_at"
+    )
+
+    @property
+    def quiz_attempt(self) -> "QuizAttempt | None":
+        """The attempt that counts — the latest; older rows are re-issue history."""
+        return self.quiz_attempts[-1] if self.quiz_attempts else None
