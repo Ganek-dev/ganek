@@ -329,6 +329,20 @@ async def reissue_attempt(
     return attempt
 
 
+async def record_reissue_request(db: AsyncSession, attempt: QuizAttempt) -> QuizAttempt:
+    """Candidate asked for a new link (27c, manual mode): surface it to the
+    team on the expired attempt. Idempotent — repeats bump a count."""
+    integrity = dict(attempt.integrity)
+    request = dict(integrity.get("reissue_requested") or {})
+    request["at"] = request.get("at") or _now().isoformat()
+    request["count"] = int(request.get("count", 0)) + 1
+    integrity["reissue_requested"] = request
+    attempt.integrity = integrity
+    await db.commit()
+    await db.refresh(attempt)
+    return attempt
+
+
 async def dismiss_flags(
     db: AsyncSession, attempt: QuizAttempt, *, by_user_id: uuid.UUID
 ) -> QuizAttempt:
@@ -680,7 +694,11 @@ async def attempt_context(
         await db.execute(
             select(Application)
             .where(Application.id == attempt.application_id)
-            .options(selectinload(Application.candidate), selectinload(Application.job))
+            .options(
+                selectinload(Application.candidate),
+                selectinload(Application.job),
+                selectinload(Application.quiz_attempts),
+            )
         )
     ).scalar_one()
     company = (

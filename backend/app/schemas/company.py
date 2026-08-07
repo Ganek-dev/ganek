@@ -15,6 +15,7 @@ class CompanyOut(BaseModel):
     website: str | None
     socials: dict[str, Any]
     theme: dict[str, Any]
+    settings: dict[str, Any]
 
 
 class BrandingUpdate(BaseModel):
@@ -26,3 +27,14 @@ class BrandingUpdate(BaseModel):
 
     primary_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     radius: Literal["sharp", "default", "round"] | None = None
+
+
+class CompanySettingsUpdate(BaseModel):
+    """Hiring-behavior settings; omitted fields stay untouched, null resets.
+
+    ``quiz_expired_reissue`` decides what a candidate's expired-link
+    request does (27c): 'manual' (default) records it for the team,
+    'auto' re-issues a fresh link once without waiting for a recruiter.
+    """
+
+    quiz_expired_reissue: Literal["manual", "auto"] | None = None

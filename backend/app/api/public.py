@@ -362,6 +362,75 @@ async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizE
     return QuizEventsOut()
 
 
+@router.post(
+    "/quiz/{token}/request-reissue",
+    response_model=dict[str, bool],
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
+async def quiz_request_reissue(
+    token: str, db: DbSession, background: BackgroundTasks
+) -> dict[str, bool]:
+    """Expired-link screen (27c): ask for a fresh assessment link.
+
+    Company setting ``quiz_expired_reissue`` decides: 'auto' re-issues a
+    fresh attempt once (email delivery only — the new token is never
+    returned to the caller of an old link); 'manual' (default) records
+    the request for the team to act on. The lateness stays visible either
+    way — the fresh attempt carries reason='expired', the manual request
+    lands in the expired attempt's integrity.
+    """
+    attempt = await _attempt_or_404(db, token)
+    now = datetime.now(UTC)
+    if attempt.status is AttemptStatus.PENDING and now > attempt.expires_at:
+        attempt.status = AttemptStatus.EXPIRED
+        await db.commit()
+    if attempt.status is AttemptStatus.INVALIDATED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A new link was already issued — check your inbox",
+        )
+    if attempt.status is not AttemptStatus.EXPIRED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This assessment link is still active",
+        )
+    application, company, job = await quiz_service.attempt_context(db, attempt)
+    latest = application.quiz_attempt
+    if latest is not None and latest.id != attempt.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A new link was already issued — check your inbox",
+        )
+
+    mode = (company.settings or {}).get("quiz_expired_reissue", "manual")
+    auto_used = any(
+        (prior.integrity or {}).get("reissue", {}).get("mode") == "auto"
+        for prior in application.quiz_attempts
+    )
+    if mode == "auto" and not auto_used:
+        fresh = await quiz_service.reissue_attempt(
+            db, company, application, job, reason="expired", mode="auto", by_user_id=None
+        )
+        if fresh is not None:
+            background.add_task(
+                email_service.send_quiz_invite,
+                to=application.candidate.email,
+                candidate_name=application.candidate.name,
+                job_title=job.title,
+                company_name=company.name,
+                brand_primary=(company.theme or {}).get("primary_color"),
+                quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/"
+                f"{create_quiz_token(fresh.id)}",
+                question_count=len(fresh.question_ids),
+                seconds_per_question=fresh.time_limit_seconds,
+                expires_at=fresh.expires_at,
+            )
+            return {"reissued": True}
+
+    await quiz_service.record_reissue_request(db, attempt)
+    return {"reissued": False}
+
+
 DECISION_WINDOW = timedelta(days=14)  # "you'll hear back within two weeks of applying"
 
 
