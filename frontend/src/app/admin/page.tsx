@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Plus } from "lucide-react";
 
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { stats, type StatsOverview } from "@/lib/api";
 
 /** Recruiter dashboard, screen 06 (D3 scope): greeting, stat cards, score
@@ -251,6 +252,8 @@ export default function AdminDashboard() {
           Create job
         </Link>
       </div>
+
+      <OnboardingChecklist />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
