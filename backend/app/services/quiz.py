@@ -252,6 +252,99 @@ async def create_attempt(
     return attempt
 
 
+async def reissue_attempt(
+    db: AsyncSession,
+    company: Company,
+    application: Application,
+    job: Job,
+    *,
+    reason: str,
+    mode: str,
+    by_user_id: uuid.UUID | None,
+    rng: random.Random | None = None,
+) -> QuizAttempt | None:
+    """Invalidate the current attempt and issue a fresh one (screen 24 / 27c).
+
+    Fresh selection avoids every question served on prior attempts, topping
+    up from the full pool only when it runs dry. Questionnaire-attached jobs
+    re-serve the curated set (fresh order when shuffled) — the set IS the
+    quiz. The superseded attempt keeps its data: completed/pending runs are
+    marked invalidated, expired ones stay expired; either way the new row's
+    ``integrity.reissue`` records where it came from, who did it, and why.
+    None when the job's quiz is disabled or the pool is empty.
+    """
+    config = parse_quiz_config(job)
+    if not config.enabled:
+        return None
+    prior = list(application.quiz_attempts)
+    if not prior:
+        return None
+    picker = rng or _default_rng
+    seen = {qid for attempt in prior for qid in attempt.question_ids}
+    if config.questionnaire_id is not None:
+        questionnaire = await get_questionnaire_for_company(db, company, config.questionnaire_id)
+        if questionnaire is None:
+            return None
+        pool = await _resolve_questionnaire_pool(db, company, questionnaire)
+        excluded = set(config.exclude_ids) | set(company.blocked_question_ids or [])
+        question_ids = [q.id for q in pool if q.id not in excluded]
+        if questionnaire.shuffle:
+            picker.shuffle(question_ids)
+    else:
+        if not config.tags:
+            return None
+        pool = await _question_pool(db, company, config)
+        fresh = [q for q in pool if q.id not in seen]
+        question_ids = stratified_sample(fresh, config.tags, config.question_count, picker)
+        if len(question_ids) < config.question_count:
+            remaining = [q for q in pool if q.id not in set(question_ids)]
+            question_ids += stratified_sample(
+                remaining, config.tags, config.question_count - len(question_ids), picker
+            )
+    if not question_ids:
+        return None
+
+    latest = prior[-1]
+    if latest.status is not AttemptStatus.EXPIRED:
+        latest.status = AttemptStatus.INVALIDATED
+    attempt = QuizAttempt(
+        company_id=company.id,
+        application_id=application.id,
+        question_ids=question_ids,
+        time_limit_seconds=config.time_limit_seconds,
+        expires_at=_now() + timedelta(hours=settings.quiz_start_ttl_hours),
+        integrity={
+            "reissue": {
+                "from_attempt_id": str(latest.id),
+                "reason": reason,
+                "mode": mode,
+                "by_user_id": str(by_user_id) if by_user_id is not None else None,
+                "at": _now().isoformat(),
+            }
+        },
+    )
+    db.add(attempt)
+    await db.commit()
+    await db.refresh(attempt)
+    return attempt
+
+
+async def dismiss_flags(
+    db: AsyncSession, attempt: QuizAttempt, *, by_user_id: uuid.UUID
+) -> QuizAttempt:
+    """Screen 24 'looks fine': record the human review on the attempt."""
+    integrity = dict(attempt.integrity)
+    integrity["review"] = {
+        "decision": "dismissed",
+        "by_user_id": str(by_user_id),
+        "at": _now().isoformat(),
+    }
+    attempt.integrity = integrity
+    await db.commit()
+    await db.refresh(attempt)
+    return attempt
+
+
 async def resolved_answers(db: AsyncSession, attempt: QuizAttempt) -> list[AttemptAnswer]:
     return list(
         (
@@ -474,7 +567,8 @@ async def current_or_next_question(
     now = _now()
     if attempt.status is AttemptStatus.COMPLETED:
         return None
-    if attempt.status is AttemptStatus.EXPIRED:
+    if attempt.status in (AttemptStatus.EXPIRED, AttemptStatus.INVALIDATED):
+        # invalidated = superseded by a re-issued attempt; the old link is dead
         raise AttemptExpiredError
     if attempt.status is AttemptStatus.PENDING:
         if now > attempt.expires_at:
@@ -526,6 +620,9 @@ async def submit_answer(
     db: AsyncSession, attempt: QuizAttempt, question_id: str, answer_key: str
 ) -> AttemptAnswer:
     """Record an answer. Late submissions are stored but score zero."""
+    if attempt.status is AttemptStatus.INVALIDATED:
+        # re-issued mid-question: the superseded attempt takes no more input
+        raise AttemptExpiredError
     now = _now()
     answer = (
         await db.execute(

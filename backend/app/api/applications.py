@@ -4,15 +4,16 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
-from app.api.deps import CurrentCompany, DbSession
+from app.api.deps import CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.security import create_quiz_token, create_status_token
 from app.models import Application, ApplicationStage
-from app.models.quiz import AttemptStatus
+from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
     CvDownload,
     QuizAnswerReview,
+    QuizResultOut,
     ReviewIntegrityEvent,
     StageUpdate,
 )
@@ -94,6 +95,68 @@ async def remind_candidate(
         days_left=days_left,
     )
     return {"sent": True}
+
+
+@router.post("/{application_id}/quiz/reissue", response_model=QuizResultOut)
+async def reissue_quiz(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+    background: BackgroundTasks,
+) -> QuizAttempt:
+    """Invalidate & re-invite to a fresh quiz (screen 24; also the expired-link
+    path). The superseded attempt stays as history; the candidate gets a new
+    link with a fresh 24h window."""
+    application = await _get_or_404(db, company, application_id)
+    latest = application.quiz_attempt
+    if latest is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="No assessment to re-issue"
+        )
+    reason = "expired" if latest.status is AttemptStatus.EXPIRED else "integrity"
+    attempt = await quiz_service.reissue_attempt(
+        db,
+        company,
+        application,
+        application.job,
+        reason=reason,
+        mode="manual",
+        by_user_id=user.id,
+    )
+    if attempt is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This job's assessment is disabled or has no questions to serve",
+        )
+    background.add_task(
+        email_service.send_quiz_invite,
+        to=application.candidate.email,
+        candidate_name=application.candidate.name,
+        job_title=application.job.title,
+        company_name=company.name,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
+        question_count=len(attempt.question_ids),
+        seconds_per_question=attempt.time_limit_seconds,
+        expires_at=attempt.expires_at,
+    )
+    return attempt
+
+
+@router.post("/{application_id}/quiz/dismiss-flags", response_model=QuizResultOut)
+async def dismiss_quiz_flags(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> QuizAttempt:
+    """Screen 24 'looks fine': record who reviewed the flags and when."""
+    application = await _get_or_404(db, company, application_id)
+    attempt = application.quiz_attempt
+    if attempt is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No assessment to review")
+    return await quiz_service.dismiss_flags(db, attempt, by_user_id=user.id)
 
 
 def _schedule_stage_email(

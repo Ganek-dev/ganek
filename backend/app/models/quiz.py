@@ -18,10 +18,17 @@ class AttemptStatus(enum.StrEnum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     EXPIRED = "expired"
+    # superseded by a re-issued attempt — kept as audit history, excluded
+    # from scores and candidate access
+    INVALIDATED = "invalidated"
 
 
 class QuizAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """One quiz run per application. All timing is server-authoritative."""
+    """A quiz run for an application. All timing is server-authoritative.
+
+    Since D6 an application can hold several attempts (invalidate &
+    re-invite); the latest one counts, older rows are history.
+    """
 
     __tablename__ = "quiz_attempts"
 
@@ -29,7 +36,7 @@ class QuizAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("companies.id", ondelete="CASCADE"), index=True
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("applications.id", ondelete="CASCADE"), unique=True
+        ForeignKey("applications.id", ondelete="CASCADE"), index=True
     )
     status: Mapped[AttemptStatus] = mapped_column(
         Enum(
@@ -51,7 +58,7 @@ class QuizAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     per_tag_scores: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     integrity: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
-    application: Mapped["Application"] = relationship(back_populates="quiz_attempt")
+    application: Mapped["Application"] = relationship(back_populates="quiz_attempts")
     answers: Mapped[list["AttemptAnswer"]] = relationship(
         back_populates="attempt", order_by="AttemptAnswer.served_at"
     )

@@ -88,7 +88,7 @@ async def list_applications(
         .where(Application.company_id == company.id)
         .options(
             selectinload(Application.candidate),
-            selectinload(Application.quiz_attempt),
+            selectinload(Application.quiz_attempts),
         )
         .order_by(Application.created_at.desc())
     )
@@ -108,7 +108,7 @@ async def get_application(
             .where(Application.company_id == company.id, Application.id == application_id)
             .options(
                 selectinload(Application.candidate),
-                selectinload(Application.quiz_attempt),
+                selectinload(Application.quiz_attempts),
                 selectinload(Application.job),
             )
         )
@@ -124,7 +124,7 @@ async def get_application_by_id(db: AsyncSession, application_id: uuid.UUID) -> 
             .where(Application.id == application_id)
             .options(
                 selectinload(Application.candidate),
-                selectinload(Application.quiz_attempt),
+                selectinload(Application.quiz_attempts),
                 selectinload(Application.job),
             )
         )
