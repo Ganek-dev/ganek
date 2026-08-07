@@ -17,8 +17,8 @@ export const REMOTE_LABELS: Record<string, string> = {
 };
 
 export function themeStyle(company: PublicCompany): React.CSSProperties {
-  const theme = company.theme as { primary_color?: string };
-  return brandStyle(theme.primary_color);
+  const theme = company.theme as { primary_color?: string; radius?: string };
+  return brandStyle(theme.primary_color, theme.radius);
 }
 
 export function formatSalary(job: PublicJobSummary): string | null {

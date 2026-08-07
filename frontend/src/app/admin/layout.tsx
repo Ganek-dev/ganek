@@ -24,7 +24,7 @@ const NAV = [
   { href: "/admin/questions", label: "Questions", icon: ListChecks },
   { href: "/admin/questionnaires", label: "Questionnaires", icon: ClipboardList },
   { href: "/admin/team", label: "Team", icon: Users },
-  { href: "/admin/account", label: "Settings", icon: Settings },
+  { href: "/admin/branding", label: "Settings", icon: Settings },
 ] as const;
 
 function counterFor(label: string, overview: StatsOverview | null): number | null {
