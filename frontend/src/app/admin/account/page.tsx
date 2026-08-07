@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { SettingsTabs } from "@/components/SettingsTabs";
 import { api, type UserOut } from "@/lib/api";
 
 /** Account settings, handoff screen 15 — restyled Profile + Password cards
@@ -63,6 +64,7 @@ export default function AccountPage() {
   return (
     <section className="max-w-[680px] space-y-5">
       <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Account</h1>
+      <SettingsTabs />
 
       <div className="card flex flex-col gap-4 p-5">
         <div className="flex items-center gap-4">

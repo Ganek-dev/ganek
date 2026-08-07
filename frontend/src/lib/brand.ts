@@ -40,12 +40,48 @@ export function brandForeground(color: string): string {
   return luminance > 0.45 ? DARK_TEXT : LIGHT_TEXT;
 }
 
+/** WCAG contrast ratio (1–21) between two hex colors. Null when malformed. */
+export function contrastRatio(a: string, b: string): number | null {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  if (la === null || lb === null) return null;
+  const [light, dark] = la >= lb ? [la, lb] : [lb, la];
+  return (light + 0.05) / (dark + 0.05);
+}
+
+export type BrandRadius = "sharp" | "default" | "round";
+
+/** Per-company corner radius: overrides the `--radius-*` tokens that
+ * Tailwind's rounded-* utilities resolve at use site. "default" keeps the
+ * globals.css scale (8/10/12/14). */
+const RADIUS_SCALES: Record<BrandRadius, CSSProperties | null> = {
+  sharp: {
+    "--radius-sm": "2px",
+    "--radius-md": "4px",
+    "--radius-lg": "6px",
+    "--radius-xl": "8px",
+  } as CSSProperties,
+  default: null,
+  round: {
+    "--radius-sm": "10px",
+    "--radius-md": "14px",
+    "--radius-lg": "18px",
+    "--radius-xl": "22px",
+  } as CSSProperties,
+};
+
+export function isBrandRadius(value: unknown): value is BrandRadius {
+  return value === "sharp" || value === "default" || value === "round";
+}
+
 /** Inline style carrying the brand CSS variables for a candidate surface. */
-export function brandStyle(primary?: unknown): CSSProperties {
+export function brandStyle(primary?: unknown, radius?: unknown): CSSProperties {
   const color =
     typeof primary === "string" && parseHex(primary) !== null ? primary : DEFAULT_BRAND;
+  const scale = isBrandRadius(radius) ? RADIUS_SCALES[radius] : null;
   return {
     "--brand-primary": color,
     "--brand-primary-foreground": brandForeground(color),
+    ...scale,
   } as CSSProperties;
 }

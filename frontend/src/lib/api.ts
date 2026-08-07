@@ -560,6 +560,31 @@ export interface TeamUser {
   created_at: string;
 }
 
+export interface CompanyAdmin {
+  slug: string;
+  name: string;
+  description: string;
+  logo_url: string | null;
+  website: string | null;
+  socials: Record<string, unknown>;
+  theme: { primary_color?: string; radius?: "sharp" | "default" | "round" };
+}
+
+export interface BrandingUpdate {
+  /** Omit = untouched, null = reset to default. */
+  primary_color?: string | null;
+  radius?: "sharp" | "default" | "round" | null;
+}
+
+export const companyApi = {
+  get: () => request<CompanyAdmin>("/api/v1/company"),
+  updateBranding: (patch: BrandingUpdate) =>
+    request<CompanyAdmin>("/api/v1/company/branding", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+};
+
 export interface TeamInvite {
   id: string;
   email: string;
