@@ -8,6 +8,7 @@ from app.api import (
     applications,
     auth,
     company,
+    dashboard,
     google_auth,
     jobs,
     public,
@@ -68,6 +69,7 @@ async def security_headers(
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(company.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(google_auth.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")

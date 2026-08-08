@@ -1,3 +1,4 @@
+from app.models.activity import ActivityLog
 from app.models.application import Application, ApplicationStage
 from app.models.base import Base
 from app.models.candidate import Candidate
@@ -14,10 +15,12 @@ from app.models.question import (
 )
 from app.models.questionnaire import Questionnaire
 from app.models.quiz import AttemptAnswer, AttemptStatus, QuizAttempt
+from app.models.task import Task
 from app.models.user import User, UserRole
 from app.models.user_invite import UserInvite
 
 __all__ = [
+    "ActivityLog",
     "Application",
     "ApplicationStage",
     "AttemptAnswer",
@@ -34,6 +37,7 @@ __all__ = [
     "JobStatus",
     "Question",
     "Questionnaire",
+    "Task",
     "QuizAttempt",
     "QuestionSource",
     "QuestionStatus",
