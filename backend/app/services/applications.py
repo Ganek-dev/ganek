@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.schemas.public import ApplicationSubmit
-from app.services import storage
+from app.services import activity, storage
 
 
 class AlreadyAppliedError(Exception):
@@ -69,6 +69,14 @@ async def submit_application(
     )
     db.add(application)
     try:
+        await db.flush()
+        activity.record(
+            db,
+            company_id=company.id,
+            type=activity.APPLICATION_RECEIVED,
+            application_id=application.id,
+            payload={"candidate": candidate.name, "job": job.title},
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -132,9 +140,23 @@ async def get_application_by_id(db: AsyncSession, application_id: uuid.UUID) -> 
 
 
 async def set_stage(
-    db: AsyncSession, application: Application, stage: ApplicationStage
+    db: AsyncSession,
+    application: Application,
+    stage: ApplicationStage,
+    *,
+    actor_user_id: uuid.UUID | None = None,
 ) -> Application:
+    previous = application.stage
     application.stage = stage
+    if previous is not stage:
+        activity.record(
+            db,
+            company_id=application.company_id,
+            type=activity.STAGE_CHANGED,
+            actor_user_id=actor_user_id,
+            application_id=application.id,
+            payload={"from": previous.value, "to": stage.value},
+        )
     await db.commit()
     await db.refresh(application)
     return application

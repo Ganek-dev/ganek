@@ -61,10 +61,13 @@ async def set_stage(
     payload: StageUpdate,
     db: DbSession,
     company: CurrentCompany,
+    user: CurrentUser,
     background: BackgroundTasks,
 ) -> Application:
     application = await _get_or_404(db, company, application_id)
-    updated = await applications_service.set_stage(db, application, payload.stage)
+    updated = await applications_service.set_stage(
+        db, application, payload.stage, actor_user_id=user.id
+    )
     if payload.notify_candidate:
         _schedule_stage_email(background, company, application, payload.stage)
     return updated
@@ -219,6 +222,7 @@ async def create_interview(
     payload: InterviewCreate,
     db: DbSession,
     company: CurrentCompany,
+    user: CurrentUser,
     background: BackgroundTasks,
 ) -> object:
     application = await _get_or_404(db, company, application_id)
@@ -245,6 +249,7 @@ async def create_interview(
             duration_minutes=payload.duration_minutes,
             timezone=payload.timezone,
             slots=payload.slots,
+            actor_user_id=user.id,
         )
     except interviews_service.InterviewExistsError:
         raise HTTPException(
@@ -280,6 +285,7 @@ async def cancel_interview(
     application_id: uuid.UUID,
     db: DbSession,
     company: CurrentCompany,
+    user: CurrentUser,
     background: BackgroundTasks,
 ) -> object:
     application = await _get_or_404(db, company, application_id)
@@ -288,7 +294,9 @@ async def cancel_interview(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No active interview to cancel"
         )
-    await interviews_service.cancel_interview(db, interview, interviewer=interview.interviewer)
+    await interviews_service.cancel_interview(
+        db, interview, interviewer=interview.interviewer, actor_user_id=user.id
+    )
     background.add_task(
         email_service.send_interview_cancelled,
         to=application.candidate.email,

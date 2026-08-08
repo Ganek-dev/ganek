@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Application, Company, Interview, InterviewStatus, User
-from app.services import google_calendar
+from app.services import activity, google_calendar
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,7 @@ async def create_interview(
     duration_minutes: int,
     timezone: str,
     slots: list[datetime],
+    actor_user_id: uuid.UUID | None = None,
 ) -> Interview:
     if await get_for_application(db, company, application.id) is not None:
         raise InterviewExistsError
@@ -127,12 +128,26 @@ async def create_interview(
         offered_slots=[slot.astimezone(UTC).isoformat() for slot in slots],
     )
     db.add(interview)
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.INTERVIEW_REQUESTED,
+        actor_user_id=actor_user_id,
+        application_id=application.id,
+        payload={"interviewer": interviewer.email, "slots": len(slots)},
+    )
     await db.commit()
     await db.refresh(interview)
     return interview
 
 
-async def cancel_interview(db: AsyncSession, interview: Interview, *, interviewer: User) -> None:
+async def cancel_interview(
+    db: AsyncSession,
+    interview: Interview,
+    *,
+    interviewer: User,
+    actor_user_id: uuid.UUID | None = None,
+) -> None:
     """Cancel the request; a booked calendar event is removed best-effort."""
     if interview.google_event_id is not None:
         try:
@@ -142,6 +157,13 @@ async def cancel_interview(db: AsyncSession, interview: Interview, *, interviewe
                 "calendar event delete failed for interview %s", interview.id, exc_info=True
             )
     interview.status = InterviewStatus.CANCELLED
+    activity.record(
+        db,
+        company_id=interview.company_id,
+        type=activity.INTERVIEW_CANCELLED,
+        actor_user_id=actor_user_id,
+        application_id=interview.application_id,
+    )
     await db.commit()
 
 
@@ -213,6 +235,13 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     interview.scheduled_start = start
     interview.google_event_id = event_id
     interview.meet_url = meet_url
+    activity.record(
+        db,
+        company_id=interview.company_id,
+        type=activity.INTERVIEW_BOOKED,
+        application_id=interview.application_id,
+        payload={"start": start.isoformat()},
+    )
     await db.commit()
     return interview
 
@@ -249,5 +278,11 @@ async def candidate_cancel(db: AsyncSession, interview: Interview) -> Interview:
                 "calendar event delete failed for interview %s", interview.id, exc_info=True
             )
     interview.status = InterviewStatus.CANCELLED
+    activity.record(
+        db,
+        company_id=interview.company_id,
+        type=activity.INTERVIEW_CANCELLED,
+        application_id=interview.application_id,
+    )
     await db.commit()
     return interview

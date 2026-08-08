@@ -31,6 +31,7 @@ from app.models import (
     QuestionStatus,
     QuizAttempt,
 )
+from app.services import activity
 
 # Selection/shuffle order is an anti-cheat surface: use a CSPRNG by default.
 _default_rng: random.Random = random.SystemRandom()
@@ -324,6 +325,14 @@ async def reissue_attempt(
         },
     )
     db.add(attempt)
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.QUIZ_REISSUED,
+        actor_user_id=by_user_id,
+        application_id=application.id,
+        payload={"reason": reason, "mode": mode},
+    )
     await db.commit()
     await db.refresh(attempt)
     return attempt
@@ -524,6 +533,13 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
     attempt.integrity = integrity
     attempt.status = AttemptStatus.COMPLETED
     attempt.completed_at = _now()
+    activity.record(
+        db,
+        company_id=attempt.company_id,
+        type=activity.QUIZ_FINISHED,
+        application_id=attempt.application_id,
+        payload={"score": attempt.score},
+    )
     await db.commit()
 
 
