@@ -70,7 +70,8 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(path, {
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
+    // FormData bodies must set their own multipart boundary header
+    headers: init?.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
     ...init,
   });
   if (!resp.ok) {
@@ -633,6 +634,12 @@ export const companyApi = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+  uploadLogo: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<CompanyAdmin>("/api/v1/company/logo", { method: "POST", body: form });
+  },
+  removeLogo: () => request<CompanyAdmin>("/api/v1/company/logo", { method: "DELETE" }),
 };
 
 export interface TeamInvite {
