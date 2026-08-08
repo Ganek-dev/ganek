@@ -2,10 +2,16 @@
  * text, light/dark fills from the official guidelines. A plain link — the
  * backend drives the whole OAuth redirect dance. */
 
-export function GoogleButton({ label = "Continue with Google" }: { label?: string }) {
+export function GoogleButton({
+  label = "Continue with Google",
+  href = "/api/v1/auth/google/start",
+}: {
+  label?: string;
+  href?: string;
+}) {
   return (
     <a
-      href="/api/v1/auth/google/start"
+      href={href}
       className="inline-flex h-10 w-full items-center justify-center gap-2.5 rounded-md border border-[#747775] bg-white text-sm font-medium text-[#1F1F1F] hover:brightness-[0.97] dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3]"
     >
       <svg aria-hidden viewBox="0 0 48 48" className="h-[18px] w-[18px]">

@@ -45,7 +45,12 @@ def test_slugify() -> None:
 
 def test_google_flow_token_roundtrip() -> None:
     token = create_google_flow_token("state1", "verifier1", "nonce1")
-    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1")
+    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1", None)
+
+
+def test_google_flow_token_carries_invite() -> None:
+    token = create_google_flow_token("state1", "verifier1", "nonce1", invite="inv-token")
+    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1", "inv-token")
 
 
 def test_google_flow_token_garbage() -> None:

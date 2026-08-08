@@ -1,10 +1,11 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
-import { ApiError, publicInvites, type PublicInvite } from "@/lib/api";
+import { GoogleButton } from "@/components/GoogleButton";
+import { ApiError, api, publicInvites, type PublicInvite } from "@/lib/api";
 
 /** Team-invite accept page (magic link from the D6 invite email): shows
  * who's invited where, takes a password, and lands the new user in /admin
@@ -18,13 +19,39 @@ const ROLE_LABELS: Record<PublicInvite["role"], string> = {
   member: "a Member",
 };
 
-export default function InviteAcceptPage() {
+const GOOGLE_ERRORS: Record<string, string> = {
+  "google-email-mismatch":
+    "That Google account doesn't match this invite. Use the Google account for the invited email, or set a password instead.",
+  "email-taken": "An account with this email already exists.",
+  "google-invalid": "Google sign-in didn't complete. Try again or set a password below.",
+};
+
+function InviteAcceptForm() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [invite, setInvite] = useState<PublicInvite | null>(null);
   const [dead, setDead] = useState<"invalid" | "expired" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [google, setGoogle] = useState(false);
+
+  const googleError = GOOGLE_ERRORS[searchParams.get("error") ?? ""] ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .providers()
+      .then((p) => {
+        if (!cancelled) setGoogle(p.google);
+      })
+      .catch(() => {
+        /* flag stays false — password accept is unaffected */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     publicInvites
@@ -94,12 +121,31 @@ export default function InviteAcceptPage() {
       title={`Join ${invite.company_name}`}
       subtitle={
         <>
-          You&apos;ve been invited as {ROLE_LABELS[invite.role]}. Set a password for{" "}
+          You&apos;ve been invited as {ROLE_LABELS[invite.role]}. Continue as{" "}
           <span className="font-mono text-[12.5px] text-g600">{invite.email}</span> to get
           started.
         </>
       }
     >
+      {googleError ? (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          {googleError}
+        </p>
+      ) : null}
+
+      {google ? (
+        <>
+          <GoogleButton href={`/api/v1/auth/google/start?invite=${encodeURIComponent(token)}`} />
+          <div className="flex items-center gap-3 pt-2">
+            <span aria-hidden className="h-px flex-1 bg-edge" />
+            <span className="font-mono text-[10.5px] tracking-wide text-g400 uppercase">
+              or set a password
+            </span>
+            <span aria-hidden className="h-px flex-1 bg-edge" />
+          </div>
+        </>
+      ) : null}
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <label className="flex flex-col gap-2">
           <span className="text-[13.5px] font-medium">Password</span>
@@ -130,5 +176,13 @@ export default function InviteAcceptPage() {
         Joining {invite.company_name}&apos;s hiring workspace on vetd
       </p>
     </AuthShell>
+  );
+}
+
+export default function InviteAcceptPage() {
+  return (
+    <Suspense>
+      <InviteAcceptForm />
+    </Suspense>
   );
 }

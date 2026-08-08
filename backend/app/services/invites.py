@@ -113,6 +113,33 @@ async def invite_by_token(db: AsyncSession, token: str) -> UserInvite | None:
     ).scalar_one_or_none()
 
 
+async def accept_invite_google(db: AsyncSession, invite: UserInvite, google_sub: str) -> User:
+    """Create the invited user from a Google identity (no password) and consume the invite."""
+    if invite.expires_at <= _now():
+        raise InviteExpiredError
+    if await _email_has_account(db, invite.email):
+        raise EmailTakenError
+    sub_taken = (
+        await db.execute(
+            select(func.count()).select_from(User).where(User.google_sub == google_sub)
+        )
+    ).scalar_one()
+    if sub_taken:
+        raise EmailTakenError
+    user = User(
+        company_id=invite.company_id,
+        email=invite.email,
+        password_hash=None,
+        role=invite.role,
+        google_sub=google_sub,
+    )
+    db.add(user)
+    await db.delete(invite)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 async def accept_invite(db: AsyncSession, invite: UserInvite, password: str) -> User:
     """Create the invited user and consume the invite row."""
     if invite.expires_at <= _now():
