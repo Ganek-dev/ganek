@@ -452,3 +452,48 @@ def send_team_invite(
         send_email(to=to, subject=subject, body=body, html=html)
     except Exception:  # noqa: BLE001 - email must never break a recruiter flow
         logger.warning("failed to send team invite to %s", to, exc_info=True)
+
+
+def send_google_linked(*, to: str, company_name: str) -> None:
+    """Security notice: a Google identity was just linked to an existing account.
+
+    Mitigates silent pre-registration takeovers — the legitimate owner
+    learns immediately if someone else's Google sign-in claimed their email.
+    """
+    safe_company = escape(company_name)
+    subject = "Google sign-in was added to your Vetd account"
+    body = (
+        f"Hi,\n"
+        f"\n"
+        f"Signing in with Google is now enabled for your Vetd account\n"
+        f"at {company_name}. Your password continues to work as before.\n"
+        f"\n"
+        f"If you did not just sign in with Google, change your password\n"
+        f"in Settings -> Account right away.\n"
+        f"\n"
+        f"— Vetd\n"
+    )
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        "Google sign-in added</h1>"
+        + _paragraph(
+            f"Signing in with Google is now enabled for your Vetd account at "
+            f'<b style="font-weight: 600;">{safe_company}</b>. '
+            f"Your password continues to work as before."
+        )
+        + _paragraph(
+            "If you did not just sign in with Google, change your password in "
+            '<b style="font-weight: 600;">Settings &rarr; Account</b> right away.'
+        )
+    )
+    html = _card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=safe_company,
+        content=content,
+    )
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a login flow
+        logger.warning("failed to send google-linked notice to %s", to, exc_info=True)

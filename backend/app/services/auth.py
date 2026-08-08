@@ -103,3 +103,37 @@ async def change_password(
     user.token_version += 1
     await db.commit()
     return True
+
+
+async def register_company_google(
+    db: AsyncSession, *, company_name: str, email: str, google_sub: str
+) -> User:
+    """Company + first admin from a Google-verified identity (no password)."""
+    if settings.mode == "single":
+        companies = (await db.execute(select(func.count()).select_from(Company))).scalar_one()
+        if companies:
+            raise RegistrationClosedError
+    taken = (
+        await db.execute(
+            select(func.count())
+            .select_from(User)
+            .where((User.email == email) | (User.google_sub == google_sub))
+        )
+    ).scalar_one()
+    if taken:
+        raise EmailTakenError
+
+    company = Company(slug=await _unique_slug(db, slugify(company_name)), name=company_name)
+    db.add(company)
+    await db.flush()
+    user = User(
+        company_id=company.id,
+        email=email,
+        password_hash=None,
+        role=UserRole.ADMIN,
+        google_sub=google_sub,
+        last_login_at=datetime.now(UTC),
+    )
+    db.add(user)
+    await db.commit()
+    return user

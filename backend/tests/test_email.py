@@ -321,3 +321,18 @@ def test_transport_errors_are_swallowed(monkeypatch: pytest.MonkeyPatch) -> None
     email_service.send_application_received(
         to="jane@example.com", candidate_name="J", job_title="T", company_name="C"
     )
+
+
+def test_send_google_linked(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_google_linked(to="user@gmail.com", company_name="Acme")
+
+    assert len(FakeSMTP.sent) == 1
+    message = FakeSMTP.sent[0]
+    assert message["To"] == "user@gmail.com"
+    assert "Google" in message["Subject"]
+    plain = message.get_body(preferencelist=("plain",))
+    assert plain is not None
+    assert "change your password" in str(plain.get_content()).lower()
