@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models import Application, Company, Interview, InterviewStatus, User
 from app.services import google_calendar
@@ -25,6 +26,18 @@ WORKDAY_END = time(18, 0)
 
 class InterviewExistsError(Exception):
     """The application already has a pending or booked interview."""
+
+
+class AlreadyBookedError(Exception):
+    """Booking attempted on an interview that already has a time."""
+
+
+class NotBookedError(Exception):
+    """Reschedule attempted before any slot was booked."""
+
+
+class SlotUnavailableError(Exception):
+    """The chosen slot is not offered, already past, or just got taken."""
 
 
 async def generate_slots(
@@ -130,3 +143,111 @@ async def cancel_interview(db: AsyncSession, interview: Interview, *, interviewe
             )
     interview.status = InterviewStatus.CANCELLED
     await db.commit()
+
+
+async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Interview | None:
+    """Token-authenticated candidate lookup — the signed token IS the scope."""
+    return (
+        await db.execute(
+            select(Interview)
+            .where(Interview.id == interview_id)
+            .options(
+                selectinload(Interview.application).selectinload(Application.candidate),
+                selectinload(Interview.application).selectinload(Application.job),
+            )
+        )
+    ).scalar_one_or_none()
+
+
+def available_slots(
+    interview: Interview, *, lead_time: timedelta = timedelta(hours=1)
+) -> list[datetime]:
+    """Offered slots that are still in the (near) future, sorted."""
+    horizon = datetime.now(UTC) + lead_time
+    slots = []
+    for raw in interview.offered_slots:
+        try:
+            slot = datetime.fromisoformat(raw)
+        except ValueError:
+            continue
+        if slot > horizon:
+            slots.append(slot)
+    return sorted(slots)
+
+
+def _require_offered(interview: Interview, start: datetime) -> None:
+    if start.astimezone(UTC) not in available_slots(interview):
+        raise SlotUnavailableError
+
+
+async def _slot_is_free(db: AsyncSession, interview: Interview, start: datetime) -> bool:
+    end = start + timedelta(minutes=interview.duration_minutes)
+    busy = await google_calendar.freebusy(db, interview.interviewer, start, end)
+    return not any(start < busy_end and end > busy_start for busy_start, busy_end in busy)
+
+
+async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
+    """Candidate picks a slot: re-check live free/busy, create the Meet event.
+
+    Google emails the calendar invite (sendUpdates=all) — that is the
+    design's "invite lands in your inbox".
+    """
+    if interview.status is InterviewStatus.BOOKED:
+        raise AlreadyBookedError
+    start = start.astimezone(UTC)
+    _require_offered(interview, start)
+    if not await _slot_is_free(db, interview, start):
+        raise SlotUnavailableError
+    candidate = interview.application.candidate
+    event_id, meet_url = await google_calendar.create_meet_event(
+        db,
+        interview.interviewer,
+        summary=f"{interview.title} — {candidate.name}",
+        description=interview.description,
+        start=start,
+        end=start + timedelta(minutes=interview.duration_minutes),
+        attendee_email=candidate.email,
+        timezone=interview.timezone,
+    )
+    interview.status = InterviewStatus.BOOKED
+    interview.scheduled_start = start
+    interview.google_event_id = event_id
+    interview.meet_url = meet_url
+    await db.commit()
+    return interview
+
+
+async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
+    if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
+        raise NotBookedError
+    start = start.astimezone(UTC)
+    _require_offered(interview, start)
+    if not await _slot_is_free(db, interview, start):
+        raise SlotUnavailableError
+    await google_calendar.patch_event_time(
+        db,
+        interview.interviewer,
+        interview.google_event_id,
+        start=start,
+        end=start + timedelta(minutes=interview.duration_minutes),
+        timezone=interview.timezone,
+    )
+    interview.scheduled_start = start
+    await db.commit()
+    return interview
+
+
+async def candidate_cancel(db: AsyncSession, interview: Interview) -> Interview:
+    """Candidate-side cancel; the recruiter can issue a fresh request later."""
+    if interview.status is InterviewStatus.CANCELLED:
+        return interview
+    if interview.google_event_id is not None:
+        try:
+            await google_calendar.delete_event(db, interview.interviewer, interview.google_event_id)
+        except google_calendar.GoogleCalendarError:
+            logger.warning(
+                "calendar event delete failed for interview %s", interview.id, exc_info=True
+            )
+    interview.status = InterviewStatus.CANCELLED
+    await db.commit()
+    return interview
