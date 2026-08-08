@@ -16,6 +16,7 @@ import {
   type QuizResult,
   type ReviewIntegrityEvent,
 } from "@/lib/api";
+import { InterviewCard } from "@/components/InterviewCard";
 
 /** Applicant review, handoff screen 11: split view — a 360px list of
  * candidates (score chips, flag dots, stage chip) beside a detail panel
@@ -483,6 +484,12 @@ function DetailPanel({
 
       {app.message ? (
         <p className="mt-4 text-sm text-g600">{app.message}</p>
+      ) : null}
+
+      {app.stage !== "rejected" && app.stage !== "withdrawn" ? (
+        <div className="mt-4">
+          <InterviewCard key={app.id} applicationId={app.id} />
+        </div>
       ) : null}
 
       {app.quiz_attempt && app.quiz_attempt.status === "completed" ? (

@@ -445,6 +445,52 @@ export const publicInterviews = {
     }),
 };
 
+export interface InterviewAdmin {
+  id: string;
+  status: "pending" | "booked" | "cancelled";
+  interviewer_user_id: string;
+  interviewer_email: string;
+  title: string;
+  description: string;
+  duration_minutes: number;
+  timezone: string;
+  offered_slots: string[];
+  scheduled_start: string | null;
+  meet_url: string | null;
+  created_at: string;
+}
+
+export const interviews = {
+  preview: (
+    applicationId: string,
+    body: { interviewer_user_id: string; duration_minutes: number; timezone: string },
+  ) =>
+    request<{ slots: string[] }>(`/api/v1/applications/${applicationId}/interview/slot-preview`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  create: (
+    applicationId: string,
+    body: {
+      interviewer_user_id: string;
+      duration_minutes: number;
+      timezone: string;
+      description: string;
+      slots: string[];
+    },
+  ) =>
+    request<InterviewAdmin>(`/api/v1/applications/${applicationId}/interview`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  get: (applicationId: string) =>
+    request<InterviewAdmin | null>(`/api/v1/applications/${applicationId}/interview`),
+  cancel: (applicationId: string) =>
+    request<InterviewAdmin>(`/api/v1/applications/${applicationId}/interview/cancel`, {
+      method: "POST",
+    }),
+};
+
 export const publicApplications = {
   status: (token: string) =>
     request<ApplicationStatus>(`/api/v1/public/applications/${token}`),
