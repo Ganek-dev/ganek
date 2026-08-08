@@ -18,7 +18,7 @@ services:
 
   worker:
     build: ./backend
-    command: arq app.worker.WorkerSettings
+    command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
     env_file: .env
     environment:
       VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
