@@ -29,6 +29,8 @@ from app.schemas.public import (
     ApplicationStatusOut,
     ApplicationSubmit,
     CvUploadTicket,
+    JobsFeed,
+    JobsFeedItem,
     PracticeOut,
     PracticeQuestionOut,
     PublicCompanyOut,
@@ -110,6 +112,55 @@ async def single_company_page(company: SingleCompany, db: DbSession) -> PublicCo
 )
 async def single_company_job(company: SingleCompany, job_slug: str, db: DbSession) -> Job:
     return await _published_job_or_404(db, company, job_slug)
+
+
+async def _jobs_feed(db: DbSession, company: Company, response: Response) -> JobsFeed:
+    """Published roles as third-party-friendly JSON (screen 25).
+
+    Meant for company marketing sites: open CORS and a short shared-cache
+    TTL (the security middleware's no-store applies to everything else on
+    /api/v1 via setdefault, so these explicit headers win).
+    """
+    base = settings.public_base_url.rstrip("/")
+    prefix = f"{base}/jobs" if settings.mode == "single" else f"{base}/c/{company.slug}/jobs"
+    jobs = await jobs_service.list_published_jobs(db, company)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return JobsFeed(
+        company=company.name,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        jobs=[
+            JobsFeedItem(
+                title=job.title,
+                slug=job.slug,
+                location=job.location,
+                remote_policy=job.remote_policy,
+                employment_type=job.employment_type,
+                tags=job.tags,
+                apply_url=f"{prefix}/{job.slug}",
+                posted_at=job.published_at,
+            )
+            for job in jobs
+        ],
+    )
+
+
+@router.get(
+    "/companies/{slug}/jobs-feed",
+    response_model=JobsFeed,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def company_jobs_feed(company: PublicCompany, db: DbSession, response: Response) -> JobsFeed:
+    return await _jobs_feed(db, company, response)
+
+
+@router.get(
+    "/company/jobs-feed",
+    response_model=JobsFeed,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def single_jobs_feed(company: SingleCompany, db: DbSession, response: Response) -> JobsFeed:
+    return await _jobs_feed(db, company, response)
 
 
 def _upload_ticket(company: Company) -> CvUploadTicket:
