@@ -497,3 +497,105 @@ def send_google_linked(*, to: str, company_name: str) -> None:
         send_email(to=to, subject=subject, body=body, html=html)
     except Exception:  # noqa: BLE001 - email must never break a login flow
         logger.warning("failed to send google-linked notice to %s", to, exc_info=True)
+
+
+def send_interview_invite(
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    duration_minutes: int,
+    booking_url: str,
+    brand_primary: str | None,
+) -> None:
+    """Interview booking link (D7, screen 23): the candidate picks a slot."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    subject = f"Pick a time — interview for {job_title} at {company_name}"
+
+    body = (
+        f"Hi {candidate_name},\n"
+        f"\n"
+        f"{company_name} would like to schedule a {duration_minutes}-minute\n"
+        f"interview with you for the {job_title} position.\n"
+        f"\n"
+        f"Pick a time that suits you: {booking_url}\n"
+        f"\n"
+        f"Once you confirm, a calendar invite with the meeting link lands\n"
+        f"in your inbox. You can reschedule or cancel from the same page.\n"
+        f"\n"
+        f"— {company_name} (via Vetd)\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"Pick a time, {safe_candidate}</h1>"
+        + _paragraph(
+            f'<b style="font-weight: 600;">{safe_company}</b> would like to schedule a '
+            f'<b style="font-weight: 600;">{duration_minutes}-minute interview</b> with you '
+            f"for the {safe_job} position."
+        )
+        + f'<a href="{booking_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Pick a time</a>"
+        + _paragraph(
+            "Once you confirm, a calendar invite with the meeting link lands in your "
+            "inbox. You can reschedule or cancel from the same page."
+        )
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
+        logger.warning("failed to send interview invite to %s", to, exc_info=True)
+
+
+def send_interview_cancelled(
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+) -> None:
+    """Interview request withdrawn/cancelled notice (neutral, no brand accent)."""
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    subject = f"Interview cancelled — {job_title} at {company_name}"
+
+    body = (
+        f"Hi {candidate_name},\n"
+        f"\n"
+        f"The scheduled interview for the {job_title} position at\n"
+        f"{company_name} has been cancelled. If a new time is needed,\n"
+        f"you'll receive a fresh scheduling link.\n"
+        f"\n"
+        f"— {company_name} (via Vetd)\n"
+    )
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        "Interview cancelled</h1>"
+        + _paragraph(
+            f"Hi {safe_candidate} — the scheduled interview for the "
+            f'<b style="font-weight: 600;">{safe_job}</b> position at {safe_company} has '
+            f"been cancelled."
+        )
+        + _paragraph("If a new time is needed, you'll receive a fresh scheduling link.")
+    )
+    html = _card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=safe_company,
+        content=content,
+    )
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
+        logger.warning("failed to send interview cancel notice to %s", to, exc_info=True)
