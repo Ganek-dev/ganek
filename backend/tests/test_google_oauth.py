@@ -15,8 +15,9 @@ from app.core.security import (
     GOOGLE_FLOW_COOKIE_NAME,
     create_google_flow_token,
     create_google_signup_token,
+    create_invite_token,
 )
-from app.models import Company, User, UserRole
+from app.models import Company, User, UserInvite, UserRole
 from app.services import oauth_google
 from tests.db import database_reachable
 
@@ -59,9 +60,15 @@ def _claims(
     return claims
 
 
-def _arm_flow(client: AsyncClient, state: str = "state-1", nonce: str = "nonce-1") -> None:
+def _arm_flow(
+    client: AsyncClient,
+    state: str = "state-1",
+    nonce: str = "nonce-1",
+    invite: str | None = None,
+) -> None:
     client.cookies.set(
-        GOOGLE_FLOW_COOKIE_NAME, create_google_flow_token(state, "verifier-1", nonce)
+        GOOGLE_FLOW_COOKIE_NAME,
+        create_google_flow_token(state, "verifier-1", nonce, invite=invite),
     )
 
 
@@ -249,3 +256,95 @@ async def test_signup_bad_token_is_410(client: AsyncClient) -> None:
         "/api/v1/auth/google/signup", json={"token": "garbage", "company_name": "X"}
     )
     assert resp.status_code == 410
+
+
+async def _make_invite(
+    db: AsyncSession, email: str, *, expired: bool = False
+) -> tuple[UserInvite, str]:
+    from datetime import UTC, datetime, timedelta
+
+    company = Company(slug=f"iv-{uuid4().hex[:8]}", name="Invite Co")
+    db.add(company)
+    await db.flush()
+    invite = UserInvite(
+        company_id=company.id,
+        email=email,
+        role=UserRole.MEMBER,
+        expires_at=datetime.now(UTC) + (timedelta(days=-1) if expired else timedelta(days=7)),
+    )
+    db.add(invite)
+    await db.commit()
+    await db.refresh(invite)
+    return invite, create_invite_token(invite.id)
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_invite_accept_via_google(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"inv-{uuid4().hex[:8]}@gmail.com"
+    sub = f"sub-{uuid4().hex}"
+    invite, token = await _make_invite(db_session, email)
+    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email, sub=sub)))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/admin"
+
+    me = await client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == email
+    assert me.json()["has_password"] is False
+    gone = (
+        await db_session.execute(select(UserInvite).where(UserInvite.id == invite.id))
+    ).scalar_one_or_none()
+    assert gone is None
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_invite_accept_rejects_email_mismatch(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, token = await _make_invite(db_session, f"inv-{uuid4().hex[:8]}@corp.dev")
+    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims("other@gmail.com")))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}?error=google-email-mismatch"
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_invite_accept_rejects_unverified_email(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"inv-{uuid4().hex[:8]}@corp.dev"
+    _, token = await _make_invite(db_session, email)
+    monkeypatch.setattr(
+        oauth_google,
+        "exchange_code",
+        _fake_exchange(_claims(email, email_verified=False)),
+    )
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}?error=google-email-mismatch"
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_invite_accept_expired_invite(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"inv-{uuid4().hex[:8]}@gmail.com"
+    _, token = await _make_invite(db_session, email, expired=True)
+    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email)))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}"
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_invite_accept_unknown_invite(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims("x@gmail.com")))
+    _arm_flow(client, invite="not-a-real-invite")
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/invite/not-a-real-invite?error=google-invalid"

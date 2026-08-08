@@ -24,6 +24,7 @@ from app.models import User
 from app.schemas.auth import GoogleSignupRequest, UserOut
 from app.services import auth as auth_service
 from app.services import email as email_service
+from app.services import invites as invites_service
 from app.services import oauth_google
 
 logger = logging.getLogger(__name__)
@@ -50,13 +51,13 @@ def _redirect(path: str) -> RedirectResponse:
 @router.get(
     "/start", dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)]
 )
-async def google_start() -> RedirectResponse:
+async def google_start(invite: str | None = None) -> RedirectResponse:
     _require_configured()
     url, state, verifier, nonce = oauth_google.build_authorization_request()
     response = RedirectResponse(url, status_code=status.HTTP_302_FOUND)
     response.set_cookie(
         GOOGLE_FLOW_COOKIE_NAME,
-        create_google_flow_token(state, verifier, nonce),
+        create_google_flow_token(state, verifier, nonce, invite=invite),
         max_age=GOOGLE_FLOW_MAX_AGE_SECONDS,
         httponly=True,
         # Lax, not Strict: Google's redirect back is a cross-site navigation
@@ -64,6 +65,28 @@ async def google_start() -> RedirectResponse:
         secure=settings.cookie_secure,
         path=_FLOW_COOKIE_PATH,
     )
+    return response
+
+
+async def _accept_invite_via_google(
+    db: DbSession, *, invite_token: str, claims: dict[str, object]
+) -> RedirectResponse:
+    """Invite-accept branch of the callback: the invite decides the workspace;
+    Google only vouches for the invited email (must match, must be verified)."""
+    invite = await invites_service.invite_by_token(db, invite_token)
+    if invite is None:
+        return _redirect(f"/invite/{invite_token}?error=google-invalid")
+    email_matches = str(claims.get("email", "")).casefold() == invite.email.casefold()
+    if not email_matches or not claims.get("email_verified"):
+        return _redirect(f"/invite/{invite_token}?error=google-email-mismatch")
+    try:
+        user = await invites_service.accept_invite_google(db, invite, str(claims["sub"]))
+    except invites_service.InviteExpiredError:
+        return _redirect(f"/invite/{invite_token}")  # page renders its own expired state
+    except invites_service.EmailTakenError:
+        return _redirect(f"/invite/{invite_token}?error=email-taken")
+    response = _redirect("/admin")
+    _set_session_cookie(response, user)
     return response
 
 
@@ -85,6 +108,9 @@ async def google_callback(
     except oauth_google.GoogleOAuthError:
         logger.warning("google oauth handshake failed", exc_info=True)
         return _redirect("/login?error=google-failed")
+
+    if flow[3] is not None:
+        return await _accept_invite_via_google(db, invite_token=flow[3], claims=claims)
 
     resolution, user = await oauth_google.resolve_identity(db, claims)
     if resolution is oauth_google.Resolution.SIGNUP:

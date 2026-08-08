@@ -2,30 +2,36 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, publicInvites } from "@/lib/api";
+import { ApiError, api, publicInvites } from "@/lib/api";
 
 import InviteAcceptPage from "./page";
 
 const push = vi.fn();
+let search = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ token: "invite-tok" }),
   useRouter: () => ({ push }),
+  useSearchParams: () => search,
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
+    api: { ...original.api, providers: vi.fn() },
     publicInvites: { get: vi.fn(), accept: vi.fn() },
   };
 });
 
 const mocked = vi.mocked(publicInvites);
+const mockedApi = vi.mocked(api);
 
 describe("InviteAcceptPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    search = new URLSearchParams();
+    mockedApi.providers.mockResolvedValue({ google: false });
     mocked.get.mockResolvedValue({
       email: "sofia@x.dev",
       company_name: "Acme Labs",
@@ -92,6 +98,31 @@ describe("InviteAcceptPage", () => {
       "An account with this email already exists",
     );
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("offers Google accept carrying the invite token when OAuth is configured", async () => {
+    mockedApi.providers.mockResolvedValue({ google: true });
+    render(<InviteAcceptPage />);
+    const link = await screen.findByRole("link", { name: /Continue with Google/ });
+    expect(link).toHaveAttribute("href", "/api/v1/auth/google/start?invite=invite-tok");
+    expect(screen.getByText(/or set a password/i)).toBeInTheDocument();
+  });
+
+  it("hides the Google option when the instance has no OAuth", async () => {
+    render(<InviteAcceptPage />);
+    await screen.findByRole("heading", { name: "Join Acme Labs" });
+    await waitFor(() => expect(mockedApi.providers).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: /Continue with Google/ })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["google-email-mismatch", /doesn't match this invite/i],
+    ["email-taken", /already exists/i],
+    ["google-invalid", /didn't complete/i],
+  ])("surfaces the %s google error", async (code, copy) => {
+    search = new URLSearchParams({ error: code });
+    render(<InviteAcceptPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy);
   });
 
   it("flips to the expired state when accept returns 410", async () => {
