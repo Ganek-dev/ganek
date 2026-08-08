@@ -5,6 +5,8 @@ export interface UserOut {
   company_id: string;
   email: string;
   role: "admin" | "member";
+  /** false = Google-only account (signed up via Google, no password set). */
+  has_password: boolean;
 }
 
 export type RemotePolicy = "onsite" | "hybrid" | "remote";
@@ -101,6 +103,12 @@ export const api = {
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
   me: () => request<UserOut>("/api/v1/auth/me"),
+  providers: () => request<{ google: boolean }>("/api/v1/auth/providers"),
+  googleSignup: (payload: { token: string; company_name: string }) =>
+    request<UserOut>("/api/v1/auth/google/signup", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("/api/v1/auth/change-password", {
       method: "POST",

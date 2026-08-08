@@ -31,6 +31,7 @@ describe("AdminLayout", () => {
       id: "u1",
       company_id: "c1",
       email: "grumpy@acme.dev",
+      has_password: true,
       role: "admin",
     });
     mockedApi.logout.mockResolvedValue(undefined);

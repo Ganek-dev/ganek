@@ -28,7 +28,13 @@ const mockedCompany = vi.mocked(companyApi);
 const mockedTeam = vi.mocked(team);
 const mockedJobs = vi.mocked(api.jobs);
 
-const admin = { id: "u1", company_id: "c1", email: "a@x.dev", role: "admin" as const };
+const admin = {
+  id: "u1",
+  company_id: "c1",
+  email: "a@x.dev",
+  role: "admin" as const,
+  has_password: true,
+};
 const soloTeam: TeamUser[] = [
   {
     id: "u1",

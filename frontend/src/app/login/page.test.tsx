@@ -7,11 +7,18 @@ import { api } from "@/lib/api";
 import LoginPage from "./page";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+let search = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => search,
+}));
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
-  return { ...original, api: { ...original.api, login: vi.fn() } };
+  return {
+    ...original,
+    api: { ...original.api, login: vi.fn(), providers: vi.fn() },
+  };
 });
 
 const mocked = vi.mocked(api);
@@ -19,23 +26,52 @@ const mocked = vi.mocked(api);
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    search = new URLSearchParams();
+    mocked.providers.mockResolvedValue({ google: false });
     mocked.login.mockResolvedValue({
       id: "u1",
       company_id: "c1",
       email: "you@company.com",
+      has_password: true,
       role: "admin",
     });
   });
 
-  it("shows the auth shell with Google placeholder and Forgot link", () => {
+  it("shows the auth shell without Google when the instance has no OAuth", async () => {
     render(<LoginPage />);
     expect(screen.getByRole("heading", { name: /Log in to your workspace/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Continue with Google/ })).toBeDisabled();
+    await waitFor(() => expect(mocked.providers).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: /Continue with Google/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Forgot?" })).toHaveAttribute("href", "/reset");
     expect(screen.getByRole("link", { name: /Create a workspace/ })).toHaveAttribute(
       "href",
       "/setup",
     );
+  });
+
+  it("shows the Google button when the instance has OAuth configured", async () => {
+    mocked.providers.mockResolvedValue({ google: true });
+    render(<LoginPage />);
+    const link = await screen.findByRole("link", { name: /Continue with Google/ });
+    expect(link).toHaveAttribute("href", "/api/v1/auth/google/start");
+    expect(screen.getByText(/or with email/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["use-password", /log in with your password/i],
+    ["account-disabled", /deactivated/i],
+    ["google-failed", /didn't complete/i],
+  ])("surfaces the %s oauth error", async (code, copy) => {
+    search = new URLSearchParams({ error: code });
+    render(<LoginPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+  });
+
+  it("ignores unknown error codes", async () => {
+    search = new URLSearchParams({ error: "some-new-thing" });
+    render(<LoginPage />);
+    await waitFor(() => expect(mocked.providers).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("submits credentials and redirects on success", async () => {

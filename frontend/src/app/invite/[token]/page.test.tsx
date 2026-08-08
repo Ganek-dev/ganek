@@ -35,6 +35,7 @@ describe("InviteAcceptPage", () => {
       id: "u9",
       company_id: "c1",
       email: "sofia@x.dev",
+      has_password: true,
       role: "member",
     });
   });

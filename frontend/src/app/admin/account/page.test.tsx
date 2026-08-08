@@ -28,6 +28,7 @@ describe("AccountPage", () => {
       id: "u1",
       company_id: "c1",
       email: "grumpy.miner@acmelabs.io",
+      has_password: true,
       role: "admin",
     });
   });
@@ -60,5 +61,19 @@ describe("AccountPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Update password" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("do not match");
     expect(mocked.changePassword).not.toHaveBeenCalled();
+  });
+
+  it("shows the Google note instead of the form for google-only accounts", async () => {
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@gmail.com",
+      has_password: false,
+      role: "admin",
+    });
+    render(<AccountPage />);
+    expect(await screen.findByText(/You sign in with Google/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Update password" })).not.toBeInTheDocument();
   });
 });

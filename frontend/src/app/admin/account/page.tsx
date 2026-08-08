@@ -112,11 +112,18 @@ export default function AccountPage() {
           <div>
             <p className="text-sm font-semibold">Password</p>
             <p className="mt-0.5 text-[12.5px] text-g500">
-              Changing your password signs out every other session.
+              {user && !user.has_password
+                ? "How you access this workspace."
+                : "Changing your password signs out every other session."}
             </p>
           </div>
         </div>
-        <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        {user && !user.has_password ? (
+          <p className="mt-4 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[12.5px] text-g500">
+            You sign in with Google — this account has no password.
+          </p>
+        ) : (
+          <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Current password</span>
             <input name="current" type="password" required className={inputCls} />
@@ -149,11 +156,12 @@ export default function AccountPage() {
             </button>
           </div>
         </form>
+        )}
       </div>
 
       <p className="text-[12.5px] text-g500">
-        Email notifications, Google sign-in and account deletion land with the email suite
-        (D5) and OAuth work (D6).
+        Email notification preferences and account deletion are planned for a later
+        milestone.
       </p>
     </section>
   );
