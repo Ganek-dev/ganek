@@ -1,8 +1,12 @@
 import uuid
 
 from app.core.security import (
+    create_google_flow_token,
+    create_google_signup_token,
     create_session_token,
     hash_password,
+    read_google_flow_token,
+    read_google_signup_token,
     read_session_token,
     verify_password,
 )
@@ -37,3 +41,21 @@ def test_slugify() -> None:
     assert slugify("  Über  Cool GmbH!  ") == "ber-cool-gmbh"
     assert slugify("!!!") == "item"
     assert len(slugify("x" * 300)) <= 64
+
+
+def test_google_flow_token_roundtrip() -> None:
+    token = create_google_flow_token("state1", "verifier1", "nonce1")
+    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1")
+
+
+def test_google_flow_token_garbage() -> None:
+    assert read_google_flow_token("garbage") is None
+
+
+def test_google_signup_token_roundtrip() -> None:
+    token = create_google_signup_token("sub-123", "person@gmail.com")
+    assert read_google_signup_token(token) == ("sub-123", "person@gmail.com")
+
+
+def test_google_signup_token_garbage() -> None:
+    assert read_google_signup_token("") is None

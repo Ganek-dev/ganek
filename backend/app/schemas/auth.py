@@ -21,6 +21,11 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=10, max_length=128)
 
 
+class GoogleSignupRequest(BaseModel):
+    token: str = Field(min_length=1)
+    company_name: str = Field(min_length=1, max_length=200)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -28,3 +33,4 @@ class UserOut(BaseModel):
     company_id: uuid.UUID
     email: EmailStr
     role: UserRole
+    has_password: bool

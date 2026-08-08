@@ -76,6 +76,14 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Use
     return user
 
 
+@router.get("/providers")
+async def providers() -> dict[str, bool]:
+    """Which optional sign-in methods this instance has configured."""
+    return {
+        "google": bool(settings.google_client_id and settings.google_client_secret),
+    }
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE_NAME)

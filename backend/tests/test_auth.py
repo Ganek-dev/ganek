@@ -3,8 +3,10 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models import Company, User, UserRole
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -96,4 +98,28 @@ async def test_single_mode_registration_closes_after_first_company(
 
 async def test_me_requires_auth(client: AsyncClient) -> None:
     resp = await client.get("/api/v1/auth/me")
+    assert resp.status_code == 401
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_password_login_rejects_google_only_user(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    company = Company(slug=f"go-{uuid4().hex[:8]}", name="Google Only Co")
+    db_session.add(company)
+    await db_session.flush()
+    email = f"go-{uuid4().hex[:8]}@gmail.com"
+    user = User(
+        company_id=company.id,
+        email=email,
+        password_hash=None,
+        role=UserRole.ADMIN,
+        google_sub=f"sub-{uuid4().hex}",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/auth/login", json={"email": email, "password": "whatever-long"}
+    )
     assert resp.status_code == 401

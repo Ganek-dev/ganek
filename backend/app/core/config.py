@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # against this base).
     public_base_url: str = "http://localhost:3000"
 
+    # Google sign-in (feature is off while unset). Redirect override for
+    # setups where the admin origin differs from public_base_url.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_redirect_url: str | None = None
+
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None
