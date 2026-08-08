@@ -155,6 +155,31 @@ async def company_jobs_feed(company: PublicCompany, db: DbSession, response: Res
 
 
 @router.get(
+    "/companies/{slug}/logo",
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def company_logo(company: PublicCompany) -> Response:
+    """Serve the branding logo from the app bucket (option B: same-origin,
+    no public bucket). Long shared cache — the stored logo_url carries a
+    version param that busts it on replace. The CSP neuters scriptable
+    SVGs even when the file is opened directly."""
+    if company.logo_url is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo")
+    stored = await storage.get_object(storage.build_logo_key(company.id))
+    if stored is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo")
+    data, content_type = stored
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+        },
+    )
+
+
+@router.get(
     "/company/jobs-feed",
     response_model=JobsFeed,
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],

@@ -96,6 +96,45 @@ def presign_cv_download(object_key: str, filename: str) -> str:
     )
 
 
+LOGO_MAX_BYTES = 2 * 1024 * 1024  # matches the branding card copy (max 2 MB)
+
+
+def build_logo_key(company_id: UUID) -> str:
+    """Stable key — replacing a logo overwrites in place; the served URL's
+    version query param handles cache busting."""
+    return f"logos/{company_id}"
+
+
+def _put_object(object_key: str, data: bytes, content_type: str) -> None:
+    _internal_client().put_object(
+        Bucket=settings.s3_bucket, Key=object_key, Body=data, ContentType=content_type
+    )
+
+
+async def put_object(object_key: str, data: bytes, content_type: str) -> None:
+    await anyio.to_thread.run_sync(_put_object, object_key, data, content_type)
+
+
+def _get_object(object_key: str) -> tuple[bytes, str] | None:
+    try:
+        result = _internal_client().get_object(Bucket=settings.s3_bucket, Key=object_key)
+    except ClientError:
+        return None
+    return result["Body"].read(), result.get("ContentType", "application/octet-stream")
+
+
+async def get_object(object_key: str) -> tuple[bytes, str] | None:
+    return await anyio.to_thread.run_sync(_get_object, object_key)
+
+
+def _delete_object(object_key: str) -> None:
+    _internal_client().delete_object(Bucket=settings.s3_bucket, Key=object_key)
+
+
+async def delete_object(object_key: str) -> None:
+    await anyio.to_thread.run_sync(_delete_object, object_key)
+
+
 def _stat_object(object_key: str) -> ObjectStat | None:
     try:
         head = _internal_client().head_object(Bucket=settings.s3_bucket, Key=object_key)
