@@ -14,7 +14,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    companyApi: { get: vi.fn(), updateBranding: vi.fn() },
+    companyApi: {
+      get: vi.fn(),
+      updateBranding: vi.fn(),
+      updateSettings: vi.fn(),
+      uploadLogo: vi.fn(),
+      removeLogo: vi.fn(),
+    },
   };
 });
 
@@ -122,8 +128,45 @@ describe("BrandingPage", () => {
     expect(screen.queryByText("AA contrast ok")).not.toBeInTheDocument();
   });
 
-  it("keeps the logo Replace button disabled until upload ships", async () => {
+  it("uploads a logo from the Upload control and shows it", async () => {
+    mocked.uploadLogo.mockResolvedValue(
+      makeCompany({ logo_url: "http://localhost/api/v1/public/companies/northwind/logo?v=1" }),
+    );
     render(<BrandingPage />);
-    expect(await screen.findByRole("button", { name: "Replace" })).toBeDisabled();
+    const input = (await screen.findByText("Upload")).querySelector("input")!;
+    const file = new File(["fake-png"], "logo.png", { type: "image/png" });
+    await userEvent.upload(input, file);
+    await waitFor(() => expect(mocked.uploadLogo).toHaveBeenCalledWith(file));
+    expect(await screen.findByRole("status")).toHaveTextContent("Logo updated");
+    expect(screen.getByAltText("Company logo")).toHaveAttribute(
+      "src",
+      "http://localhost/api/v1/public/companies/northwind/logo?v=1",
+    );
+    // once a logo exists the control reads Replace and Remove appears
+    expect(screen.getByText("Replace")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("rejects oversized files client-side without calling the API", async () => {
+    render(<BrandingPage />);
+    const input = (await screen.findByText("Upload")).querySelector("input")!;
+    const big = new File([new Uint8Array(2 * 1024 * 1024 + 1)], "big.png", {
+      type: "image/png",
+    });
+    await userEvent.upload(input, big);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Logo must be 2 MB or smaller");
+    expect(mocked.uploadLogo).not.toHaveBeenCalled();
+  });
+
+  it("removes the logo", async () => {
+    mocked.get.mockResolvedValue(
+      makeCompany({ logo_url: "http://localhost/api/v1/public/companies/northwind/logo?v=1" }),
+    );
+    mocked.removeLogo.mockResolvedValue(makeCompany());
+    render(<BrandingPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(mocked.removeLogo).toHaveBeenCalled());
+    expect(await screen.findByRole("status")).toHaveTextContent("Logo removed");
+    expect(screen.queryByAltText("Company logo")).not.toBeInTheDocument();
   });
 });

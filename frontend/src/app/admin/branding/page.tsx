@@ -36,6 +36,7 @@ export default function BrandingPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -71,6 +72,38 @@ export default function BrandingPage() {
       setError(err instanceof Error ? err.message : "Failed to save branding");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadLogo(file: File) {
+    setError(null);
+    setNotice(null);
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Logo must be 2 MB or smaller");
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      setCompany(await companyApi.uploadLogo(file));
+      setNotice("Logo updated");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload logo");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function removeLogo() {
+    setError(null);
+    setNotice(null);
+    setLogoBusy(true);
+    try {
+      setCompany(await companyApi.removeLogo());
+      setNotice("Logo removed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove logo");
+    } finally {
+      setLogoBusy(false);
     }
   }
 
@@ -123,25 +156,50 @@ export default function BrandingPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">
           <div className="card flex items-center gap-4 p-4">
-            <div
-              aria-hidden
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold"
-              style={{ background: previewColor, color: brandForeground(previewColor) }}
-            >
-              {company.name.charAt(0).toUpperCase()}
-            </div>
+            {company.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- served by our own API, host unknown at build time
+              <img
+                src={company.logo_url}
+                alt="Company logo"
+                className="h-12 w-12 shrink-0 rounded-lg border border-edge bg-surface object-contain"
+              />
+            ) : (
+              <div
+                aria-hidden
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold"
+                style={{ background: previewColor, color: brandForeground(previewColor) }}
+              >
+                {company.name.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <p className={labelCls}>Logo</p>
               <p className={hintCls}>PNG, JPG, or SVG · max 2 MB · shown on all candidate pages</p>
             </div>
-            <button
-              type="button"
-              disabled
-              title="Logo upload is coming soon"
-              className="inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g500 opacity-60"
-            >
-              Replace
-            </button>
+            {company.logo_url ? (
+              <button
+                type="button"
+                disabled={logoBusy}
+                onClick={removeLogo}
+                className="inline-flex h-8 items-center rounded-md px-2 text-[13px] font-medium text-red-600 hover:bg-muted-fill disabled:opacity-50 dark:text-red-400"
+              >
+                Remove
+              </button>
+            ) : null}
+            <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill">
+              {logoBusy ? "…" : company.logo_url ? "Replace" : "Upload"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg"
+                disabled={logoBusy}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file) uploadLogo(file);
+                }}
+                className="sr-only"
+              />
+            </label>
           </div>
 
           <div className="card space-y-3 p-4">
@@ -249,16 +307,25 @@ export default function BrandingPage() {
             data-testid="branding-preview"
           >
             <div className="flex items-center gap-2.5">
-              <span
-                aria-hidden
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[13px] font-bold"
-                style={{
-                  background: "var(--brand-primary)",
-                  color: "var(--brand-primary-foreground)",
-                }}
-              >
-                {company.name.charAt(0).toUpperCase()}
-              </span>
+              {company.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- served by our own API, host unknown at build time
+                <img
+                  src={company.logo_url}
+                  alt=""
+                  className="h-7 w-7 rounded-md bg-white object-contain"
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-[13px] font-bold"
+                  style={{
+                    background: "var(--brand-primary)",
+                    color: "var(--brand-primary-foreground)",
+                  }}
+                >
+                  {company.name.charAt(0).toUpperCase()}
+                </span>
+              )}
               <span className="text-sm font-semibold">{company.name}</span>
               <span className="ml-auto text-[12px] text-g500">Careers</span>
             </div>
