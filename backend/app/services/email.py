@@ -599,3 +599,63 @@ def send_interview_cancelled(
         send_email(to=to, subject=subject, body=body, html=html)
     except Exception:  # noqa: BLE001 - email must never break a recruiter flow
         logger.warning("failed to send interview cancel notice to %s", to, exc_info=True)
+
+
+def send_interview_reminder(
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    start: datetime,
+    timezone: str,
+    meet_url: str | None,
+    brand_primary: str | None,
+) -> None:
+    """T-24h reminder for a booked interview (D7 arq job)."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    try:
+        from zoneinfo import ZoneInfo
+
+        local = start.astimezone(ZoneInfo(timezone))
+    except Exception:  # noqa: BLE001 - a bad stored zone must not kill the reminder
+        local = start
+    when = f"{local:%a}, {local:%b} {local.day} · {local:%H:%M}"
+    subject = f"Reminder: your interview at {company_name} is coming up"
+
+    body = (
+        f"Hi {candidate_name},\n"
+        f"\n"
+        f"A quick reminder about your {job_title} interview at\n"
+        f"{company_name}: {when} ({timezone}).\n"
+        f"\n" + (f"Join via Google Meet: {meet_url}\n\n" if meet_url else "") + f"Good luck!\n"
+        f"— {company_name} (via Vetd)\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"See you soon, {safe_candidate}</h1>"
+        + _paragraph(
+            f'A quick reminder about your <b style="font-weight: 600;">{safe_job}</b> '
+            f'interview at {safe_company}: <b style="font-weight: 600;">{when}</b> '
+            f'<span style="font-family: monospace; font-size: 12px;">({escape(timezone)})</span>.'
+        )
+        + (
+            f'<a href="{meet_url}" style="margin-top: 22px; display: block; text-align: center; '
+            f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+            f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+            f"Join with Google Meet</a>"
+            if meet_url
+            else ""
+        )
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+    try:
+        send_email(to=to, subject=subject, body=body, html=html)
+    except Exception:  # noqa: BLE001 - email must never break the worker loop
+        logger.warning("failed to send interview reminder to %s", to, exc_info=True)

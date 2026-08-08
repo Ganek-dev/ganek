@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core import queue
 from app.core.config import settings
 from app.models import (
     MAX_DIFFICULTY,
@@ -250,6 +251,16 @@ async def create_attempt(
     )
     db.add(attempt)
     await db.commit()
+    # auto-nudge (17b) shortly before the link dies; the job re-validates
+    ttl = timedelta(hours=settings.quiz_start_ttl_hours)
+    fire_at = attempt.expires_at - min(timedelta(days=3), ttl / 4)
+    if fire_at > _now() + timedelta(hours=1):
+        await queue.enqueue(
+            "send_quiz_nudge",
+            str(attempt.id),
+            defer_until=fire_at,
+            job_id=f"nudge-{attempt.id}",
+        )
     return attempt
 
 
