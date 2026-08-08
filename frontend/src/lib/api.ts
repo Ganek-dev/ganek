@@ -232,10 +232,22 @@ export interface QuizIntegrity {
   resize_count?: number;
   avg_answer_ms?: number;
   flags?: IntegrityFlag[];
+  /** Set on a RE-ISSUED attempt: where it came from and why (D6). */
+  reissue?: {
+    from_attempt_id: string;
+    reason: "expired" | "integrity";
+    mode: "auto" | "manual";
+    by_user_id: string | null;
+    at: string;
+  };
+  /** Human review of the flags (screen 24 "looks fine"). */
+  review?: { decision: string; by_user_id: string; at: string };
+  /** Candidate asked for a new link from the expired screen (27c). */
+  reissue_requested?: { at: string; count: number };
 }
 
 export interface QuizResult {
-  status: "pending" | "in_progress" | "completed" | "expired";
+  status: "pending" | "in_progress" | "completed" | "expired" | "invalidated";
   score: number | null;
   per_tag_scores: Record<string, { correct: number; total: number }>;
   completed_at: string | null;
@@ -275,6 +287,11 @@ export const applications = {
     request<{ sent: boolean }>(`/api/v1/applications/${id}/remind`, { method: "POST" }),
   quizAnswers: (id: string) =>
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
+  get: (id: string) => request<ApplicationOut>(`/api/v1/applications/${id}`),
+  reissueQuiz: (id: string) =>
+    request<QuizResult>(`/api/v1/applications/${id}/quiz/reissue`, { method: "POST" }),
+  dismissFlags: (id: string) =>
+    request<QuizResult>(`/api/v1/applications/${id}/quiz/dismiss-flags`, { method: "POST" }),
 };
 
 export interface ReviewIntegrityEvent {

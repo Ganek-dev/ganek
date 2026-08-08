@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AlertTriangle, BellRing, Check, ChevronDown, Clock, FileText, X } from "lucide-react";
@@ -298,7 +299,7 @@ function AnswerRow({ index, review }: { index: number; review: QuizAnswerReview 
   );
 }
 
-function IntegrityCard({ result }: { result: QuizResult }) {
+function IntegrityCard({ result, applicationId }: { result: QuizResult; applicationId: string }) {
   const flags = result.integrity.flags ?? [];
   const risk = flags.length === 0 ? "low" : flags.length === 1 ? "some" : "high";
   const tone = risk === "low" ? SCORE_TONE.green.chip : SCORE_TONE.amber.chip;
@@ -309,8 +310,16 @@ function IntegrityCard({ result }: { result: QuizResult }) {
         <span className="font-mono text-[11px] tracking-[0.08em] text-g500 uppercase">
           Integrity
         </span>
-        <span className={`inline-flex h-5 items-center rounded-full border px-2 text-[11px] font-medium ${tone}`}>
-          {risk === "low" ? "low risk" : `${flags.length} flag${flags.length > 1 ? "s" : ""}`}
+        <span className="flex items-center gap-2">
+          <span className={`inline-flex h-5 items-center rounded-full border px-2 text-[11px] font-medium ${tone}`}>
+            {risk === "low" ? "low risk" : `${flags.length} flag${flags.length > 1 ? "s" : ""}`}
+          </span>
+          <Link
+            href={`/admin/applicants/${applicationId}/integrity`}
+            className="text-[11.5px] font-medium text-accent hover:underline"
+          >
+            Review →
+          </Link>
         </span>
       </div>
       {flags.length === 0 ? (
@@ -478,7 +487,7 @@ function DetailPanel({
             </ol>
           )}
           <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <IntegrityCard result={app.quiz_attempt} />
+            <IntegrityCard result={app.quiz_attempt} applicationId={app.id} />
           </div>
         </>
       ) : app.quiz_attempt ? (
