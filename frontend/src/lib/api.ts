@@ -687,6 +687,51 @@ export interface StatsOverview {
   }[];
 }
 
+export interface ActivityItem {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  actor_email: string | null;
+  application_id: string | null;
+  created_at: string;
+}
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  note: string;
+  due_date: string | null;
+  done_at: string | null;
+  assignee_user_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface TodayPanelData {
+  source: "google" | "vetd";
+  events: { start: string | null; summary: string; hangout_link: string | null }[];
+}
+
+export const dashboard = {
+  activity: (limit = 15) => request<ActivityItem[]>(`/api/v1/activity?limit=${limit}`),
+  today: (tz: string) =>
+    request<TodayPanelData>(`/api/v1/stats/today?tz=${encodeURIComponent(tz)}`),
+  tasks: {
+    list: () => request<TaskItem[]>("/api/v1/tasks"),
+    create: (title: string, note = "") =>
+      request<TaskItem>("/api/v1/tasks", {
+        method: "POST",
+        body: JSON.stringify({ title, note }),
+      }),
+    toggle: (id: string, done: boolean) =>
+      request<TaskItem>(`/api/v1/tasks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ done }),
+      }),
+    remove: (id: string) => request<void>(`/api/v1/tasks/${id}`, { method: "DELETE" }),
+  },
+};
+
 export const stats = {
   overview: () => request<StatsOverview>("/api/v1/stats/overview"),
 };
