@@ -5,7 +5,7 @@ import pytest
 from alembic.config import Config as AlembicConfig
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from alembic import command
 from app.core.config import settings
@@ -69,3 +69,23 @@ def test_migration_is_idempotent_on_stamped_db() -> None:
     cfg = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     command.upgrade(cfg, "head")
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_user_google_sub_and_nullable_password(db_session: AsyncSession) -> None:
+    company = Company(slug=f"g-{uuid4().hex[:8]}", name="Google Co")
+    db_session.add(company)
+    await db_session.flush()
+    user = User(
+        company_id=company.id,
+        email=f"g-{uuid4().hex[:8]}@gmail.com",
+        password_hash=None,
+        role=UserRole.ADMIN,
+        google_sub=f"sub-{uuid4().hex}",
+    )
+    db_session.add(user)
+    await db_session.commit()
+    assert user.has_password is False
+    await db_session.delete(user)
+    await db_session.delete(company)
+    await db_session.commit()

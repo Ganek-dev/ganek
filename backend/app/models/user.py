@@ -24,7 +24,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("companies.id", ondelete="CASCADE"), index=True
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(200))
+    # NULL for Google-only accounts (signed up via Google, no password set)
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Google's stable OIDC subject; the durable identity key once linked
+    google_sub: Mapped[str | None] = mapped_column(
+        String(255), unique=True, index=True, nullable=True
+    )
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, values_callable=lambda e: [m.value for m in e], native_enum=False, length=20)
     )
@@ -35,3 +40,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     token_version: Mapped[int] = mapped_column(Integer, default=0)
 
     company: Mapped["Company"] = relationship(back_populates="users")
+
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None

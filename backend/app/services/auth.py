@@ -74,7 +74,12 @@ async def authenticate(db: AsyncSession, *, email: str, password: str) -> User |
     if await lockout.is_locked(email):
         raise AccountLockedError
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
-    if user is None or not user.is_active or not verify_password(password, user.password_hash):
+    if (
+        user is None
+        or not user.is_active
+        or user.password_hash is None
+        or not verify_password(password, user.password_hash)
+    ):
         await lockout.record_failure(email)
         return None
     await lockout.clear(email)
@@ -92,7 +97,7 @@ async def change_password(
     fail validation, so a compromised session cannot survive a password
     change.
     """
-    if not verify_password(current_password, user.password_hash):
+    if user.password_hash is None or not verify_password(current_password, user.password_hash):
         return False
     user.password_hash = hash_password(new_password)
     user.token_version += 1
