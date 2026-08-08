@@ -153,18 +153,17 @@ export default function InterviewBookingPage() {
   const [rescheduling, setRescheduling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      setInterview(await publicInterviews.get(token));
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setInvalid(true);
-      else setError(err instanceof Error ? err.message : "Failed to load");
-    }
+  const load = useCallback(() => {
+    publicInterviews
+      .get(token)
+      .then(setInterview)
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 404) setInvalid(true);
+        else setError(err instanceof Error ? err.message : "Failed to load");
+      });
   }, [token]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(load, [load]);
 
   async function submit(action: "book" | "reschedule") {
     if (!selected) return;
@@ -182,7 +181,7 @@ export default function InterviewBookingPage() {
       if (err instanceof ApiError && err.detail === "slot-taken") {
         setError("That time was just taken — please pick another.");
         setSelected(null);
-        await load();
+        load();
       } else if (err instanceof ApiError && err.status === 503) {
         setError("Scheduling is temporarily unavailable — please try again in a bit.");
       } else {
