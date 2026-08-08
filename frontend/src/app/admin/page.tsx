@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Plus } from "lucide-react";
 
+import { ActivityPanel, QueuePanel, TodayPanel } from "@/components/DashboardPanels";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { stats, type StatsOverview } from "@/lib/api";
 
@@ -254,6 +255,12 @@ export default function AdminDashboard() {
       </div>
 
       <OnboardingChecklist />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <TodayPanel />
+        <QueuePanel overview={data} />
+        <ActivityPanel />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
