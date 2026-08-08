@@ -21,6 +21,15 @@ _invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-team
 INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 
+_google_flow_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-oauth")
+# state/PKCE verifier/nonce only need to survive the redirect to Google and back
+GOOGLE_FLOW_MAX_AGE_SECONDS = 60 * 10
+GOOGLE_FLOW_COOKIE_NAME = "vetd_google_flow"
+_google_signup_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-signup")
+# window to type a company name on /setup after Google authenticated the user
+GOOGLE_SIGNUP_MAX_AGE_SECONDS = 60 * 15
+
+
 def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
@@ -80,4 +89,28 @@ def read_invite_token(token: str) -> uuid.UUID | None:
         raw: str = _invite_serializer.loads(token, max_age=INVITE_TOKEN_MAX_AGE_SECONDS)
         return uuid.UUID(raw)
     except (BadSignature, SignatureExpired, ValueError):
+        return None
+
+
+def create_google_flow_token(state: str, code_verifier: str, nonce: str) -> str:
+    return _google_flow_serializer.dumps({"s": state, "cv": code_verifier, "n": nonce})
+
+
+def read_google_flow_token(token: str) -> tuple[str, str, str] | None:
+    try:
+        raw = _google_flow_serializer.loads(token, max_age=GOOGLE_FLOW_MAX_AGE_SECONDS)
+        return str(raw["s"]), str(raw["cv"]), str(raw["n"])
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+        return None
+
+
+def create_google_signup_token(sub: str, email: str) -> str:
+    return _google_signup_serializer.dumps({"sub": sub, "email": email})
+
+
+def read_google_signup_token(token: str) -> tuple[str, str] | None:
+    try:
+        raw = _google_signup_serializer.loads(token, max_age=GOOGLE_SIGNUP_MAX_AGE_SECONDS)
+        return str(raw["sub"]), str(raw["email"])
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
         return None
