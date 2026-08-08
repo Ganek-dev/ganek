@@ -104,6 +104,14 @@ export const api = {
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
   me: () => request<UserOut>("/api/v1/auth/me"),
   providers: () => request<{ google: boolean }>("/api/v1/auth/providers"),
+  googleCalendar: {
+    status: () =>
+      request<{ connected: boolean; google_email: string | null; needs_reconnect: boolean }>(
+        "/api/v1/users/me/google-calendar",
+      ),
+    disconnect: () =>
+      request<void>("/api/v1/users/me/google-calendar", { method: "DELETE" }),
+  },
   googleSignup: (payload: { token: string; company_name: string }) =>
     request<UserOut>("/api/v1/auth/google/signup", {
       method: "POST",

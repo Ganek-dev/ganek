@@ -55,8 +55,16 @@ def redirect_uri() -> str:
     return f"{settings.public_base_url}/api/v1/auth/google/callback"
 
 
-def build_authorization_request() -> tuple[str, str, str, str]:
-    """Return (authorization_url, state, code_verifier, nonce)."""
+CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+
+
+def build_authorization_request(*, calendar: bool = False) -> tuple[str, str, str, str]:
+    """Return (authorization_url, state, code_verifier, nonce).
+
+    calendar=True is the incremental-auth consent for Calendar access:
+    offline access forces a refresh token (prompt=consent re-issues one on
+    reconnect), and include_granted_scopes folds in the sign-in grant.
+    """
     state = secrets.token_urlsafe(32)
     code_verifier = secrets.token_urlsafe(64)
     nonce = secrets.token_urlsafe(32)
@@ -76,6 +84,11 @@ def build_authorization_request() -> tuple[str, str, str, str]:
         "code_challenge_method": "S256",
         "prompt": "select_account",
     }
+    if calendar:
+        params["scope"] = f"openid email {CALENDAR_SCOPE}"
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+        params["include_granted_scopes"] = "true"
     return f"{GOOGLE_AUTH_ENDPOINT}?{urlencode(params)}", state, code_verifier, nonce
 
 
@@ -92,6 +105,13 @@ def _decode_claims(id_token: str) -> dict[str, object]:
 
 async def exchange_code(code: str, code_verifier: str) -> dict[str, object]:
     """Trade the authorization code for the ID token's claims."""
+    claims, _ = await exchange_code_full(code, code_verifier)
+    return claims
+
+
+async def exchange_code_full(code: str, code_verifier: str) -> tuple[dict[str, object], str | None]:
+    """Like exchange_code, but also returns the refresh token when Google
+    issues one (offline/calendar consents only)."""
     async with httpx.AsyncClient(timeout=10) as client:
         try:
             resp = await client.post(
@@ -109,10 +129,12 @@ async def exchange_code(code: str, code_verifier: str) -> dict[str, object]:
             raise GoogleOAuthError("token endpoint unreachable") from exc
     if resp.status_code != 200:
         raise GoogleOAuthError(f"token exchange failed with {resp.status_code}")
-    id_token = resp.json().get("id_token")
+    data = resp.json()
+    id_token = data.get("id_token")
     if not isinstance(id_token, str):
         raise GoogleOAuthError("no id_token in token response")
-    return _decode_claims(id_token)
+    refresh_token = data.get("refresh_token")
+    return _decode_claims(id_token), (refresh_token if isinstance(refresh_token, str) else None)
 
 
 def validate_claims(claims: dict[str, object], *, nonce: str) -> None:

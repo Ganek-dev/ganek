@@ -4,12 +4,14 @@ frontend origin. See services/oauth_google.py for the flow's trust model."""
 
 import logging
 import secrets
+import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy import func, select
 
 from app.api.auth import _set_session_cookie
-from app.api.deps import DbSession
+from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
@@ -24,8 +26,8 @@ from app.models import User
 from app.schemas.auth import GoogleSignupRequest, UserOut
 from app.services import auth as auth_service
 from app.services import email as email_service
+from app.services import google_calendar, oauth_google
 from app.services import invites as invites_service
-from app.services import oauth_google
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,62 @@ async def _accept_invite_via_google(
     return response
 
 
+@router.get(
+    "/calendar/connect",
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def google_calendar_connect(user: CurrentUser) -> RedirectResponse:
+    """Incremental-auth consent for Calendar access (offline → refresh token)."""
+    _require_configured()
+    url, state, verifier, nonce = oauth_google.build_authorization_request(calendar=True)
+    response = RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        GOOGLE_FLOW_COOKIE_NAME,
+        create_google_flow_token(state, verifier, nonce, calendar_user_id=str(user.id)),
+        max_age=GOOGLE_FLOW_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        path=_FLOW_COOKIE_PATH,
+    )
+    return response
+
+
+async def _connect_calendar_via_google(
+    db: DbSession, *, user_id: str, claims: dict[str, object], refresh_token: str | None
+) -> RedirectResponse:
+    """Calendar-connect branch of the callback: the session user was captured
+    in the flow cookie; the Google account must be (or become) theirs."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return _redirect("/admin/account?calendar=failed")
+    user = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+    if user is None or not user.is_active:
+        return _redirect("/admin/account?calendar=failed")
+    sub = str(claims["sub"])
+    if user.google_sub is not None and user.google_sub != sub:
+        return _redirect("/admin/account?calendar=wrong-account")
+    if refresh_token is None:
+        # consent flow completed without offline grant — retry needs prompt=consent
+        return _redirect("/admin/account?calendar=failed")
+    if user.google_sub is None:
+        sub_taken = (
+            await db.execute(
+                select(func.count())
+                .select_from(User)
+                .where(User.google_sub == sub, User.id != user.id)
+            )
+        ).scalar_one()
+        if sub_taken:
+            return _redirect("/admin/account?calendar=wrong-account")
+        user.google_sub = sub
+    await google_calendar.store_credentials(
+        db, user, refresh_token=refresh_token, google_email=str(claims["email"])
+    )
+    return _redirect("/admin/account?calendar=connected")
+
+
 @router.get("/callback")
 async def google_callback(
     request: Request, db: DbSession, background: BackgroundTasks
@@ -103,11 +161,16 @@ async def google_callback(
     if not code or not state or flow is None or not secrets.compare_digest(state, flow[0]):
         return _redirect("/login?error=google-failed")
     try:
-        claims = await oauth_google.exchange_code(code, flow[1])
+        claims, refresh_token = await oauth_google.exchange_code_full(code, flow[1])
         oauth_google.validate_claims(claims, nonce=flow[2])
     except oauth_google.GoogleOAuthError:
         logger.warning("google oauth handshake failed", exc_info=True)
         return _redirect("/login?error=google-failed")
+
+    if flow[4] is not None:
+        return await _connect_calendar_via_google(
+            db, user_id=flow[4], claims=claims, refresh_token=refresh_token
+        )
 
     if flow[3] is not None:
         return await _accept_invite_via_google(db, invite_token=flow[3], claims=claims)

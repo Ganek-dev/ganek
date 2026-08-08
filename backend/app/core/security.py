@@ -93,23 +93,31 @@ def read_invite_token(token: str) -> uuid.UUID | None:
 
 
 def create_google_flow_token(
-    state: str, code_verifier: str, nonce: str, invite: str | None = None
+    state: str,
+    code_verifier: str,
+    nonce: str,
+    invite: str | None = None,
+    calendar_user_id: str | None = None,
 ) -> str:
     payload: dict[str, str] = {"s": state, "cv": code_verifier, "n": nonce}
     if invite is not None:
         payload["i"] = invite  # opaque team-invite token riding through the oauth flow
+    if calendar_user_id is not None:
+        payload["u"] = calendar_user_id  # logged-in user connecting their calendar
     return _google_flow_serializer.dumps(payload)
 
 
-def read_google_flow_token(token: str) -> tuple[str, str, str, str | None] | None:
+def read_google_flow_token(token: str) -> tuple[str, str, str, str | None, str | None] | None:
     try:
         raw = _google_flow_serializer.loads(token, max_age=GOOGLE_FLOW_MAX_AGE_SECONDS)
         invite = raw.get("i")
+        calendar_user_id = raw.get("u")
         return (
             str(raw["s"]),
             str(raw["cv"]),
             str(raw["n"]),
             str(invite) if invite is not None else None,
+            str(calendar_user_id) if calendar_user_id is not None else None,
         )
     except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
         return None

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from alembic import command
 from app.core.config import settings
-from app.models import Company, User, UserRole
+from app.models import Company, User, UserGoogleCredential, UserRole
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -87,5 +88,32 @@ async def test_user_google_sub_and_nullable_password(db_session: AsyncSession) -
     await db_session.commit()
     assert user.has_password is False
     await db_session.delete(user)
+    await db_session.delete(company)
+    await db_session.commit()
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_user_google_credential_roundtrip(db_session: AsyncSession) -> None:
+    company = Company(slug=f"cal-{uuid4().hex[:8]}", name="Cal Co")
+    db_session.add(company)
+    await db_session.flush()
+    user = User(
+        company_id=company.id,
+        email=f"cal-{uuid4().hex[:8]}@gmail.com",
+        password_hash="x",
+        role=UserRole.ADMIN,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    cred = UserGoogleCredential(
+        user_id=user.id,
+        refresh_token_encrypted="enc",
+        google_email=user.email,
+        connected_at=datetime.now(UTC),
+    )
+    db_session.add(cred)
+    await db_session.commit()
+    assert cred.last_refresh_error is None
+    await db_session.delete(user)  # cascade removes the credential
     await db_session.delete(company)
     await db_session.commit()

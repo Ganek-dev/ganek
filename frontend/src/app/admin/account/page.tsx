@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { api, type UserOut } from "@/lib/api";
@@ -21,11 +22,31 @@ function initials(email: string): string {
   return source.toUpperCase();
 }
 
-export default function AccountPage() {
+type CalendarStatus = {
+  connected: boolean;
+  google_email: string | null;
+  needs_reconnect: boolean;
+};
+
+const CALENDAR_NOTICES: Record<string, { tone: "ok" | "bad"; text: string }> = {
+  connected: { tone: "ok", text: "Google Calendar connected." },
+  failed: { tone: "bad", text: "Connecting Google Calendar didn't complete. Please try again." },
+  "wrong-account": {
+    tone: "bad",
+    text: "That Google account belongs to a different vetd user. Pick the account you sign in with.",
+  },
+};
+
+function AccountContent() {
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<UserOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+
+  const calendarNotice = CALENDAR_NOTICES[searchParams.get("calendar") ?? ""] ?? null;
 
   useEffect(() => {
     api
@@ -34,7 +55,29 @@ export default function AccountPage() {
       .catch(() => {
         // layout handles the 401 redirect; leave the page in a graceful empty state
       });
+    api
+      .providers()
+      .then((p) => setGoogleEnabled(p.google))
+      .catch(() => {
+        /* card stays hidden */
+      });
+    api
+      .googleCalendar
+      .status()
+      .then(setCalendar)
+      .catch(() => {
+        /* card renders the disconnected state */
+      });
   }, []);
+
+  async function disconnectCalendar() {
+    try {
+      await api.googleCalendar.disconnect();
+      setCalendar({ connected: false, google_email: null, needs_reconnect: false });
+    } catch {
+      /* leave state as-is; a refresh re-syncs */
+    }
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,10 +202,77 @@ export default function AccountPage() {
         )}
       </div>
 
+      {googleEnabled ? (
+        <div className="card p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Google Calendar</p>
+              <p className="mt-0.5 text-[12.5px] text-g500">
+                {calendar?.connected ? (
+                  <>
+                    Connected as{" "}
+                    <span className="font-mono text-[12px] text-g600">
+                      {calendar.google_email}
+                    </span>
+                  </>
+                ) : (
+                  "Connect to schedule interviews with Meet links and see your day on the dashboard."
+                )}
+              </p>
+            </div>
+            {calendar?.connected ? (
+              <button
+                type="button"
+                onClick={disconnectCalendar}
+                className="inline-flex h-8 shrink-0 items-center rounded-md border border-edge px-3.5 text-[13px] font-medium hover:bg-muted-fill/50"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <a
+                href="/api/v1/auth/google/calendar/connect"
+                className="inline-flex h-8 shrink-0 items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground hover:brightness-[0.94]"
+              >
+                Connect Google Calendar
+              </a>
+            )}
+          </div>
+          {calendar?.connected && calendar.needs_reconnect ? (
+            <p className="mt-3 rounded-md border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400">
+              Calendar access expired or was revoked —{" "}
+              <a href="/api/v1/auth/google/calendar/connect" className="font-medium underline">
+                reconnect
+              </a>{" "}
+              to keep scheduling.
+            </p>
+          ) : null}
+          {calendarNotice ? (
+            <p
+              role={calendarNotice.tone === "bad" ? "alert" : undefined}
+              className={
+                calendarNotice.tone === "bad"
+                  ? "mt-3 text-sm text-red-600 dark:text-red-400"
+                  : "mt-3 text-sm text-emerald-700 dark:text-emerald-400"
+              }
+            >
+              {calendarNotice.text}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <p className="text-[12.5px] text-g500">
         Email notification preferences and account deletion are planned for a later
         milestone.
       </p>
     </section>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense>
+      <AccountContent />
+    </Suspense>
   );
 }

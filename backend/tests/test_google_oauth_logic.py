@@ -92,3 +92,19 @@ def test_decode_claims_roundtrip() -> None:
 def test_decode_claims_garbage() -> None:
     with pytest.raises(GoogleOAuthError):
         oauth_google._decode_claims("not-a-jwt")
+
+
+@pytest.mark.usefixtures("google_configured")
+def test_authorization_url_calendar_variant() -> None:
+    url, _, _, _ = oauth_google.build_authorization_request(calendar=True)
+    assert "calendar.events" in url
+    assert "access_type=offline" in url
+    assert "prompt=consent" in url
+    assert "include_granted_scopes=true" in url
+
+
+@pytest.mark.usefixtures("google_configured")
+def test_authorization_url_login_has_no_offline_access() -> None:
+    url, _, _, _ = oauth_google.build_authorization_request()
+    assert "access_type" not in url
+    assert "prompt=select_account" in url
