@@ -336,3 +336,41 @@ def test_send_google_linked(monkeypatch: pytest.MonkeyPatch) -> None:
     plain = message.get_body(preferencelist=("plain",))
     assert plain is not None
     assert "change your password" in str(plain.get_content()).lower()
+
+
+def test_send_interview_invite(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_interview_invite(
+        to="marta@x.dev",
+        candidate_name="Marta",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        duration_minutes=45,
+        booking_url="https://jobs.example.com/interview/tok",
+        brand_primary="#3b82f6",
+    )
+
+    assert len(FakeSMTP.sent) == 1
+    message = FakeSMTP.sent[0]
+    assert "Pick a time" in message["Subject"]
+    plain = message.get_body(preferencelist=("plain",))
+    assert plain is not None
+    text = str(plain.get_content())
+    assert "45-minute" in text
+    assert "https://jobs.example.com/interview/tok" in text
+
+
+def test_send_interview_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_interview_cancelled(
+        to="marta@x.dev",
+        candidate_name="Marta",
+        job_title="Backend Engineer",
+        company_name="Acme",
+    )
+    assert len(FakeSMTP.sent) == 1
+    assert "cancelled" in FakeSMTP.sent[0]["Subject"]

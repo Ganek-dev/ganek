@@ -3,10 +3,12 @@ import uuid
 from app.core.security import (
     create_google_flow_token,
     create_google_signup_token,
+    create_interview_token,
     create_session_token,
     hash_password,
     read_google_flow_token,
     read_google_signup_token,
+    read_interview_token,
     read_session_token,
     verify_password,
 )
@@ -32,7 +34,10 @@ def test_session_token_roundtrip() -> None:
 
 def test_session_token_rejects_tampering() -> None:
     token = create_session_token(uuid.uuid4(), 2)
-    assert read_session_token(token[:-2] + "xx") is None
+    # flip the last char to a guaranteed-different one — "xx"-style suffixes
+    # collide with real signatures once in ~4096 runs
+    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    assert read_session_token(tampered) is None
     assert read_session_token("completely-bogus") is None
 
 
@@ -69,3 +74,13 @@ def test_google_signup_token_roundtrip() -> None:
 
 def test_google_signup_token_garbage() -> None:
     assert read_google_signup_token("") is None
+
+
+def test_interview_token_roundtrip() -> None:
+    interview_id = uuid.uuid4()
+    token = create_interview_token(interview_id)
+    assert read_interview_token(token) == interview_id
+
+
+def test_interview_token_garbage() -> None:
+    assert read_interview_token("garbage") is None

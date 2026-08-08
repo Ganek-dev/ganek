@@ -1,13 +1,15 @@
 import math
 import uuid
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from sqlalchemy import select
 
 from app.api.deps import CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
-from app.core.security import create_quiz_token, create_status_token
-from app.models import Application, ApplicationStage
+from app.core.security import create_interview_token, create_quiz_token, create_status_token
+from app.models import Application, ApplicationStage, User
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
@@ -17,10 +19,12 @@ from app.schemas.applications import (
     ReviewIntegrityEvent,
     StageUpdate,
 )
+from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewRequest
 from app.services import applications as applications_service
 from app.services import email as email_service
+from app.services import google_calendar, storage
+from app.services import interviews as interviews_service
 from app.services import quiz as quiz_service
-from app.services import storage
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -157,6 +161,142 @@ async def dismiss_quiz_flags(
     if attempt is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No assessment to review")
     return await quiz_service.dismiss_flags(db, attempt, by_user_id=user.id)
+
+
+async def _interviewer_or_404(
+    db: DbSession, company: CurrentCompany, interviewer_user_id: uuid.UUID
+) -> User:
+    interviewer = (
+        await db.execute(
+            select(User).where(
+                User.company_id == company.id,
+                User.id == interviewer_user_id,
+                User.is_active,
+            )
+        )
+    ).scalar_one_or_none()
+    if interviewer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interviewer not found")
+    return interviewer
+
+
+@router.post("/{application_id}/interview/slot-preview")
+async def interview_slot_preview(
+    application_id: uuid.UUID,
+    payload: SlotPreviewRequest,
+    db: DbSession,
+    company: CurrentCompany,
+) -> dict[str, list[datetime]]:
+    """Free slots for the modal — nothing is persisted."""
+    await _get_or_404(db, company, application_id)
+    interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
+    try:
+        slots = await interviews_service.generate_slots(
+            db,
+            interviewer,
+            duration_minutes=payload.duration_minutes,
+            timezone=payload.timezone,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown timezone"
+        ) from None
+    except google_calendar.NeedsReconnectError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Interviewer has not connected Google Calendar",
+        ) from None
+    return {"slots": slots}
+
+
+@router.post(
+    "/{application_id}/interview",
+    response_model=InterviewOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_interview(
+    application_id: uuid.UUID,
+    payload: InterviewCreate,
+    db: DbSession,
+    company: CurrentCompany,
+    background: BackgroundTasks,
+) -> object:
+    application = await _get_or_404(db, company, application_id)
+    interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
+    if await google_calendar.get_credential(db, interviewer) is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Interviewer has not connected Google Calendar",
+        )
+    try:
+        ZoneInfo(payload.timezone)
+    except Exception:  # noqa: BLE001 - any zoneinfo failure means a bad zone
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown timezone"
+        ) from None
+    try:
+        interview = await interviews_service.create_interview(
+            db,
+            company,
+            application,
+            interviewer=interviewer,
+            title=payload.title,
+            description=payload.description,
+            duration_minutes=payload.duration_minutes,
+            timezone=payload.timezone,
+            slots=payload.slots,
+        )
+    except interviews_service.InterviewExistsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This application already has an interview in progress",
+        ) from None
+    booking_url = (
+        f"{settings.public_base_url.rstrip('/')}/interview/{create_interview_token(interview.id)}"
+    )
+    background.add_task(
+        email_service.send_interview_invite,
+        to=application.candidate.email,
+        candidate_name=application.candidate.name,
+        job_title=application.job.title,
+        company_name=company.name,
+        duration_minutes=interview.duration_minutes,
+        booking_url=booking_url,
+        brand_primary=(company.theme or {}).get("primary_color"),
+    )
+    return interview
+
+
+@router.get("/{application_id}/interview", response_model=InterviewOut | None)
+async def get_interview(
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+) -> object:
+    await _get_or_404(db, company, application_id)
+    return await interviews_service.get_for_application(db, company, application_id)
+
+
+@router.post("/{application_id}/interview/cancel", response_model=InterviewOut)
+async def cancel_interview(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    background: BackgroundTasks,
+) -> object:
+    application = await _get_or_404(db, company, application_id)
+    interview = await interviews_service.get_for_application(db, company, application_id)
+    if interview is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No active interview to cancel"
+        )
+    await interviews_service.cancel_interview(db, interview, interviewer=interview.interviewer)
+    background.add_task(
+        email_service.send_interview_cancelled,
+        to=application.candidate.email,
+        candidate_name=application.candidate.name,
+        job_title=application.job.title,
+        company_name=company.name,
+    )
+    return interview
 
 
 def _schedule_stage_email(

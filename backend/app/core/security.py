@@ -92,6 +92,23 @@ def read_invite_token(token: str) -> uuid.UUID | None:
         return None
 
 
+_interview_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-interview")
+# candidates may sit on the booking link a while; interview rows gate real access
+INTERVIEW_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 60
+
+
+def create_interview_token(interview_id: uuid.UUID) -> str:
+    return _interview_serializer.dumps(str(interview_id))
+
+
+def read_interview_token(token: str) -> uuid.UUID | None:
+    try:
+        raw: str = _interview_serializer.loads(token, max_age=INTERVIEW_TOKEN_MAX_AGE_SECONDS)
+        return uuid.UUID(raw)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+
+
 def create_google_flow_token(
     state: str,
     code_verifier: str,
