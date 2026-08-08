@@ -16,6 +16,7 @@ from app.core.security import (
     create_google_flow_token,
     create_google_signup_token,
     create_invite_token,
+    hash_password,
 )
 from app.models import Company, User, UserInvite, UserRole
 from app.services import oauth_google
@@ -65,17 +66,20 @@ def _arm_flow(
     state: str = "state-1",
     nonce: str = "nonce-1",
     invite: str | None = None,
+    calendar_user_id: str | None = None,
 ) -> None:
     client.cookies.set(
         GOOGLE_FLOW_COOKIE_NAME,
-        create_google_flow_token(state, "verifier-1", nonce, invite=invite),
+        create_google_flow_token(
+            state, "verifier-1", nonce, invite=invite, calendar_user_id=calendar_user_id
+        ),
     )
 
 
-def _fake_exchange(claims: dict[str, object]) -> object:
-    async def exchange(code: str, code_verifier: str) -> dict[str, object]:
+def _fake_exchange(claims: dict[str, object], refresh_token: str | None = None) -> object:
+    async def exchange(code: str, code_verifier: str) -> tuple[dict[str, object], str | None]:
         assert code_verifier == "verifier-1"
-        return claims
+        return claims, refresh_token
 
     return exchange
 
@@ -142,7 +146,7 @@ async def test_callback_unknown_identity_goes_to_setup(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     email = f"new-{uuid4().hex[:8]}@gmail.com"
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email)))
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.status_code == 302
@@ -156,7 +160,7 @@ async def test_callback_sub_match_logs_in(
     email = f"sub-{uuid4().hex[:8]}@example.com"
     sub = f"sub-{uuid4().hex}"
     await _make_user(db_session, email, google_sub=sub)
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email, sub=sub)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.status_code == 302
@@ -176,7 +180,7 @@ async def test_callback_gmail_match_links_and_notifies(
     user = await _make_user(db_session, email)
     sub = f"sub-{uuid4().hex}"
     sent: list[str] = []
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email, sub=sub)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
     monkeypatch.setattr(
         email_service, "send_google_linked", lambda *, to, company_name: sent.append(to)
     )
@@ -196,7 +200,7 @@ async def test_callback_nonauthoritative_email_bounces_to_password(
     email = f"corp-{uuid4().hex[:8]}@corp.example"
     user = await _make_user(db_session, email)
     # verified but non-gmail and no hd claim: Google is not authoritative
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email)))
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.headers["location"] == "/login?error=use-password"
@@ -212,7 +216,7 @@ async def test_callback_inactive_user(
     email = f"off-{uuid4().hex[:8]}@gmail.com"
     sub = f"sub-{uuid4().hex}"
     await _make_user(db_session, email, google_sub=sub, is_active=False)
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email, sub=sub)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.headers["location"] == "/login?error=account-disabled"
@@ -285,7 +289,7 @@ async def test_invite_accept_via_google(
     email = f"inv-{uuid4().hex[:8]}@gmail.com"
     sub = f"sub-{uuid4().hex}"
     invite, token = await _make_invite(db_session, email)
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email, sub=sub)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
     _arm_flow(client, invite=token)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.status_code == 302
@@ -306,7 +310,9 @@ async def test_invite_accept_rejects_email_mismatch(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, token = await _make_invite(db_session, f"inv-{uuid4().hex[:8]}@corp.dev")
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims("other@gmail.com")))
+    monkeypatch.setattr(
+        oauth_google, "exchange_code_full", _fake_exchange(_claims("other@gmail.com"))
+    )
     _arm_flow(client, invite=token)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.headers["location"] == f"/invite/{token}?error=google-email-mismatch"
@@ -320,7 +326,7 @@ async def test_invite_accept_rejects_unverified_email(
     _, token = await _make_invite(db_session, email)
     monkeypatch.setattr(
         oauth_google,
-        "exchange_code",
+        "exchange_code_full",
         _fake_exchange(_claims(email, email_verified=False)),
     )
     _arm_flow(client, invite=token)
@@ -334,7 +340,7 @@ async def test_invite_accept_expired_invite(
 ) -> None:
     email = f"inv-{uuid4().hex[:8]}@gmail.com"
     _, token = await _make_invite(db_session, email, expired=True)
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims(email)))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email)))
     _arm_flow(client, invite=token)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.headers["location"] == f"/invite/{token}"
@@ -344,7 +350,135 @@ async def test_invite_accept_expired_invite(
 async def test_invite_accept_unknown_invite(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(oauth_google, "exchange_code", _fake_exchange(_claims("x@gmail.com")))
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims("x@gmail.com")))
     _arm_flow(client, invite="not-a-real-invite")
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.headers["location"] == "/invite/not-a-real-invite?error=google-invalid"
+
+
+async def _login_user(
+    client: AsyncClient, db: AsyncSession, *, google_sub: str | None = None
+) -> User:
+    email = f"cal-{uuid4().hex[:8]}@gmail.com"
+    user = await _make_user(
+        db, email, google_sub=google_sub, password_hash=hash_password("a-long-secure-password")
+    )
+    resp = await client.post(
+        "/api/v1/auth/login", json={"email": email, "password": "a-long-secure-password"}
+    )
+    assert resp.status_code == 200, resp.text
+    return user
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_connect_requires_auth(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/auth/google/calendar/connect")
+    assert resp.status_code == 401
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_connect_redirects_with_offline_scope(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await _login_user(client, db_session)
+    resp = await client.get("/api/v1/auth/google/calendar/connect")
+    assert resp.status_code == 302
+    location = resp.headers["location"]
+    assert "calendar.events" in location
+    assert "access_type=offline" in location
+    assert GOOGLE_FLOW_COOKIE_NAME in resp.cookies
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_callback_stores_credential(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sub = f"sub-{uuid4().hex}"
+    user = await _login_user(client, db_session, google_sub=sub)
+    monkeypatch.setattr(
+        oauth_google,
+        "exchange_code_full",
+        _fake_exchange(_claims(user.email, sub=sub), refresh_token="1//refresh"),
+    )
+    _arm_flow(client, calendar_user_id=str(user.id))
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/admin/account?calendar=connected"
+
+    status_resp = await client.get("/api/v1/users/me/google-calendar")
+    body = status_resp.json()
+    assert body == {"connected": True, "google_email": user.email, "needs_reconnect": False}
+    assert "1//refresh" not in status_resp.text
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_callback_wrong_google_account(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = await _login_user(client, db_session, google_sub=f"sub-{uuid4().hex}")
+    monkeypatch.setattr(
+        oauth_google,
+        "exchange_code_full",
+        _fake_exchange(_claims(user.email, sub="sub-someone-else"), refresh_token="1//r"),
+    )
+    _arm_flow(client, calendar_user_id=str(user.id))
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/admin/account?calendar=wrong-account"
+    status_resp = await client.get("/api/v1/users/me/google-calendar")
+    assert status_resp.json()["connected"] is False
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_callback_without_refresh_token_fails(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sub = f"sub-{uuid4().hex}"
+    user = await _login_user(client, db_session, google_sub=sub)
+    monkeypatch.setattr(
+        oauth_google,
+        "exchange_code_full",
+        _fake_exchange(_claims(user.email, sub=sub), refresh_token=None),
+    )
+    _arm_flow(client, calendar_user_id=str(user.id))
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/admin/account?calendar=failed"
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_disconnect(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import google_calendar as gcal
+
+    sub = f"sub-{uuid4().hex}"
+    user = await _login_user(client, db_session, google_sub=sub)
+    await gcal.store_credentials(db_session, user, refresh_token="1//r", google_email=user.email)
+
+    async def no_revoke(db: AsyncSession, u: User) -> None:
+        credential = await gcal.get_credential(db, u)
+        assert credential is not None
+        await db.delete(credential)
+        await db.commit()
+
+    monkeypatch.setattr(gcal, "remove_credentials", no_revoke)
+    resp = await client.delete("/api/v1/users/me/google-calendar")
+    assert resp.status_code == 204
+    status_resp = await client.get("/api/v1/users/me/google-calendar")
+    assert status_resp.json()["connected"] is False
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_calendar_status_needs_reconnect(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from app.services import google_calendar as gcal
+
+    user = await _login_user(client, db_session)
+    await gcal.store_credentials(db_session, user, refresh_token="1//r", google_email=user.email)
+    credential = await gcal.get_credential(db_session, user)
+    assert credential is not None
+    credential.last_refresh_error = "invalid_grant"
+    await db_session.commit()
+
+    status_resp = await client.get("/api/v1/users/me/google-calendar")
+    assert status_resp.json()["needs_reconnect"] is True
