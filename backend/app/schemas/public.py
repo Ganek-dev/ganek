@@ -43,6 +43,27 @@ class PublicCompanyOut(BaseModel):
     theme: dict[str, Any]
 
 
+class JobsFeedItem(BaseModel):
+    """One role in the public jobs feed (screen 25) — third-party friendly."""
+
+    title: str
+    slug: str
+    location: str
+    remote_policy: RemotePolicy
+    employment_type: EmploymentType
+    tags: list[str]
+    apply_url: str
+    posted_at: datetime | None
+
+
+class JobsFeed(BaseModel):
+    """Public JSON feed for the embed widget and company-site integrations."""
+
+    company: str
+    brand_primary: str | None
+    jobs: list[JobsFeedItem]
+
+
 class PublicCompanyPage(BaseModel):
     company: PublicCompanyOut
     jobs: list[PublicJobSummary]
