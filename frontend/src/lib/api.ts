@@ -410,6 +410,41 @@ export interface ApplicationStatus {
   decision_expected_by: string;
 }
 
+export interface InterviewPublic {
+  company_name: string;
+  brand_primary: string | null;
+  logo_url: string | null;
+  job_title: string;
+  candidate_first_name: string;
+  title: string;
+  description: string;
+  duration_minutes: number;
+  timezone: string;
+  status: "pending" | "booked" | "cancelled";
+  interviewer_display: string;
+  available_slots: string[];
+  scheduled_start: string | null;
+  meet_url: string | null;
+}
+
+export const publicInterviews = {
+  get: (token: string) => request<InterviewPublic>(`/api/v1/public/interviews/${token}`),
+  book: (token: string, start: string) =>
+    request<InterviewPublic>(`/api/v1/public/interviews/${token}/book`, {
+      method: "POST",
+      body: JSON.stringify({ start }),
+    }),
+  reschedule: (token: string, start: string) =>
+    request<InterviewPublic>(`/api/v1/public/interviews/${token}/reschedule`, {
+      method: "POST",
+      body: JSON.stringify({ start }),
+    }),
+  cancel: (token: string) =>
+    request<InterviewPublic>(`/api/v1/public/interviews/${token}/cancel`, {
+      method: "POST",
+    }),
+};
+
 export const publicApplications = {
   status: (token: string) =>
     request<ApplicationStatus>(`/api/v1/public/applications/${token}`),
