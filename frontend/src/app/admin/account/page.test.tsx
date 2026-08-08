@@ -26,7 +26,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-const mocked = vi.mocked(api);
+const mocked = vi.mocked(api, true);
 
 describe("AccountPage", () => {
   beforeEach(() => {
