@@ -68,3 +68,7 @@ class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     application: Mapped["Application"] = relationship()
     interviewer: Mapped["User"] = relationship(lazy="selectin")
+
+    @property
+    def interviewer_email(self) -> str:
+        return self.interviewer.email
