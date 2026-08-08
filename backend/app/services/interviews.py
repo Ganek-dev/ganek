@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core import queue
 from app.models import Application, Company, Interview, InterviewStatus, User
 from app.services import activity, google_calendar
 
@@ -208,6 +209,22 @@ async def _slot_is_free(db: AsyncSession, interview: Interview, start: datetime)
     return not any(start < busy_end and end > busy_start for busy_start, busy_end in busy)
 
 
+async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
+    """T-24h candidate reminder; the job re-validates, so stale ones no-op."""
+    fire_at = start - timedelta(hours=24)
+    if fire_at <= datetime.now(UTC):
+        return None  # booked within 24h of the slot — no reminder needed
+    job_id = f"iv-{interview.id}-{int(start.timestamp())}"
+    queued = await queue.enqueue(
+        "send_interview_reminder",
+        str(interview.id),
+        start.isoformat(),
+        defer_until=fire_at,
+        job_id=job_id,
+    )
+    return job_id if queued else None
+
+
 async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
     """Candidate picks a slot: re-check live free/busy, create the Meet event.
 
@@ -242,6 +259,7 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
         application_id=interview.application_id,
         payload={"start": start.isoformat()},
     )
+    interview.reminder_job_id = await _queue_reminder(interview, start)
     await db.commit()
     return interview
 
@@ -262,6 +280,7 @@ async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime)
         timezone=interview.timezone,
     )
     interview.scheduled_start = start
+    interview.reminder_job_id = await _queue_reminder(interview, start)
     await db.commit()
     return interview
 

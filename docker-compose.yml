@@ -16,6 +16,17 @@ services:
       minio: { condition: service_started }
     ports: ["8000:8000"]
 
+  worker:
+    build: ./backend
+    command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
+    env_file: .env
+    environment:
+      VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
+      VETD_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
   frontend:
     build:
       context: ./frontend
