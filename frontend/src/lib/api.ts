@@ -384,6 +384,12 @@ export const publicQuiz = {
       method: "POST",
       body: JSON.stringify({ events }),
     }),
+  /** Expired-link screen (27c): ask for a fresh link. reissued=true means a
+   * new link was auto-emailed; false means the team was notified. */
+  requestReissue: (token: string) =>
+    request<{ reissued: boolean }>(`/api/v1/public/quiz/${token}/request-reissue`, {
+      method: "POST",
+    }),
 };
 
 /** Difficulty is a 1-5 scale (5-dot UI); legacy "easy/medium/hard" bands were migrated. */
@@ -568,6 +574,7 @@ export interface CompanyAdmin {
   website: string | null;
   socials: Record<string, unknown>;
   theme: { primary_color?: string; radius?: "sharp" | "default" | "round" };
+  settings: { quiz_expired_reissue?: "manual" | "auto" };
 }
 
 export interface BrandingUpdate {
@@ -580,6 +587,11 @@ export const companyApi = {
   get: () => request<CompanyAdmin>("/api/v1/company"),
   updateBranding: (patch: BrandingUpdate) =>
     request<CompanyAdmin>("/api/v1/company/branding", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  updateSettings: (patch: { quiz_expired_reissue?: "manual" | "auto" | null }) =>
+    request<CompanyAdmin>("/api/v1/company/settings", {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
