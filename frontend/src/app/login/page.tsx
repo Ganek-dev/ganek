@@ -1,22 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
+import { GoogleButton } from "@/components/GoogleButton";
 import { api } from "@/lib/api";
 
-/** Login, handoff screen 13a. Google button is a placeholder until D6
- * OAuth work lands; email/password sign-in is real. */
+/** Login, handoff screen 13a. Google sign-in appears when the instance has
+ * OAuth configured (providers flag); the backend redirects back here with
+ * ?error=<code> when a Google flow can't complete. */
 
 const inputCls =
   "h-10 w-full rounded-md border-[1.5px] border-edge bg-surface px-3.5 text-sm outline-none focus:border-accent";
 
-export default function LoginPage() {
+const OAUTH_ERRORS: Record<string, string> = {
+  "use-password":
+    "An account with this email already exists — log in with your password below.",
+  "account-disabled": "Your account is deactivated. Contact your workspace admin.",
+  "google-failed": "Google sign-in didn't complete. Please try again.",
+};
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [google, setGoogle] = useState(false);
+
+  const oauthError = OAUTH_ERRORS[searchParams.get("error") ?? ""] ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .providers()
+      .then((p) => {
+        if (!cancelled) setGoogle(p.google);
+      })
+      .catch(() => {
+        /* flag stays false — password login is unaffected */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,28 +75,24 @@ export default function LoginPage() {
         </>
       }
     >
-      <button
-        type="button"
-        disabled
-        title="Google sign-in lands with D6 OAuth work"
-        className="inline-flex h-10 w-full items-center justify-center gap-2.5 rounded-md border border-edge bg-surface text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <span
-          aria-hidden
-          className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border-[1.5px] border-strong font-heading text-[11px] font-bold"
-        >
-          G
-        </span>
-        Continue with Google
-      </button>
+      {oauthError ? (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          {oauthError}
+        </p>
+      ) : null}
 
-      <div className="flex items-center gap-3 pt-2">
-        <span aria-hidden className="h-px flex-1 bg-edge" />
-        <span className="font-mono text-[10.5px] tracking-wide text-g400 uppercase">
-          or with email
-        </span>
-        <span aria-hidden className="h-px flex-1 bg-edge" />
-      </div>
+      {google ? (
+        <>
+          <GoogleButton />
+          <div className="flex items-center gap-3 pt-2">
+            <span aria-hidden className="h-px flex-1 bg-edge" />
+            <span className="font-mono text-[10.5px] tracking-wide text-g400 uppercase">
+              or with email
+            </span>
+            <span aria-hidden className="h-px flex-1 bg-edge" />
+          </div>
+        </>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <label className="flex flex-col gap-2">
@@ -114,5 +138,13 @@ export default function LoginPage() {
         </button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
