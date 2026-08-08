@@ -23,6 +23,7 @@ describe("LoginPage", () => {
       id: "u1",
       company_id: "c1",
       email: "you@company.com",
+      has_password: true,
       role: "admin",
     });
   });

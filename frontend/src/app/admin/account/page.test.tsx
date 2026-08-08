@@ -28,6 +28,7 @@ describe("AccountPage", () => {
       id: "u1",
       company_id: "c1",
       email: "grumpy.miner@acmelabs.io",
+      has_password: true,
       role: "admin",
     });
   });

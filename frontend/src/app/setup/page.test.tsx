@@ -23,6 +23,7 @@ describe("SetupPage", () => {
       id: "u1",
       company_id: "c1",
       email: "grumpy@acmelabs.io",
+      has_password: true,
       role: "admin",
     });
   });
