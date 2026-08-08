@@ -1,0 +1,238 @@
+"""Candidate booking endpoints; Google faked at the google_calendar seam."""
+
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+import httpx
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.models import User
+from app.services import google_calendar
+from app.services import interviews as interviews_service
+from tests.db import database_reachable, s3_reachable
+
+pytestmark = pytest.mark.skipif(
+    not (database_reachable() and s3_reachable()),
+    reason="database and object storage required (start postgres+minio or use CI)",
+)
+
+PDF_BYTES = b"%PDF-1.4 booking flow"
+
+
+@pytest.fixture
+def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "mode", "multi")
+
+
+@pytest.fixture
+def quiet_google(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Silence Google: empty free/busy + a canned Meet event everywhere."""
+
+    async def freebusy(
+        db: AsyncSession, user: User, start: datetime, end: datetime
+    ) -> list[tuple[datetime, datetime]]:
+        return []
+
+    async def create_meet_event(*args: object, **kwargs: object) -> tuple[str, str]:
+        return "evt-1", "https://meet.google.com/abc-defg-hij"
+
+    async def patch_event_time(*args: object, **kwargs: object) -> None:
+        return None
+
+    async def delete_event(*args: object, **kwargs: object) -> None:
+        return None
+
+    for module in (interviews_service.google_calendar,):
+        monkeypatch.setattr(module, "freebusy", freebusy)
+        monkeypatch.setattr(module, "create_meet_event", create_meet_event)
+        monkeypatch.setattr(module, "patch_event_time", patch_event_time)
+        monkeypatch.setattr(module, "delete_event", delete_event)
+
+
+def _slots() -> list[str]:
+    base = (datetime.now(UTC) + timedelta(days=3)).replace(minute=0, second=0, microsecond=0)
+    return [(base + timedelta(hours=i)).isoformat() for i in range(3)]
+
+
+async def _booking_token(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> tuple[str, list[str]]:
+    """Admin sets up company/job/applicant/interview; returns (token, slots),
+    logged OUT so subsequent calls are anonymous candidate traffic."""
+    from app.services import email as email_service
+
+    creds = {
+        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "password": "a-long-secure-password",
+    }
+    name = f"Book Co {uuid4().hex[:6]}"
+    resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
+    assert resp.status_code == 201, resp.text
+    admin_id = resp.json()["id"]
+    slug = name.lower().replace(" ", "-")
+
+    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+
+    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+    ticket = (await client.post(f"{base}/apply/upload-url")).json()
+    async with httpx.AsyncClient() as raw:
+        put = await raw.put(
+            ticket["upload_url"],
+            content=PDF_BYTES,
+            headers={"Content-Type": ticket["content_type"]},
+        )
+        assert put.status_code == 200
+    resp = await client.post(
+        f"{base}/apply",
+        json={
+            "name": "Marta Vidal",
+            "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+            "cv_object_key": ticket["object_key"],
+            "cv_filename": "marta.pdf",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    application_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+
+    user = (await db_session.execute(select(User).where(User.email == creds["email"]))).scalar_one()
+    await google_calendar.store_credentials(
+        db_session, user, refresh_token="1//r", google_email=creds["email"]
+    )
+    captured: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: captured.append(kw))
+    slots = _slots()
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview",
+        json={
+            "interviewer_user_id": admin_id,
+            "duration_minutes": 45,
+            "timezone": "Europe/Berlin",
+            "description": "Your work, our stack.",
+            "slots": slots,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    await client.post("/api/v1/auth/logout")
+    token = str(captured[0]["booking_url"]).rsplit("/", 1)[-1]
+    return token, slots
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_booking_context(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    resp = await client.get(f"/api/v1/public/interviews/{token}")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "pending"
+    assert body["candidate_first_name"] == "Marta"
+    assert body["duration_minutes"] == 45
+    assert body["timezone"] == "Europe/Berlin"
+    assert len(body["available_slots"]) == 3
+    assert body["meet_url"] is None
+    assert "Book Co" in body["company_name"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_book_happy_path(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[1]})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "booked"
+    assert body["meet_url"] == "https://meet.google.com/abc-defg-hij"
+    assert body["scheduled_start"] is not None
+
+    again = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    assert again.status_code == 409
+    assert again.json()["detail"] == "already-booked"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_book_rejects_unoffered_slot(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, _ = await _booking_token(client, db_session, monkeypatch)
+    rogue = (datetime.now(UTC) + timedelta(days=5)).isoformat()
+    resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": rogue})
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "slot-taken"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_book_rejects_busy_slot(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    chosen = datetime.fromisoformat(slots[0])
+
+    async def busy_now(
+        db: AsyncSession, user: User, start: datetime, end: datetime
+    ) -> list[tuple[datetime, datetime]]:
+        return [(chosen, chosen + timedelta(minutes=45))]
+
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", busy_now)
+    resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "slot-taken"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_reschedule_and_cancel(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+
+    early = await client.post(
+        f"/api/v1/public/interviews/{token}/reschedule", json={"start": slots[0]}
+    )
+    assert early.status_code == 409
+    assert early.json()["detail"] == "not-booked"
+
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    moved = await client.post(
+        f"/api/v1/public/interviews/{token}/reschedule", json={"start": slots[2]}
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["scheduled_start"].startswith(slots[2][:16])
+
+    cancelled = await client.post(f"/api/v1/public/interviews/{token}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    # idempotent second cancel
+    assert (await client.post(f"/api/v1/public/interviews/{token}/cancel")).status_code == 200
+    context = await client.get(f"/api/v1/public/interviews/{token}")
+    assert context.json()["status"] == "cancelled"
+    assert context.json()["available_slots"] == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_book_when_google_breaks_is_503(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+
+    async def broken(*args: object, **kwargs: object) -> tuple[str, str]:
+        raise google_calendar.NeedsReconnectError("consent revoked")
+
+    monkeypatch.setattr(interviews_service.google_calendar, "create_meet_event", broken)
+    resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    assert resp.status_code == 503
+
+
+async def test_bad_token_404s(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/public/interviews/garbage")
+    assert resp.status_code == 404

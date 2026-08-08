@@ -11,6 +11,7 @@ from app.core.ratelimit import rate_limit
 from app.core.security import (
     create_quiz_token,
     create_status_token,
+    read_interview_token,
     read_quiz_token,
     read_status_token,
 )
@@ -19,6 +20,8 @@ from app.models import (
     ApplicationStage,
     AttemptStatus,
     Company,
+    Interview,
+    InterviewStatus,
     Job,
     QuizAttempt,
     UserInvite,
@@ -29,6 +32,8 @@ from app.schemas.public import (
     ApplicationStatusOut,
     ApplicationSubmit,
     CvUploadTicket,
+    InterviewPublicOut,
+    InterviewSlotBody,
     JobsFeed,
     JobsFeedItem,
     PracticeOut,
@@ -50,10 +55,11 @@ from app.schemas.public import (
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import applications as applications_service
 from app.services import email as email_service
+from app.services import google_calendar, storage
+from app.services import interviews as interviews_service
 from app.services import invites as invites_service
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
-from app.services import storage
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -625,3 +631,124 @@ async def accept_invite(
         ) from None
     _set_session_cookie(response, user)
     return UserOut.model_validate(user)
+
+
+async def _interview_by_token_or_404(db: DbSession, token: str) -> Interview:
+    interview_id = read_interview_token(token)
+    interview = (
+        await interviews_service.get_by_id_public(db, interview_id)
+        if interview_id is not None
+        else None
+    )
+    if interview is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+    return interview
+
+
+def _interview_public(interview: Interview, company: Company) -> InterviewPublicOut:
+    candidate = interview.application.candidate
+    # users carry no display name yet — the email local part is the best we have
+    display = interview.interviewer.email.split("@")[0].replace(".", " ").replace("_", " ").title()
+    booked = interview.status is InterviewStatus.BOOKED
+    return InterviewPublicOut(
+        company_name=company.name,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        logo_url=company.logo_url,
+        job_title=interview.application.job.title,
+        candidate_first_name=(candidate.name or "there").split()[0],
+        title=interview.title,
+        description=interview.description,
+        duration_minutes=interview.duration_minutes,
+        timezone=interview.timezone,
+        status=interview.status.value,
+        interviewer_display=display,
+        available_slots=(
+            interviews_service.available_slots(interview)
+            if interview.status is not InterviewStatus.CANCELLED
+            else []
+        ),
+        scheduled_start=interview.scheduled_start,
+        meet_url=interview.meet_url if booked else None,
+    )
+
+
+async def _interview_company(db: DbSession, interview: Interview) -> Company:
+    return (
+        await db.execute(select(Company).where(Company.id == interview.company_id))
+    ).scalar_one()
+
+
+@router.get(
+    "/interviews/{token}",
+    response_model=InterviewPublicOut,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def interview_context(token: str, db: DbSession) -> InterviewPublicOut:
+    """Candidate booking page (screen 23) behind its signed magic-link token."""
+    interview = await _interview_by_token_or_404(db, token)
+    return _interview_public(interview, await _interview_company(db, interview))
+
+
+def _scheduling_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Scheduling is temporarily unavailable — please try again later",
+    )
+
+
+@router.post(
+    "/interviews/{token}/book",
+    response_model=InterviewPublicOut,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def interview_book(
+    token: str, payload: InterviewSlotBody, db: DbSession
+) -> InterviewPublicOut:
+    interview = await _interview_by_token_or_404(db, token)
+    if interview.status is InterviewStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This interview was cancelled"
+        )
+    try:
+        interview = await interviews_service.book(db, interview, start=payload.start)
+    except interviews_service.AlreadyBookedError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="already-booked") from None
+    except interviews_service.SlotUnavailableError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
+    except google_calendar.GoogleCalendarError:
+        raise _scheduling_unavailable() from None
+    return _interview_public(interview, await _interview_company(db, interview))
+
+
+@router.post(
+    "/interviews/{token}/reschedule",
+    response_model=InterviewPublicOut,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def interview_reschedule(
+    token: str, payload: InterviewSlotBody, db: DbSession
+) -> InterviewPublicOut:
+    interview = await _interview_by_token_or_404(db, token)
+    try:
+        interview = await interviews_service.reschedule(db, interview, start=payload.start)
+    except interviews_service.NotBookedError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="not-booked") from None
+    except interviews_service.SlotUnavailableError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
+    except google_calendar.GoogleCalendarError:
+        raise _scheduling_unavailable() from None
+    return _interview_public(interview, await _interview_company(db, interview))
+
+
+@router.post(
+    "/interviews/{token}/cancel",
+    response_model=InterviewPublicOut,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def interview_cancel(token: str, db: DbSession) -> InterviewPublicOut:
+    interview = await _interview_by_token_or_404(db, token)
+    try:
+        interview = await interviews_service.candidate_cancel(db, interview)
+    except google_calendar.GoogleCalendarError:
+        raise _scheduling_unavailable() from None
+    return _interview_public(interview, await _interview_company(db, interview))

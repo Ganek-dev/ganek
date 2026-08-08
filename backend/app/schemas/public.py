@@ -199,3 +199,26 @@ class QuizEventsIn(BaseModel):
 
 class QuizEventsOut(BaseModel):
     recorded: bool = True
+
+
+class InterviewSlotBody(BaseModel):
+    start: datetime
+
+
+class InterviewPublicOut(BaseModel):
+    """Candidate booking page (screen 23). Slots render in `timezone`."""
+
+    company_name: str
+    brand_primary: str | None
+    logo_url: str | None
+    job_title: str
+    candidate_first_name: str
+    title: str
+    description: str
+    duration_minutes: int
+    timezone: str
+    status: str
+    interviewer_display: str
+    available_slots: list[datetime]
+    scheduled_start: datetime | None
+    meet_url: str | None
