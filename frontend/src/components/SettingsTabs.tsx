@@ -9,6 +9,7 @@ const TABS = [
   { href: "/admin/hiring", label: "Hiring" },
   { href: "/admin/team", label: "Team" },
   { href: "/admin/account", label: "Account" },
+  { href: "/admin/developers", label: "Developers" },
 ];
 
 export function SettingsTabs() {

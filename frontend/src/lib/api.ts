@@ -202,6 +202,27 @@ export const publicApply = {
     }),
 };
 
+export interface JobsFeedItem {
+  title: string;
+  slug: string;
+  location: string;
+  remote_policy: RemotePolicy;
+  employment_type: EmploymentType;
+  tags: string[];
+  apply_url: string;
+  posted_at: string | null;
+}
+
+export interface JobsFeed {
+  company: string;
+  brand_primary: string | null;
+  jobs: JobsFeedItem[];
+}
+
+/** Public jobs feed (screen 25): CORS-open JSON for third-party sites. */
+export const publicJobsFeed = (slug: string) =>
+  request<JobsFeed>(`/api/v1/public/companies/${slug}/jobs-feed`);
+
 export type ApplicationStage =
   | "new"
   | "screening"
