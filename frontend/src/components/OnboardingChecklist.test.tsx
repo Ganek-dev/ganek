@@ -86,6 +86,7 @@ function mockState({
     website: null,
     socials: {},
     theme,
+    settings: {},
   });
   mockedJobs.list.mockResolvedValue(jobs);
   mockedTeam.list.mockResolvedValue(users);

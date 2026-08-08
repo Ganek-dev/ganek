@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 /** Settings section tabs from handoff screen 10: Branding | Team | Account. */
 const TABS = [
   { href: "/admin/branding", label: "Branding" },
+  { href: "/admin/hiring", label: "Hiring" },
   { href: "/admin/team", label: "Team" },
   { href: "/admin/account", label: "Account" },
 ];

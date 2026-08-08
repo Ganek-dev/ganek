@@ -322,6 +322,24 @@ function IntegrityCard({ result, applicationId }: { result: QuizResult; applicat
           </Link>
         </span>
       </div>
+      {result.integrity.reissue_requested ? (
+        <p className="mt-2.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          Candidate&apos;s link expired — they requested a new one
+          {result.integrity.reissue_requested.count > 1
+            ? ` (×${result.integrity.reissue_requested.count})`
+            : ""}
+          . Re-issue from the review page.
+        </p>
+      ) : null}
+      {result.integrity.reissue ? (
+        <p className="mt-2.5 text-[12px] text-g500">
+          Fresh quiz — re-issued after{" "}
+          {result.integrity.reissue.reason === "expired"
+            ? "the previous link expired"
+            : "an integrity review"}
+          {result.integrity.reissue.mode === "auto" ? " (automatic)" : ""}.
+        </p>
+      ) : null}
       {flags.length === 0 ? (
         <p className="mt-2.5 text-[12.5px] leading-[19px] text-g600">
           No integrity events detected during the quiz.

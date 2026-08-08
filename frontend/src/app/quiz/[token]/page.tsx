@@ -145,6 +145,10 @@ export default function QuizPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 27c request-a-new-link outcome on the expired screen
+  const [reissueState, setReissueState] = useState<
+    "idle" | "busy" | "emailed" | "notified" | "already"
+  >("idle");
   const advancedFor = useRef<string | null>(null);
 
   const remainingMs = useCountdownMs(question?.deadline_at ?? null);
@@ -298,7 +302,17 @@ export default function QuizPage() {
     );
   }
   if (phase === "expired") {
-    // screen 27c (visuals; request-a-new-link flow lands with D5)
+    // screen 27c: expired visuals + the request-a-new-link flow
+    const requestLink = async () => {
+      setReissueState("busy");
+      try {
+        const result = await publicQuiz.requestReissue(token);
+        setReissueState(result.reissued ? "emailed" : "notified");
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409) setReissueState("already");
+        else setReissueState("idle");
+      }
+    };
     return (
       <main className={centered}>
         <div className="text-center">
@@ -320,6 +334,29 @@ export default function QuizPage() {
             Links are valid for 24 hours after applying, and this one ran out. Your
             application itself was received — the team can still review it.
           </p>
+          {reissueState === "emailed" ? (
+            <p role="status" className="mx-auto mt-5 max-w-[420px] text-[14px] font-medium">
+              A fresh link is on its way — check your inbox.
+            </p>
+          ) : reissueState === "notified" ? (
+            <p role="status" className="mx-auto mt-5 max-w-[420px] text-[14px] font-medium">
+              The hiring team has been notified — if they re-issue the assessment,
+              you&apos;ll get a new link by email.
+            </p>
+          ) : reissueState === "already" ? (
+            <p role="status" className="mx-auto mt-5 max-w-[420px] text-[14px] font-medium">
+              A new link was already issued — check your inbox.
+            </p>
+          ) : (
+            <button
+              type="button"
+              disabled={reissueState === "busy"}
+              onClick={requestLink}
+              className="mt-6 inline-flex h-10 items-center rounded-lg border-[1.5px] border-edge bg-surface px-5 text-[14px] font-semibold text-foreground hover:bg-muted-fill disabled:opacity-50"
+            >
+              {reissueState === "busy" ? "…" : "Request a new link"}
+            </button>
+          )}
         </div>
       </main>
     );
