@@ -1,12 +1,16 @@
 """Invalidate & re-invite (D6 integrity v2): multi-attempt reissue + flag review."""
 
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models import QuizAttempt
 from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
 
@@ -154,3 +158,121 @@ async def test_reissue_is_tenant_scoped(client: AsyncClient) -> None:
     assert resp.status_code == 201
     foreign_id = uuid4()
     assert (await client.post(f"/api/v1/applications/{foreign_id}/quiz/reissue")).status_code == 404
+
+
+async def _expire_attempts(db_session: AsyncSession, application_id: str) -> None:
+    await db_session.execute(
+        update(QuizAttempt)
+        .where(QuizAttempt.application_id == UUID(application_id))
+        .values(expires_at=datetime.now(UTC) - timedelta(hours=1))
+    )
+    await db_session.commit()
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_expired_request_manual_records_for_the_team(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    applied, creds = await _apply_with_quiz(client)
+    token = applied["quiz_token"]
+    application = await _login_and_get_application(client, creds)
+    await client.post("/api/v1/auth/logout")
+    await _expire_attempts(db_session, str(application["id"]))
+
+    # an active link refuses the request; an expired one records it
+    resp = await client.post(f"/api/v1/public/quiz/{token}/request-reissue")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"reissued": False}
+    # idempotent-ish: repeats just bump the count
+    assert (await client.post(f"/api/v1/public/quiz/{token}/request-reissue")).json() == {
+        "reissued": False
+    }
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    detail = (await client.get(f"/api/v1/applications/{application['id']}")).json()
+    requested = detail["quiz_attempt"]["integrity"]["reissue_requested"]
+    assert requested["count"] == 2 and requested["at"]
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_expired_request_auto_reissues_once(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: sent.append(kwargs))
+    applied, creds = await _apply_with_quiz(client)
+    token = applied["quiz_token"]
+    application = await _login_and_get_application(client, creds)
+    resp = await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": "auto"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["settings"] == {"quiz_expired_reissue": "auto"}
+    await client.post("/api/v1/auth/logout")
+    await _expire_attempts(db_session, str(application["id"]))
+    sent.clear()
+
+    resp = await client.post(f"/api/v1/public/quiz/{token}/request-reissue")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"reissued": True}
+    # delivery is email-only: a fresh working link went to the candidate
+    assert len(sent) == 1
+    new_token = str(sent[0]["quiz_url"]).rsplit("/quiz/", 1)[1]
+    assert (await client.get(f"/api/v1/public/quiz/{new_token}")).json()["status"] == "pending"
+
+    # the old link now reports a re-issued state
+    assert (await client.post(f"/api/v1/public/quiz/{token}/request-reissue")).status_code == 409
+
+    # auto works ONCE: expire the fresh attempt too → falls back to manual
+    await _expire_attempts(db_session, str(application["id"]))
+    resp = await client.post(f"/api/v1/public/quiz/{new_token}/request-reissue")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"reissued": False}
+
+    # the lateness is visible on the fresh attempt's audit trail
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    detail = (await client.get(f"/api/v1/applications/{application['id']}")).json()
+    reissue = detail["quiz_attempt"]["integrity"]["reissue"]
+    assert reissue["reason"] == "expired" and reissue["mode"] == "auto"
+    assert reissue["by_user_id"] is None
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_active_link_refuses_reissue_request(client: AsyncClient) -> None:
+    applied, _ = await _apply_with_quiz(client)
+    resp = await client.post(f"/api/v1/public/quiz/{applied['quiz_token']}/request-reissue")
+    assert resp.status_code == 409
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_settings_patch_is_admin_only_and_validated(client: AsyncClient) -> None:
+    creds = {
+        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "password": "a-long-secure-password",
+    }
+    resp = await client.post(
+        "/api/v1/auth/register", json={"company_name": f"Set Co {uuid4().hex[:6]}", **creds}
+    )
+    assert resp.status_code == 201
+    assert (
+        await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": "always"})
+    ).status_code == 422
+    # null resets to the default
+    assert (
+        await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": "auto"})
+    ).json()["settings"] == {"quiz_expired_reissue": "auto"}
+    assert (
+        await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": None})
+    ).json()["settings"] == {}
+
+    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_pw = "member-password-1234"
+    resp = await client.post(
+        "/api/v1/users", json={"email": member_email, "password": member_pw, "role": "member"}
+    )
+    assert resp.status_code == 201
+    await client.post("/api/v1/auth/logout")
+    assert (
+        await client.post("/api/v1/auth/login", json={"email": member_email, "password": member_pw})
+    ).status_code == 200
+    assert (
+        await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": "auto"})
+    ).status_code == 403
