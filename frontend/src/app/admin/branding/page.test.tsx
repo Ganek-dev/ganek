@@ -29,6 +29,7 @@ function makeCompany(overrides: Partial<CompanyAdmin> = {}): CompanyAdmin {
     website: null,
     socials: {},
     theme: {},
+    settings: {},
     ...overrides,
   };
 }

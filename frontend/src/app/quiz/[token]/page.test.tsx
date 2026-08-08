@@ -2,7 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { publicQuiz, type PracticeQuestion, type QuizQuestion, type QuizState } from "@/lib/api";
+import {
+  ApiError,
+  publicQuiz,
+  type PracticeQuestion,
+  type QuizQuestion,
+  type QuizState,
+} from "@/lib/api";
 
 import QuizPage from "./page";
 
@@ -20,6 +26,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       answer: vi.fn(),
       events: vi.fn(),
       practice: vi.fn(),
+      requestReissue: vi.fn(),
     },
   };
 });
@@ -159,6 +166,37 @@ describe("QuizPage", () => {
     render(<QuizPage />);
     expect(await screen.findByText(/This assessment link expired/)).toBeInTheDocument();
     expect(screen.getByText(/application itself was received/)).toBeInTheDocument();
+  });
+
+  it("requests a new link — auto mode confirms the email", async () => {
+    mocked.state.mockResolvedValue(makeState({ status: "expired" }));
+    mocked.requestReissue.mockResolvedValue({ reissued: true });
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Request a new link" }));
+    await waitFor(() => expect(mocked.requestReissue).toHaveBeenCalledWith("tok-123"));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "A fresh link is on its way — check your inbox.",
+    );
+  });
+
+  it("requests a new link — manual mode says the team was notified", async () => {
+    mocked.state.mockResolvedValue(makeState({ status: "expired" }));
+    mocked.requestReissue.mockResolvedValue({ reissued: false });
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Request a new link" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "The hiring team has been notified",
+    );
+  });
+
+  it("a 409 on request means a link was already re-issued", async () => {
+    mocked.state.mockResolvedValue(makeState({ status: "expired" }));
+    mocked.requestReissue.mockRejectedValue(new ApiError(409, "already issued"));
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Request a new link" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "A new link was already issued — check your inbox.",
+    );
   });
 });
 
