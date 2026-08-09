@@ -124,7 +124,7 @@ async def test_slot_preview_returns_summary(client: AsyncClient) -> None:
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["schedule_summary"] == "Mon–Fri 09:00–17:00"
+    assert body["schedule_summary"] == "Mon–Fri 09:00–17:00 (Europe/Berlin)"
     assert body["open_slot_count"] > 0
 
 
