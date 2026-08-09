@@ -16,8 +16,11 @@ class SlotPreviewRequest(BaseModel):
 class InterviewCreate(SlotPreviewRequest):
     title: str = Field(default="Hiring manager interview", min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
-    # the recruiter-pruned offer; server-generated slots round-tripped
-    slots: list[datetime] = Field(min_length=1, max_length=40)
+
+
+class SlotPreviewOut(BaseModel):
+    schedule_summary: str
+    open_slot_count: int
 
 
 class InterviewOut(BaseModel):
@@ -31,7 +34,6 @@ class InterviewOut(BaseModel):
     description: str
     duration_minutes: int
     timezone: str
-    offered_slots: list[datetime]
     scheduled_start: datetime | None
     meet_url: str | None
     created_at: datetime

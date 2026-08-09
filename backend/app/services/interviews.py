@@ -107,10 +107,13 @@ async def _booked_windows(
         .scalars()
         .all()
     )
-    return [
-        (row.scheduled_start, row.scheduled_start + timedelta(minutes=row.duration_minutes))
-        for row in rows
-    ]
+    windows: list[tuple[datetime, datetime]] = []
+    for row in rows:
+        start = row.scheduled_start
+        if start is None:  # excluded by the query already; narrows for mypy
+            continue
+        windows.append((start, start + timedelta(minutes=row.duration_minutes)))
+    return windows
 
 
 async def generate_slots(
@@ -314,7 +317,8 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     # interview between our load and acquiring the lock (double-submit /
     # two tabs) — `interview` is stale in-memory (expire_on_commit=False).
     await db.refresh(interview, attribute_names=["status"])
-    if interview.status is InterviewStatus.BOOKED:
+    status_after_lock: InterviewStatus = interview.status
+    if status_after_lock is InterviewStatus.BOOKED:
         raise AlreadyBookedError
     await _require_available(db, interview, start)
     candidate = interview.application.candidate

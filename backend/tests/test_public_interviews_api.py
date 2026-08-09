@@ -55,23 +55,16 @@ def quiet_google(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(module, "delete_event", delete_event)
 
 
-def _slots() -> list[str]:
-    base = (datetime.now(UTC) + timedelta(days=3)).replace(minute=0, second=0, microsecond=0)
-    return [(base + timedelta(hours=i)).isoformat() for i in range(3)]
-
-
-async def _booking_token(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> tuple[str, list[str]]:
-    """Admin sets up company/job/applicant/interview; returns (token, slots),
-    logged OUT so subsequent calls are anonymous candidate traffic."""
-    from app.services import email as email_service
-
+async def _register_and_publish(
+    client: AsyncClient, company_prefix: str
+) -> tuple[str, str, dict[str, object], dict[str, str]]:
+    """Register a company/admin and publish one job. Returns
+    (admin_id, slug, job, creds), logged OUT."""
     creds = {
         "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
         "password": "a-long-secure-password",
     }
-    name = f"Book Co {uuid4().hex[:6]}"
+    name = f"{company_prefix} {uuid4().hex[:6]}"
     resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
     assert resp.status_code == 201, resp.text
     admin_id = resp.json()["id"]
@@ -80,8 +73,13 @@ async def _booking_token(
     job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
     assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
     await client.post("/api/v1/auth/logout")
+    return admin_id, slug, job, creds
 
-    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+
+async def _apply_as_candidate(
+    client: AsyncClient, slug: str, job_slug: str, candidate_name: str
+) -> None:
+    base = f"/api/v1/public/companies/{slug}/jobs/{job_slug}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
     async with httpx.AsyncClient() as raw:
         put = await raw.put(
@@ -93,13 +91,25 @@ async def _booking_token(
     resp = await client.post(
         f"{base}/apply",
         json={
-            "name": "Marta Vidal",
+            "name": candidate_name,
             "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
             "cv_object_key": ticket["object_key"],
-            "cv_filename": "marta.pdf",
+            "cv_filename": "cv.pdf",
         },
     )
     assert resp.status_code == 201, resp.text
+
+
+async def _booking_token(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> tuple[str, list[str]]:
+    """Admin sets up company/job/applicant/interview; returns (token, slots)
+    — the currently live-offered slots — logged OUT so subsequent calls are
+    anonymous candidate traffic."""
+    from app.services import email as email_service
+
+    admin_id, slug, job, creds = await _register_and_publish(client, "Book Co")
+    await _apply_as_candidate(client, slug, str(job["slug"]), "Marta Vidal")
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     application_id = (await client.get("/api/v1/applications")).json()[0]["id"]
@@ -110,7 +120,6 @@ async def _booking_token(
     )
     captured: list[dict[str, object]] = []
     monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: captured.append(kw))
-    slots = _slots()
     resp = await client.post(
         f"/api/v1/applications/{application_id}/interview",
         json={
@@ -118,12 +127,15 @@ async def _booking_token(
             "duration_minutes": 45,
             "timezone": "Europe/Berlin",
             "description": "Your work, our stack.",
-            "slots": slots,
         },
     )
     assert resp.status_code == 201, resp.text
-    await client.post("/api/v1/auth/logout")
     token = str(captured[0]["booking_url"]).rsplit("/", 1)[-1]
+    context = await client.get(f"/api/v1/public/interviews/{token}")
+    assert context.status_code == 200, context.text
+    slots = context.json()["available_slots"]
+    assert len(slots) > 0
+    await client.post("/api/v1/auth/logout")
     return token, slots
 
 
@@ -133,40 +145,9 @@ async def _two_applications(
     """One company/admin (the interviewer), two candidates applying to the
     same published job. Returns ORM rows fetched fresh from `db_session`;
     logged out at the end so subsequent calls are anonymous."""
-    creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
-        "password": "a-long-secure-password",
-    }
-    name = f"Race Co {uuid4().hex[:6]}"
-    resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
-    assert resp.status_code == 201, resp.text
-    admin_id = resp.json()["id"]
-    slug = name.lower().replace(" ", "-")
-
-    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
-    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
-    await client.post("/api/v1/auth/logout")
-
-    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+    admin_id, slug, job, creds = await _register_and_publish(client, "Race Co")
     for candidate_name in ("Marta Vidal", "Jonas Weber"):
-        ticket = (await client.post(f"{base}/apply/upload-url")).json()
-        async with httpx.AsyncClient() as raw:
-            put = await raw.put(
-                ticket["upload_url"],
-                content=PDF_BYTES,
-                headers={"Content-Type": ticket["content_type"]},
-            )
-            assert put.status_code == 200
-        resp = await client.post(
-            f"{base}/apply",
-            json={
-                "name": candidate_name,
-                "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
-                "cv_object_key": ticket["object_key"],
-                "cv_filename": "cv.pdf",
-            },
-        )
-        assert resp.status_code == 201, resp.text
+        await _apply_as_candidate(client, slug, str(job["slug"]), candidate_name)
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     applications = (await client.get("/api/v1/applications")).json()
@@ -316,7 +297,7 @@ async def test_booking_context(
     assert body["candidate_first_name"] == "Marta"
     assert body["duration_minutes"] == 45
     assert body["timezone"] == "Europe/Berlin"
-    assert len(body["available_slots"]) == 3
+    assert len(body["available_slots"]) > 0
     assert body["meet_url"] is None
     assert "Book Co" in body["company_name"]
 
@@ -386,7 +367,11 @@ async def test_reschedule_and_cancel(
         f"/api/v1/public/interviews/{token}/reschedule", json={"start": slots[2]}
     )
     assert moved.status_code == 200, moved.text
-    assert moved.json()["scheduled_start"].startswith(slots[2][:16])
+    # both are the same instant, but scheduled_start is normalized to UTC
+    # while the offered slot carries the interviewer's local offset.
+    assert datetime.fromisoformat(moved.json()["scheduled_start"]) == datetime.fromisoformat(
+        slots[2]
+    )
 
     cancelled = await client.post(f"/api/v1/public/interviews/{token}/cancel")
     assert cancelled.status_code == 200
@@ -410,6 +395,23 @@ async def test_book_when_google_breaks_is_503(
     monkeypatch.setattr(interviews_service.google_calendar, "create_meet_event", broken)
     resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
     assert resp.status_code == 503
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_public_get_survives_calendar_outage(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A candidate opening the booking page must still get a 200 with an
+    empty slot list when Google is down — not a 503 (live_slots swallows it)."""
+    token, _ = await _booking_token(client, db_session, monkeypatch)
+
+    async def boom(*args: object, **kwargs: object) -> None:
+        raise google_calendar.GoogleCalendarError("down")
+
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", boom)
+    resp = await client.get(f"/api/v1/public/interviews/{token}")
+    assert resp.status_code == 200
+    assert resp.json()["available_slots"] == []
 
 
 async def test_bad_token_404s(client: AsyncClient) -> None:
