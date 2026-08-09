@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CalendarX2, Check, Clock, Video } from "lucide-react";
 
@@ -9,12 +9,15 @@ import { ApiError, publicInterviews, type InterviewPublic } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
 
 /** Candidate interview scheduling, handoff screen 23: interviewer panel +
- * day-grouped slot grid (mono time pills, selected = brand fill) + confirm
- * bar. Booked state offers reschedule (same grid) and a two-step cancel.
- * All times render in the INTERVIEW's timezone — the calendar invite that
- * Google sends after booking converts to the candidate's own calendar. */
+ * Calendly-style day strip (role="tablist") + wrapped time-pill list for the
+ * active day (selected = brand fill) + confirm bar. Booked state offers
+ * reschedule (same picker) and a two-step cancel. All times render in the
+ * CANDIDATE's browser timezone — selecting a time triggers a silent
+ * refetch so a just-taken slot is caught before confirm. The calendar
+ * invite Google sends after booking still uses the interview's stored
+ * timezone server-side. */
 
-const DAYS_PER_PAGE = 4;
+const MAX_DAY_CHIPS = 14;
 
 function initials(display: string): string {
   const parts = display.split(/\s+/).filter(Boolean);
@@ -59,27 +62,30 @@ function endTime(iso: string, minutes: number, timezone: string): string {
   return timeLabel(new Date(new Date(iso).getTime() + minutes * 60_000).toISOString(), timezone);
 }
 
-function SlotGrid({
+function DayPicker({
   interview,
+  localZone,
   selected,
   onSelect,
 }: {
   interview: InterviewPublic;
+  localZone: string;
   selected: string | null;
   onSelect: (iso: string) => void;
 }) {
-  const [page, setPage] = useState(0);
   const days = useMemo(() => {
     const grouped = new Map<string, string[]>();
     for (const iso of interview.available_slots) {
-      const key = dayKey(iso, interview.timezone);
+      const key = dayKey(iso, localZone);
       grouped.set(key, [...(grouped.get(key) ?? []), iso]);
     }
-    return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [interview]);
+    return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, MAX_DAY_CHIPS);
+  }, [interview, localZone]);
 
-  const pages = Math.max(1, Math.ceil(days.length / DAYS_PER_PAGE));
-  const visible = days.slice(page * DAYS_PER_PAGE, page * DAYS_PER_PAGE + DAYS_PER_PAGE);
+  // No effect needed to "auto-select the first day": `currentDay` below
+  // already falls back to `days[0]` whenever `activeDay` is unset or no
+  // longer present (e.g. its slots emptied out after a re-check refetch).
+  const [activeDay, setActiveDay] = useState<string | null>(null);
 
   if (days.length === 0) {
     return (
@@ -89,62 +95,65 @@ function SlotGrid({
     );
   }
 
+  const currentDay = activeDay && days.some(([key]) => key === activeDay) ? activeDay : days[0][0];
+  const activeSlots = days.find(([key]) => key === currentDay)?.[1] ?? [];
+
   return (
     <div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {visible.map(([key, slots]) => {
-          const label = dayLabel(slots[0], interview.timezone);
+      <div
+        role="tablist"
+        aria-label="Choose a day"
+        className="flex gap-2 overflow-x-auto pb-1"
+      >
+        {days.map(([key, slots]) => {
+          const label = dayLabel(slots[0], localZone);
+          const isActive = key === currentDay;
           return (
-            <div key={key} className="flex flex-col gap-2">
-              <p className="text-center text-[12.5px] font-medium">
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveDay(key)}
+              className={`flex shrink-0 flex-col items-center gap-0.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors ${
+                isActive
+                  ? "border-brand bg-brand text-brand-foreground"
+                  : "border-edge bg-surface hover:border-strong"
+              }`}
+            >
+              <span className="font-medium">
                 {label.weekday}{" "}
-                <span className="font-mono text-[11.5px] text-g500">{label.date}</span>
-              </p>
-              {slots.map((iso) => (
-                <button
-                  key={iso}
-                  type="button"
-                  onClick={() => onSelect(iso)}
-                  aria-pressed={selected === iso}
-                  className={`h-9 rounded-md border font-mono text-[12.5px] transition-colors ${
-                    selected === iso
-                      ? "border-brand bg-brand text-brand-foreground"
-                      : "border-edge bg-surface hover:border-strong"
-                  }`}
-                >
-                  {timeLabel(iso, interview.timezone)}
-                </button>
-              ))}
-            </div>
+                <span className="font-mono text-[11.5px] opacity-80">{label.date}</span>
+              </span>
+              <span className="font-mono text-[11px] opacity-70">{slots.length} open</span>
+            </button>
           );
         })}
       </div>
-      {pages > 1 ? (
-        <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex flex-wrap gap-2">
+        {activeSlots.map((iso) => (
           <button
+            key={iso}
             type="button"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-            className="text-[12.5px] font-medium text-g500 hover:text-g600 disabled:opacity-40"
+            onClick={() => onSelect(iso)}
+            aria-pressed={selected === iso}
+            className={`h-9 rounded-md border font-mono text-[12.5px] transition-colors ${
+              selected === iso
+                ? "border-brand bg-brand text-brand-foreground"
+                : "border-edge bg-surface hover:border-strong"
+            }`}
           >
-            ← back
+            {timeLabel(iso, localZone)}
           </button>
-          <button
-            type="button"
-            disabled={page >= pages - 1}
-            onClick={() => setPage((p) => p + 1)}
-            className="text-[12.5px] font-medium text-accent hover:underline disabled:opacity-40"
-          >
-            more days →
-          </button>
-        </div>
-      ) : null}
+        ))}
+      </div>
     </div>
   );
 }
 
 export default function InterviewBookingPage() {
   const { token } = useParams<{ token: string }>();
+  const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [interview, setInterview] = useState<InterviewPublic | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -153,10 +162,29 @@ export default function InterviewBookingPage() {
   const [rescheduling, setRescheduling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
+  // Mirrors `selected` into a ref so `load()` (memoized on `token` only) can
+  // read the latest selection inside its promise handler without going
+  // stale — state updates from a fetch stay inside the resolve callback
+  // rather than a bare effect (react-hooks/set-state-in-effect).
+  const selectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
   const load = useCallback(() => {
     publicInterviews
       .get(token)
-      .then(setInterview)
+      .then((data) => {
+        setInterview(data);
+        // Select re-check: if a silent refetch (triggered by selecting a
+        // time) shows the picked slot is gone, someone else just took it —
+        // clear the selection and surface the same copy the confirm-time
+        // 409 path uses, instead of only discovering it at confirm.
+        if (selectedRef.current && !data.available_slots.includes(selectedRef.current)) {
+          setSelected(null);
+          setError("That time was just taken — please pick another.");
+        }
+      })
       .catch((err: unknown) => {
         if (err instanceof ApiError && err.status === 404) setInvalid(true);
         else setError(err instanceof Error ? err.message : "Failed to load");
@@ -164,6 +192,12 @@ export default function InterviewBookingPage() {
   }, [token]);
 
   useEffect(load, [load]);
+
+  function selectSlot(iso: string) {
+    setError(null);
+    setSelected(iso);
+    load();
+  }
 
   async function submit(action: "book" | "reschedule") {
     if (!selected) return;
@@ -233,7 +267,6 @@ export default function InterviewBookingPage() {
     );
   }
 
-  const tz = `${interview.timezone} · ${tzShortName(interview.timezone)}`;
   const showGrid = interview.status === "pending" || (interview.status === "booked" && rescheduling);
 
   return (
@@ -289,7 +322,7 @@ export default function InterviewBookingPage() {
                 </p>
               </div>
               <span className="rounded-full border border-edge px-2.5 py-1 font-mono text-[11px] text-g500">
-                {tz}
+                Times shown in {localZone} — your local time
               </span>
               {interview.description ? (
                 <p className="w-full border-t border-edge pt-3 text-[13px] text-g600 italic">
@@ -303,16 +336,18 @@ export default function InterviewBookingPage() {
                 <p className="flex items-center gap-2 text-sm font-semibold">
                   <Check aria-hidden className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   {interview.scheduled_start
-                    ? `${dayLabel(interview.scheduled_start, interview.timezone).weekday}, ${
-                        dayLabel(interview.scheduled_start, interview.timezone).date
-                      } · ${timeLabel(interview.scheduled_start, interview.timezone)}–${endTime(
+                    ? `${dayLabel(interview.scheduled_start, localZone).weekday}, ${
+                        dayLabel(interview.scheduled_start, localZone).date
+                      } · ${timeLabel(interview.scheduled_start, localZone)}–${endTime(
                         interview.scheduled_start,
                         interview.duration_minutes,
-                        interview.timezone,
+                        localZone,
                       )}`
                     : "Booked"}
                 </p>
-                <p className="mt-1 text-[12.5px] text-g500">{tz} · Google Meet</p>
+                <p className="mt-1 text-[12.5px] text-g500">
+                  {tzShortName(localZone, interview.scheduled_start ?? undefined)} · Google Meet
+                </p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   {interview.meet_url ? (
                     <a
@@ -368,18 +403,23 @@ export default function InterviewBookingPage() {
                     Pick a new time — your current slot stays until you confirm.
                   </p>
                 ) : null}
-                <SlotGrid interview={interview} selected={selected} onSelect={setSelected} />
+                <DayPicker
+                  interview={interview}
+                  localZone={localZone}
+                  selected={selected}
+                  onSelect={selectSlot}
+                />
                 {selected ? (
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-edge pt-4">
                     <p className="text-[13.5px]">
                       <span className="font-semibold">
-                        {dayLabel(selected, interview.timezone).weekday},{" "}
-                        {dayLabel(selected, interview.timezone).date} ·{" "}
-                        {timeLabel(selected, interview.timezone)}–
-                        {endTime(selected, interview.duration_minutes, interview.timezone)}
+                        {dayLabel(selected, localZone).weekday},{" "}
+                        {dayLabel(selected, localZone).date} ·{" "}
+                        {timeLabel(selected, localZone)}–
+                        {endTime(selected, interview.duration_minutes, localZone)}
                       </span>{" "}
                       <span className="font-mono text-[11.5px] text-g500">
-                        {tzShortName(interview.timezone, selected)} · Google Meet
+                        {tzShortName(localZone, selected)} · Google Meet
                       </span>
                     </p>
                     <button

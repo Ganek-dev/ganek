@@ -1,3 +1,11 @@
+// Pin the test-runner timezone so day-strip grouping / time labels are
+// deterministic regardless of the machine or CI runner's default TZ (the
+// component derives its display zone from Intl.DateTimeFormat().resolvedOptions()
+// at render time, which reads process.env.TZ under Node). No other test in
+// this file's worker asserts a specific local-hour value, so this is safe
+// to set unconditionally before any imports run.
+process.env.TZ = "Europe/Berlin";
+
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +37,13 @@ const SLOT_A = "2027-01-05T09:00:00+00:00"; // Tue 10:00 Berlin
 const SLOT_B = "2027-01-05T13:00:00+00:00"; // Tue 14:00 Berlin
 const SLOT_C = "2027-01-06T10:30:00+00:00"; // Wed 11:30 Berlin
 
+// A Monday with 3 open slots and a Tuesday with 2, for day-strip grouping.
+const MON_1 = "2026-08-10T08:00:00+00:00"; // Mon 10:00 Berlin
+const MON_2 = "2026-08-10T09:00:00+00:00"; // Mon 11:00 Berlin
+const MON_3 = "2026-08-10T10:00:00+00:00"; // Mon 12:00 Berlin
+const TUE_1 = "2026-08-11T08:00:00+00:00"; // Tue 10:00 Berlin
+const TUE_2 = "2026-08-11T09:00:00+00:00"; // Tue 11:00 Berlin
+
 function interview(overrides: Partial<InterviewPublic> = {}): InterviewPublic {
   return {
     company_name: "Northwind Robotics",
@@ -49,21 +64,50 @@ function interview(overrides: Partial<InterviewPublic> = {}): InterviewPublic {
   };
 }
 
+function withSlots(slots: string[]): InterviewPublic {
+  return interview({ available_slots: slots });
+}
+
 describe("InterviewBookingPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.get.mockResolvedValue(interview());
   });
 
-  it("renders the pending state with interviewer panel and slot grid", async () => {
+  it("renders the pending state with interviewer panel and a day-strip time list", async () => {
     render(<InterviewBookingPage />);
     expect(await screen.findByRole("heading", { name: "Pick a time, Marta" })).toBeInTheDocument();
     expect(screen.getByText("Dana Kowalska")).toBeInTheDocument();
     expect(screen.getByText("45 minutes")).toBeInTheDocument();
     expect(screen.getByText(/Europe\/Berlin/)).toBeInTheDocument();
-    // Berlin renders 09:00 UTC as 10:00
+    // first day (Tue, holding SLOT_A + SLOT_B) is auto-selected
+    const tueTab = screen.getByRole("tab", { name: /tue.*2/i });
+    expect(tueTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /wed.*1/i })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("button", { name: "10:00" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "14:00" })).toBeInTheDocument();
+    // Wed's slot isn't shown until its day chip is active
+    expect(screen.queryByRole("button", { name: "11:30" })).not.toBeInTheDocument();
+  });
+
+  it("groups slots into a day strip in the visitor's timezone and books from the time list", async () => {
+    mocked.get.mockResolvedValue(withSlots([MON_1, MON_2, MON_3, TUE_1, TUE_2]));
+    mocked.book.mockResolvedValue(
+      interview({ status: "booked", scheduled_start: MON_1, meet_url: "https://meet.g/x" }),
+    );
+    render(<InterviewBookingPage />);
+    const mondayTab = await screen.findByRole("tab", { name: /mon.*3/i });
+    expect(mondayTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /tue.*2/i })).toHaveAttribute("aria-selected", "false");
+    await userEvent.click(mondayTab);
+    await userEvent.click(screen.getByRole("button", { name: "10:00" }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm interview/i }));
+    expect(mocked.book).toHaveBeenCalledWith("iv-tok", MON_1);
+  });
+
+  it("shows the local-timezone pill", async () => {
+    render(<InterviewBookingPage />);
+    expect(await screen.findByText(/your local time/i)).toBeInTheDocument();
   });
 
   it("books the selected slot", async () => {
@@ -82,13 +126,24 @@ describe("InterviewBookingPage", () => {
     );
   });
 
-  it("recovers when the slot was just taken", async () => {
+  it("recovers when the slot was just taken at confirm time", async () => {
     mocked.book.mockRejectedValueOnce(new ApiError(409, "slot-taken"));
     render(<InterviewBookingPage />);
     await userEvent.click(await screen.findByRole("button", { name: "10:00" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm interview" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/just taken/i);
-    await waitFor(() => expect(mocked.get).toHaveBeenCalledTimes(2)); // refetched
+    // initial load + select re-check + post-conflict reload
+    await waitFor(() => expect(mocked.get).toHaveBeenCalledTimes(3));
+  });
+
+  it("re-checks on select and greys a just-taken slot", async () => {
+    mocked.get
+      .mockResolvedValueOnce(withSlots(["2026-08-12T08:00:00Z", "2026-08-12T09:00:00Z"]))
+      .mockResolvedValueOnce(withSlots(["2026-08-12T09:00:00Z"]));
+    render(<InterviewBookingPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "10:00" })); // 08:00Z in Berlin (CEST)
+    expect(await screen.findByText(/just taken/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirm interview/i })).not.toBeInTheDocument();
   });
 
   it("reschedules from the booked state", async () => {
@@ -100,6 +155,7 @@ describe("InterviewBookingPage", () => {
     );
     render(<InterviewBookingPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Reschedule" }));
+    await userEvent.click(await screen.findByRole("tab", { name: /wed/i }));
     await userEvent.click(screen.getByRole("button", { name: "11:30" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm new time" }));
     await waitFor(() => expect(mocked.reschedule).toHaveBeenCalledWith("iv-tok", SLOT_C));
