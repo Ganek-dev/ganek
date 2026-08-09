@@ -55,7 +55,13 @@ def redirect_uri() -> str:
     return f"{settings.public_base_url}/api/v1/auth/google/callback"
 
 
-CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+# events CRUD alone does NOT cover freebusy.query — that needs its own
+# granular scope (Google's freebusy reference lists calendar.freebusy;
+# calendar.events is absent from its authorization list)
+CALENDAR_SCOPES = (
+    "https://www.googleapis.com/auth/calendar.events "
+    "https://www.googleapis.com/auth/calendar.freebusy"
+)
 
 
 def build_authorization_request(*, calendar: bool = False) -> tuple[str, str, str, str]:
@@ -85,7 +91,7 @@ def build_authorization_request(*, calendar: bool = False) -> tuple[str, str, st
         "prompt": "select_account",
     }
     if calendar:
-        params["scope"] = f"openid email {CALENDAR_SCOPE}"
+        params["scope"] = f"openid email {CALENDAR_SCOPES}"
         params["access_type"] = "offline"
         params["prompt"] = "consent"
         params["include_granted_scopes"] = "true"
