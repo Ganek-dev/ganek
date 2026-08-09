@@ -98,6 +98,7 @@ def test_decode_claims_garbage() -> None:
 def test_authorization_url_calendar_variant() -> None:
     url, _, _, _ = oauth_google.build_authorization_request(calendar=True)
     assert "calendar.events" in url
+    assert "calendar.freebusy" in url  # events CRUD alone cannot query freebusy
     assert "access_type=offline" in url
     assert "prompt=consent" in url
     assert "include_granted_scopes=true" in url
