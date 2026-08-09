@@ -6,9 +6,19 @@ from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.security import create_invite_token
 from app.models import Company, User, UserInvite
-from app.schemas.users import InviteCreate, InviteOut, TeamUserOut, UserCreate, UserUpdate
+from app.schemas.users import (
+    AvailabilityIn,
+    AvailabilityOut,
+    DayWindow,
+    InviteCreate,
+    InviteOut,
+    TeamUserOut,
+    UserCreate,
+    UserUpdate,
+)
 from app.services import email as email_service
 from app.services import google_calendar
+from app.services import interviews as interviews_service
 from app.services import invites as invites_service
 from app.services import users as users_service
 
@@ -31,6 +41,28 @@ async def my_google_calendar(db: DbSession, user: CurrentUser) -> dict[str, obje
 @router.delete("/me/google-calendar", status_code=status.HTTP_204_NO_CONTENT)
 async def disconnect_google_calendar(db: DbSession, user: CurrentUser) -> None:
     await google_calendar.remove_credentials(db, user)
+
+
+@router.get("/me/availability", response_model=AvailabilityOut)
+async def my_availability(user: CurrentUser) -> AvailabilityOut:
+    tz, windows = interviews_service.effective_availability(user)
+    days = {
+        day: DayWindow(start=f"{start:%H:%M}", end=f"{end:%H:%M}")
+        for day, (start, end) in windows.items()
+    }
+    return AvailabilityOut(timezone=tz or "", days=days, is_default=tz is None)
+
+
+@router.put("/me/availability", response_model=AvailabilityOut)
+async def set_availability(
+    payload: AvailabilityIn, db: DbSession, user: CurrentUser
+) -> AvailabilityOut:
+    user.interview_availability = {
+        "timezone": payload.timezone,
+        "days": {day: {"start": w.start, "end": w.end} for day, w in payload.days.items()},
+    }
+    await db.commit()
+    return AvailabilityOut(timezone=payload.timezone, days=payload.days, is_default=False)
 
 
 @router.get("", response_model=list[TeamUserOut])
