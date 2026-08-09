@@ -1,16 +1,18 @@
 """Interview scheduling (single-round v1).
 
-Slot offers are computed once from the interviewer's Google free/busy and
-frozen on the interview row; booking (PR ③) re-checks the chosen slot
-against live free/busy before creating the calendar event.
+Slots are always computed live from the interviewer's saved availability
+(``effective_availability``) plus Google free/busy plus vetd's own booked
+interviews — never frozen on the interview row. Booking re-checks the
+chosen slot against live free/busy before creating the calendar event.
 """
 
+import hashlib
 import logging
 import uuid
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,8 +23,7 @@ from app.services import activity, google_calendar
 logger = logging.getLogger(__name__)
 
 SLOT_GRID_MINUTES = 30
-WORKDAY_START = time(9, 0)
-WORKDAY_END = time(18, 0)
+HORIZON_DAYS = 14  # slots offered over the next two weeks, starting tomorrow
 WEEKDAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 DAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 DEFAULT_AVAILABILITY = {
@@ -87,51 +88,92 @@ class SlotUnavailableError(Exception):
     """The chosen slot is not offered, already past, or just got taken."""
 
 
+async def _booked_windows(
+    db: AsyncSession, interviewer_id: uuid.UUID, window_start: datetime, window_end: datetime
+) -> list[tuple[datetime, datetime]]:
+    """Busy windows from vetd's own BOOKED interviews — freebusy-lag insurance."""
+    rows = (
+        (
+            await db.execute(
+                select(Interview).where(
+                    Interview.interviewer_user_id == interviewer_id,
+                    Interview.status == InterviewStatus.BOOKED,
+                    Interview.scheduled_start.is_not(None),
+                    Interview.scheduled_start >= window_start,
+                    Interview.scheduled_start < window_end,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    windows: list[tuple[datetime, datetime]] = []
+    for row in rows:
+        start = row.scheduled_start
+        if start is None:  # excluded by the query already; narrows for mypy
+            continue
+        windows.append((start, start + timedelta(minutes=row.duration_minutes)))
+    return windows
+
+
 async def generate_slots(
     db: AsyncSession,
     interviewer: User,
     *,
     duration_minutes: int,
     timezone: str,
-    business_days: int = 10,
-    per_day_cap: int = 4,
 ) -> list[datetime]:
-    """Free 30-min-grid starts over the next N business days, interviewer tz.
+    """Free 30-min-grid starts over the next HORIZON_DAYS, from the
+    interviewer's saved weekly availability (default Mon-Fri 09:00-17:00).
+    `timezone` is the fallback zone when the schedule has none saved.
 
-    Raises ValueError for an unknown IANA zone and lets
-    google_calendar.NeedsReconnectError bubble to the caller.
+    Raises ValueError for an unknown IANA zone; NeedsReconnectError bubbles.
     """
+    saved_tz, windows = effective_availability(interviewer)
     try:
-        zone = ZoneInfo(timezone)
+        zone = ZoneInfo(saved_tz or timezone)
     except (ZoneInfoNotFoundError, ValueError) as exc:
-        raise ValueError(f"unknown timezone {timezone!r}") from exc
+        raise ValueError(f"unknown timezone {saved_tz or timezone!r}") from exc
 
-    now = datetime.now(zone)
-    window_start = datetime.combine(now.date() + timedelta(days=1), WORKDAY_START, tzinfo=zone)
-    window_end = window_start + timedelta(days=16)  # 10 business days always fit
+    first_day = datetime.now(zone).date() + timedelta(days=1)
+    window_start = datetime.combine(first_day, time.min, tzinfo=zone)
+    window_end = window_start + timedelta(days=HORIZON_DAYS)
     busy = await google_calendar.freebusy(db, interviewer, window_start, window_end)
+    busy = busy + await _booked_windows(db, interviewer.id, window_start, window_end)
 
-    slots: list[datetime] = []
-    day = now.date() + timedelta(days=1)
-    counted_days = 0
     duration = timedelta(minutes=duration_minutes)
-    while counted_days < business_days:
-        if day.weekday() < 5:
-            counted_days += 1
-            taken_today = 0
-            cursor = datetime.combine(day, WORKDAY_START, tzinfo=zone)
-            day_end = datetime.combine(day, WORKDAY_END, tzinfo=zone)
-            while cursor + duration <= day_end and taken_today < per_day_cap:
-                end = cursor + duration
-                conflict = any(
-                    cursor < busy_end and end > busy_start for busy_start, busy_end in busy
-                )
-                if not conflict:
-                    slots.append(cursor)
-                    taken_today += 1
-                cursor += timedelta(minutes=SLOT_GRID_MINUTES)
-        day += timedelta(days=1)
+    slots: list[datetime] = []
+    for offset in range(HORIZON_DAYS):
+        day = first_day + timedelta(days=offset)
+        window = windows.get(WEEKDAY_KEYS[day.weekday()])
+        if window is None:
+            continue
+        cursor = datetime.combine(day, window[0], tzinfo=zone)
+        day_end = datetime.combine(day, window[1], tzinfo=zone)
+        while cursor + duration <= day_end:
+            conflict = any(
+                cursor < b_end and cursor + duration > b_start for b_start, b_end in busy
+            )
+            if not conflict:
+                slots.append(cursor)
+            cursor += timedelta(minutes=SLOT_GRID_MINUTES)
     return slots
+
+
+async def live_slots(db: AsyncSession, interview: Interview) -> list[datetime]:
+    """Candidate-visible slots, computed fresh. Empty on cancelled or calendar trouble."""
+    if interview.status is InterviewStatus.CANCELLED:
+        return []
+    try:
+        return await generate_slots(
+            db,
+            interview.interviewer,
+            duration_minutes=interview.duration_minutes,
+            timezone=interview.timezone,
+        )
+    except (ValueError, google_calendar.GoogleCalendarError):
+        logger.warning("live slot computation failed for interview %s", interview.id, exc_info=True)
+        return []
 
 
 async def get_for_application(
@@ -159,11 +201,11 @@ async def create_interview(
     description: str,
     duration_minutes: int,
     timezone: str,
-    slots: list[datetime],
     actor_user_id: uuid.UUID | None = None,
 ) -> Interview:
     if await get_for_application(db, company, application.id) is not None:
         raise InterviewExistsError
+    saved_tz, _ = effective_availability(interviewer)
     interview = Interview(
         company_id=company.id,
         application_id=application.id,
@@ -171,8 +213,7 @@ async def create_interview(
         title=title,
         description=description,
         duration_minutes=duration_minutes,
-        timezone=timezone,
-        offered_slots=[slot.astimezone(UTC).isoformat() for slot in slots],
+        timezone=saved_tz or timezone,
     )
     db.add(interview)
     activity.record(
@@ -181,7 +222,7 @@ async def create_interview(
         type=activity.INTERVIEW_REQUESTED,
         actor_user_id=actor_user_id,
         application_id=application.id,
-        payload={"interviewer": interviewer.email, "slots": len(slots)},
+        payload={"interviewer": interviewer.email},
     )
     await db.commit()
     await db.refresh(interview)
@@ -228,31 +269,22 @@ async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Intervi
     ).scalar_one_or_none()
 
 
-def available_slots(
-    interview: Interview, *, lead_time: timedelta = timedelta(hours=1)
-) -> list[datetime]:
-    """Offered slots that are still in the (near) future, sorted."""
-    horizon = datetime.now(UTC) + lead_time
-    slots = []
-    for raw in interview.offered_slots:
-        try:
-            slot = datetime.fromisoformat(raw)
-        except ValueError:
-            continue
-        if slot > horizon:
-            slots.append(slot)
-    return sorted(slots)
+async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
+    """Serialize bookings per interviewer for the rest of the transaction."""
+    key = int.from_bytes(hashlib.sha256(interviewer_id.bytes).digest()[:8], "big", signed=True)
+    await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
 
 
-def _require_offered(interview: Interview, start: datetime) -> None:
-    if start.astimezone(UTC) not in available_slots(interview):
+async def _require_available(db: AsyncSession, interview: Interview, start: datetime) -> None:
+    """The chosen instant must be in the freshly-computed live slot set."""
+    slots = await generate_slots(
+        db,
+        interview.interviewer,
+        duration_minutes=interview.duration_minutes,
+        timezone=interview.timezone,
+    )
+    if start not in slots:  # aware datetimes compare by instant
         raise SlotUnavailableError
-
-
-async def _slot_is_free(db: AsyncSession, interview: Interview, start: datetime) -> bool:
-    end = start + timedelta(minutes=interview.duration_minutes)
-    busy = await google_calendar.freebusy(db, interview.interviewer, start, end)
-    return not any(start < busy_end and end > busy_start for busy_start, busy_end in busy)
 
 
 async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
@@ -278,11 +310,17 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     design's "invite lands in your inbox".
     """
     if interview.status is InterviewStatus.BOOKED:
-        raise AlreadyBookedError
+        raise AlreadyBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
-    _require_offered(interview, start)
-    if not await _slot_is_free(db, interview, start):
-        raise SlotUnavailableError
+    await _lock_interviewer(db, interview.interviewer_user_id)
+    # authoritative re-check: another request may have booked this same
+    # interview between our load and acquiring the lock (double-submit /
+    # two tabs) — `interview` is stale in-memory (expire_on_commit=False).
+    await db.refresh(interview, attribute_names=["status"])
+    status_after_lock: InterviewStatus = interview.status
+    if status_after_lock is InterviewStatus.BOOKED:
+        raise AlreadyBookedError
+    await _require_available(db, interview, start)
     candidate = interview.application.candidate
     event_id, meet_url = await google_calendar.create_meet_event(
         db,
@@ -312,11 +350,16 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
 
 async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
     if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
-        raise NotBookedError
+        raise NotBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
-    _require_offered(interview, start)
-    if not await _slot_is_free(db, interview, start):
-        raise SlotUnavailableError
+    await _lock_interviewer(db, interview.interviewer_user_id)
+    # authoritative re-check under lock, same reasoning as book(); also
+    # refreshes google_event_id so a concurrently-changed event id (e.g.
+    # this interview got rescheduled again) is what we actually patch.
+    await db.refresh(interview, attribute_names=["status", "google_event_id"])
+    if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
+        raise NotBookedError
+    await _require_available(db, interview, start)
     await google_calendar.patch_event_time(
         db,
         interview.interviewer,

@@ -167,7 +167,6 @@ async def test_today_falls_back_to_vetd_interviews(
         interviewer_user_id=admin_id,
         duration_minutes=45,
         timezone="UTC",
-        offered_slots=[],
         status=InterviewStatus.BOOKED,
         # keep the slot inside TODAY in UTC even when the suite runs near
         # midnight — now+2h would flake past 22:00 UTC otherwise

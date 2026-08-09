@@ -645,7 +645,9 @@ async def _interview_by_token_or_404(db: DbSession, token: str) -> Interview:
     return interview
 
 
-def _interview_public(interview: Interview, company: Company) -> InterviewPublicOut:
+async def _interview_public(
+    db: DbSession, interview: Interview, company: Company
+) -> InterviewPublicOut:
     candidate = interview.application.candidate
     # users carry no display name yet — the email local part is the best we have
     display = interview.interviewer.email.split("@")[0].replace(".", " ").replace("_", " ").title()
@@ -662,11 +664,7 @@ def _interview_public(interview: Interview, company: Company) -> InterviewPublic
         timezone=interview.timezone,
         status=interview.status.value,
         interviewer_display=display,
-        available_slots=(
-            interviews_service.available_slots(interview)
-            if interview.status is not InterviewStatus.CANCELLED
-            else []
-        ),
+        available_slots=await interviews_service.live_slots(db, interview),
         scheduled_start=interview.scheduled_start,
         meet_url=interview.meet_url if booked else None,
     )
@@ -686,7 +684,7 @@ async def _interview_company(db: DbSession, interview: Interview) -> Company:
 async def interview_context(token: str, db: DbSession) -> InterviewPublicOut:
     """Candidate booking page (screen 23) behind its signed magic-link token."""
     interview = await _interview_by_token_or_404(db, token)
-    return _interview_public(interview, await _interview_company(db, interview))
+    return await _interview_public(db, interview, await _interview_company(db, interview))
 
 
 def _scheduling_unavailable() -> HTTPException:
@@ -717,7 +715,7 @@ async def interview_book(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
     except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
-    return _interview_public(interview, await _interview_company(db, interview))
+    return await _interview_public(db, interview, await _interview_company(db, interview))
 
 
 @router.post(
@@ -737,7 +735,7 @@ async def interview_reschedule(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
     except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
-    return _interview_public(interview, await _interview_company(db, interview))
+    return await _interview_public(db, interview, await _interview_company(db, interview))
 
 
 @router.post(
@@ -751,4 +749,4 @@ async def interview_cancel(token: str, db: DbSession) -> InterviewPublicOut:
         interview = await interviews_service.candidate_cancel(db, interview)
     except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
-    return _interview_public(interview, await _interview_company(db, interview))
+    return await _interview_public(db, interview, await _interview_company(db, interview))

@@ -57,7 +57,6 @@ def _interview(company: Company, application: Application, interviewer: User) ->
         interviewer_user_id=interviewer.id,
         duration_minutes=45,
         timezone="Europe/Berlin",
-        offered_slots=["2026-08-12T12:00:00+00:00", "2026-08-12T14:00:00+00:00"],
     )
 
 
@@ -71,7 +70,6 @@ async def test_interview_roundtrip_defaults(db_session: AsyncSession) -> None:
     assert interview.title == "Hiring manager interview"
     assert interview.scheduled_start is None
     assert interview.meet_url is None
-    assert len(interview.offered_slots) == 2
 
 
 @pytest.mark.usefixtures("migrated_db")

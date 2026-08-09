@@ -19,7 +19,7 @@ from app.schemas.applications import (
     ReviewIntegrityEvent,
     StageUpdate,
 )
-from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewRequest
+from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
 from app.services import applications as applications_service
 from app.services import email as email_service
 from app.services import google_calendar, storage
@@ -183,16 +183,17 @@ async def _interviewer_or_404(
     return interviewer
 
 
-@router.post("/{application_id}/interview/slot-preview")
+@router.post("/{application_id}/interview/slot-preview", response_model=SlotPreviewOut)
 async def interview_slot_preview(
     application_id: uuid.UUID,
     payload: SlotPreviewRequest,
     db: DbSession,
     company: CurrentCompany,
-) -> dict[str, list[datetime]]:
-    """Free slots for the modal — nothing is persisted."""
+) -> SlotPreviewOut:
+    """Availability summary + open slot count for the modal — nothing is persisted."""
     await _get_or_404(db, company, application_id)
     interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
+    _, windows = interviews_service.effective_availability(interviewer)
     try:
         slots = await interviews_service.generate_slots(
             db,
@@ -209,7 +210,10 @@ async def interview_slot_preview(
             status_code=status.HTTP_409_CONFLICT,
             detail="Interviewer has not connected Google Calendar",
         ) from None
-    return {"slots": slots}
+    return SlotPreviewOut(
+        schedule_summary=interviews_service.summarize_availability(windows),
+        open_slot_count=len(slots),
+    )
 
 
 @router.post(
@@ -248,7 +252,6 @@ async def create_interview(
             description=payload.description,
             duration_minutes=payload.duration_minutes,
             timezone=payload.timezone,
-            slots=payload.slots,
             actor_user_id=user.id,
         )
     except interviews_service.InterviewExistsError:

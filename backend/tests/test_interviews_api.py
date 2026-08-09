@@ -1,6 +1,6 @@
 """Interview admin endpoints; Google Calendar is faked at the service seam."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from uuid import uuid4
 
 import httpx
@@ -87,11 +87,6 @@ async def _connect_calendar(db: AsyncSession, user_id: str, email: str) -> User:
     return user
 
 
-def _future_slots(n: int = 2) -> list[str]:
-    base = datetime.now(UTC) + timedelta(days=3)
-    return [(base + timedelta(hours=i)).isoformat() for i in range(n)]
-
-
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
 async def test_slot_preview_requires_connected_calendar(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
@@ -117,7 +112,7 @@ async def test_slot_preview_requires_connected_calendar(
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
-async def test_slot_preview_returns_slots(client: AsyncClient) -> None:
+async def test_slot_preview_returns_summary(client: AsyncClient) -> None:
     application_id, admin_id, _ = await _company_with_applicant(client)
     resp = await client.post(
         f"/api/v1/applications/{application_id}/interview/slot-preview",
@@ -128,7 +123,9 @@ async def test_slot_preview_returns_slots(client: AsyncClient) -> None:
         },
     )
     assert resp.status_code == 200, resp.text
-    assert len(resp.json()["slots"]) > 0
+    body = resp.json()
+    assert body["schedule_summary"] == "Mon–Fri 09:00–17:00"
+    assert body["open_slot_count"] > 0
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
@@ -152,14 +149,13 @@ async def test_create_interview_sends_booking_email(
             "duration_minutes": 45,
             "timezone": "Europe/Berlin",
             "description": "Your work, our stack.",
-            "slots": _future_slots(),
         },
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["status"] == "pending"
     assert body["interviewer_email"] == admin_email
-    assert len(body["offered_slots"]) == 2
+    assert "offered_slots" not in body
     assert len(sent) == 1
     booking_url = str(sent[0]["booking_url"])
     token = booking_url.rsplit("/", 1)[-1]
@@ -178,7 +174,6 @@ async def test_create_interview_requires_connected_calendar(client: AsyncClient)
             "interviewer_user_id": admin_id,
             "duration_minutes": 30,
             "timezone": "Europe/Berlin",
-            "slots": _future_slots(),
         },
     )
     assert resp.status_code == 409
@@ -197,7 +192,6 @@ async def test_second_active_interview_conflicts(
         "interviewer_user_id": admin_id,
         "duration_minutes": 30,
         "timezone": "Europe/Berlin",
-        "slots": _future_slots(),
     }
     first = await client.post(f"/api/v1/applications/{application_id}/interview", json=payload)
     assert first.status_code == 201
@@ -222,7 +216,6 @@ async def test_cancel_interview_notifies_and_allows_recreate(
         "interviewer_user_id": admin_id,
         "duration_minutes": 30,
         "timezone": "Europe/Berlin",
-        "slots": _future_slots(),
     }
     created = await client.post(f"/api/v1/applications/{application_id}/interview", json=payload)
     assert created.status_code == 201

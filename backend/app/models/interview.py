@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, SmallInteger, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -23,10 +22,11 @@ class InterviewStatus(enum.StrEnum):
 class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One interview request per application (single-round v1).
 
-    ``offered_slots`` freezes the candidate's choices as ISO-8601 UTC
-    strings at creation — the interviewer's live free/busy is re-checked
-    only at booking time. Cancelled rows stay as history; the partial
-    unique index allows a fresh request after a cancellation.
+    Slots are never frozen on the row — both the candidate's picker and the
+    booking re-check compute them live from the interviewer's saved
+    availability + Google free/busy (``services.interviews.live_slots``).
+    Cancelled rows stay as history; the partial unique index allows a fresh
+    request after a cancellation.
     """
 
     __tablename__ = "interviews"
@@ -50,7 +50,6 @@ class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str] = mapped_column(Text, default="")
     duration_minutes: Mapped[int] = mapped_column(SmallInteger)
     timezone: Mapped[str] = mapped_column(String(60))  # IANA, interviewer-side
-    offered_slots: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[InterviewStatus] = mapped_column(
         Enum(
             InterviewStatus,

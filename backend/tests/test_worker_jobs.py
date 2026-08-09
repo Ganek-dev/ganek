@@ -94,7 +94,6 @@ async def _booked_interview(db: AsyncSession, *, start: datetime) -> Interview:
         interviewer_user_id=interviewer.id,
         duration_minutes=45,
         timezone="Europe/Berlin",
-        offered_slots=[],
         status=InterviewStatus.BOOKED,
         scheduled_start=start,
         meet_url="https://meet.google.com/abc",

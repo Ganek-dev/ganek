@@ -1,13 +1,22 @@
 """Slot-generation logic; free/busy is faked at the google_calendar seam."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, User, UserRole
+from app.models import (
+    Application,
+    Candidate,
+    Company,
+    Interview,
+    InterviewStatus,
+    Job,
+    User,
+    UserRole,
+)
 from app.services import interviews as interviews_service
 from tests.db import database_reachable
 
@@ -42,26 +51,42 @@ def _fake_freebusy(windows: list[tuple[datetime, datetime]]) -> object:
     return freebusy
 
 
-@pytest.mark.usefixtures("migrated_db")
-async def test_slots_skip_weekends_and_respect_cap(
-    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    user = await _interviewer(db_session)
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
-    slots = await interviews_service.generate_slots(
-        db_session, user, duration_minutes=45, timezone="Europe/Berlin"
+async def _booked_interview(
+    db: AsyncSession, user: User, *, start: datetime, duration_minutes: int
+) -> Interview:
+    """A BOOKED interview occupying `start` — FKs need company/job/candidate/application rows."""
+    job = Job(company_id=user.company_id, slug=f"job-{uuid4().hex[:8]}", title="Backend Dev")
+    candidate = Candidate(
+        company_id=user.company_id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
     )
-    assert slots, "an empty calendar must yield slots"
-    assert all(slot.weekday() < 5 for slot in slots)
-    per_day: dict[str, int] = {}
-    for slot in slots:
-        per_day[slot.date().isoformat()] = per_day.get(slot.date().isoformat(), 0) + 1
-    assert set(per_day.values()) == {4}  # cap reached every business day
-    assert len(per_day) == 10
+    db.add_all([job, candidate])
+    await db.flush()
+    application = Application(
+        company_id=user.company_id,
+        job_id=job.id,
+        candidate_id=candidate.id,
+        cv_object_key=f"cvs/{uuid4().hex}.pdf",
+        cv_filename="cv.pdf",
+        cv_size=1000,
+    )
+    db.add(application)
+    await db.flush()
+    interview = Interview(
+        company_id=user.company_id,
+        application_id=application.id,
+        interviewer_user_id=user.id,
+        duration_minutes=duration_minutes,
+        timezone="Europe/Berlin",
+        status=InterviewStatus.BOOKED,
+        scheduled_start=start,
+    )
+    db.add(interview)
+    await db.commit()
+    return interview
 
 
 @pytest.mark.usefixtures("migrated_db")
-async def test_slots_start_tomorrow_within_working_hours(
+async def test_slots_follow_default_availability(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user = await _interviewer(db_session)
@@ -69,12 +94,56 @@ async def test_slots_start_tomorrow_within_working_hours(
     slots = await interviews_service.generate_slots(
         db_session, user, duration_minutes=60, timezone="Europe/Berlin"
     )
+    assert slots
     today = datetime.now(BERLIN).date()
     for slot in slots:
         assert slot.date() > today
+        assert slot.weekday() < 5  # default = Mon-Fri
         assert slot.timetz().hour >= 9
-        # 60-minute interview must END by 18:00
-        assert (slot + timedelta(minutes=60)).timetz().hour <= 18
+        assert (slot + timedelta(minutes=60)).timetz().hour <= 17  # default ends 17:00
+    assert (slots[-1].date() - today).days <= interviews_service.HORIZON_DAYS
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_slots_respect_saved_windows_and_zone(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = await _interviewer(db_session)
+    user.interview_availability = {
+        "timezone": "Europe/Berlin",
+        "days": {"tue": {"start": "10:00", "end": "12:00"}},
+    }
+    await db_session.commit()
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
+    # fallback tz param deliberately different: saved zone must win
+    slots = await interviews_service.generate_slots(
+        db_session, user, duration_minutes=30, timezone="America/New_York"
+    )
+    assert slots
+    for slot in slots:
+        local = slot.astimezone(BERLIN)
+        assert local.strftime("%a") == "Tue"
+        assert local.hour in (10, 11)
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_slots_exclude_vetd_booked_interviews(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Google freebusy lag must not reopen a slot vetd already booked."""
+    user = await _interviewer(db_session)
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
+    baseline = await interviews_service.generate_slots(
+        db_session, user, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    target = baseline[0]
+    interview = await _booked_interview(db_session, user, start=target, duration_minutes=30)
+    assert interview.status.value == "booked"
+    slots = await interviews_service.generate_slots(
+        db_session, user, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    assert target not in slots
+    assert len(slots) == len(baseline) - 1
 
 
 @pytest.mark.usefixtures("migrated_db")
@@ -109,11 +178,3 @@ async def test_unknown_timezone_raises(db_session: AsyncSession) -> None:
         await interviews_service.generate_slots(
             db_session, user, duration_minutes=30, timezone="Mars/Olympus_Mons"
         )
-
-
-@pytest.mark.usefixtures("migrated_db")
-async def test_offered_slots_freeze_as_utc(
-    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slot = datetime(2026, 8, 12, 14, 0, tzinfo=BERLIN)
-    assert slot.astimezone(UTC).isoformat() == "2026-08-12T12:00:00+00:00"
