@@ -171,10 +171,22 @@ export default function InterviewBookingPage() {
     selectedRef.current = selected;
   }, [selected]);
 
+  // Request-generation guard: `load()` fires a silent re-check GET on every
+  // slot pick, and confirm/reschedule/cancel are all reachable while one is
+  // still in flight. Without sequencing, an older GET that resolves after a
+  // newer book/reschedule/cancel response can stomp the freshly-booked
+  // state back to a stale pre-booking snapshot. Every state-writing request
+  // bumps this counter and captures its own value; a `.then`/`.catch` only
+  // applies its result if the counter hasn't moved on since — i.e. no
+  // newer request has started.
+  const requestSeq = useRef(0);
+
   const load = useCallback(() => {
+    const seq = ++requestSeq.current;
     publicInterviews
       .get(token)
       .then((data) => {
+        if (seq !== requestSeq.current) return; // superseded by a newer request
         setInterview(data);
         // Select re-check: if a silent refetch (triggered by selecting a
         // time) shows the picked slot is gone, someone else just took it —
@@ -186,6 +198,7 @@ export default function InterviewBookingPage() {
         }
       })
       .catch((err: unknown) => {
+        if (seq !== requestSeq.current) return; // superseded by a newer request
         if (err instanceof ApiError && err.status === 404) setInvalid(true);
         else setError(err instanceof Error ? err.message : "Failed to load");
       });
@@ -203,15 +216,18 @@ export default function InterviewBookingPage() {
     if (!selected) return;
     setError(null);
     setBusy(true);
+    const seq = ++requestSeq.current;
     try {
       const updated =
         action === "book"
           ? await publicInterviews.book(token, selected)
           : await publicInterviews.reschedule(token, selected);
+      if (seq !== requestSeq.current) return; // superseded by a newer request
       setInterview(updated);
       setSelected(null);
       setRescheduling(false);
     } catch (err) {
+      if (seq !== requestSeq.current) return; // superseded by a newer request
       if (err instanceof ApiError && err.detail === "slot-taken") {
         setError("That time was just taken — please pick another.");
         setSelected(null);
@@ -229,10 +245,14 @@ export default function InterviewBookingPage() {
   async function cancelInterview() {
     setError(null);
     setBusy(true);
+    const seq = ++requestSeq.current;
     try {
-      setInterview(await publicInterviews.cancel(token));
+      const updated = await publicInterviews.cancel(token);
+      if (seq !== requestSeq.current) return; // superseded by a newer request
+      setInterview(updated);
       setConfirmingCancel(false);
     } catch (err) {
+      if (seq !== requestSeq.current) return; // superseded by a newer request
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);

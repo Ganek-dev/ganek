@@ -6,7 +6,7 @@
 // to set unconditionally before any imports run.
 process.env.TZ = "Europe/Berlin";
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,6 +66,17 @@ function interview(overrides: Partial<InterviewPublic> = {}): InterviewPublic {
 
 function withSlots(slots: string[]): InterviewPublic {
   return interview({ available_slots: slots });
+}
+
+/** A promise plus its own resolver, so a test can control exactly when a
+ * mocked request settles — needed to reproduce request races (a stale
+ * re-check GET resolving after a newer book/reschedule/cancel response). */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 describe("InterviewBookingPage", () => {
@@ -144,6 +155,31 @@ describe("InterviewBookingPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: "10:00" })); // 08:00Z in Berlin (CEST)
     expect(await screen.findByText(/just taken/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /confirm interview/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the booked state when a stale re-check GET resolves after booking succeeds", async () => {
+    const staleGet = deferred<InterviewPublic>();
+    mocked.get
+      .mockResolvedValueOnce(interview()) // initial mount load
+      .mockImplementationOnce(() => staleGet.promise); // re-check GET from selecting the slot — left pending
+    mocked.book.mockResolvedValue(
+      interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),
+    );
+    render(<InterviewBookingPage />);
+    // clicking the slot fires the (still-pending) re-check GET, then confirm
+    // races ahead of it and books successfully.
+    await userEvent.click(await screen.findByRole("button", { name: "10:00" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm interview" }));
+    expect(await screen.findByRole("heading", { name: "You're booked in" })).toBeInTheDocument();
+
+    // the stale re-check GET — started before booking — resolves last, with
+    // a pre-booking snapshot. It must not be allowed to revert the UI.
+    await act(async () => {
+      staleGet.resolve(interview());
+      await staleGet.promise;
+    });
+    expect(screen.getByRole("heading", { name: "You're booked in" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /pick a time/i })).not.toBeInTheDocument();
   });
 
   it("reschedules from the booked state", async () => {
