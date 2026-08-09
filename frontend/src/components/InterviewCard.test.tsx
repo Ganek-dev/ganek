@@ -18,7 +18,6 @@ vi.mock("@/lib/api", async (importOriginal) => {
 const mockedInterviews = vi.mocked(interviews);
 const mockedTeam = vi.mocked(team);
 
-const SLOT_A = "2027-01-05T09:00:00+00:00";
 const SLOT_B = "2027-01-05T13:00:00+00:00";
 
 function interview(overrides: Partial<InterviewAdmin> = {}): InterviewAdmin {
@@ -31,12 +30,17 @@ function interview(overrides: Partial<InterviewAdmin> = {}): InterviewAdmin {
     description: "",
     duration_minutes: 45,
     timezone: "Europe/Berlin",
-    offered_slots: [SLOT_A, SLOT_B],
     scheduled_start: null,
     meet_url: null,
     created_at: "2026-08-08T10:00:00Z",
     ...overrides,
   };
+}
+
+async function openDialog() {
+  render(<InterviewCard applicationId="app1" />);
+  await userEvent.click(await screen.findByRole("button", { name: "Schedule interview" }));
+  await screen.findByLabelText("Interviewer");
 }
 
 describe("InterviewCard", () => {
@@ -61,49 +65,74 @@ describe("InterviewCard", () => {
         created_at: "2026-01-01T00:00:00Z",
       },
     ]);
-    mockedInterviews.preview.mockResolvedValue({ slots: [SLOT_A, SLOT_B] });
+    mockedInterviews.preview.mockResolvedValue({
+      schedule_summary: "Mon–Fri 09:00–17:00",
+      open_slot_count: 23,
+    });
     mockedInterviews.create.mockResolvedValue(interview());
     mockedInterviews.cancel.mockResolvedValue(interview({ status: "cancelled" }));
   });
 
-  it("schedules through the modal, pruning slots", async () => {
-    render(<InterviewCard applicationId="app1" />);
-    await userEvent.click(await screen.findByRole("button", { name: "Schedule interview" }));
+  it("shows the availability summary once an interviewer is picked", async () => {
+    mockedInterviews.preview.mockResolvedValue({
+      schedule_summary: "Mon–Fri 09:00–17:00",
+      open_slot_count: 23,
+    });
+    await openDialog();
 
     // inactive member is filtered from the select
-    const select = await screen.findByLabelText("Interviewer");
+    const select = screen.getByLabelText("Interviewer");
     expect(select).toHaveValue("u1");
     expect(screen.queryByText("gone@acme.dev")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Load available times" }));
-    await waitFor(() =>
-      expect(mockedInterviews.preview).toHaveBeenCalledWith(
-        "app1",
-        expect.objectContaining({ interviewer_user_id: "u1", duration_minutes: 45 }),
-      ),
+    expect(await screen.findByText(/Mon–Fri 09:00–17:00.*23 open times/i)).toBeInTheDocument();
+    expect(mockedInterviews.preview).toHaveBeenCalledWith(
+      "app1",
+      expect.objectContaining({ interviewer_user_id: "u1", duration_minutes: 45 }),
     );
-    // prune the first slot
-    const checkboxes = screen.getAllByRole("checkbox");
-    await userEvent.click(checkboxes[0]);
-    await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
+  });
+
+  it("disables Send when there are no open times", async () => {
+    mockedInterviews.preview.mockResolvedValue({
+      schedule_summary: "Mon–Fri 09:00–17:00",
+      open_slot_count: 0,
+    });
+    await openDialog();
+
+    expect(await screen.findByRole("button", { name: /send invite/i })).toBeDisabled();
+    expect(screen.getByText(/no open times/i)).toBeInTheDocument();
+  });
+
+  it("sends without a slots payload", async () => {
+    await openDialog();
+    await screen.findByText(/23 open times/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /send invite/i }));
     await waitFor(() =>
       expect(mockedInterviews.create).toHaveBeenCalledWith(
         "app1",
-        expect.objectContaining({ slots: [SLOT_B] }),
+        expect.not.objectContaining({ slots: expect.anything() }),
       ),
     );
-    expect(await screen.findByText(/Awaiting candidate — 2 times offered/)).toBeInTheDocument();
+    expect(mockedInterviews.create).toHaveBeenCalledWith(
+      "app1",
+      expect.objectContaining({ interviewer_user_id: "u1", duration_minutes: 45 }),
+    );
   });
 
-  it("explains the calendar-not-connected 409", async () => {
+  it("explains the calendar-not-connected error", async () => {
     mockedInterviews.preview.mockRejectedValue(
       new ApiError(409, "Interviewer has not connected Google Calendar"),
     );
-    render(<InterviewCard applicationId="app1" />);
-    await userEvent.click(await screen.findByRole("button", { name: "Schedule interview" }));
-    await screen.findByLabelText("Interviewer");
-    await userEvent.click(screen.getByRole("button", { name: "Load available times" }));
+    await openDialog();
     expect(await screen.findByRole("alert")).toHaveTextContent(/Settings → Account/);
+  });
+
+  it("shows availability-based pending copy", async () => {
+    mockedInterviews.get.mockResolvedValue(interview());
+    render(<InterviewCard applicationId="app1" />);
+    expect(await screen.findByText(/uses .*availability/i)).toBeInTheDocument();
+    expect(screen.getByText(/dana@acme\.dev/)).toBeInTheDocument();
   });
 
   it("shows the pending state with a two-step cancel", async () => {

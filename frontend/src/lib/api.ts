@@ -481,7 +481,6 @@ export interface InterviewAdmin {
   description: string;
   duration_minutes: number;
   timezone: string;
-  offered_slots: string[];
   scheduled_start: string | null;
   meet_url: string | null;
   created_at: string;
@@ -492,10 +491,13 @@ export const interviews = {
     applicationId: string,
     body: { interviewer_user_id: string; duration_minutes: number; timezone: string },
   ) =>
-    request<{ slots: string[] }>(`/api/v1/applications/${applicationId}/interview/slot-preview`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    request<{ schedule_summary: string; open_slot_count: number }>(
+      `/api/v1/applications/${applicationId}/interview/slot-preview`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
   create: (
     applicationId: string,
     body: {
@@ -503,7 +505,6 @@ export const interviews = {
       duration_minutes: number;
       timezone: string;
       description: string;
-      slots: string[];
     },
   ) =>
     request<InterviewAdmin>(`/api/v1/applications/${applicationId}/interview`, {
