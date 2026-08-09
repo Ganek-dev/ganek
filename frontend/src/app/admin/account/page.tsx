@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { AvailabilityCard } from "@/components/AvailabilityCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { api, type UserOut } from "@/lib/api";
 
@@ -260,6 +261,8 @@ function AccountContent() {
           ) : null}
         </div>
       ) : null}
+
+      <AvailabilityCard />
 
       <p className="text-[12.5px] text-g500">
         Email notification preferences and account deletion are planned for a later

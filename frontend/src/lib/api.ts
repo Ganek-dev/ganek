@@ -90,6 +90,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T;
 }
 
+export interface DayWindow {
+  start: string;
+  end: string;
+}
+
+export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export interface Availability {
+  /** "" when the recruiter hasn't set one — falls back to the company/UTC default. */
+  timezone: string;
+  days: Partial<Record<DayKey, DayWindow>>;
+  is_default: boolean;
+}
+
+export interface AvailabilityIn {
+  timezone: string;
+  days: Partial<Record<DayKey, DayWindow>>;
+}
+
 export const api = {
   register: (payload: { company_name: string; email: string; password: string }) =>
     request<UserOut>("/api/v1/auth/register", {
@@ -111,6 +130,14 @@ export const api = {
       ),
     disconnect: () =>
       request<void>("/api/v1/users/me/google-calendar", { method: "DELETE" }),
+  },
+  availability: {
+    get: () => request<Availability>("/api/v1/users/me/availability"),
+    set: (payload: AvailabilityIn) =>
+      request<Availability>("/api/v1/users/me/availability", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
   },
   googleSignup: (payload: { token: string; company_name: string }) =>
     request<UserOut>("/api/v1/auth/google/signup", {

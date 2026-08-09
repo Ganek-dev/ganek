@@ -22,6 +22,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       me: vi.fn(),
       providers: vi.fn(),
       googleCalendar: { status: vi.fn(), disconnect: vi.fn() },
+      availability: { get: vi.fn(), set: vi.fn() },
     },
   };
 });
@@ -39,6 +40,13 @@ describe("AccountPage", () => {
       needs_reconnect: false,
     });
     mocked.googleCalendar.disconnect.mockResolvedValue();
+    mocked.availability.get.mockResolvedValue({
+      timezone: "",
+      is_default: true,
+      days: Object.fromEntries(
+        ["mon", "tue", "wed", "thu", "fri"].map((d) => [d, { start: "09:00", end: "17:00" }]),
+      ),
+    });
     mocked.changePassword.mockResolvedValue();
     mocked.me.mockResolvedValue({
       id: "u1",
