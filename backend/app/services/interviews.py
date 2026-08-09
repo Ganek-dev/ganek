@@ -23,6 +23,52 @@ logger = logging.getLogger(__name__)
 SLOT_GRID_MINUTES = 30
 WORKDAY_START = time(9, 0)
 WORKDAY_END = time(18, 0)
+WEEKDAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+DAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+DEFAULT_AVAILABILITY = {
+    day: {"start": "09:00", "end": "17:00"} for day in ("mon", "tue", "wed", "thu", "fri")
+}
+
+
+def effective_availability(user: User) -> tuple[str | None, dict[str, tuple[time, time]]]:
+    """(saved timezone or None, per-day windows). Malformed saved days are skipped."""
+    saved = user.interview_availability
+    tz = saved.get("timezone") if isinstance(saved, dict) else None
+    raw = saved.get("days") if isinstance(saved, dict) else DEFAULT_AVAILABILITY
+    if not isinstance(raw, dict):
+        raw = {}
+    windows: dict[str, tuple[time, time]] = {}
+    for day, window in raw.items():
+        if day not in WEEKDAY_KEYS or not isinstance(window, dict):
+            continue
+        try:
+            start = time.fromisoformat(window["start"])
+            end = time.fromisoformat(window["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start < end:
+            windows[day] = (start, end)
+    return (tz if isinstance(tz, str) else None), windows
+
+
+def summarize_availability(windows: dict[str, tuple[time, time]]) -> str:
+    """Compact human summary, compressing runs of identical windows: "Mon–Fri 09:00–17:00"."""
+    if not windows:
+        return "no hours set"
+    runs: list[tuple[int, int, tuple[time, time]]] = []
+    for index, key in enumerate(WEEKDAY_KEYS):
+        window = windows.get(key)
+        if window is None:
+            continue
+        if runs and runs[-1][1] == index - 1 and runs[-1][2] == window:
+            runs[-1] = (runs[-1][0], index, window)
+        else:
+            runs.append((index, index, window))
+    parts = []
+    for first, last, (start, end) in runs:
+        label = DAY_LABELS[first] if first == last else f"{DAY_LABELS[first]}–{DAY_LABELS[last]}"
+        parts.append(f"{label} {start:%H:%M}–{end:%H:%M}")
+    return " · ".join(parts)
 
 
 class InterviewExistsError(Exception):

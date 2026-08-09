@@ -1,9 +1,10 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -38,6 +39,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # bumped on password change / forced logout — embedded in the session
     # token; a mismatch invalidates every session issued before the bump
     token_version: Mapped[int] = mapped_column(Integer, default=0)
+    # saved weekly interview availability; NULL = default Mon-Fri 09:00-17:00
+    interview_availability: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     company: Mapped["Company"] = relationship(back_populates="users")
 
