@@ -7,11 +7,12 @@ from uuid import uuid4
 import httpx
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.models import Application, Company, User
+from app.models import Application, Company, Interview, InterviewStatus, User
 from app.services import google_calendar
 from app.services import interviews as interviews_service
 from tests.db import database_reachable, s3_reachable
@@ -231,6 +232,76 @@ async def test_booked_vetd_interview_blocks_second_booking_despite_freebusy_lag(
     assert contested_view is not None
     with pytest.raises(interviews_service.SlotUnavailableError):
         await interviews_service.book(db_session, contested_view, start=target)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_book_rechecks_status_under_lock_against_concurrent_commit(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Double-submit / two-tabs race: a concurrent session books the
+    interview and commits AFTER our caller loaded `interview` (which is
+    stale in-memory, expire_on_commit=False) but BEFORE `book()` runs. The
+    post-lock re-read must catch this — no second Meet event, no
+    overwritten scheduled_start/google_event_id."""
+    interviewer, company, application_one, _ = await _two_applications(client, db_session)
+    interview = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_one,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+    slots = await interviews_service.generate_slots(
+        db_session, interviewer, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    stale_view = await interviews_service.get_by_id_public(db_session, interview.id)
+    assert stale_view is not None
+    assert stale_view.status is InterviewStatus.PENDING  # loaded before the concurrent write
+
+    # A different request, on a different DB connection, already booked
+    # this exact interview and committed — simulating the losing tab of a
+    # double-submit that got there first.
+    other_engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    other_factory = async_sessionmaker(other_engine, expire_on_commit=False)
+    async with other_factory() as other_db:
+        await other_db.execute(
+            text(
+                "UPDATE interviews SET status = 'booked', scheduled_start = :start, "
+                "google_event_id = 'evt-concurrent', "
+                "meet_url = 'https://meet.example/concurrent' WHERE id = :id"
+            ),
+            {"start": slots[1], "id": interview.id},
+        )
+        await other_db.commit()
+    await other_engine.dispose()
+
+    calls: list[object] = []
+
+    async def tracking_create_meet_event(*args: object, **kwargs: object) -> tuple[str, str]:
+        calls.append((args, kwargs))
+        return "evt-should-not-happen", "https://meet.example/should-not-happen"
+
+    monkeypatch.setattr(
+        interviews_service.google_calendar, "create_meet_event", tracking_create_meet_event
+    )
+
+    with pytest.raises(interviews_service.AlreadyBookedError):
+        await interviews_service.book(db_session, stale_view, start=slots[0])
+
+    assert calls == []  # no orphaned second Meet event was ever created
+    row = (
+        await db_session.execute(
+            select(Interview.status, Interview.scheduled_start, Interview.google_event_id).where(
+                Interview.id == interview.id
+            )
+        )
+    ).one()
+    assert row.status == InterviewStatus.BOOKED
+    assert row.google_event_id == "evt-concurrent"
+    assert row.scheduled_start == slots[1]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")

@@ -307,9 +307,15 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     design's "invite lands in your inbox".
     """
     if interview.status is InterviewStatus.BOOKED:
-        raise AlreadyBookedError
+        raise AlreadyBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
     await _lock_interviewer(db, interview.interviewer_user_id)
+    # authoritative re-check: another request may have booked this same
+    # interview between our load and acquiring the lock (double-submit /
+    # two tabs) — `interview` is stale in-memory (expire_on_commit=False).
+    await db.refresh(interview, attribute_names=["status"])
+    if interview.status is InterviewStatus.BOOKED:
+        raise AlreadyBookedError
     await _require_available(db, interview, start)
     candidate = interview.application.candidate
     event_id, meet_url = await google_calendar.create_meet_event(
@@ -340,9 +346,15 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
 
 async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
     if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
-        raise NotBookedError
+        raise NotBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
     await _lock_interviewer(db, interview.interviewer_user_id)
+    # authoritative re-check under lock, same reasoning as book(); also
+    # refreshes google_event_id so a concurrently-changed event id (e.g.
+    # this interview got rescheduled again) is what we actually patch.
+    await db.refresh(interview, attribute_names=["status", "google_event_id"])
+    if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
+        raise NotBookedError
     await _require_available(db, interview, start)
     await google_calendar.patch_event_time(
         db,
