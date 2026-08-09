@@ -6,10 +6,18 @@ import { CalendarPlus, Video } from "lucide-react";
 
 import { interviews, team, type InterviewAdmin, type TeamUser } from "@/lib/api";
 
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
 /** Interview scheduling card for the applicant detail panel (screen 11 → 23).
 
 Self-contained: fetches its own state per application so the (large)
-applicants page stays lean. States: none → schedule modal → pending →
+applicants page stays lean. States: none → schedule dialog → pending →
 booked → (cancel) → back to none. */
 
 const DURATIONS = [15, 30, 45, 60] as const;
@@ -31,13 +39,11 @@ function fmt(iso: string, timezone: string): string {
   return `${day} · ${time}`;
 }
 
-function ScheduleModal({
+function ScheduleDialogBody({
   applicationId,
-  onClose,
   onCreated,
 }: {
   applicationId: string;
-  onClose: () => void;
   onCreated: (interview: InterviewAdmin) => void;
 }) {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -45,10 +51,19 @@ function ScheduleModal({
   const [interviewer, setInterviewer] = useState("");
   const [duration, setDuration] = useState<number>(45);
   const [description, setDescription] = useState("");
-  const [slots, setSlots] = useState<string[] | null>(null);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Preview result keyed by the (interviewer, duration) it answers, so a
+  // change in selection is "loading" for free — no synchronous setState at
+  // the top of the effect body is needed (lint rule
+  // `react-hooks/set-state-in-effect`; see JobForm.tsx for the same pattern).
+  const [previewResult, setPreviewResult] = useState<{
+    key: string;
+    preview?: { schedule_summary: string; open_slot_count: number };
+    error?: string;
+  } | null>(null);
 
   useEffect(() => {
     team
@@ -58,36 +73,45 @@ function ScheduleModal({
         setMembers(active);
         setInterviewer((current) => current || (active[0]?.id ?? ""));
       })
-      .catch(() => setError("Couldn't load the team list"));
+      .catch(() => setTeamError("Couldn't load the team list"));
   }, []);
 
-  async function loadSlots() {
-    setError(null);
-    setBusy(true);
-    setSlots(null);
-    try {
-      const preview = await interviews.preview(applicationId, {
-        interviewer_user_id: interviewer,
-        duration_minutes: duration,
-        timezone,
+  const previewKey = interviewer ? `${interviewer}:${duration}:${timezone}` : null;
+
+  useEffect(() => {
+    if (!interviewer) return;
+    let cancelled = false;
+    const key = `${interviewer}:${duration}:${timezone}`;
+    interviews
+      .preview(applicationId, { interviewer_user_id: interviewer, duration_minutes: duration, timezone })
+      .then((result) => {
+        if (cancelled) return;
+        setPreviewResult({ key, preview: result });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPreviewResult({
+          key,
+          error:
+            err instanceof Error && /calendar/i.test(err.message)
+              ? "Interviewer needs to connect Google Calendar in Settings → Account first."
+              : err instanceof Error
+                ? err.message
+                : "Failed to load availability",
+        });
       });
-      setSlots(preview.slots);
-      setChecked(new Set(preview.slots));
-    } catch (err) {
-      setError(
-        err instanceof Error && /calendar/i.test(err.message)
-          ? "Interviewer needs to connect Google Calendar in Settings → Account first."
-          : err instanceof Error
-            ? err.message
-            : "Failed to load times",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationId, interviewer, duration, timezone]);
+
+  const isPreviewCurrent = previewResult !== null && previewResult.key === previewKey;
+  const preview = isPreviewCurrent ? (previewResult?.preview ?? null) : null;
+  const previewError = isPreviewCurrent ? (previewResult?.error ?? null) : null;
+  const previewLoading = previewKey !== null && !isPreviewCurrent;
 
   async function send() {
-    setError(null);
+    setSendError(null);
     setBusy(true);
     try {
       const created = await interviews.create(applicationId, {
@@ -95,27 +119,25 @@ function ScheduleModal({
         duration_minutes: duration,
         timezone,
         description,
-        slots: (slots ?? []).filter((s) => checked.has(s)),
       });
       onCreated(created);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send the invite");
+      setSendError(err instanceof Error ? err.message : "Failed to send the invite");
       setBusy(false);
     }
   }
 
-  const selectedCount = slots ? slots.filter((s) => checked.has(s)).length : 0;
+  const interviewerEmail = members.find((m) => m.id === interviewer)?.email ?? "";
+  const noOpenTimes = preview !== null && preview.open_slot_count === 0;
+  const error = teamError ?? previewError ?? sendError;
 
   return (
-    <div className="mt-3 space-y-3 rounded-md border border-edge bg-muted-fill/30 p-3.5">
+    <div className="mt-3 space-y-3">
       <label className="flex flex-col gap-1.5">
         <span className="text-[12.5px] font-medium">Interviewer</span>
         <select
           value={interviewer}
-          onChange={(event) => {
-            setInterviewer(event.target.value);
-            setSlots(null);
-          }}
+          onChange={(event) => setInterviewer(event.target.value)}
           className="h-9 rounded-md border border-edge bg-surface px-2.5 text-[13px] outline-none focus:border-accent"
         >
           {members.map((member) => (
@@ -133,10 +155,7 @@ function ScheduleModal({
               key={minutes}
               type="button"
               aria-pressed={duration === minutes}
-              onClick={() => {
-                setDuration(minutes);
-                setSlots(null);
-              }}
+              onClick={() => setDuration(minutes)}
               className={`h-8 px-3 font-mono text-[12px] ${
                 duration === minutes
                   ? "bg-inverse text-inverse-foreground"
@@ -163,47 +182,21 @@ function ScheduleModal({
         />
       </label>
 
-      {slots === null ? (
-        <button
-          type="button"
-          disabled={busy || !interviewer}
-          onClick={loadSlots}
-          className="inline-flex h-8 items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
-        >
-          {busy ? "…" : "Load available times"}
-        </button>
-      ) : slots.length === 0 ? (
+      {previewLoading ? (
+        <div className="h-4 w-2/3 animate-pulse rounded bg-muted-fill" />
+      ) : preview !== null ? (
         <p className="text-[12.5px] text-g500">
-          No free slots in the next two weeks — clear the interviewer&apos;s calendar or pick
-          someone else.
+          Uses {interviewerEmail.split("@")[0]}&apos;s availability ({preview.schedule_summary}) —{" "}
+          {preview.open_slot_count} open times in the next 2 weeks
         </p>
-      ) : (
-        <fieldset className="space-y-1.5">
-          <legend className="text-[12.5px] font-medium">
-            Times to offer ({selectedCount} selected)
-          </legend>
-          <div className="grid max-h-44 grid-cols-2 gap-1.5 overflow-y-auto sm:grid-cols-3">
-            {slots.map((iso) => (
-              <label
-                key={iso}
-                className="flex items-center gap-1.5 rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[11.5px]"
-              >
-                <input
-                  type="checkbox"
-                  checked={checked.has(iso)}
-                  onChange={(event) => {
-                    const next = new Set(checked);
-                    if (event.target.checked) next.add(iso);
-                    else next.delete(iso);
-                    setChecked(next);
-                  }}
-                />
-                {fmt(iso, timezone)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
+      ) : null}
+
+      {noOpenTimes ? (
+        <p className="text-[12.5px] text-amber-600 dark:text-amber-400">
+          No open times in the next 2 weeks — ask them to clear some calendar space or widen
+          their availability.
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-[12.5px] text-red-600 dark:text-red-400">
@@ -212,23 +205,19 @@ function ScheduleModal({
       ) : null}
 
       <div className="flex items-center gap-3">
-        {slots !== null && slots.length > 0 ? (
-          <button
-            type="button"
-            disabled={busy || selectedCount === 0}
-            onClick={send}
-            className="inline-flex h-8 items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
-          >
-            {busy ? "…" : "Send invite"}
-          </button>
-        ) : null}
         <button
           type="button"
-          onClick={onClose}
-          className="text-[12.5px] text-g500 hover:underline"
+          disabled={busy || preview === null || preview.open_slot_count === 0}
+          onClick={send}
+          className="inline-flex h-8 items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
         >
-          Cancel
+          {busy ? "…" : "Send invite"}
         </button>
+        <DialogClose asChild>
+          <button type="button" className="text-[12.5px] text-g500 hover:underline">
+            Cancel
+          </button>
+        </DialogClose>
       </div>
     </div>
   );
@@ -277,34 +266,35 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
           <CalendarPlus aria-hidden className="h-4 w-4 text-g500" />
           Interview
         </p>
-        {interview === null && !scheduling ? (
-          <button
-            type="button"
-            onClick={() => setScheduling(true)}
-            className="inline-flex h-7 items-center rounded-md bg-inverse px-3 text-[12.5px] font-medium text-inverse-foreground hover:brightness-[0.94]"
-          >
-            Schedule interview
-          </button>
+        {interview === null ? (
+          <Dialog open={scheduling} onOpenChange={setScheduling}>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-7 items-center rounded-md bg-inverse px-3 text-[12.5px] font-medium text-inverse-foreground hover:brightness-[0.94]"
+              >
+                Schedule interview
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogTitle>Schedule interview</DialogTitle>
+              <ScheduleDialogBody
+                applicationId={applicationId}
+                onCreated={(created) => {
+                  setInterview(created);
+                  setScheduling(false);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
         ) : null}
       </div>
-
-      {interview === null && scheduling ? (
-        <ScheduleModal
-          applicationId={applicationId}
-          onClose={() => setScheduling(false)}
-          onCreated={(created) => {
-            setInterview(created);
-            setScheduling(false);
-          }}
-        />
-      ) : null}
 
       {interview !== null ? (
         <div className="mt-2 space-y-1.5">
           {interview.status === "pending" ? (
             <p className="text-[12.5px] text-g500">
-              Awaiting candidate — {interview.offered_slots.length} times offered ·{" "}
-              {interview.interviewer_email}
+              Awaiting candidate · uses {interview.interviewer_email}&apos;s availability
             </p>
           ) : (
             <p className="flex flex-wrap items-center gap-2 text-[12.5px]">
