@@ -6,12 +6,13 @@ interviews — never frozen on the interview row. Booking re-checks the
 chosen slot against live free/busy before creating the calendar event.
 """
 
+import hashlib
 import logging
 import uuid
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -88,7 +89,7 @@ class SlotUnavailableError(Exception):
 
 
 async def _booked_windows(
-    db: AsyncSession, interviewer_id: uuid.UUID, window_end: datetime
+    db: AsyncSession, interviewer_id: uuid.UUID, window_start: datetime, window_end: datetime
 ) -> list[tuple[datetime, datetime]]:
     """Busy windows from vetd's own BOOKED interviews — freebusy-lag insurance."""
     rows = (
@@ -98,6 +99,7 @@ async def _booked_windows(
                     Interview.interviewer_user_id == interviewer_id,
                     Interview.status == InterviewStatus.BOOKED,
                     Interview.scheduled_start.is_not(None),
+                    Interview.scheduled_start >= window_start,
                     Interview.scheduled_start < window_end,
                 )
             )
@@ -134,7 +136,7 @@ async def generate_slots(
     window_start = datetime.combine(first_day, time.min, tzinfo=zone)
     window_end = window_start + timedelta(days=HORIZON_DAYS)
     busy = await google_calendar.freebusy(db, interviewer, window_start, window_end)
-    busy = busy + await _booked_windows(db, interviewer.id, window_end)
+    busy = busy + await _booked_windows(db, interviewer.id, window_start, window_end)
 
     duration = timedelta(minutes=duration_minutes)
     slots: list[datetime] = []
@@ -264,20 +266,22 @@ async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Intervi
     ).scalar_one_or_none()
 
 
-async def _slot_is_free(db: AsyncSession, interview: Interview, start: datetime) -> bool:
-    end = start + timedelta(minutes=interview.duration_minutes)
-    busy = await google_calendar.freebusy(db, interview.interviewer, start, end)
-    return not any(start < busy_end and end > busy_start for busy_start, busy_end in busy)
+async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
+    """Serialize bookings per interviewer for the rest of the transaction."""
+    key = int.from_bytes(hashlib.sha256(interviewer_id.bytes).digest()[:8], "big", signed=True)
+    await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
 
 
-def _require_offered(interview: Interview, start: datetime) -> None:
-    """Placeholder only — `offered_slots` is gone (migration 0018).
-
-    Task 4 replaces this with a check against `live_slots`/`generate_slots`
-    plus race guarding; until then `book`/`reschedule` are non-functional
-    by design (see Task 3 report).
-    """
-    raise NotImplementedError("book/reschedule are being redesigned in Task 4 (scheduling v2)")
+async def _require_available(db: AsyncSession, interview: Interview, start: datetime) -> None:
+    """The chosen instant must be in the freshly-computed live slot set."""
+    slots = await generate_slots(
+        db,
+        interview.interviewer,
+        duration_minutes=interview.duration_minutes,
+        timezone=interview.timezone,
+    )
+    if start not in slots:  # aware datetimes compare by instant
+        raise SlotUnavailableError
 
 
 async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
@@ -305,9 +309,8 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     if interview.status is InterviewStatus.BOOKED:
         raise AlreadyBookedError
     start = start.astimezone(UTC)
-    _require_offered(interview, start)
-    if not await _slot_is_free(db, interview, start):
-        raise SlotUnavailableError
+    await _lock_interviewer(db, interview.interviewer_user_id)
+    await _require_available(db, interview, start)
     candidate = interview.application.candidate
     event_id, meet_url = await google_calendar.create_meet_event(
         db,
@@ -339,9 +342,8 @@ async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime)
     if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
         raise NotBookedError
     start = start.astimezone(UTC)
-    _require_offered(interview, start)
-    if not await _slot_is_free(db, interview, start):
-        raise SlotUnavailableError
+    await _lock_interviewer(db, interview.interviewer_user_id)
+    await _require_available(db, interview, start)
     await google_calendar.patch_event_time(
         db,
         interview.interviewer,

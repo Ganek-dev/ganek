@@ -1,5 +1,6 @@
 """Candidate booking endpoints; Google faked at the google_calendar seam."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -10,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import User
+from app.models import Application, Company, User
 from app.services import google_calendar
 from app.services import interviews as interviews_service
 from tests.db import database_reachable, s3_reachable
@@ -123,6 +124,113 @@ async def _booking_token(
     await client.post("/api/v1/auth/logout")
     token = str(captured[0]["booking_url"]).rsplit("/", 1)[-1]
     return token, slots
+
+
+async def _two_applications(
+    client: AsyncClient, db_session: AsyncSession
+) -> tuple[User, Company, Application, Application]:
+    """One company/admin (the interviewer), two candidates applying to the
+    same published job. Returns ORM rows fetched fresh from `db_session`;
+    logged out at the end so subsequent calls are anonymous."""
+    creds = {
+        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "password": "a-long-secure-password",
+    }
+    name = f"Race Co {uuid4().hex[:6]}"
+    resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
+    assert resp.status_code == 201, resp.text
+    admin_id = resp.json()["id"]
+    slug = name.lower().replace(" ", "-")
+
+    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+
+    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+    for candidate_name in ("Marta Vidal", "Jonas Weber"):
+        ticket = (await client.post(f"{base}/apply/upload-url")).json()
+        async with httpx.AsyncClient() as raw:
+            put = await raw.put(
+                ticket["upload_url"],
+                content=PDF_BYTES,
+                headers={"Content-Type": ticket["content_type"]},
+            )
+            assert put.status_code == 200
+        resp = await client.post(
+            f"{base}/apply",
+            json={
+                "name": candidate_name,
+                "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+                "cv_object_key": ticket["object_key"],
+                "cv_filename": "cv.pdf",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    applications = (await client.get("/api/v1/applications")).json()
+    assert len(applications) == 2
+    await client.post("/api/v1/auth/logout")
+
+    interviewer = (
+        await db_session.execute(select(User).where(User.id == uuid.UUID(admin_id)))
+    ).scalar_one()
+    company = (
+        await db_session.execute(select(Company).where(Company.id == interviewer.company_id))
+    ).scalar_one()
+    application_rows = []
+    for row in applications:
+        result = await db_session.execute(
+            select(Application).where(Application.id == uuid.UUID(row["id"]))
+        )
+        application_rows.append(result.scalar_one())
+    application_one, application_two = application_rows
+    return interviewer, company, application_one, application_two
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_booked_vetd_interview_blocks_second_booking_despite_freebusy_lag(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Two candidates, same interviewer, same slot; Google freebusy stays empty
+    (simulating propagation lag) — the vetd-side booked row must still win."""
+    interviewer, company, application_one, application_two = await _two_applications(
+        client, db_session
+    )
+    interview_one = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_one,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+    interview_two = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_two,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+
+    slots = await interviews_service.generate_slots(
+        db_session, interviewer, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    target = slots[0]
+
+    booked_view = await interviews_service.get_by_id_public(db_session, interview_one.id)
+    assert booked_view is not None
+    await interviews_service.book(db_session, booked_view, start=target)
+
+    contested_view = await interviews_service.get_by_id_public(db_session, interview_two.id)
+    assert contested_view is not None
+    with pytest.raises(interviews_service.SlotUnavailableError):
+        await interviews_service.book(db_session, contested_view, start=target)
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
