@@ -182,6 +182,38 @@ describe("InterviewBookingPage", () => {
     expect(screen.queryByRole("heading", { name: /pick a time/i })).not.toBeInTheDocument();
   });
 
+  it("disables the day strip while a booking write is in flight", async () => {
+    const bookDeferred = deferred<InterviewPublic>();
+    mocked.book.mockImplementationOnce(() => bookDeferred.promise);
+    render(<InterviewBookingPage />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "10:00" })); // select SLOT_A
+    const getCallsBeforeConfirm = mocked.get.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Confirm interview" })); // book() now in flight
+
+    // While the book POST is in flight, day-tab and time-pill controls must
+    // be disabled — a fresh selection here would bump requestSeq past this
+    // write's, causing its own (about-to-land) response to be discarded.
+    const otherTime = screen.getByRole("button", { name: "14:00" });
+    const otherDay = screen.getByRole("tab", { name: /wed/i });
+    expect(otherTime).toBeDisabled();
+    expect(otherDay).toBeDisabled();
+    await userEvent.click(otherTime);
+    await userEvent.click(otherDay);
+    expect(mocked.get).toHaveBeenCalledTimes(getCallsBeforeConfirm); // no new re-check GET fired
+    expect(screen.getByRole("button", { name: "10:00" })).toHaveAttribute("aria-pressed", "true");
+    expect(otherDay).toHaveAttribute("aria-selected", "false"); // active day unchanged
+
+    // the in-flight booking still lands normally once it resolves
+    await act(async () => {
+      bookDeferred.resolve(
+        interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),
+      );
+      await bookDeferred.promise;
+    });
+    expect(await screen.findByRole("heading", { name: "You're booked in" })).toBeInTheDocument();
+  });
+
   it("reschedules from the booked state", async () => {
     mocked.get.mockResolvedValue(
       interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),

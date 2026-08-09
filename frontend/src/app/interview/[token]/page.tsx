@@ -67,11 +67,13 @@ function DayPicker({
   localZone,
   selected,
   onSelect,
+  busy,
 }: {
   interview: InterviewPublic;
   localZone: string;
   selected: string | null;
   onSelect: (iso: string) => void;
+  busy: boolean;
 }) {
   const days = useMemo(() => {
     const grouped = new Map<string, string[]>();
@@ -114,8 +116,9 @@ function DayPicker({
               type="button"
               role="tab"
               aria-selected={isActive}
+              disabled={busy}
               onClick={() => setActiveDay(key)}
-              className={`flex shrink-0 flex-col items-center gap-0.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors ${
+              className={`flex shrink-0 flex-col items-center gap-0.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors disabled:opacity-50 ${
                 isActive
                   ? "border-brand bg-brand text-brand-foreground"
                   : "border-edge bg-surface hover:border-strong"
@@ -137,7 +140,8 @@ function DayPicker({
             type="button"
             onClick={() => onSelect(iso)}
             aria-pressed={selected === iso}
-            className={`h-9 rounded-md border font-mono text-[12.5px] transition-colors ${
+            disabled={busy}
+            className={`h-9 rounded-md border font-mono text-[12.5px] transition-colors disabled:opacity-50 ${
               selected === iso
                 ? "border-brand bg-brand text-brand-foreground"
                 : "border-edge bg-surface hover:border-strong"
@@ -207,6 +211,11 @@ export default function InterviewBookingPage() {
   useEffect(load, [load]);
 
   function selectSlot(iso: string) {
+    // Belt-and-braces alongside DayPicker's `disabled={busy}`: a write in
+    // flight must not be raced by a fresh selection — see the
+    // request-generation guard above for why that would drop the write's
+    // own response.
+    if (busy) return;
     setError(null);
     setSelected(iso);
     load();
@@ -428,6 +437,7 @@ export default function InterviewBookingPage() {
                   localZone={localZone}
                   selected={selected}
                   onSelect={selectSlot}
+                  busy={busy}
                 />
                 {selected ? (
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-edge pt-4">
