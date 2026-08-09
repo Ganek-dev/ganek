@@ -17,8 +17,6 @@ import { brandStyle } from "@/lib/brand";
  * invite Google sends after booking still uses the interview's stored
  * timezone server-side. */
 
-const MAX_DAY_CHIPS = 14;
-
 function initials(display: string): string {
   const parts = display.split(/\s+/).filter(Boolean);
   const source = parts.length >= 2 ? parts[0][0] + parts[1][0] : display.slice(0, 2);
@@ -81,7 +79,11 @@ function DayPicker({
       const key = dayKey(iso, localZone);
       grouped.set(key, [...(grouped.get(key) ?? []), iso]);
     }
-    return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, MAX_DAY_CHIPS);
+    // No cap here: HORIZON_DAYS interviewer-tz days can group into one MORE
+    // candidate-local day at the DST/date-line edges — slicing would
+    // silently drop a day that still holds bookable slots. The strip is
+    // horizontally scrollable already.
+    return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [interview, localZone]);
 
   // No effect needed to "auto-select the first day": `currentDay` below
@@ -92,7 +94,8 @@ function DayPicker({
   if (days.length === 0) {
     return (
       <p className="rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[13px] text-g500">
-        No open times right now — the hiring team has been notified to offer new slots.
+        No open times right now — please check back soon, or reply to the hiring team&apos;s
+        email.
       </p>
     );
   }

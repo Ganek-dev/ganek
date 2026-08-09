@@ -135,7 +135,9 @@ async def generate_slots(
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise ValueError(f"unknown timezone {saved_tz or timezone!r}") from exc
 
-    first_day = datetime.now(zone).date() + timedelta(days=1)
+    now = datetime.now(zone)
+    min_start = now + timedelta(hours=1)  # spec §3: at least an hour of lead time
+    first_day = now.date() + timedelta(days=1)
     window_start = datetime.combine(first_day, time.min, tzinfo=zone)
     window_end = window_start + timedelta(days=HORIZON_DAYS)
     busy = await google_calendar.freebusy(db, interviewer, window_start, window_end)
@@ -151,6 +153,9 @@ async def generate_slots(
         cursor = datetime.combine(day, window[0], tzinfo=zone)
         day_end = datetime.combine(day, window[1], tzinfo=zone)
         while cursor + duration <= day_end:
+            if cursor < min_start:
+                cursor += timedelta(minutes=SLOT_GRID_MINUTES)
+                continue
             conflict = any(
                 cursor < b_end and cursor + duration > b_start for b_start, b_end in busy
             )

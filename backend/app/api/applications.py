@@ -193,7 +193,7 @@ async def interview_slot_preview(
     """Availability summary + open slot count for the modal — nothing is persisted."""
     await _get_or_404(db, company, application_id)
     interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
-    _, windows = interviews_service.effective_availability(interviewer)
+    saved_tz, windows = interviews_service.effective_availability(interviewer)
     try:
         slots = await interviews_service.generate_slots(
             db,
@@ -210,8 +210,12 @@ async def interview_slot_preview(
             status_code=status.HTTP_409_CONFLICT,
             detail="Interviewer has not connected Google Calendar",
         ) from None
+    # Same resolution generate_slots uses: the interviewer's saved zone wins,
+    # otherwise the request's fallback — recruiters need to know whose clock
+    # the bare hours are in.
+    zone = saved_tz or payload.timezone
     return SlotPreviewOut(
-        schedule_summary=interviews_service.summarize_availability(windows),
+        schedule_summary=f"{interviews_service.summarize_availability(windows)} ({zone})",
         open_slot_count=len(slots),
     )
 

@@ -116,6 +116,19 @@ describe("InterviewBookingPage", () => {
     expect(mocked.book).toHaveBeenCalledWith("iv-tok", MON_1);
   });
 
+  it("renders every day with slots, even past the old 14-day cap", async () => {
+    // 15 distinct interviewer-tz days, one slot each — the day strip used to
+    // slice to MAX_DAY_CHIPS (14), silently dropping the 15th.
+    const fifteenDays = Array.from(
+      { length: 15 },
+      (_, i) => `2026-08-${String(10 + i).padStart(2, "0")}T08:00:00+00:00`,
+    );
+    mocked.get.mockResolvedValue(withSlots(fifteenDays));
+    render(<InterviewBookingPage />);
+    await screen.findByRole("tablist");
+    expect(screen.getAllByRole("tab")).toHaveLength(15);
+  });
+
   it("shows the local-timezone pill", async () => {
     render(<InterviewBookingPage />);
     expect(await screen.findByText(/your local time/i)).toBeInTheDocument();

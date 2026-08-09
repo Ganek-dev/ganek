@@ -1,5 +1,6 @@
 """Candidate booking endpoints; Google faked at the google_calendar seam."""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -283,6 +284,118 @@ async def test_book_rechecks_status_under_lock_against_concurrent_commit(
     assert row.status == InterviewStatus.BOOKED
     assert row.google_event_id == "evt-concurrent"
     assert row.scheduled_start == slots[1]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_book_lock_serializes_concurrent_booking_across_applications(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Genuine two-session race: two DIFFERENT applications with the SAME
+    interviewer both try to book the SAME target slot via `asyncio.gather`,
+    each on its own DB connection — nothing but `pg_advisory_xact_lock`
+    inside `_lock_interviewer` can serialize this (unlike the two tests
+    above, both of which drive their two `book()` calls sequentially and so
+    never actually contend on the lock).
+
+    `google_calendar.freebusy` sleeps on every call. That sleep is what
+    makes the outcome prove the lock rather than luck of scheduling: with
+    the lock, the loser is genuinely blocked inside Postgres for the whole
+    sleep (it can't even start its own freebusy call until the winner
+    commits and releases the lock), and only sees the slot gone once it
+    resumes. Delete `_lock_interviewer` and the same sleep instead lets
+    BOTH callers' busy-window queries land while neither has committed yet
+    — the exact double-booking this test would then catch (two successes,
+    two Meet events) instead of passing by accident of execution order.
+    """
+    interviewer, company, application_one, application_two = await _two_applications(
+        client, db_session
+    )
+    interview_one = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_one,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+    interview_two = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_two,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+
+    async def slow_freebusy(
+        db: AsyncSession, user: User, start: datetime, end: datetime
+    ) -> list[tuple[datetime, datetime]]:
+        await asyncio.sleep(0.2)
+        return []
+
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", slow_freebusy)
+
+    slots = await interviews_service.generate_slots(
+        db_session, interviewer, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    target = slots[0]
+
+    meet_calls: list[tuple[object, ...]] = []
+
+    async def tracking_create_meet_event(*args: object, **kwargs: object) -> tuple[str, str]:
+        meet_calls.append(args)
+        return f"evt-race-{len(meet_calls) + 1}", "https://meet.google.com/race"
+
+    monkeypatch.setattr(
+        interviews_service.google_calendar, "create_meet_event", tracking_create_meet_event
+    )
+
+    other_engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    other_factory = async_sessionmaker(other_engine, expire_on_commit=False)
+
+    async def _book_on(session: AsyncSession, interview_id: uuid.UUID) -> Interview:
+        # each session loads its OWN Interview instance — book() mutates
+        # in-memory attributes, so sharing one ORM object across sessions
+        # would mask the very race this test exists to exercise.
+        view = await interviews_service.get_by_id_public(session, interview_id)
+        assert view is not None
+        return await interviews_service.book(session, view, start=target)
+
+    try:
+        async with other_factory() as other_db:
+            results = await asyncio.gather(
+                _book_on(db_session, interview_one.id),
+                _book_on(other_db, interview_two.id),
+                return_exceptions=True,
+            )
+    finally:
+        await other_engine.dispose()
+
+    successes = [r for r in results if isinstance(r, Interview)]
+    failures = [r for r in results if isinstance(r, BaseException)]
+    assert len(successes) == 1, results
+    assert len(failures) == 1, results
+    assert isinstance(failures[0], interviews_service.SlotUnavailableError), results
+    assert len(meet_calls) == 1  # no orphaned second Meet event
+
+    booked_rows = (
+        (
+            await db_session.execute(
+                select(Interview).where(
+                    Interview.interviewer_user_id == interviewer.id,
+                    Interview.status == InterviewStatus.BOOKED,
+                    Interview.scheduled_start == target,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(booked_rows) == 1
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")

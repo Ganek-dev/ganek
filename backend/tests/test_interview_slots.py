@@ -172,6 +172,33 @@ async def test_slots_avoid_busy_windows(
 
 
 @pytest.mark.usefixtures("migrated_db")
+async def test_slots_respect_one_hour_lead_time(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Spec §3 promises >=1h lead time. A saved window covering midnight
+    means "tomorrow" can start within a minute of now — those near-term
+    slots must still be excluded, not just anything before "now"."""
+    user = await _interviewer(db_session)
+    all_day_window = {"start": "00:00", "end": "23:30"}
+    user.interview_availability = {
+        "timezone": "Europe/Berlin",
+        "days": dict.fromkeys(interviews_service.WEEKDAY_KEYS, all_day_window),
+    }
+    await db_session.commit()
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
+    slots = await interviews_service.generate_slots(
+        db_session, user, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    assert slots
+    now = datetime.now(BERLIN)
+    today = now.date()
+    for slot in slots:
+        assert slot >= now + timedelta(hours=1)
+        # still starts tomorrow, per existing behavior
+        assert slot.astimezone(BERLIN).date() > today
+
+
+@pytest.mark.usefixtures("migrated_db")
 async def test_unknown_timezone_raises(db_session: AsyncSession) -> None:
     user = await _interviewer(db_session)
     with pytest.raises(ValueError):
