@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import ApplicationStage, AttemptStatus
 
@@ -58,6 +58,19 @@ class CvDownload(BaseModel):
 class ReviewIntegrityEvent(BaseModel):
     type: str
     duration_ms: int | None
+
+
+class NoteCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class NoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    body: str
+    author_email: str | None
+    created_at: datetime
 
 
 class QuizAnswerReview(BaseModel):
