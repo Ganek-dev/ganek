@@ -24,6 +24,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       cvUrl: vi.fn(),
       quizAnswers: vi.fn(),
       remind: vi.fn(),
+      bulkReject: vi.fn(),
     },
     notes: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
   };
@@ -156,6 +157,7 @@ describe("ApplicantsPage", () => {
     );
     mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
     mockedApps.quizAnswers.mockResolvedValue(ANSWERS);
+    mockedApps.bulkReject.mockResolvedValue({ rejected: 2, skipped: 0 });
     mockedJobs.list.mockResolvedValue([
       { id: "job-1", title: "Backend Engineer" } as never,
     ]);
@@ -302,5 +304,93 @@ describe("ApplicantsPage", () => {
       expect(spy).toHaveBeenCalledWith("http://minio.test/cv", "_blank", "noopener"),
     );
     spy.mockRestore();
+  });
+
+  it("shows the action bar when rows are checked", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+    expect(await screen.findByText("2 selected")).toBeInTheDocument();
+  });
+
+  it("checking a row does not open its detail panel", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+    expect(screen.getByRole("heading", { name: "Jane Applicant" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Kenji Sato" })).not.toBeInTheDocument();
+  });
+
+  it("two-step confirms and calls bulkReject with the ids and email toggle", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(await screen.findByText("Reject 2 applicants?")).toBeInTheDocument();
+
+    mockedApps.list.mockResolvedValueOnce([]);
+    await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
+
+    await waitFor(() =>
+      expect(mockedApps.bulkReject).toHaveBeenCalledWith(["app-1", "app-2"], true),
+    );
+    await waitFor(() => expect(mockedApps.list).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Rejected 2")).toBeInTheDocument();
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+  });
+
+  it("Keep them cancels the confirm step without calling bulkReject", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(await screen.findByText("Reject 1 applicants?")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep them" }));
+    expect(screen.queryByText(/Reject 1 applicants\?/)).not.toBeInTheDocument();
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    expect(mockedApps.bulkReject).not.toHaveBeenCalled();
+  });
+
+  it("clears selection on job-filter change but keeps it across stage pills", async () => {
+    mockedJobs.list.mockResolvedValue([
+      { id: "job-1", title: "Backend Engineer" } as never,
+      { id: "job-2", title: "Frontend Engineer" } as never,
+    ]);
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^New · 1/ }));
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Filter by job"), "job-2");
+    await waitFor(() => expect(screen.queryByText(/selected/)).not.toBeInTheDocument());
+  });
+
+  it("Clear empties the selection and hides the bar", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /select jane applicant/i }),
+    ).not.toBeChecked();
   });
 });
