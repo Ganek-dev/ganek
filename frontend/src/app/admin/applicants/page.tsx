@@ -234,6 +234,130 @@ function ScoreStrip({
   );
 }
 
+function BulkRejectBar({
+  selected,
+  onClear,
+  onRejected,
+}: {
+  selected: Map<string, string>;
+  onClear: () => void;
+  onRejected: () => void;
+}) {
+  const [notify, setNotify] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (flash === null) return;
+    const id = setTimeout(() => setFlash(null), 3000);
+    return () => clearTimeout(id);
+  }, [flash]);
+
+  if (selected.size === 0 && flash === null) return null;
+
+  const names = Array.from(selected.values());
+  const namesLine =
+    names.length > 5
+      ? `${names.slice(0, 5).join(", ")} and ${names.length - 5} more`
+      : names.join(", ");
+
+  async function confirmReject() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { rejected } = await applications.bulkReject(
+        Array.from(selected.keys()),
+        notify,
+      );
+      setConfirming(false);
+      setFlash(rejected);
+      onRejected();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bulk reject failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-t border-edge bg-surface p-2.5">
+      {selected.size > 0 ? (
+        <>
+          <span className="text-[13px] font-semibold">{selected.size} selected</span>
+          {confirming ? (
+            <>
+              <span className="flex flex-col">
+                <span className="text-[12.5px] text-g600">
+                  Reject {selected.size} applicants?
+                </span>
+                <span className="text-[11.5px] text-g500">{namesLine}</span>
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void confirmReject()}
+                className="inline-flex h-7 items-center rounded-sm bg-red-600 px-2.5 text-[12.5px] font-medium text-white hover:brightness-[0.94] disabled:opacity-50"
+              >
+                {busy ? "…" : "Yes, reject"}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirming(false)}
+                className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
+              >
+                Keep them
+              </button>
+            </>
+          ) : (
+            <>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-g600">
+                <input
+                  type="checkbox"
+                  checked={notify}
+                  onChange={(event) => setNotify(event.target.checked)}
+                  className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+                />
+                Also email candidates
+              </label>
+              <button
+                type="button"
+                onClick={() => setConfirming(true)}
+                className={`inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium hover:bg-muted-fill ${SCORE_TONE.red.text}`}
+              >
+                Reject…
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onClear}
+            className="ml-auto text-[12.5px] text-g500 hover:underline"
+          >
+            Clear
+          </button>
+        </>
+      ) : null}
+      {flash !== null ? (
+        <span
+          role="status"
+          className="inline-flex items-center gap-1 text-[12.5px] text-emerald-700 dark:text-emerald-400"
+        >
+          <Check aria-hidden className="h-3.5 w-3.5" />
+          Rejected {flash}
+        </span>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-[12.5px] text-red-600 dark:text-red-400">
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function eventLabel(event: ReviewIntegrityEvent): string {
   if (event.type === "blur") {
     const seconds =
@@ -551,6 +675,7 @@ export default function ApplicantsPage() {
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "all">("all");
   const [jobFilter, setJobFilter] = useState<string>("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Map<string, string>>(new Map());
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});
   const loadingAnswersFor = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -664,6 +789,15 @@ export default function ApplicantsPage() {
 
   const selected = items?.find((app) => app.id === selectedId) ?? null;
 
+  function toggleChecked(id: string, name: string, isChecked: boolean) {
+    setChecked((current) => {
+      const next = new Map(current);
+      if (isChecked) next.set(id, name);
+      else next.delete(id);
+      return next;
+    });
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -672,7 +806,10 @@ export default function ApplicantsPage() {
           <select
             aria-label="Filter by job"
             value={jobFilter}
-            onChange={(event) => setJobFilter(event.target.value)}
+            onChange={(event) => {
+              setJobFilter(event.target.value);
+              setChecked(new Map());
+            }}
             className="inline-flex h-[34px] appearance-none items-center rounded-md border border-edge bg-surface pr-8 pl-3 text-[13px] text-g700 outline-none focus:border-g400"
           >
             <option value="">All jobs</option>
@@ -740,6 +877,21 @@ export default function ApplicantsPage() {
                           : "border-l-[3px] border-l-transparent hover:bg-hover-fill"
                       }`}
                     >
+                      <span
+                        onClick={(event) => event.stopPropagation()}
+                        className="shrink-0"
+                      >
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${app.candidate.name}`}
+                          checked={checked.has(app.id)}
+                          onChange={(event) =>
+                            toggleChecked(app.id, app.candidate.name, event.target.checked)
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                          className="h-[15px] w-[15px] cursor-pointer accent-[var(--color-accent)]"
+                        />
+                      </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span
@@ -766,6 +918,14 @@ export default function ApplicantsPage() {
               })}
             </ul>
           )}
+          <BulkRejectBar
+            selected={checked}
+            onClear={() => setChecked(new Map())}
+            onRejected={() => {
+              setChecked(new Map());
+              reload();
+            }}
+          />
         </div>
 
         {selected ? (

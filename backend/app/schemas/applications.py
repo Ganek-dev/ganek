@@ -51,6 +51,18 @@ class StageUpdate(BaseModel):
     notify_candidate: bool = False
 
 
+class BulkRejectIn(BaseModel):
+    application_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    # opt-in: emails each newly-rejected candidate (22b); already-rejected/
+    # withdrawn/foreign/unknown ids are silently skipped, no email either way
+    notify_candidates: bool = False
+
+
+class BulkRejectOut(BaseModel):
+    rejected: int
+    skipped: int
+
+
 class CvDownload(BaseModel):
     download_url: str
 

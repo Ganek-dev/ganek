@@ -357,6 +357,14 @@ export const applications = {
     request<QuizResult>(`/api/v1/applications/${id}/quiz/reissue`, { method: "POST" }),
   dismissFlags: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/dismiss-flags`, { method: "POST" }),
+  bulkReject: (applicationIds: string[], notifyCandidates: boolean) =>
+    request<{ rejected: number; skipped: number }>("/api/v1/applications/bulk-reject", {
+      method: "POST",
+      body: JSON.stringify({
+        application_ids: applicationIds,
+        notify_candidates: notifyCandidates,
+      }),
+    }),
 };
 
 export interface Note {
