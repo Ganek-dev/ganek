@@ -17,12 +17,13 @@ import {
   type ReviewIntegrityEvent,
 } from "@/lib/api";
 import { InterviewCard } from "@/components/InterviewCard";
+import { NotesCard } from "@/components/NotesCard";
 
 /** Applicant review, handoff screen 11: split view — a 360px list of
  * candidates (score chips, flag dots, stage chip) beside a detail panel
- * with a score strip, per-question answers and an integrity card. Notes
- * and the "top N%" percentile stat need backend fields still on
- * feature branches, so they are intentionally omitted here. */
+ * with a score strip, per-question answers, an integrity card, and internal
+ * notes. The "top N%" percentile stat needs a backend field still on a
+ * feature branch, so it is intentionally omitted here. */
 
 type StagePill = { value: ApplicationStage | "all"; label: string };
 
@@ -538,6 +539,8 @@ function DetailPanel({
           ))}
         </p>
       ) : null}
+
+      <NotesCard key={app.id} applicationId={app.id} />
     </div>
   );
 }

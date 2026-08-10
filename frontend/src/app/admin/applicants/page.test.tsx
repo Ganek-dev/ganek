@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   api,
   applications,
+  notes,
   type ApplicationOut,
   type ApplicationStage,
   type QuizAnswerReview,
@@ -16,7 +17,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    api: { ...original.api, jobs: { ...original.api.jobs, list: vi.fn() } },
+    api: { ...original.api, jobs: { ...original.api.jobs, list: vi.fn() }, me: vi.fn() },
     applications: {
       list: vi.fn(),
       setStage: vi.fn(),
@@ -24,11 +25,14 @@ vi.mock("@/lib/api", async (importOriginal) => {
       quizAnswers: vi.fn(),
       remind: vi.fn(),
     },
+    notes: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
   };
 });
 
 const mockedApps = vi.mocked(applications);
 const mockedJobs = vi.mocked(api.jobs);
+const mockedApi = vi.mocked(api);
+const mockedNotes = vi.mocked(notes);
 
 const RECENT = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 const OLDER = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -155,6 +159,21 @@ describe("ApplicantsPage", () => {
     mockedJobs.list.mockResolvedValue([
       { id: "job-1", title: "Backend Engineer" } as never,
     ]);
+    mockedApi.me.mockResolvedValue({
+      id: "u-1",
+      company_id: "co-1",
+      email: "recruiter@acme.dev",
+      role: "admin",
+      has_password: true,
+    });
+    mockedNotes.list.mockResolvedValue([]);
+    mockedNotes.add.mockResolvedValue({
+      id: "note-1",
+      body: "",
+      author_email: "recruiter@acme.dev",
+      created_at: RECENT,
+    });
+    mockedNotes.remove.mockResolvedValue(undefined);
   });
 
   it("renders the list with score chips, flag dot and stage-pill counts", async () => {

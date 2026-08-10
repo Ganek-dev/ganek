@@ -359,6 +359,25 @@ export const applications = {
     request<QuizResult>(`/api/v1/applications/${id}/quiz/dismiss-flags`, { method: "POST" }),
 };
 
+export interface Note {
+  id: string;
+  body: string;
+  /** null once the author's account is gone (e.g. removed teammate). */
+  author_email: string | null;
+  created_at: string;
+}
+
+export const notes = {
+  list: (applicationId: string) => request<Note[]>(`/api/v1/applications/${applicationId}/notes`),
+  add: (applicationId: string, body: string) =>
+    request<Note>(`/api/v1/applications/${applicationId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  remove: (applicationId: string, noteId: string) =>
+    request<void>(`/api/v1/applications/${applicationId}/notes/${noteId}`, { method: "DELETE" }),
+};
+
 export interface ReviewIntegrityEvent {
   type: string;
   duration_ms: number | null;
