@@ -18,6 +18,7 @@ QUIZ_REISSUED = "quiz.reissued"
 INTERVIEW_REQUESTED = "interview.requested"
 INTERVIEW_BOOKED = "interview.booked"
 INTERVIEW_CANCELLED = "interview.cancelled"
+NOTE_ADDED = "note.added"
 
 
 def record(

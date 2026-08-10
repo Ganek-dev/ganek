@@ -9,20 +9,22 @@ from sqlalchemy import select
 from app.api.deps import CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
-from app.models import Application, ApplicationStage, User
+from app.models import Application, ApplicationNote, ApplicationStage, User, UserRole
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
     CvDownload,
+    NoteCreate,
+    NoteOut,
     QuizAnswerReview,
     QuizResultOut,
     ReviewIntegrityEvent,
     StageUpdate,
 )
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
+from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import email as email_service
-from app.services import google_calendar, storage
 from app.services import interviews as interviews_service
 from app.services import quiz as quiz_service
 
@@ -102,6 +104,83 @@ async def remind_candidate(
         days_left=days_left,
     )
     return {"sent": True}
+
+
+@router.get("/{application_id}/notes", response_model=list[NoteOut])
+async def list_notes(
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+) -> list[ApplicationNote]:
+    await _get_or_404(db, company, application_id)
+    return list(
+        (
+            await db.execute(
+                select(ApplicationNote)
+                .where(
+                    ApplicationNote.company_id == company.id,
+                    ApplicationNote.application_id == application_id,
+                )
+                .order_by(ApplicationNote.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@router.post("/{application_id}/notes", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
+async def add_note(
+    application_id: uuid.UUID,
+    payload: NoteCreate,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> ApplicationNote:
+    await _get_or_404(db, company, application_id)
+    note = ApplicationNote(
+        company_id=company.id,
+        application_id=application_id,
+        author_user_id=user.id,
+        body=payload.body,
+    )
+    db.add(note)
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.NOTE_ADDED,
+        actor_user_id=user.id,
+        application_id=application_id,
+    )
+    await db.commit()
+    await db.refresh(note)
+    return note
+
+
+@router.delete("/{application_id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_note(
+    application_id: uuid.UUID,
+    note_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> None:
+    note = (
+        await db.execute(
+            select(ApplicationNote).where(
+                ApplicationNote.id == note_id,
+                ApplicationNote.company_id == company.id,
+                ApplicationNote.application_id == application_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if note is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    if note.author_user_id != user.id and user.role is not UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the author or an admin can delete a note",
+        )
+    await db.delete(note)
+    await db.commit()
 
 
 @router.post("/{application_id}/quiz/reissue", response_model=QuizResultOut)
