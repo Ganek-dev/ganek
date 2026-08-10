@@ -13,6 +13,8 @@ from app.models import Application, ApplicationNote, ApplicationStage, User, Use
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
+    BulkRejectIn,
+    BulkRejectOut,
     CvDownload,
     NoteCreate,
     NoteOut,
@@ -48,6 +50,27 @@ async def list_applications(
     stage: ApplicationStage | None = None,
 ) -> list[Application]:
     return await applications_service.list_applications(db, company, job_id=job_id, stage=stage)
+
+
+@router.post("/bulk-reject", response_model=BulkRejectOut)
+async def bulk_reject_applications(
+    payload: BulkRejectIn,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+    background: BackgroundTasks,
+) -> BulkRejectOut:
+    # literal path — must stay declared before /{application_id} routes,
+    # which would otherwise shadow it (FastAPI matches in declaration order)
+    rejected = await applications_service.bulk_reject(
+        db, company, payload.application_ids, actor_user_id=user.id
+    )
+    if payload.notify_candidates:
+        for application in rejected:
+            _schedule_rejection_email(background, company, application)
+    return BulkRejectOut(
+        rejected=len(rejected), skipped=len(payload.application_ids) - len(rejected)
+    )
 
 
 @router.get("/{application_id}", response_model=ApplicationOut)
@@ -393,6 +416,26 @@ async def cancel_interview(
     return interview
 
 
+def _schedule_rejection_email(
+    background: BackgroundTasks, company: CurrentCompany, application: Application
+) -> None:
+    """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
+    candidate = application.candidate
+    job = application.job
+    base = settings.public_base_url.rstrip("/")
+    careers_url = base if settings.mode == "single" else f"{base}/c/{company.slug}"
+    attempt = application.quiz_attempt
+    background.add_task(
+        email_service.send_rejection,
+        to=candidate.email,
+        candidate_name=candidate.name,
+        job_title=job.title,
+        company_name=company.name,
+        careers_url=careers_url,
+        completed_assessment=attempt is not None and attempt.completed_at is not None,
+    )
+
+
 def _schedule_stage_email(
     background: BackgroundTasks,
     company: CurrentCompany,
@@ -400,10 +443,10 @@ def _schedule_stage_email(
     stage: ApplicationStage,
 ) -> None:
     """Queue 22a/22b for stages with a template; other stages are a no-op."""
-    candidate = application.candidate
-    job = application.job
-    base = settings.public_base_url.rstrip("/")
     if stage is ApplicationStage.INTERVIEW:
+        candidate = application.candidate
+        job = application.job
+        base = settings.public_base_url.rstrip("/")
         background.add_task(
             email_service.send_stage_advance,
             to=candidate.email,
@@ -414,17 +457,7 @@ def _schedule_stage_email(
             status_url=f"{base}/application/{create_status_token(application.id)}",
         )
     elif stage is ApplicationStage.REJECTED:
-        careers_url = base if settings.mode == "single" else f"{base}/c/{company.slug}"
-        attempt = application.quiz_attempt
-        background.add_task(
-            email_service.send_rejection,
-            to=candidate.email,
-            candidate_name=candidate.name,
-            job_title=job.title,
-            company_name=company.name,
-            careers_url=careers_url,
-            completed_assessment=attempt is not None and attempt.completed_at is not None,
-        )
+        _schedule_rejection_email(background, company, application)
 
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)

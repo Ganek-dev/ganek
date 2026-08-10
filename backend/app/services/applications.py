@@ -160,3 +160,52 @@ async def set_stage(
     await db.commit()
     await db.refresh(application)
     return application
+
+
+async def bulk_reject(
+    db: AsyncSession,
+    company: Company,
+    application_ids: list[uuid.UUID],
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> list[Application]:
+    """Reject every listed application that's still open.
+
+    Already-rejected/withdrawn rows, ids from another tenant, and unknown
+    ids are silently excluded from the result rather than erroring — the
+    route derives `skipped` from the count difference. One activity entry
+    covers the whole call (only recorded when something was rejected).
+    """
+    applications = list(
+        (
+            await db.execute(
+                select(Application)
+                .where(
+                    Application.company_id == company.id,
+                    Application.id.in_(application_ids),
+                    Application.stage.not_in(
+                        (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN)
+                    ),
+                )
+                .options(
+                    selectinload(Application.candidate),
+                    selectinload(Application.quiz_attempts),
+                    selectinload(Application.job),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for application in applications:
+        application.stage = ApplicationStage.REJECTED
+    if applications:
+        activity.record(
+            db,
+            company_id=company.id,
+            type=activity.BULK_REJECTED,
+            actor_user_id=actor_user_id,
+            payload={"count": len(applications)},
+        )
+    await db.commit()
+    return applications
