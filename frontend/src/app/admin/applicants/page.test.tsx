@@ -380,6 +380,26 @@ describe("ApplicantsPage", () => {
     await waitFor(() => expect(screen.queryByText(/selected/)).not.toBeInTheDocument());
   });
 
+  it("shows the selected candidates' names at confirm time even after their rows are filtered out by a different stage pill", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+    expect(await screen.findByText("2 selected")).toBeInTheDocument();
+
+    mockedApps.list.mockResolvedValueOnce([]);
+    await userEvent.click(screen.getByRole("button", { name: /^Rejected · 0/ }));
+    await waitFor(() => expect(screen.getByText("No applications match.")).toBeInTheDocument());
+
+    // both rows are gone from the list, but the bar (and its selection)
+    // survives the refetch, so the confirm step must still say who is
+    // affected.
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(await screen.findByText("Reject 2 applicants?")).toBeInTheDocument();
+    expect(screen.getByText("Jane Applicant, Kenji Sato")).toBeInTheDocument();
+  });
+
   it("Clear empties the selection and hides the bar", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });

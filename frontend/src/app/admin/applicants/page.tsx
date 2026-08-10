@@ -239,7 +239,7 @@ function BulkRejectBar({
   onClear,
   onRejected,
 }: {
-  selected: Set<string>;
+  selected: Map<string, string>;
   onClear: () => void;
   onRejected: () => void;
 }) {
@@ -257,11 +257,20 @@ function BulkRejectBar({
 
   if (selected.size === 0 && flash === null) return null;
 
+  const names = Array.from(selected.values());
+  const namesLine =
+    names.length > 5
+      ? `${names.slice(0, 5).join(", ")} and ${names.length - 5} more`
+      : names.join(", ");
+
   async function confirmReject() {
     setBusy(true);
     setError(null);
     try {
-      const { rejected } = await applications.bulkReject(Array.from(selected), notify);
+      const { rejected } = await applications.bulkReject(
+        Array.from(selected.keys()),
+        notify,
+      );
       setConfirming(false);
       setFlash(rejected);
       onRejected();
@@ -279,8 +288,11 @@ function BulkRejectBar({
           <span className="text-[13px] font-semibold">{selected.size} selected</span>
           {confirming ? (
             <>
-              <span className="text-[12.5px] text-g600">
-                Reject {selected.size} applicants?
+              <span className="flex flex-col">
+                <span className="text-[12.5px] text-g600">
+                  Reject {selected.size} applicants?
+                </span>
+                <span className="text-[11.5px] text-g500">{namesLine}</span>
               </span>
               <button
                 type="button"
@@ -663,7 +675,7 @@ export default function ApplicantsPage() {
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "all">("all");
   const [jobFilter, setJobFilter] = useState<string>("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [checked, setChecked] = useState<Map<string, string>>(new Map());
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});
   const loadingAnswersFor = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -777,10 +789,10 @@ export default function ApplicantsPage() {
 
   const selected = items?.find((app) => app.id === selectedId) ?? null;
 
-  function toggleChecked(id: string, isChecked: boolean) {
+  function toggleChecked(id: string, name: string, isChecked: boolean) {
     setChecked((current) => {
-      const next = new Set(current);
-      if (isChecked) next.add(id);
+      const next = new Map(current);
+      if (isChecked) next.set(id, name);
       else next.delete(id);
       return next;
     });
@@ -796,7 +808,7 @@ export default function ApplicantsPage() {
             value={jobFilter}
             onChange={(event) => {
               setJobFilter(event.target.value);
-              setChecked(new Set());
+              setChecked(new Map());
             }}
             className="inline-flex h-[34px] appearance-none items-center rounded-md border border-edge bg-surface pr-8 pl-3 text-[13px] text-g700 outline-none focus:border-g400"
           >
@@ -873,7 +885,9 @@ export default function ApplicantsPage() {
                           type="checkbox"
                           aria-label={`Select ${app.candidate.name}`}
                           checked={checked.has(app.id)}
-                          onChange={(event) => toggleChecked(app.id, event.target.checked)}
+                          onChange={(event) =>
+                            toggleChecked(app.id, app.candidate.name, event.target.checked)
+                          }
                           onClick={(event) => event.stopPropagation()}
                           className="h-[15px] w-[15px] cursor-pointer accent-[var(--color-accent)]"
                         />
@@ -906,9 +920,9 @@ export default function ApplicantsPage() {
           )}
           <BulkRejectBar
             selected={checked}
-            onClear={() => setChecked(new Set())}
+            onClear={() => setChecked(new Map())}
             onRejected={() => {
-              setChecked(new Set());
+              setChecked(new Map());
               reload();
             }}
           />
