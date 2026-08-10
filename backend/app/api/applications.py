@@ -119,7 +119,7 @@ async def list_notes(
                     ApplicationNote.company_id == company.id,
                     ApplicationNote.application_id == application_id,
                 )
-                .order_by(ApplicationNote.created_at)
+                .order_by(ApplicationNote.created_at, ApplicationNote.id)
             )
         )
         .scalars()

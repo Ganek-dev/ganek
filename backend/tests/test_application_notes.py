@@ -1,5 +1,6 @@
 """Internal notes: CRUD, role rules, tenant isolation, no candidate leakage."""
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
@@ -81,6 +82,44 @@ async def test_notes_roundtrip_and_order(client: AsyncClient) -> None:
     assert notes[0]["author_email"] == admin_email
     assert notes[0]["id"]
     assert notes[0]["created_at"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_notes_stable_order_on_created_at_tie(client: AsyncClient) -> None:
+    """Two notes sharing a created_at (concurrent adds) must still sort the
+    same way on every GET — break the tie on id, not left to Postgres's
+    whim."""
+    from sqlalchemy import update
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.models import ApplicationNote
+
+    app_id, _, _ = await _company_with_applicant(client)
+
+    note_a = (
+        await client.post(f"/api/v1/applications/{app_id}/notes", json={"body": "note a"})
+    ).json()
+    note_b = (
+        await client.post(f"/api/v1/applications/{app_id}/notes", json={"body": "note b"})
+    ).json()
+
+    # force a created_at tie, as concurrent adds would produce under load
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    async with async_sessionmaker(engine)() as db:
+        tied_at = datetime.now(UTC)
+        await db.execute(
+            update(ApplicationNote)
+            .where(ApplicationNote.id.in_([note_a["id"], note_b["id"]]))
+            .values(created_at=tied_at)
+        )
+        await db.commit()
+    await engine.dispose()
+
+    expected_order = sorted([note_a["id"], note_b["id"]])
+    for _ in range(3):
+        notes = (await client.get(f"/api/v1/applications/{app_id}/notes")).json()
+        assert [n["id"] for n in notes] == expected_order
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
