@@ -99,6 +99,10 @@ describe("InterviewBookingPage", () => {
     expect(screen.getByRole("button", { name: "14:00" })).toBeInTheDocument();
     // Wed's slot isn't shown until its day chip is active
     expect(screen.queryByRole("button", { name: "11:30" })).not.toBeInTheDocument();
+    // Google recipients disclosure at the booking touchpoint (M5.6 G1)
+    expect(
+      screen.getByText(/your name and email to .*Google Calendar/),
+    ).toBeInTheDocument();
   });
 
   it("groups slots into a day strip in the visitor's timezone and books from the time list", async () => {
