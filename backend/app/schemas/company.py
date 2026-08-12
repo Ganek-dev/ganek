@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
 
 class CompanyOut(BaseModel):
@@ -30,11 +30,23 @@ class BrandingUpdate(BaseModel):
 
 
 class CompanySettingsUpdate(BaseModel):
-    """Hiring-behavior settings; omitted fields stay untouched, null resets.
+    """Hiring-behavior + privacy settings; omitted fields stay untouched,
+    null resets.
 
     ``quiz_expired_reissue`` decides what a candidate's expired-link
     request does (27c): 'manual' (default) records it for the team,
     'auto' re-issues a fresh link once without waiting for a recruiter.
+
+    The privacy keys feed the candidate-facing privacy notice and the
+    retention engine: ``legal_name`` is the controller identity shown to
+    candidates (unset → display name), ``privacy_contact_email`` receives
+    rights requests, ``retention_months`` is the post-decision retention
+    window (unset → platform default), ``privacy_policy_url`` lets a company
+    link its own policy instead of the generated notice.
     """
 
     quiz_expired_reissue: Literal["manual", "auto"] | None = None
+    legal_name: str | None = Field(default=None, min_length=1, max_length=200)
+    privacy_contact_email: EmailStr | None = None
+    retention_months: int | None = Field(default=None, ge=1, le=24)
+    privacy_policy_url: HttpUrl | None = None

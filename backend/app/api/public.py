@@ -42,6 +42,7 @@ from app.schemas.public import (
     PublicCompanyPage,
     PublicJobDetail,
     PublicJobSummary,
+    PublicPrivacyNotice,
     QuizAnswerIn,
     QuizAnswerOut,
     QuizEventsIn,
@@ -54,6 +55,7 @@ from app.schemas.public import (
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import applications as applications_service
+from app.services import company as company_service
 from app.services import email as email_service
 from app.services import google_calendar, storage
 from app.services import interviews as interviews_service
@@ -118,6 +120,26 @@ async def single_company_page(company: SingleCompany, db: DbSession) -> PublicCo
 )
 async def single_company_job(company: SingleCompany, job_slug: str, db: DbSession) -> Job:
     return await _published_job_or_404(db, company, job_slug)
+
+
+# Candidate privacy notice (M5.6 G1): per-company variables for the
+# frontend-rendered Art. 13 notice; fallbacks applied server-side.
+@router.get(
+    "/companies/{slug}/privacy",
+    response_model=PublicPrivacyNotice,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def company_privacy_notice(company: PublicCompany) -> PublicPrivacyNotice:
+    return company_service.privacy_notice(company)
+
+
+@router.get(
+    "/company/privacy",
+    response_model=PublicPrivacyNotice,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def single_privacy_notice(company: SingleCompany) -> PublicPrivacyNotice:
+    return company_service.privacy_notice(company)
 
 
 async def _jobs_feed(db: DbSession, company: Company, response: Response) -> JobsFeed:
