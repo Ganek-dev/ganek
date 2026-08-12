@@ -25,10 +25,12 @@ from app.schemas.applications import (
     ReviewIntegrityEvent,
     StageUpdate,
 )
+from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
 from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
+from app.services import dsar as dsar_service
 from app.services import email as email_service
 from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
@@ -121,6 +123,21 @@ async def erase_candidate(
         applications=summary.applications,
         google_event_failures=summary.google_event_failures,
     )
+
+
+@router.get("/{application_id}/dsar-export", response_model=DsarBundle)
+async def dsar_export(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    _admin: AdminUser,
+) -> DsarBundle:
+    """Art. 15/20: the full bundle for the CANDIDATE behind this application —
+    all their applications with this company, admin-mediated by design."""
+    application = await _get_or_404(db, company, application_id)
+    bundle = await dsar_service.export_candidate(db, company, application.candidate_id)
+    assert bundle is not None  # the application existed, so its candidate does
+    return bundle
 
 
 @router.patch("/{application_id}/candidate-email", response_model=ApplicationOut)

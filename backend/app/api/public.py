@@ -1,5 +1,5 @@
 import random
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
 from sqlalchemy import select
@@ -24,6 +24,7 @@ from app.models import (
     InterviewStatus,
     Job,
     QuizAttempt,
+    Task,
     UserInvite,
 )
 from app.schemas.auth import UserOut
@@ -38,6 +39,7 @@ from app.schemas.public import (
     JobsFeedItem,
     PracticeOut,
     PracticeQuestionOut,
+    PrivacyRequestReceipt,
     PublicCompanyOut,
     PublicCompanyPage,
     PublicJobDetail,
@@ -54,10 +56,10 @@ from app.schemas.public import (
     StatusQuizOut,
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
+from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import email as email_service
-from app.services import google_calendar, storage
 from app.services import interviews as interviews_service
 from app.services import invites as invites_service
 from app.services import jobs as jobs_service
@@ -587,6 +589,8 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         stage=application.stage.value,
         quiz=quiz,
         decision_expected_by=application.created_at + DECISION_WINDOW,
+        retention_months=company_service.privacy_notice(company).retention_months,
+        privacy_url=company_service.privacy_notice_url(company),
     )
 
 
@@ -607,6 +611,75 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
         application.stage = ApplicationStage.WITHDRAWN
         await db.commit()
     return {"withdrawn": True}
+
+
+async def _record_privacy_request(db: DbSession, application: Application, *, kind: str) -> None:
+    """Notify-only (G0 decision): a Task for the team + an activity entry.
+
+    The task title/note name the candidate on purpose — the task IS the
+    request and the admin needs to know who to act for. Repeat clicks
+    don't stack open tasks; the activity trail keeps every request."""
+    candidate = application.candidate
+    title = f"Privacy: {'data' if kind == 'data' else 'deletion'} request — {candidate.name}"
+    open_exists = (
+        await db.execute(
+            select(Task.id)
+            .where(
+                Task.company_id == application.company_id,
+                Task.title == title,
+                Task.done_at.is_(None),
+            )
+            .limit(1)
+        )
+    ).first()
+    if open_exists is None:
+        db.add(
+            Task(
+                company_id=application.company_id,
+                created_by=None,
+                assignee_user_id=None,
+                title=title,
+                due_date=date.today() + timedelta(days=14),
+                note=(
+                    f"{candidate.name} ({candidate.email}) asked via their status page "
+                    f"({application.job.title}). GDPR clock: respond within one month."
+                ),
+            )
+        )
+    activity.record(
+        db,
+        company_id=application.company_id,
+        type=activity.DATA_REQUESTED if kind == "data" else activity.DELETION_REQUESTED,
+        application_id=application.id,
+        payload={},
+    )
+    await db.commit()
+
+
+@router.post(
+    "/applications/{token}/request-data",
+    response_model=PrivacyRequestReceipt,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def request_application_data(token: str, db: DbSession) -> PrivacyRequestReceipt:
+    """Art. 15 route for candidates: asks the company, never serves the bundle
+    itself — a leaked magic link must not become a full-PII download."""
+    application = await _application_by_status_token_or_404(db, token)
+    await _record_privacy_request(db, application, kind="data")
+    return PrivacyRequestReceipt(status="received")
+
+
+@router.post(
+    "/applications/{token}/request-deletion",
+    response_model=PrivacyRequestReceipt,
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def request_application_deletion(token: str, db: DbSession) -> PrivacyRequestReceipt:
+    """Art. 17 route for candidates: notify-only, the controller decides
+    (retention-for-claims-defense can be a legitimate refusal)."""
+    application = await _application_by_status_token_or_404(db, token)
+    await _record_privacy_request(db, application, kind="deletion")
+    return PrivacyRequestReceipt(status="received")
 
 
 async def _invite_by_token_or_error(db: DbSession, token: str) -> UserInvite:

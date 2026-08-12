@@ -14,7 +14,7 @@ _serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-session")
 _quiz_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-quiz")
 QUIZ_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 _status_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-application-status")
-STATUS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 60  # candidates check back late; 60 days
+STATUS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days (G0 minimization decision, was 60)
 _invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-team-invite")
 # generous signature window — the invite row's expires_at is the real
 # deadline (resend pushes it forward without re-emailing a new token)

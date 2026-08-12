@@ -146,3 +146,68 @@ async def test_status_rejects_bad_tokens(client: AsyncClient) -> None:
     assert (
         await client.post("/api/v1/public/applications/not-a-token/withdraw")
     ).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_status_exposes_retention_and_privacy_url(client: AsyncClient) -> None:
+    received, _ = await _apply(client)
+    body = (await client.get(f"/api/v1/public/applications/{received['status_token']}")).json()
+    assert body["retention_months"] == 6  # server-side default
+    assert body["privacy_url"].endswith("/privacy")
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_request_data_creates_task_and_activity(client: AsyncClient) -> None:
+    from datetime import date, timedelta
+
+    received, creds = await _apply(client)
+    token = received["status_token"]
+
+    resp = await client.post(f"/api/v1/public/applications/{token}/request-data")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"status": "received"}
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    tasks = (await client.get("/api/v1/tasks")).json()
+    matching = [t for t in tasks if t["title"] == "Privacy: data request — Marta Vidal"]
+    assert len(matching) == 1
+    assert "within one month" in matching[0]["note"]
+    assert "marta-" in matching[0]["note"]  # candidate email so the admin can act
+    assert matching[0]["due_date"] == (date.today() + timedelta(days=14)).isoformat()
+
+    feed = (await client.get("/api/v1/activity")).json()
+    entries = [e for e in feed if e["type"] == "candidate.data_requested"]
+    assert len(entries) == 1
+    assert entries[0]["payload"] == {}
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_request_deletion_dedupes_open_task(client: AsyncClient) -> None:
+    received, creds = await _apply(client)
+    token = received["status_token"]
+
+    assert (
+        await client.post(f"/api/v1/public/applications/{token}/request-deletion")
+    ).status_code == 200
+    assert (
+        await client.post(f"/api/v1/public/applications/{token}/request-deletion")
+    ).status_code == 200
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    tasks = (await client.get("/api/v1/tasks")).json()
+    matching = [t for t in tasks if t["title"] == "Privacy: deletion request — Marta Vidal"]
+    assert len(matching) == 1  # second click did not stack a duplicate
+
+    # ... but the activity trail keeps every request
+    feed = (await client.get("/api/v1/activity")).json()
+    assert len([e for e in feed if e["type"] == "candidate.deletion_requested"]) == 2
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_privacy_requests_reject_bad_tokens(client: AsyncClient) -> None:
+    assert (
+        await client.post("/api/v1/public/applications/not-a-token/request-data")
+    ).status_code == 404
+    assert (
+        await client.post("/api/v1/public/applications/not-a-token/request-deletion")
+    ).status_code == 404
