@@ -38,6 +38,18 @@ export interface PublicCompanyPage {
   jobs: PublicJobSummary[];
 }
 
+/** Per-company variables for the privacy notice page (M5.6 G1).
+ * Fallbacks (legal name, retention default) are applied server-side. */
+export interface PublicPrivacyNotice {
+  company_name: string;
+  legal_name: string;
+  privacy_contact_email: string | null;
+  retention_months: number;
+  privacy_policy_url: string | null;
+  brand_primary: string | null;
+  logo_url: string | null;
+}
+
 async function get<T>(path: string): Promise<T | null> {
   const resp = await fetch(`${BACKEND_URL}${path}`, { cache: "no-store" });
   if (resp.status === 404) return null;
@@ -57,4 +69,7 @@ export const publicApi = {
   singleCompanyPage: () => get<PublicCompanyPage>("/api/v1/public/company"),
   singleCompanyJob: (jobSlug: string) =>
     get<PublicJobDetail>(`/api/v1/public/company/jobs/${jobSlug}`),
+  companyPrivacy: (slug: string) =>
+    get<PublicPrivacyNotice>(`/api/v1/public/companies/${slug}/privacy`),
+  singlePrivacy: () => get<PublicPrivacyNotice>("/api/v1/public/company/privacy"),
 };
