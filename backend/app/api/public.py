@@ -260,6 +260,8 @@ async def _apply(
             question_count=len(attempt.question_ids),
             seconds_per_question=attempt.time_limit_seconds,
             expires_at=attempt.expires_at,
+            controller_name=company_service.controller_name(company),
+            privacy_url=company_service.privacy_notice_url(company),
         )
     else:
         background.add_task(
@@ -268,6 +270,7 @@ async def _apply(
             candidate_name=payload.name,
             job_title=job.title,
             company_name=company.name,
+            privacy_url=company_service.privacy_notice_url(company),
         )
     return ApplicationReceived(
         quiz_token=quiz_token, status_token=create_status_token(application.id)
@@ -528,6 +531,8 @@ async def quiz_request_reissue(
                 question_count=len(fresh.question_ids),
                 seconds_per_question=fresh.time_limit_seconds,
                 expires_at=fresh.expires_at,
+                controller_name=company_service.controller_name(company),
+                privacy_url=company_service.privacy_notice_url(company),
             )
             return {"reissued": True}
 

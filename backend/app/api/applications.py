@@ -26,6 +26,7 @@ from app.schemas.applications import (
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
 from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
+from app.services import company as company_service
 from app.services import email as email_service
 from app.services import interviews as interviews_service
 from app.services import quiz as quiz_service
@@ -125,6 +126,8 @@ async def remind_candidate(
         quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
         expires_at=attempt.expires_at,
         days_left=days_left,
+        controller_name=company_service.controller_name(company),
+        privacy_url=company_service.privacy_notice_url(company),
     )
     return {"sent": True}
 
@@ -249,6 +252,8 @@ async def reissue_quiz(
         question_count=len(attempt.question_ids),
         seconds_per_question=attempt.time_limit_seconds,
         expires_at=attempt.expires_at,
+        controller_name=company_service.controller_name(company),
+        privacy_url=company_service.privacy_notice_url(company),
     )
     return attempt
 
@@ -377,6 +382,8 @@ async def create_interview(
         duration_minutes=interview.duration_minutes,
         booking_url=booking_url,
         brand_primary=(company.theme or {}).get("primary_color"),
+        controller_name=company_service.controller_name(company),
+        privacy_url=company_service.privacy_notice_url(company),
     )
     return interview
 
@@ -412,6 +419,8 @@ async def cancel_interview(
         candidate_name=application.candidate.name,
         job_title=application.job.title,
         company_name=company.name,
+        controller_name=company_service.controller_name(company),
+        privacy_url=company_service.privacy_notice_url(company),
     )
     return interview
 
@@ -433,6 +442,8 @@ def _schedule_rejection_email(
         company_name=company.name,
         careers_url=careers_url,
         completed_assessment=attempt is not None and attempt.completed_at is not None,
+        controller_name=company_service.controller_name(company),
+        privacy_url=company_service.privacy_notice_url(company),
     )
 
 
@@ -455,6 +466,8 @@ def _schedule_stage_email(
             company_name=company.name,
             brand_primary=(company.theme or {}).get("primary_color"),
             status_url=f"{base}/application/{create_status_token(application.id)}",
+            controller_name=company_service.controller_name(company),
+            privacy_url=company_service.privacy_notice_url(company),
         )
     elif stage is ApplicationStage.REJECTED:
         _schedule_rejection_email(background, company, application)
