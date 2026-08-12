@@ -5,7 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models import Company
 from app.schemas.company import BrandingUpdate, CompanySettingsUpdate
+from app.schemas.public import PublicPrivacyNotice
 from app.services import storage
+
+RETENTION_DEFAULT_MONTHS = 6
+"""Post-decision retention window when a company hasn't set one.
+
+Chosen to be defensible in the strictest mainstream EU regimes (Germany ~6
+months AGG practice; CNIL caps at 2 years) — see GDPR research notes. The
+privacy notice renders this value and the retention purge will enforce it.
+"""
 
 
 class InvalidLogoError(Exception):
@@ -44,11 +53,32 @@ async def update_settings(
         if value is None:
             merged.pop(field, None)
         else:
+            if not isinstance(value, (str, int, float, bool)):
+                # pydantic types like HttpUrl must land in JSONB as plain strings
+                value = str(value)
             merged[field] = value
     company.settings = merged
     await db.commit()
     await db.refresh(company)
     return company
+
+
+def privacy_notice(company: Company) -> PublicPrivacyNotice:
+    """Per-company variables for the candidate privacy notice page.
+
+    Fallbacks applied server-side so the page never needs defaults logic;
+    internal settings keys (quiz_expired_reissue, …) never serialize here.
+    """
+    stored = company.settings or {}
+    return PublicPrivacyNotice(
+        company_name=company.name,
+        legal_name=stored.get("legal_name") or company.name,
+        privacy_contact_email=stored.get("privacy_contact_email"),
+        retention_months=stored.get("retention_months") or RETENTION_DEFAULT_MONTHS,
+        privacy_policy_url=stored.get("privacy_policy_url"),
+        brand_primary=(company.theme or {}).get("primary_color"),
+        logo_url=company.logo_url,
+    )
 
 
 def sniff_logo(data: bytes, declared_type: str) -> str:

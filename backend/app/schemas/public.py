@@ -43,6 +43,24 @@ class PublicCompanyOut(BaseModel):
     theme: dict[str, Any]
 
 
+class PublicPrivacyNotice(BaseModel):
+    """Per-company variables for the candidate privacy notice page (M5.6 G1).
+
+    The notice text itself is platform truth rendered by the frontend; this
+    payload carries only the company-specific values, with fallbacks already
+    applied server-side. Never serializes the settings JSONB wholesale —
+    internal keys stay server-side.
+    """
+
+    company_name: str
+    legal_name: str
+    privacy_contact_email: str | None
+    retention_months: int
+    privacy_policy_url: str | None
+    brand_primary: str | None
+    logo_url: str | None
+
+
 class JobsFeedItem(BaseModel):
     """One role in the public jobs feed (screen 25) — third-party friendly."""
 
