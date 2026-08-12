@@ -164,6 +164,9 @@ export function NotesCard({ applicationId }: { applicationId: string }) {
           {items.length}
         </span>
       </div>
+      <p className="mt-1 text-[11.5px] text-g500">
+        Notes may be disclosed to the candidate if they request their data.
+      </p>
 
       {items.length > 0 ? (
         <ul className="mt-3 space-y-2">

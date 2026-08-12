@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   api,
+  ApiError,
   applications,
   notes,
   type ApplicationOut,
@@ -25,6 +26,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
       quizAnswers: vi.fn(),
       remind: vi.fn(),
       bulkReject: vi.fn(),
+      eraseCandidate: vi.fn(),
+      dsarExport: vi.fn(),
+      updateCandidateEmail: vi.fn(),
     },
     notes: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
   };
@@ -158,6 +162,9 @@ describe("ApplicantsPage", () => {
     mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
     mockedApps.quizAnswers.mockResolvedValue(ANSWERS);
     mockedApps.bulkReject.mockResolvedValue({ rejected: 2, skipped: 0 });
+    mockedApps.eraseCandidate.mockResolvedValue({ applications: 2, google_event_failures: 0 });
+    mockedApps.dsarExport.mockResolvedValue({ candidate: { email: "jane@example.com" } });
+    mockedApps.updateCandidateEmail.mockResolvedValue(makeApp({ id: "app-1" }));
     mockedJobs.list.mockResolvedValue([
       { id: "job-1", title: "Backend Engineer" } as never,
     ]);
@@ -412,5 +419,102 @@ describe("ApplicantsPage", () => {
     expect(
       screen.queryByRole("checkbox", { name: /select jane applicant/i }),
     ).not.toBeChecked();
+  });
+
+  async function openMoreActions() {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    return within(await screen.findByRole("menu"));
+  }
+
+  it("⋯ menu exports the DSAR bundle as a JSON download", async () => {
+    const downloads: string[] = [];
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn(() => "blob:mock"),
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloads.push(this.download);
+      });
+
+    const menu = await openMoreActions();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Export data (JSON)" }));
+
+    await waitFor(() => expect(mockedApps.dsarExport).toHaveBeenCalledWith("app-1"));
+    await waitFor(() => expect(downloads).toEqual(["dsar-jane@example.com.json"]));
+    clickSpy.mockRestore();
+  });
+
+  it("erase is two-step: confirm copy first, then the call and a flash", async () => {
+    const menu = await openMoreActions();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Erase candidate…" }));
+
+    expect(
+      await screen.findByText(/Erase Jane Applicant's data\? This permanently removes/),
+    ).toBeInTheDocument();
+    expect(mockedApps.eraseCandidate).not.toHaveBeenCalled();
+
+    mockedApps.list.mockResolvedValueOnce([]);
+    await userEvent.click(screen.getByRole("button", { name: "Yes, erase" }));
+    await waitFor(() => expect(mockedApps.eraseCandidate).toHaveBeenCalledWith("app-1"));
+    expect(await screen.findByText("Candidate data erased")).toBeInTheDocument();
+  });
+
+  it("erase flash reports google event failures", async () => {
+    mockedApps.eraseCandidate.mockResolvedValue({
+      applications: 1,
+      google_event_failures: 1,
+    });
+    const menu = await openMoreActions();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Erase candidate…" }));
+    mockedApps.list.mockResolvedValueOnce([]);
+    await userEvent.click(screen.getByRole("button", { name: "Yes, erase" }));
+    expect(
+      await screen.findByText(
+        "Candidate data erased — 1 calendar event(s) could not be removed",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("Keep cancels the erase confirm without calling the endpoint", async () => {
+    const menu = await openMoreActions();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Erase candidate…" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Keep" }));
+    expect(mockedApps.eraseCandidate).not.toHaveBeenCalled();
+    expect(screen.queryByText(/permanently removes/)).not.toBeInTheDocument();
+  });
+
+  it("edit-email dialog saves the corrected address", async () => {
+    const menu = await openMoreActions();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Edit candidate email…" }));
+
+    const input = await screen.findByLabelText("Candidate email");
+    expect(input).toHaveValue("jane@example.com");
+    await userEvent.clear(input);
+    await userEvent.type(input, "fixed@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save email" }));
+
+    await waitFor(() =>
+      expect(mockedApps.updateCandidateEmail).toHaveBeenCalledWith(
+        "app-1",
+        "fixed@example.com",
+      ),
+    );
+  });
+
+  it("edit-email dialog surfaces the 409 detail", async () => {
+    mockedApps.updateCandidateEmail.mockRejectedValue(
+      new ApiError(409, "Another candidate already uses this email"),
+    );
+    const menu = await openMoreActions();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Edit candidate email…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save email" }));
+    expect(
+      await screen.findByText("Another candidate already uses this email"),
+    ).toBeInTheDocument();
   });
 });

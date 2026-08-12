@@ -365,6 +365,21 @@ export const applications = {
         notify_candidates: notifyCandidates,
       }),
     }),
+  /** Art. 17: erases the whole candidate (every application), admin-only. */
+  eraseCandidate: (id: string) =>
+    request<{ applications: number; google_event_failures: number }>(
+      `/api/v1/applications/${id}/erase-candidate`,
+      { method: "POST" },
+    ),
+  /** Art. 15/20: candidate-destined JSON bundle, admin-only. */
+  dsarExport: (id: string) =>
+    request<Record<string, unknown>>(`/api/v1/applications/${id}/dsar-export`),
+  /** Art. 16: rectify the delivery address for every candidate link. */
+  updateCandidateEmail: (id: string, email: string) =>
+    request<ApplicationOut>(`/api/v1/applications/${id}/candidate-email`, {
+      method: "PATCH",
+      body: JSON.stringify({ email }),
+    }),
 };
 
 export interface Note {
