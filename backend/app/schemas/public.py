@@ -141,6 +141,13 @@ class ApplicationStatusOut(BaseModel):
     stage: str
     quiz: StatusQuizOut | None
     decision_expected_by: datetime
+    # G2: honest retention copy + the notice link, server-resolved defaults
+    retention_months: int
+    privacy_url: str
+
+
+class PrivacyRequestReceipt(BaseModel):
+    status: Literal["received"]
 
 
 class QuizOptionOut(BaseModel):
