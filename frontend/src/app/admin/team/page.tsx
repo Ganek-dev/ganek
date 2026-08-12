@@ -83,6 +83,7 @@ export default function TeamPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [confirmAnonymizeId, setConfirmAnonymizeId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const emailRef = useRef<HTMLInputElement>(null);
 
@@ -175,6 +176,20 @@ export default function TeamPage() {
     }
   }
 
+  async function confirmAnonymize(id: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      await team.anonymize(id);
+      setNotice("Removed");
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Remove failed");
+    } finally {
+      setConfirmAnonymizeId(null);
+    }
+  }
+
   const memberCount = users?.length ?? 0;
   const pendingCount = invites?.length ?? 0;
   const subtitle =
@@ -262,7 +277,7 @@ export default function TeamPage() {
               return (
                 <li
                   key={user.id}
-                  className="flex items-center gap-3.5 border-t border-divider px-[18px] py-[14px] first:border-t-0"
+                  className="flex flex-wrap items-center gap-3.5 border-t border-divider px-[18px] py-[14px] first:border-t-0"
                 >
                   <div
                     aria-hidden
@@ -330,9 +345,41 @@ export default function TeamPage() {
                         >
                           {user.is_active ? "Deactivate" : "Reactivate"}
                         </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setConfirmAnonymizeId(user.id);
+                          }}
+                          className="block w-full px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-muted-fill dark:text-red-400"
+                        >
+                          Remove &amp; anonymize…
+                        </button>
                       </div>
                     ) : null}
                   </div>
+                  {confirmAnonymizeId === user.id ? (
+                    <div className="flex w-full flex-wrap items-center gap-3 rounded-md border border-edge bg-muted-fill p-2.5">
+                      <span className="text-[12.5px] text-g700">
+                        {`Remove ${user.email}? Their account is wiped and deactivated — this cannot be undone.`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void confirmAnonymize(user.id)}
+                        className="inline-flex h-7 items-center rounded-sm bg-red-600 px-2.5 text-[12.5px] font-medium text-white hover:brightness-[0.94]"
+                      >
+                        Yes, remove
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmAnonymizeId(null)}
+                        className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
