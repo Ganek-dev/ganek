@@ -103,7 +103,7 @@ describe("ApplyForm", () => {
     expect(screen.getByText(/next 24 hours/)).toBeInTheDocument();
     const linkBox = screen.getByLabelText("Assessment link") as HTMLInputElement;
     expect(linkBox.value).toContain("/quiz/tok123");
-    expect(screen.getByText(/tab switches are recorded/)).toBeInTheDocument();
+    expect(screen.getByText(/tab switches, pastes & resizes are recorded/)).toBeInTheDocument();
   });
 
   it("surfaces upload errors and lets the candidate retry", async () => {

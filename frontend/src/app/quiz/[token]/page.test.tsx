@@ -85,7 +85,11 @@ describe("QuizPage", () => {
     expect(screen.getByText(/no pause button/)).toBeInTheDocument();
     expect(screen.getByText(/questions — single choice/)).toBeInTheDocument();
     expect(screen.getByText(/locks automatically at 0:00/)).toBeInTheDocument();
-    expect(screen.getByText(/tab switches and resizes/)).toBeInTheDocument();
+    // complete monitoring disclosure — pastes included (M5.6 G1 transparency fix)
+    expect(
+      screen.getByText(/tab switches \(and how long\), pastes, and window resizes/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/nothing auto-rejects/)).toBeInTheDocument();
     expect(screen.getByText("Quiz Co")).toBeInTheDocument();
     expect(screen.getByText(/come back with the same link/)).toBeInTheDocument();
 

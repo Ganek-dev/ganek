@@ -194,7 +194,7 @@ export function ApplyForm({
               />
             </div>
             <p className="mt-6 font-mono text-[11px] text-g400">
-              Find a quiet 10 minutes — tab switches are recorded
+              Find a quiet 10 minutes — tab switches, pastes &amp; resizes are recorded
             </p>
           </>
         ) : (

@@ -456,7 +456,7 @@ export default function QuizPage() {
       ["1×", "one shot — once you lock an answer there's no going back"],
       [
         <Eye key="eye" aria-hidden className="h-4 w-4 text-g500" />,
-        "we record tab switches and resizes — stay on this screen and you're fine",
+        "we record tab switches (and how long), pastes, and window resizes, tied to the question on screen — people review them, nothing auto-rejects. Stay here and you're fine.",
       ],
     ];
     return (
@@ -784,12 +784,16 @@ export default function QuizPage() {
                 : "one shot — locks automatically at 0:00"}
             </span>
           </p>
+          {/* monitoring disclosure — desktop shows it in the footer; static, no layout shift */}
+          <p className="mt-1 text-center font-mono text-[10px] text-g400">
+            tab switches, pastes &amp; resizes are recorded
+          </p>
         </div>
 
         <footer className="hidden h-11 shrink-0 items-center justify-center gap-6 font-mono text-[11px] text-g400 sm:flex">
           <span>A–D to select · Enter to lock</span>
           <span>one shot — no going back</span>
-          <span>tab switches are recorded</span>
+          <span>tab switches, pastes &amp; resizes are recorded</span>
         </footer>
       </main>
     );

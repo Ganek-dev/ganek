@@ -361,6 +361,11 @@ export default function InterviewBookingPage() {
                   {interview.description}
                 </p>
               ) : null}
+              {/* Art. 13 recipients disclosure at the touchpoint (M5.6 G1) */}
+              <p className="w-full border-t border-edge pt-3 text-[12px] leading-[17px] text-g500">
+                Booking adds a calendar event with your name and email to {interview.company_name}
+                &apos;s Google Calendar — the invite email comes from Google.
+              </p>
             </div>
 
             {interview.status === "booked" && !rescheduling ? (
