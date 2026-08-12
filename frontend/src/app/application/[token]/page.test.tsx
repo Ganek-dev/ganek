@@ -14,7 +14,12 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    publicApplications: { status: vi.fn(), withdraw: vi.fn() },
+    publicApplications: {
+      status: vi.fn(),
+      withdraw: vi.fn(),
+      requestData: vi.fn(),
+      requestDeletion: vi.fn(),
+    },
   };
 });
 
@@ -36,6 +41,8 @@ function makeStatus(overrides: Partial<ApplicationStatus> = {}): ApplicationStat
       completed_at: "2026-07-24T15:12:00Z",
     },
     decision_expected_by: "2026-08-07T14:58:00Z",
+    retention_months: 6,
+    privacy_url: "https://jobs.example/c/northwind/privacy",
     ...overrides,
   };
 }
@@ -45,6 +52,8 @@ describe("StatusPage", () => {
     vi.clearAllMocks();
     mocked.status.mockResolvedValue(makeStatus());
     mocked.withdraw.mockResolvedValue({ withdrawn: true });
+    mocked.requestData.mockResolvedValue({ status: "received" });
+    mocked.requestDeletion.mockResolvedValue({ status: "received" });
   });
 
   it("renders the timeline for an under-review application", async () => {
@@ -100,5 +109,64 @@ describe("StatusPage", () => {
     mocked.status.mockRejectedValue(new ApiError(404, "Not found"));
     render(<StatusPage />);
     expect(await screen.findByText(/link is not valid/i)).toBeInTheDocument();
+  });
+});
+
+describe("StatusPage privacy actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.status.mockResolvedValue(makeStatus());
+    mocked.withdraw.mockResolvedValue({ withdrawn: true });
+    mocked.requestData.mockResolvedValue({ status: "received" });
+    mocked.requestDeletion.mockResolvedValue({ status: "received" });
+  });
+
+  it("always shows the retention line linking the privacy notice", async () => {
+    render(<StatusPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    expect(screen.getByText(/kept for the period described in the/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "privacy notice" });
+    expect(link).toHaveAttribute("href", "https://jobs.example/c/northwind/privacy");
+  });
+
+  it("request-a-copy posts and shows the receipt", async () => {
+    render(<StatusPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    await userEvent.click(screen.getByRole("button", { name: "Request a copy of my data" }));
+    await waitFor(() => expect(mocked.requestData).toHaveBeenCalledWith("status-tok"));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "We've sent your request to Northwind Robotics. They'll respond within a month.",
+    );
+  });
+
+  it("request-deletion posts and shows the receipt", async () => {
+    render(<StatusPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ask for my data to be deleted" }),
+    );
+    await waitFor(() => expect(mocked.requestDeletion).toHaveBeenCalledWith("status-tok"));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "We've sent your request to Northwind Robotics.",
+    );
+  });
+
+  it("withdrawn stage adds the honest retention line", async () => {
+    mocked.status.mockResolvedValue(makeStatus({ stage: "withdrawn" }));
+    render(<StatusPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    expect(
+      screen.getByText(
+        /Northwind Robotics keeps your data for up to 6 months unless you request deletion/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("request failure lands in the error alert", async () => {
+    mocked.requestData.mockRejectedValue(new Error("Too many requests"));
+    render(<StatusPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    await userEvent.click(screen.getByRole("button", { name: "Request a copy of my data" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many requests");
   });
 });

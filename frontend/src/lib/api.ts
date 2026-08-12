@@ -477,6 +477,10 @@ export interface ApplicationStatus {
   stage: string;
   quiz: StatusQuiz | null;
   decision_expected_by: string;
+  /** Effective retention window (server-resolved default) for the honest copy. */
+  retention_months: number;
+  /** Absolute link to the company's privacy notice. */
+  privacy_url: string;
 }
 
 export interface InterviewPublic {
@@ -566,6 +570,16 @@ export const publicApplications = {
     request<ApplicationStatus>(`/api/v1/public/applications/${token}`),
   withdraw: (token: string) =>
     request<{ withdrawn: boolean }>(`/api/v1/public/applications/${token}/withdraw`, {
+      method: "POST",
+    }),
+  /** Art. 15: asks the company for a copy — notify-only, never a download. */
+  requestData: (token: string) =>
+    request<{ status: string }>(`/api/v1/public/applications/${token}/request-data`, {
+      method: "POST",
+    }),
+  /** Art. 17: asks the company to delete — notify-only, the controller decides. */
+  requestDeletion: (token: string) =>
+    request<{ status: string }>(`/api/v1/public/applications/${token}/request-deletion`, {
       method: "POST",
     }),
 };

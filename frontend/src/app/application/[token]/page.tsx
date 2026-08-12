@@ -63,6 +63,8 @@ export default function StatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestNotice, setRequestNotice] = useState<string | null>(null);
 
   const load = useCallback(() => {
     publicApplications
@@ -75,6 +77,28 @@ export default function StatusPage() {
   }, [token]);
 
   useEffect(load, [load]);
+
+  const sendPrivacyRequest = useCallback(
+    (kind: "data" | "deletion", companyName: string) => {
+      setRequestBusy(true);
+      setError(null);
+      const call =
+        kind === "data"
+          ? publicApplications.requestData(token)
+          : publicApplications.requestDeletion(token);
+      call
+        .then(() =>
+          setRequestNotice(
+            `We've sent your request to ${companyName}. They'll respond within a month.`,
+          ),
+        )
+        .catch((err: unknown) =>
+          setError(err instanceof Error ? err.message : "Request failed"),
+        )
+        .finally(() => setRequestBusy(false));
+    },
+    [token],
+  );
 
   const withdraw = useCallback(() => {
     setBusy(true);
@@ -302,6 +326,48 @@ export default function StatusPage() {
             >
               Withdraw application
             </button>
+          )}
+        </div>
+        <div className="mt-5 border-t border-edge pt-5">
+          <p className="overline text-[11px] text-g500">Your data</p>
+          {withdrawn ? (
+            <p className="mt-2 text-[13px] leading-[20px] text-g600">
+              {`Your application is withdrawn. ${status.company_name} keeps your data for up to ${status.retention_months} months unless you request deletion.`}
+            </p>
+          ) : null}
+          <p className="mt-2 text-[13px] leading-[20px] text-g600">
+            Your data is kept for the period described in the{" "}
+            <a
+              href={status.privacy_url}
+              className="underline hover:text-foreground"
+            >
+              privacy notice
+            </a>
+            , then deleted. You can request deletion sooner.
+          </p>
+          {requestNotice ? (
+            <p role="status" className="mt-2.5 text-[13px] font-medium text-g700">
+              {requestNotice}
+            </p>
+          ) : (
+            <div className="mt-2.5 flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                disabled={requestBusy}
+                onClick={() => sendPrivacyRequest("data", status.company_name)}
+                className="text-[13px] text-g500 underline hover:text-foreground disabled:opacity-50"
+              >
+                Request a copy of my data
+              </button>
+              <button
+                type="button"
+                disabled={requestBusy}
+                onClick={() => sendPrivacyRequest("deletion", status.company_name)}
+                className="text-[13px] text-g500 underline hover:text-foreground disabled:opacity-50"
+              >
+                Ask for my data to be deleted
+              </button>
+            </div>
           )}
         </div>
         {error ? (
