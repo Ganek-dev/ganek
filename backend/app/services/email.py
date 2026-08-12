@@ -60,7 +60,12 @@ def send_email(*, to: str, subject: str, body: str, html: str | None = None) -> 
 
 
 def send_application_received(
-    *, to: str, candidate_name: str, job_title: str, company_name: str
+    *,
+    to: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    privacy_url: str | None = None,
 ) -> None:
     subject = f"Application received — {job_title} at {company_name}"
     body = (
@@ -70,7 +75,7 @@ def send_application_received(
         f"Your application and CV were received; the team will review them and\n"
         f"get back to you.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
     try:
         send_email(to=to, subject=subject, body=body)
@@ -89,6 +94,8 @@ def send_quiz_invite(
     question_count: int,
     seconds_per_question: int | None,
     expires_at: datetime,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """Assessment invite (design 17a): quiz link + what-to-expect details.
 
@@ -125,7 +132,7 @@ def send_quiz_invite(
         f"\n"
         f"Link valid until {valid_until} · works on any device\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
 
     html_details = "".join(
@@ -158,6 +165,8 @@ def send_quiz_invite(
         brand_fg=brand_fg,
         safe_company=safe_company,
         content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
 
     try:
@@ -167,9 +176,26 @@ def send_quiz_invite(
 
 
 def _card_html(
-    *, bar_color: str, brand: str, brand_fg: str, safe_company: str, content: str
+    *,
+    bar_color: str,
+    brand: str,
+    brand_fg: str,
+    safe_company: str,
+    content: str,
+    safe_controller: str | None = None,
+    privacy_url: str | None = None,
 ) -> str:
-    """Shared email card (handoff 17/22): top bar, logo chip, content, footer."""
+    """Shared email card (handoff 17/22): top bar, logo chip, content, footer.
+
+    The footer names the data controller (legal name when the company set
+    one — M5.6 G1) and links their privacy notice on candidate-facing mail.
+    """
+    footer = f"Sent by vetd on behalf of {safe_controller or safe_company}"
+    if privacy_url:
+        footer += (
+            f' · <a href="{privacy_url}" style="color: #a1a1aa; '
+            f'text-decoration: underline;">privacy notice</a>'
+        )
     return (
         f'<div style="margin: 0 auto; max-width: 480px; background: #ffffff; '
         f"border-radius: 12px; border: 1px solid #e4e4e7; overflow: hidden; "
@@ -186,8 +212,13 @@ def _card_html(
         f"</div></div>"
         f'<div style="margin: 16px auto 0; max-width: 480px; text-align: center; '
         f'font-family: monospace; font-size: 10.5px; color: #a1a1aa; line-height: 17px;">'
-        f"Sent by vetd on behalf of {safe_company}</div>"
+        f"{footer}</div>"
     )
+
+
+def _privacy_text(privacy_url: str | None) -> str:
+    """Trailing plain-text privacy pointer for candidate emails."""
+    return f"\nPrivacy & your data: {privacy_url}\n" if privacy_url else ""
 
 
 def _paragraph(inner: str) -> str:
@@ -210,6 +241,8 @@ def send_quiz_reminder(
     quiz_url: str,
     expires_at: datetime,
     days_left: int,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """Assessment reminder (design 17b), sent manually by a recruiter.
 
@@ -243,7 +276,7 @@ def send_quiz_reminder(
         f"\n"
         f"Take it now: {quiz_url}\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -261,7 +294,13 @@ def send_quiz_reminder(
         f"Take it now — ~10 min</a>"
     )
     html = _card_html(
-        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
 
     try:
@@ -278,6 +317,8 @@ def send_stage_advance(
     company_name: str,
     brand_primary: str | None,
     status_url: str | None = None,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """Advance-to-interview email (design 22a); scheduling details follow later."""
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
@@ -295,7 +336,7 @@ def send_stage_advance(
         f"\n"
         + (f"Track your application: {status_url}\n\n" if status_url else "")
         + f"Looking forward to it,\n"
-        f"The {company_name} hiring team\n"
+        f"The {company_name} hiring team\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -317,7 +358,13 @@ def send_stage_advance(
         )
     )
     html = _card_html(
-        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
 
     try:
@@ -334,6 +381,8 @@ def send_rejection(
     company_name: str,
     careers_url: str,
     completed_assessment: bool,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """Humane rejection (design 22b): neutral bar, no score, no brand accents."""
     safe_candidate = escape(candidate_name)
@@ -359,7 +408,7 @@ def send_rejection(
         f"See open positions: {careers_url}\n"
         f"\n"
         f"All the best,\n"
-        f"The {company_name} hiring team\n"
+        f"The {company_name} hiring team\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -385,6 +434,8 @@ def send_rejection(
         brand_fg="#ffffff",
         safe_company=safe_company,
         content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
 
     try:
@@ -508,6 +559,8 @@ def send_interview_invite(
     duration_minutes: int,
     booking_url: str,
     brand_primary: str | None,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """Interview booking link (D7, screen 23): the candidate picks a slot."""
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
@@ -528,7 +581,7 @@ def send_interview_invite(
         f"Once you confirm, a calendar invite with the meeting link lands\n"
         f"in your inbox. You can reschedule or cancel from the same page.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -548,7 +601,13 @@ def send_interview_invite(
         )
     )
     html = _card_html(
-        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
     try:
         send_email(to=to, subject=subject, body=body, html=html)
@@ -562,6 +621,8 @@ def send_interview_cancelled(
     candidate_name: str,
     job_title: str,
     company_name: str,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """Interview request withdrawn/cancelled notice (neutral, no brand accent)."""
     safe_candidate = escape(candidate_name)
@@ -576,7 +637,7 @@ def send_interview_cancelled(
         f"{company_name} has been cancelled. If a new time is needed,\n"
         f"you'll receive a fresh scheduling link.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -594,6 +655,8 @@ def send_interview_cancelled(
         brand_fg="#ffffff",
         safe_company=safe_company,
         content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
     try:
         send_email(to=to, subject=subject, body=body, html=html)
@@ -611,6 +674,8 @@ def send_interview_reminder(
     timezone: str,
     meet_url: str | None,
     brand_primary: str | None,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
 ) -> None:
     """T-24h reminder for a booked interview (D7 arq job)."""
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
@@ -633,7 +698,7 @@ def send_interview_reminder(
         f"A quick reminder about your {job_title} interview at\n"
         f"{company_name}: {when} ({timezone}).\n"
         f"\n" + (f"Join via Google Meet: {meet_url}\n\n" if meet_url else "") + f"Good luck!\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -653,7 +718,13 @@ def send_interview_reminder(
         )
     )
     html = _card_html(
-        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
     )
     try:
         send_email(to=to, subject=subject, body=body, html=html)

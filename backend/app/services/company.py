@@ -63,6 +63,19 @@ async def update_settings(
     return company
 
 
+def controller_name(company: Company) -> str:
+    """Controller identity for candidate-facing footers: legal name when set."""
+    return (company.settings or {}).get("legal_name") or company.name
+
+
+def privacy_notice_url(company: Company) -> str:
+    """Absolute candidate-facing privacy-notice URL (mode-aware, for emails)."""
+    base = settings.public_base_url.rstrip("/")
+    if settings.mode == "single":
+        return f"{base}/privacy"
+    return f"{base}/c/{company.slug}/privacy"
+
+
 def privacy_notice(company: Company) -> PublicPrivacyNotice:
     """Per-company variables for the candidate privacy notice page.
 
@@ -72,7 +85,7 @@ def privacy_notice(company: Company) -> PublicPrivacyNotice:
     stored = company.settings or {}
     return PublicPrivacyNotice(
         company_name=company.name,
-        legal_name=stored.get("legal_name") or company.name,
+        legal_name=controller_name(company),
         privacy_contact_email=stored.get("privacy_contact_email"),
         retention_months=stored.get("retention_months") or RETENTION_DEFAULT_MONTHS,
         privacy_policy_url=stored.get("privacy_policy_url"),

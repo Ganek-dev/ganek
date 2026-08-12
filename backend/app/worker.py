@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.security import create_quiz_token
 from app.models import Application, Company, Interview, InterviewStatus, QuizAttempt
 from app.models.quiz import AttemptStatus
+from app.services import company as company_service
 from app.services import email as email_service
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,8 @@ async def send_interview_reminder(
             timezone=interview.timezone,
             meet_url=interview.meet_url,
             brand_primary=(company.theme or {}).get("primary_color"),
+            controller_name=company_service.controller_name(company),
+            privacy_url=company_service.privacy_notice_url(company),
         )
 
 
@@ -109,6 +112,8 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
             quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
             expires_at=attempt.expires_at,
             days_left=days_left,
+            controller_name=company_service.controller_name(company),
+            privacy_url=company_service.privacy_notice_url(company),
         )
 
 

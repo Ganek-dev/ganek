@@ -132,6 +132,40 @@ def test_quiz_invite_defaults_brand_and_omits_timer_line(
     assert "per question" not in html
 
 
+def test_privacy_footer_names_controller_and_links_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """M5.6 G1: candidate emails carry the controller identity + notice link."""
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_quiz_invite(
+        **_invite_kwargs(
+            controller_name="Northwind Robotics Sp. z o.o.",
+            privacy_url="https://jobs.example.com/c/northwind/privacy",
+        )
+    )
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert "Privacy & your data: https://jobs.example.com/c/northwind/privacy" in text
+    assert "Sent by vetd on behalf of Northwind Robotics Sp. z o.o." in html
+    assert 'href="https://jobs.example.com/c/northwind/privacy"' in html
+    assert ">privacy notice</a>" in html
+
+
+def test_privacy_footer_absent_when_not_wired(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_quiz_invite(**_invite_kwargs())
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert "Privacy & your data" not in text
+    assert "privacy notice" not in html
+    # footer falls back to the display name
+    assert "Sent by vetd on behalf of Northwind Robotics" in html
+
+
 def test_quiz_invite_transport_errors_are_swallowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
