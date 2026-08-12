@@ -20,6 +20,11 @@ INTERVIEW_BOOKED = "interview.booked"
 INTERVIEW_CANCELLED = "interview.cancelled"
 NOTE_ADDED = "note.added"
 BULK_REJECTED = "applications.bulk_rejected"
+CANDIDATE_ERASED = "candidate.erased"
+CANDIDATE_EMAIL_UPDATED = "candidate.email_updated"
+DATA_REQUESTED = "candidate.data_requested"
+DELETION_REQUESTED = "candidate.deletion_requested"
+USER_ANONYMIZED = "user.anonymized"
 
 
 def record(

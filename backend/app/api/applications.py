@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 
-from app.api.deps import CurrentCompany, CurrentUser, DbSession
+from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
 from app.models import Application, ApplicationNote, ApplicationStage, User, UserRole
@@ -15,7 +15,9 @@ from app.schemas.applications import (
     ApplicationOut,
     BulkRejectIn,
     BulkRejectOut,
+    CandidateEmailUpdate,
     CvDownload,
+    EraseCandidateOut,
     NoteCreate,
     NoteOut,
     QuizAnswerReview,
@@ -28,6 +30,7 @@ from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import email as email_service
+from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
 from app.services import quiz as quiz_service
 
@@ -97,6 +100,49 @@ async def set_stage(
     if payload.notify_candidate:
         _schedule_stage_email(background, company, application, payload.stage)
     return updated
+
+
+@router.post("/{application_id}/erase-candidate", response_model=EraseCandidateOut)
+async def erase_candidate(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    admin: AdminUser,
+) -> EraseCandidateOut:
+    """Art. 17: erases the whole CANDIDATE — every application they hold with
+    this company, their CVs in storage and (best-effort) their calendar
+    events — not just the application the panel happened to be showing."""
+    application = await _get_or_404(db, company, application_id)
+    summary = await erasure_service.erase_candidate(
+        db, company, application.candidate_id, actor_user_id=admin.id
+    )
+    assert summary is not None  # the application existed, so its candidate does
+    return EraseCandidateOut(
+        applications=summary.applications,
+        google_event_failures=summary.google_event_failures,
+    )
+
+
+@router.patch("/{application_id}/candidate-email", response_model=ApplicationOut)
+async def update_candidate_email(
+    application_id: uuid.UUID,
+    payload: CandidateEmailUpdate,
+    db: DbSession,
+    company: CurrentCompany,
+    admin: AdminUser,
+) -> Application:
+    """Art. 16: the email address is the delivery channel for every candidate
+    link and has no self-service correction path."""
+    application = await _get_or_404(db, company, application_id)
+    try:
+        return await applications_service.update_candidate_email(
+            db, company, application, payload.email, actor_user_id=admin.id
+        )
+    except applications_service.EmailTakenByOtherCandidateError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another candidate already uses this email",
+        ) from None
 
 
 @router.post("/{application_id}/remind", response_model=dict[str, bool])

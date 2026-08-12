@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import ApplicationStage, AttemptStatus
 
@@ -65,6 +65,15 @@ class BulkRejectOut(BaseModel):
 
 class CvDownload(BaseModel):
     download_url: str
+
+
+class EraseCandidateOut(BaseModel):
+    applications: int
+    google_event_failures: int
+
+
+class CandidateEmailUpdate(BaseModel):
+    email: EmailStr
 
 
 class ReviewIntegrityEvent(BaseModel):

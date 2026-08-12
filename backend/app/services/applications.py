@@ -162,6 +162,47 @@ async def set_stage(
     return application
 
 
+class EmailTakenByOtherCandidateError(Exception):
+    """The corrected address already belongs to a different candidate row."""
+
+
+async def update_candidate_email(
+    db: AsyncSession,
+    company: Company,
+    application: Application,
+    email: str,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> Application:
+    """Art. 16 rectification — the address is the delivery channel for every
+    quiz/status/booking link and has no other correction path (a re-apply
+    with a new address creates a new candidate row). The value arrives
+    EmailStr-validated and is stored verbatim, mirroring the apply flow."""
+    existing = (
+        await db.execute(
+            select(Candidate).where(
+                Candidate.company_id == company.id,
+                Candidate.email == email,
+                Candidate.id != application.candidate_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise EmailTakenByOtherCandidateError
+    application.candidate.email = email
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.CANDIDATE_EMAIL_UPDATED,
+        actor_user_id=actor_user_id,
+        application_id=application.id,
+        payload={},
+    )
+    await db.commit()
+    await db.refresh(application)
+    return application
+
+
 async def bulk_reject(
     db: AsyncSession,
     company: Company,
