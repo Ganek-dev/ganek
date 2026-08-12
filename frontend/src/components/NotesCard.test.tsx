@@ -156,3 +156,20 @@ describe("NotesCard", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Note body is required");
   });
 });
+
+describe("NotesCard disclosability hint", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedApi.me.mockResolvedValue(user());
+    mockedNotes.list.mockResolvedValue([note()]);
+  });
+
+  it("tells recruiters notes may be disclosed in a DSAR", async () => {
+    render(<NotesCard applicationId="app-1" />);
+    expect(
+      await screen.findByText(
+        "Notes may be disclosed to the candidate if they request their data.",
+      ),
+    ).toBeInTheDocument();
+  });
+});

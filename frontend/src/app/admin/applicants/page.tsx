@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AlertTriangle, BellRing, Check, ChevronDown, Clock, FileText, X } from "lucide-react";
+import {
+  AlertTriangle,
+  BellRing,
+  Check,
+  ChevronDown,
+  Clock,
+  FileText,
+  MoreHorizontal,
+  X,
+} from "lucide-react";
 
 import {
   api,
@@ -18,6 +27,7 @@ import {
 } from "@/lib/api";
 import { InterviewCard } from "@/components/InterviewCard";
 import { NotesCard } from "@/components/NotesCard";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 /** Applicant review, handoff screen 11: split view — a 360px list of
  * candidates (score chips, flag dots, stage chip) beside a detail panel
@@ -491,6 +501,9 @@ function DetailPanel({
   onStage,
   onDownloadCv,
   onRemind,
+  onExport,
+  onErase,
+  onUpdateEmail,
   now,
 }: {
   app: ApplicationOut;
@@ -499,15 +512,65 @@ function DetailPanel({
   onStage: (stage: ApplicationStage, notify: boolean) => void;
   onDownloadCv: () => void;
   onRemind: () => Promise<boolean>;
+  onExport: () => void;
+  onErase: () => Promise<boolean>;
+  onUpdateEmail: (email: string) => Promise<string | null>;
   now: Date;
 }) {
   const [notify, setNotify] = useState(false);
   const [reminded, setReminded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingErase, setConfirmingErase] = useState(false);
+  const [eraseBusy, setEraseBusy] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailDraft, setEmailDraft] = useState(app.candidate.email);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const nextStage = useMemo(() => {
     const currentIndex = STAGE_ORDER.indexOf(app.stage);
     if (currentIndex < 0 || currentIndex >= STAGE_ORDER.length - 1) return null;
     return STAGE_ORDER[currentIndex + 1];
   }, [app.stage]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [menuOpen]);
+
+  async function confirmErase() {
+    setEraseBusy(true);
+    try {
+      await onErase();
+    } finally {
+      setEraseBusy(false);
+      setConfirmingErase(false);
+    }
+  }
+
+  async function saveEmail(event: React.FormEvent) {
+    event.preventDefault();
+    if (emailBusy) return;
+    setEmailBusy(true);
+    setEmailError(null);
+    const failure = await onUpdateEmail(emailDraft);
+    setEmailBusy(false);
+    if (failure !== null) setEmailError(failure);
+    else setEmailOpen(false);
+  }
 
   return (
     <div className="card p-6">
@@ -573,6 +636,60 @@ function DetailPanel({
                 className="pointer-events-none absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-g500"
               />
             </div>
+            <div ref={menuRef} className="relative inline-block">
+              <button
+                type="button"
+                aria-label="More actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-edge bg-surface text-g500 hover:bg-muted-fill"
+              >
+                <MoreHorizontal aria-hidden className="h-4 w-4" />
+              </button>
+              {menuOpen ? (
+                <div
+                  role="menu"
+                  className="absolute top-full right-0 z-10 mt-1 w-52 rounded-md border border-edge bg-surface py-1 text-left shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onExport();
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
+                  >
+                    Export data (JSON)
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setEmailDraft(app.candidate.email);
+                      setEmailError(null);
+                      setEmailOpen(true);
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
+                  >
+                    Edit candidate email…
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setConfirmingErase(true);
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-muted-fill dark:text-red-400"
+                  >
+                    Erase candidate…
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {app.quiz_attempt?.status === "pending" ? (
@@ -606,6 +723,71 @@ function DetailPanel({
           </div>
         </div>
       </div>
+
+      {confirmingErase ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-edge bg-muted-fill p-3">
+          <span className="max-w-prose text-[12.5px] text-g700">
+            {`Erase ${app.candidate.name}'s data? This permanently removes all their applications with your company — CV files, assessment results, notes and calendar events. It cannot be undone.`}
+          </span>
+          <button
+            type="button"
+            disabled={eraseBusy}
+            onClick={() => void confirmErase()}
+            className="inline-flex h-7 items-center rounded-sm bg-red-600 px-2.5 text-[12.5px] font-medium text-white hover:brightness-[0.94] disabled:opacity-50"
+          >
+            {eraseBusy ? "…" : "Yes, erase"}
+          </button>
+          <button
+            type="button"
+            disabled={eraseBusy}
+            onClick={() => setConfirmingErase(false)}
+            className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
+          >
+            Keep
+          </button>
+        </div>
+      ) : null}
+
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent>
+          <DialogTitle>Edit candidate email</DialogTitle>
+          <form onSubmit={(event) => void saveEmail(event)} className="mt-3 space-y-3">
+            <div>
+              <label
+                htmlFor={`candidate-email-${app.id}`}
+                className="mb-1 block text-[12.5px] font-medium text-g600"
+              >
+                Candidate email
+              </label>
+              <input
+                id={`candidate-email-${app.id}`}
+                type="email"
+                required
+                value={emailDraft}
+                disabled={emailBusy}
+                onChange={(event) => setEmailDraft(event.target.value)}
+                className="h-8 w-full rounded-md border border-edge bg-surface px-2.5 text-[13px] outline-none focus:border-accent disabled:opacity-60"
+              />
+              <p className="mt-1.5 text-[11.5px] text-g500">
+                Quiz, status and booking emails go to this address. Existing links keep
+                working.
+              </p>
+            </div>
+            {emailError ? (
+              <p role="alert" className="text-[12.5px] text-red-600 dark:text-red-400">
+                {emailError}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={emailBusy}
+              className="inline-flex h-8 items-center rounded-md bg-accent px-3.5 text-[13px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
+            >
+              {emailBusy ? "…" : "Save email"}
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {app.message ? (
         <p className="mt-4 text-sm text-g600">{app.message}</p>
@@ -679,12 +861,19 @@ export default function ApplicantsPage() {
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});
   const loadingAnswersFor = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (notice === null) return;
+    const id = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   const reload = useCallback(() => {
     applications
@@ -787,6 +976,50 @@ export default function ApplicantsPage() {
     }
   }
 
+  async function downloadDsar(app: ApplicationOut) {
+    setError(null);
+    try {
+      const bundle = await applications.dsarExport(app.id);
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `dsar-${app.candidate.email.replace(/[^a-z0-9.@_-]/gi, "_")}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
+  async function eraseCandidate(id: string): Promise<boolean> {
+    setError(null);
+    try {
+      const result = await applications.eraseCandidate(id);
+      setNotice(
+        result.google_event_failures > 0
+          ? `Candidate data erased — ${result.google_event_failures} calendar event(s) could not be removed`
+          : "Candidate data erased",
+      );
+      setChecked(new Map());
+      reload();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erase failed");
+      return false;
+    }
+  }
+
+  async function updateCandidateEmail(id: string, email: string): Promise<string | null> {
+    try {
+      await applications.updateCandidateEmail(id, email);
+      reload();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : "Email update failed";
+    }
+  }
+
   const selected = items?.find((app) => app.id === selectedId) ?? null;
 
   function toggleChecked(id: string, name: string, isChecked: boolean) {
@@ -847,6 +1080,14 @@ export default function ApplicantsPage() {
       {error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p
+          role="status"
+          className="text-sm font-medium text-emerald-700 dark:text-emerald-400"
+        >
+          {notice}
         </p>
       ) : null}
 
@@ -937,6 +1178,9 @@ export default function ApplicantsPage() {
             onStage={(stage, notify) => changeStage(selected.id, stage, notify)}
             onDownloadCv={() => downloadCv(selected.id)}
             onRemind={() => remindCandidate(selected.id)}
+            onExport={() => void downloadDsar(selected)}
+            onErase={() => eraseCandidate(selected.id)}
+            onUpdateEmail={(email) => updateCandidateEmail(selected.id, email)}
             now={now}
           />
         ) : items === null ? (
