@@ -810,7 +810,22 @@ export interface CompanyAdmin {
   website: string | null;
   socials: Record<string, unknown>;
   theme: { primary_color?: string; radius?: "sharp" | "default" | "round" };
-  settings: { quiz_expired_reissue?: "manual" | "auto" };
+  settings: {
+    quiz_expired_reissue?: "manual" | "auto";
+    legal_name?: string;
+    privacy_contact_email?: string;
+    retention_months?: number;
+    privacy_policy_url?: string;
+  };
+}
+
+/** Omit = untouched, null = reset to default (mirrors BrandingUpdate). */
+export interface CompanySettingsUpdate {
+  quiz_expired_reissue?: "manual" | "auto" | null;
+  legal_name?: string | null;
+  privacy_contact_email?: string | null;
+  retention_months?: number | null;
+  privacy_policy_url?: string | null;
 }
 
 export interface BrandingUpdate {
@@ -826,7 +841,7 @@ export const companyApi = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
-  updateSettings: (patch: { quiz_expired_reissue?: "manual" | "auto" | null }) =>
+  updateSettings: (patch: CompanySettingsUpdate) =>
     request<CompanyAdmin>("/api/v1/company/settings", {
       method: "PATCH",
       body: JSON.stringify(patch),
