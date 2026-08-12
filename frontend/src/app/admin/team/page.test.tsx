@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { team, type TeamInvite, type TeamUser } from "@/lib/api";
+import { ApiError, team, type TeamInvite, type TeamUser } from "@/lib/api";
 
 import TeamPage from "./page";
 
@@ -18,6 +18,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       invite: vi.fn(),
       resendInvite: vi.fn(),
       revokeInvite: vi.fn(),
+      anonymize: vi.fn(),
     },
   };
 });
@@ -57,6 +58,51 @@ describe("TeamPage", () => {
     mocked.resendInvite.mockResolvedValue(pending);
     mocked.revokeInvite.mockResolvedValue(undefined);
     mocked.update.mockResolvedValue({ ...member, role: "admin" });
+    mocked.anonymize.mockResolvedValue(undefined);
+  });
+
+  async function openMemberMenu() {
+    render(<TeamPage />);
+    await screen.findByText("dana.kowalska@x.dev");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Actions for dana.kowalska@x.dev" }),
+    );
+    return within(await screen.findByRole("menu"));
+  }
+
+  it("Remove & anonymize is two-step and calls the endpoint", async () => {
+    const menu = await openMemberMenu();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Remove & anonymize…" }));
+
+    expect(
+      await screen.findByText(/Remove dana\.kowalska@x\.dev\? Their account is wiped/),
+    ).toBeInTheDocument();
+    expect(mocked.anonymize).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Yes, remove" }));
+    await waitFor(() => expect(mocked.anonymize).toHaveBeenCalledWith("u2"));
+    expect(await screen.findByText("Removed")).toBeInTheDocument();
+    await waitFor(() => expect(mocked.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("Keep cancels the anonymize confirm", async () => {
+    const menu = await openMemberMenu();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Remove & anonymize…" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Keep" }));
+    expect(mocked.anonymize).not.toHaveBeenCalled();
+    expect(screen.queryByText(/account is wiped/)).not.toBeInTheDocument();
+  });
+
+  it("anonymize 409 detail surfaces in the alert", async () => {
+    mocked.anonymize.mockRejectedValue(
+      new ApiError(409, "Reassign or cancel their upcoming interviews first"),
+    );
+    const menu = await openMemberMenu();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Remove & anonymize…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, remove" }));
+    expect(
+      await screen.findByText("Reassign or cancel their upcoming interviews first"),
+    ).toBeInTheDocument();
   });
 
   it("lists members with display name, activity string, and count header", async () => {

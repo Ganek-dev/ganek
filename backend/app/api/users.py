@@ -174,3 +174,29 @@ async def update_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot remove the company's last active admin",
         ) from None
+
+
+@router.post("/{user_id}/anonymize", status_code=status.HTTP_204_NO_CONTENT)
+async def anonymize_user(
+    user_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    admin: AdminUser,
+) -> None:
+    """GDPR removal for a teammate: tombstone in place (hard delete is
+    FK-blocked by their interviews). Cannot be undone."""
+    user = await users_service.get_user(db, company, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        await users_service.anonymize_user(db, company, user, actor_user_id=admin.id)
+    except users_service.LastAdminError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot remove the company's last active admin",
+        ) from None
+    except users_service.HasUpcomingInterviewsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Reassign or cancel their upcoming interviews first",
+        ) from None

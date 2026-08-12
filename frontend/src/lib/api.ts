@@ -886,6 +886,9 @@ export const team = {
     }),
   update: (id: string, patch: { role?: UserRole; is_active?: boolean }) =>
     request<TeamUser>(`/api/v1/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  /** GDPR removal: tombstone in place (their interviews FK-block a hard delete). */
+  anonymize: (id: string) =>
+    request<void>(`/api/v1/users/${id}/anonymize`, { method: "POST" }),
   listInvites: () => request<TeamInvite[]>("/api/v1/users/invites"),
   invite: (email: string, role: UserRole) =>
     request<TeamInvite>("/api/v1/users/invites", {
