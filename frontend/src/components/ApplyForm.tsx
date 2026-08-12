@@ -34,9 +34,13 @@ const ASSESSMENT_FACTS: [string, string][] = [
 export function ApplyForm({
   apiBasePath,
   jobTitle,
+  companyName,
+  privacyHref,
 }: {
   apiBasePath: string;
   jobTitle?: string;
+  companyName?: string;
+  privacyHref?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -313,6 +317,20 @@ export function ApplyForm({
       {error ? (
         <p role="alert" className="mt-4 text-sm" style={{ color: "oklch(0.45 0.120 25)" }}>
           {error}
+        </p>
+      ) : null}
+
+      {privacyHref ? (
+        // Art. 13 short layer at the point of collection. Deliberately a
+        // notice, not a consent checkbox — the basis is 6(1)(b).
+        <p className="mt-6 text-[12.5px] leading-[18px] text-g500">
+          By applying, {companyName ?? "the company"} processes your details to consider
+          you for this role. How it&apos;s handled, how long it&apos;s kept, and your
+          rights:{" "}
+          <a href={privacyHref} target="_blank" rel="noreferrer" className="underline">
+            privacy notice
+          </a>
+          .
         </p>
       ) : null}
 

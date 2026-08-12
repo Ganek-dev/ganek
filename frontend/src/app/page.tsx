@@ -19,7 +19,7 @@ export default async function Home() {
       <CompanyHero company={page.company} jobCount={page.jobs.length} />
       <section className="mx-auto max-w-[720px] px-5 pt-[18px] pb-8 sm:px-6 sm:pt-8 sm:pb-12">
         <JobList jobs={page.jobs} hrefPrefix="/jobs" />
-        <CareersFooter />
+        <CareersFooter privacyHref="/privacy" />
       </section>
     </main>
   );

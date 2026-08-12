@@ -62,6 +62,8 @@ export default async function CompanyJobPage({ params }: Props) {
           <ApplyForm
             apiBasePath={`/api/v1/public/companies/${slug}/jobs/${job.slug}`}
             jobTitle={job.title}
+            companyName={page.company.name}
+            privacyHref={`/c/${slug}/privacy`}
           />
         </section>
       </div>

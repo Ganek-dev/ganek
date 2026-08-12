@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { ArrowUpRight } from "lucide-react";
 
 import { brandStyle } from "@/lib/brand";
@@ -125,12 +127,25 @@ export function CompanyHero({
 }
 
 /** Quiet centered footer line closing the careers page (screen 01). */
-export function CareersFooter() {
+export function CareersFooter({ privacyHref }: { privacyHref?: string }) {
   return (
-    <div className="mt-7 flex justify-center sm:mt-12">
+    <div className="mt-7 flex justify-center gap-2 sm:mt-12">
       <span className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
         Careers powered by vetd
       </span>
+      {privacyHref ? (
+        <>
+          <span aria-hidden className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
+            ·
+          </span>
+          <Link
+            href={privacyHref}
+            className="font-mono text-[10.5px] text-g400 underline hover:text-g700 sm:text-[11px]"
+          >
+            Privacy
+          </Link>
+        </>
+      ) : null}
     </div>
   );
 }

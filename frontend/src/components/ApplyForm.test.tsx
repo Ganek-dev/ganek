@@ -117,4 +117,26 @@ describe("ApplyForm", () => {
     await userEvent.upload(screen.getByLabelText("CV (PDF)"), file, { applyAccept: false });
     expect(await screen.findByText(/uploaded · /)).toBeInTheDocument();
   });
+
+  it("shows the privacy notice line above submit — a link, never a checkbox", () => {
+    render(
+      <ApplyForm
+        apiBasePath="/api/v1/public/company/jobs/dev"
+        companyName="Acme Labs"
+        privacyHref="/privacy"
+      />,
+    );
+    expect(screen.getByText(/By applying, Acme Labs processes your details/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "privacy notice" })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
+    // the basis is art. 6(1)(b) — there must be no consent checkbox
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("renders no legal block when no privacyHref is wired", () => {
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    expect(screen.queryByText(/privacy notice/)).toBeNull();
+  });
 });
