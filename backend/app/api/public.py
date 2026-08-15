@@ -608,6 +608,7 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
             detail="This application already has a decision",
         )
     if application.stage is not ApplicationStage.WITHDRAWN:
+        applications_service.stamp_decision(application, ApplicationStage.WITHDRAWN)
         application.stage = ApplicationStage.WITHDRAWN
         await db.commit()
     return {"withdrawn": True}
