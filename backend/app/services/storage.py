@@ -5,6 +5,7 @@ browser uploads directly); head/delete operations use the internal endpoint.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from functools import lru_cache
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
@@ -133,6 +134,38 @@ def _delete_object(object_key: str) -> None:
 
 async def delete_object(object_key: str) -> None:
     await anyio.to_thread.run_sync(_delete_object, object_key)
+
+
+def _list_cv_objects() -> list[tuple[str, datetime]]:
+    paginator = _internal_client().get_paginator("list_objects_v2")
+    found: list[tuple[str, datetime]] = []
+    for page in paginator.paginate(Bucket=settings.s3_bucket, Prefix="cvs/"):
+        for item in page.get("Contents", []):
+            found.append((item["Key"], item["LastModified"]))
+    return found
+
+
+async def list_cv_objects() -> list[tuple[str, datetime]]:
+    """(key, last_modified) for every stored CV — the G3 orphan sweep's view."""
+    return await anyio.to_thread.run_sync(_list_cv_objects)
+
+
+def _delete_objects(object_keys: list[str]) -> int:
+    """Batched delete (S3 caps each call at 1000 keys). Returns deleted count."""
+    client = _internal_client()
+    deleted = 0
+    for start in range(0, len(object_keys), 1000):
+        chunk = object_keys[start : start + 1000]
+        result = client.delete_objects(
+            Bucket=settings.s3_bucket,
+            Delete={"Objects": [{"Key": key} for key in chunk], "Quiet": True},
+        )
+        deleted += len(chunk) - len(result.get("Errors", []))
+    return deleted
+
+
+async def delete_objects(object_keys: list[str]) -> int:
+    return await anyio.to_thread.run_sync(_delete_objects, object_keys)
 
 
 def _stat_object(object_key: str) -> ObjectStat | None:

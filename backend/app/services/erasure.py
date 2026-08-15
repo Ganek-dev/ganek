@@ -1,18 +1,20 @@
 """Candidate erasure (GDPR Art. 17). One service, several triggers — the
-admin action today, the retention purge in G3, a candidate request flow
-later.
+admin action, the G3 retention purge, a candidate request flow later.
 
-Ordering is deliberate:
-1. S3 CV objects first, fail-closed — a storage error aborts before any row
+Ordering is deliberate, per application:
+1. S3 CV object first, fail-closed — a storage error aborts before any row
    disappears, because ``applications.cv_object_key`` is the only pointer to
    the object and the row cascade would strand it forever.
 2. Google Calendar events best-effort — they live on the recruiter's
    personal calendar; failures are logged and reported, never blocking.
-3. A Core ``DELETE`` on the candidate row so the Postgres cascades take
-   applications → attempts → answers → notes → interviews → activity rows
-   (an ORM delete would try to NULL the NOT NULL ``candidate_id`` FK).
-4. One anonymized ``candidate.erased`` receipt with ``application_id=None``
-   (the linked rows just cascaded away) and a count-only payload.
+3. A Core ``DELETE`` so the Postgres cascades take the child rows
+   (an ORM delete would try to NULL NOT NULL FKs).
+
+``erase_application`` is the per-application primitive (no commit — the
+caller owns the transaction); ``erase_candidate`` wraps it for the whole
+person and writes the anonymized ``candidate.erased`` receipt with
+``application_id=None`` (the linked rows just cascaded away) and a
+count-only payload.
 """
 
 import logging
@@ -36,6 +38,42 @@ class EraseSummary:
     google_event_failures: int
 
 
+async def erase_application(db: AsyncSession, application: Application) -> tuple[int, int]:
+    """Erase ONE application: S3 fail-closed, Google best-effort, row delete.
+
+    Returns (google_events_attempted, google_events_failed). No commit, no
+    receipt — callers (admin erase, retention purge) own transaction and
+    bookkeeping.
+    """
+    if application.cv_object_key:
+        await storage.delete_object(application.cv_object_key)
+
+    interviews = list(
+        (
+            await db.execute(
+                select(Interview).where(
+                    Interview.application_id == application.id,
+                    Interview.google_event_id.is_not(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    failures = 0
+    for interview in interviews:
+        try:
+            assert interview.google_event_id is not None  # filtered above
+            await google_calendar.delete_event(db, interview.interviewer, interview.google_event_id)
+        except google_calendar.GoogleCalendarError:
+            # covers NeedsReconnectError too (subclass)
+            logger.warning("erasure: could not delete google event for interview %s", interview.id)
+            failures += 1
+
+    await db.execute(delete(Application).where(Application.id == application.id))
+    return len(interviews), failures
+
+
 async def erase_candidate(
     db: AsyncSession,
     company: Company,
@@ -53,40 +91,18 @@ async def erase_candidate(
     if candidate is None:
         return None
 
-    applications = (
+    applications = list(
         (await db.execute(select(Application).where(Application.candidate_id == candidate.id)))
         .scalars()
         .all()
     )
-    app_ids = [application.id for application in applications]
-    interviews: list[Interview] = []
-    if app_ids:
-        interviews = list(
-            (
-                await db.execute(
-                    select(Interview).where(
-                        Interview.application_id.in_(app_ids),
-                        Interview.google_event_id.is_not(None),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-    cv_keys = [a.cv_object_key for a in applications if a.cv_object_key]
-    for key in cv_keys:
-        await storage.delete_object(key)
-
-    event_failures = 0
-    for interview in interviews:
-        try:
-            assert interview.google_event_id is not None  # filtered above
-            await google_calendar.delete_event(db, interview.interviewer, interview.google_event_id)
-        except google_calendar.GoogleCalendarError:
-            # covers NeedsReconnectError too (subclass)
-            logger.warning("erasure: could not delete google event for interview %s", interview.id)
-            event_failures += 1
+    cv_objects = sum(1 for a in applications if a.cv_object_key)
+    attempted = 0
+    failed = 0
+    for application in applications:
+        events, failures = await erase_application(db, application)
+        attempted += events
+        failed += failures
 
     await db.execute(delete(Candidate).where(Candidate.id == candidate.id))
     activity.record(
@@ -100,7 +116,7 @@ async def erase_candidate(
     await db.commit()
     return EraseSummary(
         applications=len(applications),
-        cv_objects=len(cv_keys),
-        google_events=len(interviews) - event_failures,
-        google_event_failures=event_failures,
+        cv_objects=cv_objects,
+        google_events=attempted - failed,
+        google_event_failures=failed,
     )

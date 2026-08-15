@@ -25,6 +25,7 @@ CANDIDATE_EMAIL_UPDATED = "candidate.email_updated"
 DATA_REQUESTED = "candidate.data_requested"
 DELETION_REQUESTED = "candidate.deletion_requested"
 USER_ANONYMIZED = "user.anonymized"
+RETENTION_PURGED = "retention.purged"
 
 
 def record(
