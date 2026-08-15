@@ -13,6 +13,7 @@ import math
 from datetime import UTC, datetime
 from typing import Any
 
+from arq import cron
 from arq.connections import RedisSettings
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -25,6 +26,7 @@ from app.models import Application, Company, Interview, InterviewStatus, QuizAtt
 from app.models.quiz import AttemptStatus
 from app.services import company as company_service
 from app.services import email as email_service
+from app.services import retention as retention_service
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +119,17 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
         )
 
 
+async def purge_retention(ctx: dict[str, Any]) -> None:
+    """Nightly Art. 5(1)(e) enforcement — the notice's retention promise,
+    kept. Per-company windows, hired excluded, failures retried next night."""
+    async with ctx["session_factory"]() as db:
+        summary = await retention_service.run_purge(db, now=datetime.now(UTC))
+    logger.info("retention purge: %s", summary)
+
+
 class WorkerSettings:
-    functions = [send_interview_reminder, send_quiz_nudge]
+    functions = [send_interview_reminder, send_quiz_nudge, purge_retention]
+    cron_jobs = [cron(purge_retention, hour=3, minute=17)]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
