@@ -217,6 +217,18 @@ function activityCopy(item: ActivityItem): string {
       return "Interview booked by the candidate";
     case "interview.cancelled":
       return "Interview cancelled";
+    case "candidate.erased":
+      return `Candidate data erased (${Number(p.applications) || 0} application(s))`;
+    case "candidate.email_updated":
+      return `${item.actor_email ?? "Someone"} corrected a candidate's email`;
+    case "candidate.data_requested":
+      return "A candidate asked for a copy of their data";
+    case "candidate.deletion_requested":
+      return "A candidate asked for their data to be deleted";
+    case "user.anonymized":
+      return `${item.actor_email ?? "Someone"} removed a teammate's account`;
+    case "retention.purged":
+      return `Retention purge removed ${Number(p.applications) || 0} application(s)`;
     default:
       return item.type;
   }

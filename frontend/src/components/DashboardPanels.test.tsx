@@ -138,4 +138,45 @@ describe("ActivityPanel", () => {
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();
   });
+
+  it("maps privacy event types (G2/G3) to readable copy", async () => {
+    const base = {
+      actor_email: "grumpy@acme.dev",
+      application_id: null,
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    };
+    mocked.activity.mockResolvedValue([
+      { id: "p1", type: "candidate.erased", payload: { applications: 2 }, ...base },
+      { id: "p2", type: "candidate.email_updated", payload: {}, ...base },
+      { id: "p3", type: "candidate.data_requested", payload: {}, ...base, actor_email: null },
+      { id: "p4", type: "candidate.deletion_requested", payload: {}, ...base, actor_email: null },
+      { id: "p5", type: "user.anonymized", payload: {}, ...base },
+      {
+        id: "p6",
+        type: "retention.purged",
+        payload: { applications: 3, candidates: 2 },
+        ...base,
+        actor_email: null,
+      },
+    ]);
+    render(<ActivityPanel />);
+    expect(
+      await screen.findByText("Candidate data erased (2 application(s))"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("grumpy@acme.dev corrected a candidate's email"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("A candidate asked for a copy of their data"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("A candidate asked for their data to be deleted"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("grumpy@acme.dev removed a teammate's account"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Retention purge removed 3 application(s)"),
+    ).toBeInTheDocument();
+  });
 });
