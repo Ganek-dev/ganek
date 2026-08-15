@@ -114,3 +114,33 @@ describe("PrivacySettingsPage", () => {
     );
   });
 });
+
+describe("nightly purge note (G3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.get.mockResolvedValue(makeCompany({ retention_months: 12 }));
+    mocked.updateSettings.mockResolvedValue(makeCompany({}));
+  });
+
+  it("states the automatic deletion window from the current selection", async () => {
+    render(<PrivacySettingsPage />);
+    expect(
+      await screen.findByText(
+        /Applications are deleted automatically 12 months after a decision \(hired candidates excluded\)\. The purge runs nightly\./,
+      ),
+    ).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Keep applications for"), "3");
+    expect(
+      screen.getByText(/deleted automatically 3 months after a decision/),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the default months when unset", async () => {
+    mocked.get.mockResolvedValue(makeCompany({}));
+    render(<PrivacySettingsPage />);
+    expect(
+      await screen.findByText(/deleted automatically 6 months after a decision/),
+    ).toBeInTheDocument();
+  });
+});

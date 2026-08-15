@@ -172,6 +172,9 @@ export default function PrivacySettingsPage() {
               </option>
             ))}
           </select>
+          <p className={`mt-1.5 ${hintCls}`}>
+            {`Applications are deleted automatically ${retention === "" ? RETENTION_DEFAULT : retention} months after a decision (hired candidates excluded). The purge runs nightly.`}
+          </p>
         </div>
       </div>
 
