@@ -1,8 +1,9 @@
 import enum
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -49,6 +50,9 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=ApplicationStage.NEW,
     )
     source: Mapped[str | None] = mapped_column(String(100))
+    # retention clock (G3): stamped on terminal stages, cleared on reopening;
+    # the nightly purge measures the company's retention window from here
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     candidate: Mapped["Candidate"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship()

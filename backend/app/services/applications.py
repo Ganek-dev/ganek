@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +10,16 @@ from app.core.config import settings
 from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.schemas.public import ApplicationSubmit
 from app.services import activity, storage
+
+TERMINAL_STAGES = frozenset(
+    {ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED}
+)
+
+
+def stamp_decision(application: Application, stage: ApplicationStage) -> None:
+    """The retention clock (G3): a terminal stage starts it, reopening clears
+    it — a re-considered candidate must never be purged from a stale clock."""
+    application.decided_at = datetime.now(UTC) if stage in TERMINAL_STAGES else None
 
 
 class AlreadyAppliedError(Exception):
@@ -147,6 +158,7 @@ async def set_stage(
     actor_user_id: uuid.UUID | None = None,
 ) -> Application:
     previous = application.stage
+    stamp_decision(application, stage)
     application.stage = stage
     if previous is not stage:
         activity.record(
@@ -239,6 +251,7 @@ async def bulk_reject(
         .all()
     )
     for application in applications:
+        stamp_decision(application, ApplicationStage.REJECTED)
         application.stage = ApplicationStage.REJECTED
     if applications:
         activity.record(
