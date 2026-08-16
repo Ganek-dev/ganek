@@ -526,8 +526,10 @@ export default function QuizPage() {
                 starts immediately
               </p>
             ) : null}
+            {/* the objection route the telemetry LIA relies on — skipping is a real option */}
             <p className="mt-3 text-center text-[13px] text-g500">
-              Not now — come back with the same link.
+              Not now — come back with the same link. Or skip the assessment: your
+              application still stands, just without a score.
             </p>
             {error ? (
               <p role="alert" className="mt-3 text-center text-sm" style={{ color: RED }}>

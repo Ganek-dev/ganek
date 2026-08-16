@@ -91,7 +91,10 @@ describe("QuizPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/nothing auto-rejects/)).toBeInTheDocument();
     expect(screen.getByText("Quiz Co")).toBeInTheDocument();
-    expect(screen.getByText(/come back with the same link/)).toBeInTheDocument();
+    // postpone AND skip are both stated — the LIA's objection route (M5.6 G5)
+    expect(
+      screen.getByText(/come back with the same link.*application still stands/),
+    ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Start the real assessment" }));
     expect(await screen.findByText(/Question 1/)).toBeInTheDocument();
