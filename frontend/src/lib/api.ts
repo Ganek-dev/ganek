@@ -80,7 +80,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = resp.statusText;
     try {
       const body = (await resp.json()) as { detail?: unknown };
-      if (typeof body.detail === "string") detail = body.detail;
+      if (typeof body.detail === "string") {
+        detail = body.detail;
+      } else if (Array.isArray(body.detail)) {
+        // FastAPI validation errors (422) arrive as a list — surface the
+        // first message instead of the bare "Unprocessable Content"
+        const first = body.detail[0] as { msg?: unknown } | undefined;
+        if (typeof first?.msg === "string") detail = first.msg;
+      }
     } catch {
       // non-JSON error body; keep statusText
     }
