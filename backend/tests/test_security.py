@@ -34,9 +34,11 @@ def test_session_token_roundtrip() -> None:
 
 def test_session_token_rejects_tampering() -> None:
     token = create_session_token(uuid.uuid4(), 2)
-    # flip the last char to a guaranteed-different one — "xx"-style suffixes
-    # collide with real signatures once in ~4096 runs
-    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    # flip the FIRST signature char: every bit of it lands in the decoded
+    # signature. The last char is unusable for this — base64 discards its
+    # low bits, so tokens ending in A–D survive an A↔B flip (1-in-16 flake)
+    head, _, sig = token.rpartition(".")
+    tampered = f"{head}.{'A' if sig[0] != 'A' else 'B'}{sig[1:]}"
     assert read_session_token(tampered) is None
     assert read_session_token("completely-bogus") is None
 
