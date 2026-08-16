@@ -10,6 +10,16 @@ updates:
     schedule: { interval: weekly }
     groups:
       frontend-deps: { patterns: ["*"] }
+    ignore:
+      # majors the ecosystem can't take yet: typescript-eslint rejects
+      # TS 7 at load, jsdom 30's undici needs Node >20. Drop each entry
+      # once the blocker upstream ships.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: jsdom
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
