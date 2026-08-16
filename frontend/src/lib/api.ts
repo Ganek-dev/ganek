@@ -139,11 +139,14 @@ export const api = {
         body: JSON.stringify(payload),
       }),
   },
-  googleSignup: (payload: { token: string; company_name: string }) =>
+  // the signed Google account token rides an httponly cookie, not the body
+  googleSignup: (payload: { company_name: string }) =>
     request<UserOut>("/api/v1/auth/google/signup", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  googleSignupPending: () =>
+    request<{ email: string }>("/api/v1/auth/google/signup/pending"),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("/api/v1/auth/change-password", {
       method: "POST",

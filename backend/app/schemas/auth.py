@@ -22,8 +22,13 @@ class ChangePasswordRequest(BaseModel):
 
 
 class GoogleSignupRequest(BaseModel):
-    token: str = Field(min_length=1)
+    # the signed sub+email token arrives via the httponly signup cookie,
+    # never the request body (GDPR G4)
     company_name: str = Field(min_length=1, max_length=200)
+
+
+class GoogleSignupPending(BaseModel):
+    email: str
 
 
 class UserOut(BaseModel):

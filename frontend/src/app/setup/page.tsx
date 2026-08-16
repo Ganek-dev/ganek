@@ -8,12 +8,13 @@ import { Check } from "lucide-react";
 
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 
 /** Signup / first-run setup, handoff screen 13b. Company name gets a live
- * slug preview underneath. With ?gs=<token> (arriving from the Google
- * callback) this becomes the name-your-company onboarding step: Google
- * already vouched for the email, so no password is collected. */
+ * slug preview underneath. With ?google=pending (arriving from the Google
+ * callback, which parked the signed account token in an httponly cookie)
+ * this becomes the name-your-company onboarding step: Google already
+ * vouched for the email, so no password is collected. */
 
 const inputCls =
   "h-10 w-full rounded-md border-[1.5px] border-edge bg-surface px-3.5 text-sm outline-none focus:border-accent";
@@ -25,24 +26,6 @@ function toSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-}
-
-/** Display-only peek at the signed signup token (payload.timestamp.signature,
- * URL-safe base64). The server re-validates the signature — never trust this
- * for anything but showing the user which account they picked. */
-function emailFromToken(token: string): string | null {
-  try {
-    const seg = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = seg + "=".repeat((4 - (seg.length % 4)) % 4);
-    const parsed: unknown = JSON.parse(atob(padded));
-    if (parsed !== null && typeof parsed === "object" && "email" in parsed) {
-      const email = (parsed as { email: unknown }).email;
-      return typeof email === "string" ? email : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function SlugPreview({ slug }: { slug: string }) {
@@ -72,26 +55,39 @@ function SetupForm() {
   const [busy, setBusy] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [google, setGoogle] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
 
-  const gsToken = searchParams.get("gs");
-  const googleEmail = gsToken ? emailFromToken(gsToken) : null;
+  const googlePending = searchParams.get("google") === "pending";
   const slug = toSlug(companyName);
 
   useEffect(() => {
-    if (gsToken) return; // Google already chosen — no button needed
     let cancelled = false;
-    api
-      .providers()
-      .then((p) => {
-        if (!cancelled) setGoogle(p.google);
-      })
-      .catch(() => {
-        /* flag stays false — password signup is unaffected */
-      });
+    if (googlePending) {
+      // the account token sits in an httponly cookie; the server tells us
+      // which email it vouched for (or 410 when the session expired)
+      api
+        .googleSignupPending()
+        .then((p) => {
+          if (!cancelled) setGoogleEmail(p.email);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled && err instanceof ApiError && err.status === 410) setExpired(true);
+          /* other failures: the banner falls back to "your Google account" */
+        });
+    } else {
+      api
+        .providers()
+        .then((p) => {
+          if (!cancelled) setGoogle(p.google);
+        })
+        .catch(() => {
+          /* flag stays false — password signup is unaffected */
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [gsToken]);
+  }, [googlePending]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,8 +96,8 @@ function SetupForm() {
     const data = new FormData(event.currentTarget);
     const company_name = String(data.get("company_name") ?? "").trim();
     try {
-      if (gsToken) {
-        await api.googleSignup({ token: gsToken, company_name });
+      if (googlePending) {
+        await api.googleSignup({ company_name });
       } else {
         await api.register({
           company_name,
@@ -112,7 +108,7 @@ function SetupForm() {
       router.push("/admin");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Signup failed";
-      if (gsToken && /expired/i.test(message)) {
+      if (googlePending && /expired/i.test(message)) {
         setExpired(true);
       } else {
         setError(message);
@@ -133,7 +129,7 @@ function SetupForm() {
         </>
       }
     >
-      {gsToken && !expired ? (
+      {googlePending && !expired ? (
         <p className="rounded-md border border-edge bg-muted-fill/40 px-3 py-2 text-[12.5px] text-g500">
           Signing up with Google as{" "}
           <span className="font-medium text-g600">{googleEmail ?? "your Google account"}</span>.
@@ -151,7 +147,7 @@ function SetupForm() {
         </p>
       ) : null}
 
-      {!gsToken && google ? (
+      {!googlePending && google ? (
         <>
           <GoogleButton label="Sign up with Google" />
           <div className="flex items-center gap-3 pt-2">
@@ -165,7 +161,7 @@ function SetupForm() {
       ) : null}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-        {gsToken ? null : (
+        {googlePending ? null : (
           <>
             <label className="flex flex-col gap-2">
               <span className="text-[13.5px] font-medium">Work email</span>

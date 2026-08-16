@@ -28,6 +28,9 @@ GOOGLE_FLOW_COOKIE_NAME = "vetd_google_flow"
 _google_signup_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-signup")
 # window to type a company name on /setup after Google authenticated the user
 GOOGLE_SIGNUP_MAX_AGE_SECONDS = 60 * 15
+# the signup token carries sub+email (PII) — it rides an httponly cookie,
+# never a URL (browser history / proxy logs), per GDPR G4
+GOOGLE_SIGNUP_COOKIE_NAME = "vetd_google_signup"
 
 
 def hash_password(password: str) -> str:
