@@ -1,7 +1,10 @@
 """Symmetric encryption for stored third-party secrets (Google refresh tokens).
 
-Fernet with a key derived from VETD_SECRET_KEY — rotating the app secret
-invalidates stored credentials (users just reconnect).
+Fernet with a key derived from VETD_ENCRYPTION_KEY when set, else from
+VETD_SECRET_KEY. Without the dedicated key, rotating the app secret
+invalidates stored credentials (users just reconnect); with it, the
+signing secret rotates freely and only rotating the encryption key
+itself forces reconnects.
 """
 
 import base64
@@ -13,7 +16,8 @@ from app.core.config import settings
 
 
 def _fernet() -> Fernet:
-    key = base64.urlsafe_b64encode(hashlib.sha256(settings.secret_key.encode()).digest())
+    material = settings.encryption_key or settings.secret_key
+    key = base64.urlsafe_b64encode(hashlib.sha256(material.encode()).digest())
     return Fernet(key)
 
 
