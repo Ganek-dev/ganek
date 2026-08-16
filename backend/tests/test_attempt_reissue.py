@@ -27,10 +27,8 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
 
 
-async def _apply_with_quiz(
-    client: AsyncClient, *, with_quiz: bool = True
-) -> tuple[dict[str, str | None], dict[str, str]]:
-    """Register + publish (+quiz) + apply; returns (apply json, admin creds)."""
+async def _register_admin(client: AsyncClient) -> tuple[dict[str, str], str]:
+    """Register a fresh company; returns (admin creds, slug), still logged in."""
     creds = {
         "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
         "password": "a-long-secure-password",
@@ -38,11 +36,14 @@ async def _apply_with_quiz(
     name = f"Reissue Co {uuid4().hex[:6]}"
     resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
     assert resp.status_code == 201, resp.text
-    slug = name.lower().replace(" ", "-")
-    job_payload: dict[str, object] = {"title": "Backend Engineer"}
-    if with_quiz:
-        job_payload["tags"] = ["python"]
-        job_payload["quiz_config"] = {"enabled": True, "question_count": 2}
+    return creds, name.lower().replace(" ", "-")
+
+
+async def _publish_job_and_apply(
+    client: AsyncClient, slug: str, job_payload: dict[str, object]
+) -> dict[str, str | None]:
+    """Create+publish the job as the logged-in admin, log out, apply as a
+    candidate; returns the apply response json."""
     job = (await client.post("/api/v1/jobs", json=job_payload)).json()
     assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
     await client.post("/api/v1/auth/logout")
@@ -66,7 +67,19 @@ async def _apply_with_quiz(
         },
     )
     assert resp.status_code == 201, resp.text
-    return resp.json(), creds
+    return resp.json()
+
+
+async def _apply_with_quiz(
+    client: AsyncClient, *, with_quiz: bool = True
+) -> tuple[dict[str, str | None], dict[str, str]]:
+    """Register + publish (+quiz) + apply; returns (apply json, admin creds)."""
+    creds, slug = await _register_admin(client)
+    job_payload: dict[str, object] = {"title": "Backend Engineer"}
+    if with_quiz:
+        job_payload["tags"] = ["python"]
+        job_payload["quiz_config"] = {"enabled": True, "question_count": 2}
+    return await _publish_job_and_apply(client, slug, job_payload), creds
 
 
 async def _login_and_get_application(
@@ -276,3 +289,122 @@ async def test_settings_patch_is_admin_only_and_validated(client: AsyncClient) -
     assert (
         await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": "auto"})
     ).status_code == 403
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_quiz_answers_review_survives_reissue(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: the recruiter answers/integrity review must read the LATEST
+    attempt — with 1..N rows per application (0012), scalar_one_or_none()
+    raised MultipleResultsFound (a 500) for every re-issued applicant."""
+    sent: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: sent.append(kwargs))
+    applied, creds = await _apply_with_quiz(client)
+    old_token = applied["quiz_token"]
+    assert old_token is not None
+    served = (await client.post(f"/api/v1/public/quiz/{old_token}/next")).json()["question"]
+    resp = await client.post(
+        f"/api/v1/public/quiz/{old_token}/answer",
+        json={"question_id": served["id"], "answer_key": served["options"][0]["key"]},
+    )
+    assert resp.status_code == 200, resp.text
+    sent.clear()  # watch only the re-issue invite from here
+
+    application = await _login_and_get_application(client, creds)
+    resp = await client.post(f"/api/v1/applications/{application['id']}/quiz/reissue")
+    assert resp.status_code == 200, resp.text
+
+    # fresh attempt, nothing answered yet: an empty review, not a 500
+    resp = await client.get(f"/api/v1/applications/{application['id']}/quiz-answers")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == []
+
+    # answering on the NEW link shows up in the review
+    new_token = str(sent[0]["quiz_url"]).rsplit("/", 1)[-1]
+    served = (await client.post(f"/api/v1/public/quiz/{new_token}/next")).json()["question"]
+    resp = await client.post(
+        f"/api/v1/public/quiz/{new_token}/answer",
+        json={"question_id": served["id"], "answer_key": served["options"][0]["key"]},
+    )
+    assert resp.status_code == 200, resp.text
+    reviews = (await client.get(f"/api/v1/applications/{application['id']}/quiz-answers")).json()
+    assert [r["question_id"] for r in reviews] == [served["id"]]
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_reissue_tops_up_from_history_when_fresh_pool_runs_dry(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tiny pool still yields a full re-issue: fresh questions are preferred,
+    the rest topped up from already-served ones (the dry-pool branch)."""
+    monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: None)
+    creds, slug = await _register_admin(client)
+    pool_ids: list[str] = []
+    for n in range(3):
+        resp = await client.post(
+            "/api/v1/questions",
+            json={
+                "prompt_md": f"Tiny-pool question number {n}?",
+                "options": {"a": "Yes", "b": "No", "c": "Maybe", "d": "Never"},
+                "correct_key": "a",
+                "tags": ["tinypool"],
+                "difficulty": 2,
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        pool_ids.append(resp.json()["id"])
+    await _publish_job_and_apply(
+        client,
+        slug,
+        {
+            "title": "Backend Engineer",
+            "tags": ["tinypool"],
+            "quiz_config": {"enabled": True, "question_count": 2},
+        },
+    )
+
+    application = await _login_and_get_application(client, creds)
+    old_ids = set(application["quiz_attempt"]["question_ids"])
+    assert old_ids < set(pool_ids) and len(old_ids) == 2
+    (unseen_id,) = set(pool_ids) - old_ids
+
+    resp = await client.post(f"/api/v1/applications/{application['id']}/quiz/reissue")
+    assert resp.status_code == 200, resp.text
+    new_ids = resp.json()["question_ids"]
+    assert len(new_ids) == 2 == len(set(new_ids))
+    assert unseen_id in new_ids  # the one fresh question is always used
+    assert len(set(new_ids) & old_ids) == 1  # topped up from history, not short-served
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_reissue_reserves_curated_questionnaire_set(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Questionnaire-attached jobs re-serve the curated set in curated order —
+    the set IS the quiz (the questionnaire branch of re-issue)."""
+    monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: None)
+    creds, slug = await _register_admin(client)
+    refs = ["py-mutable-default-1", "py-gil-1", "py-dict-ordering-1"]
+    created = await client.post(
+        "/api/v1/questionnaires",
+        json={"name": "Reissue set", "question_refs": refs, "shuffle": False},
+    )
+    assert created.status_code == 201, created.text
+    await _publish_job_and_apply(
+        client,
+        slug,
+        {
+            "title": "Backend Engineer",
+            "quiz_config": {"enabled": True, "questionnaire_id": created.json()["id"]},
+        },
+    )
+
+    application = await _login_and_get_application(client, creds)
+    assert application["quiz_attempt"]["question_ids"] == refs
+
+    resp = await client.post(f"/api/v1/applications/{application['id']}/quiz/reissue")
+    assert resp.status_code == 200, resp.text
+    fresh = resp.json()
+    assert fresh["question_ids"] == refs  # same set, same curated order
+    assert fresh["integrity"]["reissue"]["reason"] == "integrity"
