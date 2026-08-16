@@ -1,0 +1,17 @@
+# Override for LOCAL browser-e2e runs: swaps the named data volumes for
+# e2e-scoped ones so the suite never touches your dev data. The base file
+# pins global volume names (vetd-postgres-data) that `docker compose -p`
+# would otherwise happily reuse.
+#
+#   docker compose stop                       # free the ports
+#   docker compose -p vetd-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+#   cd frontend && pnpm e2e
+#   docker compose -p vetd-e2e -f docker-compose.yml -f docker-compose.e2e.yml down -v
+#   docker compose up -d                      # your stack, data untouched
+#
+# CI does not use this file — each runner is fresh.
+volumes:
+  pgdata:
+    name: vetd-e2e-postgres-data
+  miniodata:
+    name: vetd-e2e-minio-data
