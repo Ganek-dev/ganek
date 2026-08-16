@@ -90,6 +90,7 @@ def _schedule_invite_email(
     background.add_task(
         email_service.send_team_invite,
         to=invite.email,
+        ref=str(invite.id),
         company_name=company.name,
         inviter_email=inviter.email,
         role=invite.role.value,

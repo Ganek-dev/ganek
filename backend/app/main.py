@@ -18,9 +18,14 @@ from app.api import (
     users,
 )
 from app.core.config import settings
+from app.core.logcfg import install_access_log_scrubber
 from app.services.storage import ensure_bucket_async
 
 logger = logging.getLogger(__name__)
+
+# Before uvicorn logs a single request: capability tokens must not land
+# in access logs next to client IPs (GDPR G4).
+install_access_log_scrubber()
 
 
 @asynccontextmanager

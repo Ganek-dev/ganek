@@ -187,7 +187,9 @@ async def test_garbage_invite_token_is_404(client: AsyncClient) -> None:
 def test_team_invite_email_content(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: dict[str, str | None] = {}
 
-    def _capture(*, to: str, subject: str, body: str, html: str | None = None) -> None:
+    def _capture(
+        *, to: str, subject: str, body: str, html: str | None = None, ref: str | None = None
+    ) -> None:
         sent.update({"to": to, "subject": subject, "body": body, "html": html})
 
     monkeypatch.setattr(email_service, "send_email", _capture)

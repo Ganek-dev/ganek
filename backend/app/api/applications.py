@@ -182,6 +182,7 @@ async def remind_candidate(
     background.add_task(
         email_service.send_quiz_reminder,
         to=application.candidate.email,
+        ref=str(application.id),
         candidate_name=application.candidate.name,
         job_title=application.job.title,
         company_name=company.name,
@@ -307,6 +308,7 @@ async def reissue_quiz(
     background.add_task(
         email_service.send_quiz_invite,
         to=application.candidate.email,
+        ref=str(application.id),
         candidate_name=application.candidate.name,
         job_title=application.job.title,
         company_name=company.name,
@@ -439,6 +441,7 @@ async def create_interview(
     background.add_task(
         email_service.send_interview_invite,
         to=application.candidate.email,
+        ref=str(application.id),
         candidate_name=application.candidate.name,
         job_title=application.job.title,
         company_name=company.name,
@@ -479,6 +482,7 @@ async def cancel_interview(
     background.add_task(
         email_service.send_interview_cancelled,
         to=application.candidate.email,
+        ref=str(application.id),
         candidate_name=application.candidate.name,
         job_title=application.job.title,
         company_name=company.name,
@@ -500,6 +504,7 @@ def _schedule_rejection_email(
     background.add_task(
         email_service.send_rejection,
         to=candidate.email,
+        ref=str(application.id),
         candidate_name=candidate.name,
         job_title=job.title,
         company_name=company.name,
@@ -524,6 +529,7 @@ def _schedule_stage_email(
         background.add_task(
             email_service.send_stage_advance,
             to=candidate.email,
+            ref=str(application.id),
             candidate_name=candidate.name,
             job_title=job.title,
             company_name=company.name,
