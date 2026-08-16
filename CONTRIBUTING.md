@@ -50,6 +50,7 @@ Question bank (if touched): `python questions/validate.py`
 - Tenant-scoped queries go through the tenancy dependency — never hand-written `WHERE company_id`.
 - The quiz engine stays domain-agnostic: no domain-specific logic in code; new domains = new question packs.
 - The tool never auto-rejects candidates. Scores and flags inform humans.
+- No ML-based parsing, scoring, ranking, or adaptive testing. Deterministic scoring is a compliance boundary ([AI Act statement](docs/compliance/ai-act-statement.md)) — such a feature needs that analysis redone first, not just code review.
 
 ## License
 

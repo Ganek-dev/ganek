@@ -19,12 +19,19 @@ Vetd gives any company a branded careers page, job posting management, and appli
 - 📥 Application intake with CV upload
 - ⏱️ Tag-matched screening quizzes: open question bank + your own private questions, per-job configuration, server-side timing and scoring, cheat-resistant by design
 - 📊 ATS-lite: pipeline stages, quiz scores with per-tag breakdown, integrity flags, notes
+- 🛡️ GDPR-ready: per-company privacy notices, retention automation, erasure & DSAR tooling, no cookies or trackers on candidate pages — plus a [compliance pack](docs/compliance/README.md) with DPIA and records templates
 - 🐳 Self-host with one `docker compose up` — or use the hosted version at vetd.dev (coming later)
 - 🧩 Domain-agnostic engine: engineering first, any field via community question packs
 
 ## Quiz integrity, in short
 
 Everything that matters is server-authoritative: questions are served one at a time, timing and scoring happen server-side, correct answers never reach the client, pools are large and randomized, options are shuffled per attempt. Focus-loss and paste telemetry is surfaced to recruiters as flags — Vetd never auto-rejects anyone.
+
+## GDPR & privacy
+
+Candidate pages set zero cookies and load no third-party anything — there is nothing to consent-banner. Transparency notices, erasure, data-export (DSAR), and an automatic retention purge are built in, telemetry is disclosed before it happens, and scoring is deterministic rules, not ML (see the [AI Act statement](docs/compliance/ai-act-statement.md)).
+
+The company deploying Vetd is the data controller for its candidates. Vetd ships **GDPR-ready** — the tooling plus a [compliance pack](docs/compliance/README.md) with a self-hosting controller guide, a pre-filled DPIA, an Art. 30 records template, and a breach runbook. Compliance itself is a property of your deployment and how you operate it, which is why the pack exists.
 
 ## Quickstart (self-host)
 
