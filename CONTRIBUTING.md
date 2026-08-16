@@ -43,6 +43,13 @@ Backend: `uv run pytest && uv run mypy app && uv run ruff check .`
 Frontend: `pnpm typecheck && pnpm lint && pnpm test`
 Question bank (if touched): `python questions/validate.py`
 
+Browser e2e (`frontend/e2e/`, Playwright) covers the golden paths and runs in CI
+against a fresh compose stack. If you touch the apply/quiz/review surfaces, run
+it locally against a fresh scratch stack — `docker-compose.e2e.yml` swaps in
+e2e-scoped data volumes so your dev data is never touched (commands in that
+file's header). The suite registers the single-mode company itself and aborts
+loudly if the stack already belongs to someone else.
+
 ### Non-negotiables (PRs violating these are rejected)
 
 - `correct_key` must never appear in a public API schema.
