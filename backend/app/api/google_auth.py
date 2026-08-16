@@ -187,7 +187,10 @@ async def google_callback(
     assert user is not None
     if resolution is oauth_google.Resolution.LINKED:
         background.add_task(
-            email_service.send_google_linked, to=user.email, company_name=user.company.name
+            email_service.send_google_linked,
+            to=user.email,
+            ref=str(user.id),
+            company_name=user.company.name,
         )
     response = _redirect("/admin")
     _set_session_cookie(response, user)

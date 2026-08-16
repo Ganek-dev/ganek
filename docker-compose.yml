@@ -1,8 +1,18 @@
 # Vetd self-host stack. Copy .env.example to .env first.
 name: vetd
+
+# Bounded log retention (GDPR G4): access logs hold client IPs — without
+# rotation, Docker's json-file driver keeps them forever.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
 services:
   backend:
     build: ./backend
+    logging: *default-logging
     env_file: .env
     environment:
       VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
@@ -17,6 +27,7 @@ services:
     ports: ["8000:8000"]
 
   worker:
+    logging: *default-logging
     build: ./backend
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
     env_file: .env
@@ -28,6 +39,7 @@ services:
       redis: { condition: service_started }
 
   frontend:
+    logging: *default-logging
     build:
       context: ./frontend
       args:
@@ -41,6 +53,7 @@ services:
     ports: ["3000:3000"]
 
   migrate:
+    logging: *default-logging
     build: ./backend
     env_file: .env
     environment:
@@ -53,6 +66,7 @@ services:
     restart: "no"
 
   postgres:
+    logging: *default-logging
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: vetd
@@ -65,9 +79,11 @@ services:
       retries: 10
 
   redis:
+    logging: *default-logging
     image: redis:7-alpine
 
   minio:
+    logging: *default-logging
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:

@@ -70,6 +70,7 @@ async def send_interview_reminder(
         candidate = interview.application.candidate
         email_service.send_interview_reminder(
             to=candidate.email,
+            ref=str(interview.application_id),
             candidate_name=candidate.name,
             job_title=interview.application.job.title,
             company_name=company.name,
@@ -107,6 +108,7 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
         days_left = max(0, math.ceil((attempt.expires_at - now).total_seconds() / 86400))
         email_service.send_quiz_reminder(
             to=candidate.email,
+            ref=str(attempt.application_id),
             candidate_name=candidate.name,
             job_title=attempt.application.job.title,
             company_name=company.name,

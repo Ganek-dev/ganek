@@ -1,3 +1,4 @@
+import logging
 import smtplib
 from datetime import UTC, datetime
 from email.message import EmailMessage
@@ -355,6 +356,51 @@ def test_transport_errors_are_swallowed(monkeypatch: pytest.MonkeyPatch) -> None
     email_service.send_application_received(
         to="jane@example.com", candidate_name="J", job_title="T", company_name="C"
     )
+
+
+def test_failure_log_carries_ref_never_the_address(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """M5.6 G4: recipient addresses stay out of log lines; the opaque ref goes in."""
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+
+    class ExplodingSMTP(FakeSMTP):
+        def send_message(self, message: EmailMessage) -> None:
+            raise smtplib.SMTPException("boom")
+
+    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
+    with caplog.at_level(logging.WARNING, logger="app.services.email"):
+        email_service.send_quiz_invite(**_invite_kwargs(ref="11111111-2222-3333-4444-555555555555"))
+
+    assert "marta@example.com" not in caplog.text
+    assert "ref=11111111-2222-3333-4444-555555555555" in caplog.text
+
+
+def test_failure_log_without_ref_still_hides_address(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+
+    class ExplodingSMTP(FakeSMTP):
+        def send_message(self, message: EmailMessage) -> None:
+            raise smtplib.SMTPException("boom")
+
+    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
+    with caplog.at_level(logging.WARNING, logger="app.services.email"):
+        email_service.send_quiz_invite(**_invite_kwargs())
+
+    assert "marta@example.com" not in caplog.text
+
+
+def test_smtp_unconfigured_skip_log_hides_address(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", None)
+    with caplog.at_level(logging.INFO, logger="app.services.email"):
+        email_service.send_email(to="x@example.com", subject="s", body="b", ref="ref-1")
+
+    assert "x@example.com" not in caplog.text
+    assert "ref=ref-1" in caplog.text
 
 
 def test_send_google_linked(monkeypatch: pytest.MonkeyPatch) -> None:

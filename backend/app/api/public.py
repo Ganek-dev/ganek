@@ -254,6 +254,7 @@ async def _apply(
         background.add_task(
             email_service.send_quiz_invite,
             to=payload.email,
+            ref=str(application.id),
             candidate_name=payload.name,
             job_title=job.title,
             company_name=company.name,
@@ -269,6 +270,7 @@ async def _apply(
         background.add_task(
             email_service.send_application_received,
             to=payload.email,
+            ref=str(application.id),
             candidate_name=payload.name,
             job_title=job.title,
             company_name=company.name,
@@ -524,6 +526,7 @@ async def quiz_request_reissue(
             background.add_task(
                 email_service.send_quiz_invite,
                 to=application.candidate.email,
+                ref=str(application.id),
                 candidate_name=application.candidate.name,
                 job_title=job.title,
                 company_name=company.name,

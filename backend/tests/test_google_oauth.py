@@ -182,7 +182,7 @@ async def test_callback_gmail_match_links_and_notifies(
     sent: list[str] = []
     monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
     monkeypatch.setattr(
-        email_service, "send_google_linked", lambda *, to, company_name: sent.append(to)
+        email_service, "send_google_linked", lambda *, to, company_name, ref=None: sent.append(to)
     )
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
