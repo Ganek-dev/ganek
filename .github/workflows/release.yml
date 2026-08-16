@@ -1,0 +1,57 @@
+name: Release images
+
+# Build (and on version tags, publish) the GHCR images for the compose
+# quickstart. The frontend image bakes its CSP upload origin and backend
+# URL at build time — published defaults match the bundled compose
+# topology; custom upload domains still rebuild locally (documented in
+# .env.example). workflow_dispatch runs build-only as a dry run, so the
+# workflow itself is testable before the first tag exists.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image tags
+        id: meta
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dry-run" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          tags: |
+            ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
+            ghcr.io/vetd-dev/vetd-backend:latest
+      - name: Frontend image (compose-default build args)
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          build-args: |
+            BACKEND_URL=http://backend:8000
+            VETD_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
+          tags: |
+            ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
+            ghcr.io/vetd-dev/vetd-frontend:latest
