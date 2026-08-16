@@ -6,15 +6,17 @@ Two ways to contribute: **code** and **questions**. Question contributions need 
 
 Questions live in `questions/{domain}/{tag}.yaml` and are validated against `questions/schema.json`.
 
-1. Pick a tag file (or create one: `questions/software-engineering/rust.yaml`).
+1. Pick a tag file (or start a new tag/domain pack — seeding rules in
+   [questions/README.md](questions/README.md), "Starting a new tag or domain").
 2. Add questions following the format in `questions/README.md`. Key rules:
    - Answerable in ~15 seconds by someone who knows the topic — recall/recognition, not puzzle-solving.
    - Exactly 4 options, exactly one clearly correct. No "all of the above", no trick ambiguity.
    - Distractors must be plausible (common misconceptions make the best wrong answers).
+   - Difficulty is an integer 1–5 — the ladder is defined in `questions/README.md`; when unsure, rate down.
    - Include an `explanation` — shown to recruiters reviewing answers.
    - IDs are permanent slugs: `{tag-prefix}-{topic}-{n}` (e.g. `py-asyncio-gather-1`). Never reuse an ID.
 3. Run `python questions/validate.py`.
-4. Open a PR. Reviewers check: technical correctness, unambiguity, difficulty label, 15-second answerability.
+4. Open a PR, updating the coverage table in `questions/README.md`. Reviewers check: technical correctness, unambiguity, difficulty rating, 15-second answerability.
 
 To fix a wrong/leaked question: edit in place (same ID) for corrections; set `status: retired` for rotation. Never delete.
 
