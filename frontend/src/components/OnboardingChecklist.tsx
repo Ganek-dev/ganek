@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, Check, Copy } from "lucide-react";
 
 import { api, companyApi, team, type CompanyAdmin } from "@/lib/api";
+import { careersDisplay, careersUrl } from "@/lib/careers";
 
 /** First-run checklist, handoff screen 14: lives on the dashboard until all
  * five steps are done, then disappears for good. Completion is derived from
@@ -91,7 +92,7 @@ export function OnboardingChecklist() {
   async function copyDomain() {
     if (company === null) return;
     try {
-      await navigator.clipboard.writeText(`${company.slug}.vetd.dev`);
+      await navigator.clipboard.writeText(careersUrl(company.mode, company.slug));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -151,7 +152,9 @@ export function OnboardingChecklist() {
       </ul>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-divider pt-3">
-        <p className="font-mono text-[12px] text-g600">{company.slug}.vetd.dev</p>
+        <p className="font-mono text-[12px] text-g600">
+          {careersDisplay(company.mode, company.slug)}
+        </p>
         <button
           type="button"
           onClick={copyDomain}

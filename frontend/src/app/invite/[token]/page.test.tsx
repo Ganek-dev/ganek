@@ -31,7 +31,7 @@ describe("InviteAcceptPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     search = new URLSearchParams();
-    mockedApi.providers.mockResolvedValue({ google: false });
+    mockedApi.providers.mockResolvedValue({ google: false, mode: "single" });
     mocked.get.mockResolvedValue({
       email: "sofia@x.dev",
       company_name: "Acme Labs",
@@ -101,7 +101,7 @@ describe("InviteAcceptPage", () => {
   });
 
   it("offers Google accept carrying the invite token when OAuth is configured", async () => {
-    mockedApi.providers.mockResolvedValue({ google: true });
+    mockedApi.providers.mockResolvedValue({ google: true, mode: "single" });
     render(<InviteAcceptPage />);
     const link = await screen.findByRole("link", { name: /Continue with Google/ });
     expect(link).toHaveAttribute("href", "/api/v1/auth/google/start?invite=invite-tok");

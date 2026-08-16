@@ -77,10 +77,12 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Use
 
 
 @router.get("/providers")
-async def providers() -> dict[str, bool]:
-    """Which optional sign-in methods this instance has configured."""
+async def providers() -> dict[str, bool | str]:
+    """Which optional sign-in methods this instance has configured, and its
+    deployment mode (single = careers at the instance root)."""
     return {
         "google": bool(settings.google_client_id and settings.google_client_secret),
+        "mode": settings.mode,
     }
 
 

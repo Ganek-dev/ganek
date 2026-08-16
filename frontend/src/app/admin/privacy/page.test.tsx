@@ -23,6 +23,7 @@ const mocked = vi.mocked(companyApi);
 function makeCompany(settings: CompanyAdmin["settings"] = {}): CompanyAdmin {
   return {
     slug: "acmelabs",
+    mode: "single" as const,
     name: "Acme Labs",
     description: "",
     logo_url: null,

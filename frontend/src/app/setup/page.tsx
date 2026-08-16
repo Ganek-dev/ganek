@@ -9,6 +9,7 @@ import { Check } from "lucide-react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
 import { ApiError, api } from "@/lib/api";
+import { careersSlugPreview } from "@/lib/careers";
 
 /** Signup / first-run setup, handoff screen 13b. Company name gets a live
  * slug preview underneath. With ?google=pending (arriving from the Google
@@ -39,10 +40,7 @@ function SlugPreview({ slug }: { slug: string }) {
   return (
     <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-g600">
       <Check aria-hidden className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-      <span>
-        {slug}
-        <span className="text-g400">.vetd.dev</span> — your careers page
-      </span>
+      <span>{careersSlugPreview(slug)} — your careers page</span>
     </p>
   );
 }

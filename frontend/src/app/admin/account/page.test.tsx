@@ -33,7 +33,7 @@ describe("AccountPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     search = new URLSearchParams();
-    mocked.providers.mockResolvedValue({ google: false });
+    mocked.providers.mockResolvedValue({ google: false, mode: "single" });
     mocked.googleCalendar.status.mockResolvedValue({
       connected: false,
       google_email: null,
@@ -94,14 +94,14 @@ describe("AccountPage", () => {
   });
 
   it("offers Connect when google is configured but not connected", async () => {
-    mocked.providers.mockResolvedValue({ google: true });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     render(<AccountPage />);
     const link = await screen.findByRole("link", { name: "Connect Google Calendar" });
     expect(link).toHaveAttribute("href", "/api/v1/auth/google/calendar/connect");
   });
 
   it("shows the connected state and disconnects", async () => {
-    mocked.providers.mockResolvedValue({ google: true });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     mocked.googleCalendar.status.mockResolvedValue({
       connected: true,
       google_email: "grumpy@gmail.com",
@@ -117,7 +117,7 @@ describe("AccountPage", () => {
   });
 
   it("prompts to reconnect when calendar access expired", async () => {
-    mocked.providers.mockResolvedValue({ google: true });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     mocked.googleCalendar.status.mockResolvedValue({
       connected: true,
       google_email: "grumpy@gmail.com",
@@ -132,7 +132,7 @@ describe("AccountPage", () => {
   });
 
   it("surfaces the wrong-account notice from the callback redirect", async () => {
-    mocked.providers.mockResolvedValue({ google: true });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     search = new URLSearchParams({ calendar: "wrong-account" });
     render(<AccountPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/different vetd user/i);

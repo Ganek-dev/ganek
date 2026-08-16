@@ -2,6 +2,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
+from app.core.config import settings as app_settings
+
 
 class CompanyOut(BaseModel):
     """Admin view of the company (branding settings, screen 10)."""
@@ -16,6 +18,9 @@ class CompanyOut(BaseModel):
     socials: dict[str, Any]
     theme: dict[str, Any]
     settings: dict[str, Any]
+    # not a column — the instance's deployment mode, so admin surfaces can
+    # render the real careers URL (single mode serves it at the root)
+    mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
 
 
 class BrandingUpdate(BaseModel):

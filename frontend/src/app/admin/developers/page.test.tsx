@@ -44,6 +44,7 @@ describe("DevelopersPage", () => {
     vi.clearAllMocks();
     mockedCompany.get.mockResolvedValue({
       slug: "acmelabs",
+    mode: "single" as const,
       name: "Acme Labs",
       description: "",
       logo_url: null,

@@ -41,7 +41,7 @@ describe("SetupPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     search = new URLSearchParams();
-    mocked.providers.mockResolvedValue({ google: false });
+    mocked.providers.mockResolvedValue({ google: false, mode: "single" });
     mocked.googleSignup.mockResolvedValue(googleUser);
     mocked.googleSignupPending.mockResolvedValue({ email: "grumpy@gmail.com" });
     mocked.register.mockResolvedValue({
@@ -58,8 +58,9 @@ describe("SetupPage", () => {
     expect(screen.getByText(/your careers page URL will show here/)).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs!");
-    expect(screen.getByText(/acme-labs/)).toBeInTheDocument();
-    expect(screen.getByText(/\.vetd\.dev/)).toBeInTheDocument();
+    // slug-bearing /c/ path — resolves on any deployment, unlike a vetd.dev
+    // subdomain a self-hosted instance doesn't have
+    expect(screen.getByText(new RegExp(`${window.location.host}/c/acme-labs`))).toBeInTheDocument();
   });
 
   it("creates the workspace and redirects to /admin", async () => {
@@ -85,7 +86,7 @@ describe("SetupPage", () => {
   });
 
   it("offers Google signup when the instance has OAuth configured", async () => {
-    mocked.providers.mockResolvedValue({ google: true });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     render(<SetupPage />);
     const link = await screen.findByRole("link", { name: /Sign up with Google/ });
     expect(link).toHaveAttribute("href", "/api/v1/auth/google/start");
