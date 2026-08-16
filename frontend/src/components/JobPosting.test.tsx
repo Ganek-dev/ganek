@@ -87,4 +87,27 @@ describe("JobPosting", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("FastAPI").tagName).toBe("CODE");
   });
+
+  it("never renders markdown images — a remote img would leak visitor IPs", () => {
+    const tracked: PublicJobDetail = {
+      ...job,
+      description_md:
+        "Before.\n\n![our office](https://tracker.example/pixel.png)\n\nAfter.",
+    };
+    const { container } = render(<JobPosting company={company} job={tracked} />);
+    expect(container.querySelector("img")).toBeNull();
+    // alt text survives as plain text; surrounding content is untouched
+    expect(screen.getByText("our office")).toBeInTheDocument();
+    expect(screen.getByText("Before.")).toBeInTheDocument();
+    expect(screen.getByText("After.")).toBeInTheDocument();
+  });
+
+  it("drops alt-less images entirely", () => {
+    const tracked: PublicJobDetail = {
+      ...job,
+      description_md: "Text.\n\n![](https://tracker.example/pixel.png)",
+    };
+    const { container } = render(<JobPosting company={company} job={tracked} />);
+    expect(container.querySelector("img")).toBeNull();
+  });
 });

@@ -213,6 +213,13 @@ export function JobGone({
   );
 }
 
+/** Recruiter markdown must not load remote images: an external <img> is a
+ * tracking pixel leaking each candidate visitor's IP/UA to the image host
+ * (GDPR G4). Alt text renders in its place. */
+const jobMd = {
+  img: ({ alt }: { alt?: string }) => (alt ? <span>{alt}</span> : null),
+};
+
 /** Editorial job description (screen 02): JSON-LD + markdown body. */
 export function JobPosting({
   company,
@@ -228,7 +235,7 @@ export function JobPosting({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingJsonLd(company, job)) }}
       />
       <div className="job-body">
-        <ReactMarkdown>{job.description_md}</ReactMarkdown>
+        <ReactMarkdown components={jobMd}>{job.description_md}</ReactMarkdown>
       </div>
     </article>
   );
