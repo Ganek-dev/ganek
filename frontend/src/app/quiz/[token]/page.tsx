@@ -364,7 +364,10 @@ export default function QuizPage() {
   if (phase === "done") {
     // screen 20 — no score shown, ever
     return (
-      <main className="flex min-h-screen flex-col bg-surface text-foreground">
+      <main
+        className="flex min-h-screen flex-col bg-surface text-foreground"
+        style={brandStyle(state?.brand_primary)}
+      >
         <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-divider px-4 sm:h-[60px] sm:px-7">
           <span className="text-[13px] font-medium text-g500 sm:text-sm">
             Skills assessment
@@ -667,7 +670,10 @@ export default function QuizPage() {
     const seconds = Math.ceil(ms / 1000);
     const missWarning = seconds <= 5 && selected === null;
     return (
-      <main className="flex min-h-screen flex-col bg-surface text-foreground">
+      <main
+        className="flex min-h-screen flex-col bg-surface text-foreground"
+        style={brandStyle(state?.brand_primary)}
+      >
         <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-divider px-4 sm:h-[60px] sm:px-7">
           <span className="text-[13px] font-medium text-g500 sm:text-sm">
             Skills assessment
