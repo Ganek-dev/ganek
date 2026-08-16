@@ -14,6 +14,7 @@
   --gray-600: #52525c;
   --gray-500: #71717a;
   --gray-400: #a1a1aa;
+  --gray-300: #d4d4d8; /* handoff mock value (screen 24 bars); ramp extension */
   --edge: oklch(0.922 0 0); /* border */
   --divider: oklch(0.945 0 0);
   --muted-fill: oklch(0.97 0 0);
@@ -47,6 +48,7 @@
     --gray-600: #b4b4bc;
     --gray-500: #94949e;
     --gray-400: #6f6f79;
+    --gray-300: #4a4a54; /* continues the dark ramp's spacing */
     --edge: rgba(255, 255, 255, 0.14);
     --divider: rgba(255, 255, 255, 0.09);
     --muted-fill: rgba(255, 255, 255, 0.08);
@@ -71,6 +73,7 @@
   --color-g600: var(--gray-600);
   --color-g500: var(--gray-500);
   --color-g400: var(--gray-400);
+  --color-g300: var(--gray-300);
   --color-inverse: var(--primary-btn);
   --color-inverse-foreground: var(--primary-btn-foreground);
   --color-accent: var(--accent);

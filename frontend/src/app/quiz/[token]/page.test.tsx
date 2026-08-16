@@ -136,6 +136,25 @@ describe("QuizPage", () => {
     expect(screen.queryByText(/%|score/i)).toBeNull(); // no score, ever
   });
 
+  it("carries the company brand through the exam and finished screens", async () => {
+    // the timer ring and lock CTA derive from --brand-primary; intro/practice
+    // always had it — the question and done phases silently dropped it
+    mocked.next
+      .mockResolvedValueOnce({ done: false, question })
+      .mockResolvedValueOnce({ done: true, question: null });
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await screen.findByText(/Question 1/);
+    const examMain = document.querySelector("main") as HTMLElement;
+    expect(examMain.style.getPropertyValue("--brand-primary")).toBe("#3d5afe");
+
+    await userEvent.click(screen.getByRole("button", { name: /Any use of threads/ }));
+    await userEvent.click(lockButton());
+    await screen.findByText(/submitted/);
+    const doneMain = document.querySelector("main") as HTMLElement;
+    expect(doneMain.style.getPropertyValue("--brand-primary")).toBe("#3d5afe");
+  });
+
   it("supports A–D selection and Enter to lock", async () => {
     mocked.next
       .mockResolvedValueOnce({ done: false, question })
