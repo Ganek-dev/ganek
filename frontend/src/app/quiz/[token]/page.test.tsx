@@ -155,6 +155,53 @@ describe("QuizPage", () => {
     );
   });
 
+  it("surfaces a network failure instead of silently dropping the answer", async () => {
+    mocked.next.mockResolvedValue({ done: false, question });
+    mocked.answer.mockRejectedValue(new TypeError("fetch failed"));
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Any use of threads/ }));
+    await userEvent.click(lockButton());
+
+    expect(
+      await screen.findByText(/couldn't reach the server/, {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+    expect(mocked.answer).toHaveBeenCalledTimes(3); // two quick retries first
+    expect(mocked.next).toHaveBeenCalledTimes(1); // the initial serve only — no advance
+    expect(lockButton()).toBeEnabled(); // the candidate can lock again
+  });
+
+  it("moves on when the server already resolved the answer", async () => {
+    mocked.next
+      .mockResolvedValueOnce({ done: false, question })
+      .mockResolvedValueOnce({ done: true, question: null });
+    mocked.answer.mockRejectedValue(new ApiError(410, "already resolved"));
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Any use of threads/ }));
+    await userEvent.click(lockButton());
+
+    expect(await screen.findByText(/submitted/)).toBeInTheDocument();
+    expect(mocked.answer).toHaveBeenCalledTimes(1); // the server spoke — no retries
+  });
+
+  it("flushes queued telemetry via sendBeacon when the page unloads", async () => {
+    mocked.next.mockResolvedValue({ done: false, question });
+    const beacon = vi.fn<(url: string, data: Blob) => boolean>(() => true);
+    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true });
+    render(<QuizPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await screen.findByText(/Question 1/);
+
+    window.dispatchEvent(new Event("paste"));
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(beacon).toHaveBeenCalledTimes(1);
+    const [url, blob] = beacon.mock.calls[0];
+    expect(url).toBe("/api/v1/public/quiz/tok-123/events");
+    expect(await blob.text()).toContain('"type":"paste"');
+  });
+
   it("shows the completed state directly for finished attempts", async () => {
     mocked.state.mockResolvedValue(makeState({ status: "completed", answered: 2 }));
     render(<QuizPage />);
