@@ -687,9 +687,20 @@ async def submit_answer(
 async def get_attempt_by_application(
     db: AsyncSession, application_id: uuid.UUID
 ) -> QuizAttempt | None:
+    """Latest attempt by created_at — mirrors Application.quiz_attempt; older
+    rows are re-issue history (attempts are 1..N per application since 0012)."""
     return (
-        await db.execute(select(QuizAttempt).where(QuizAttempt.application_id == application_id))
-    ).scalar_one_or_none()
+        (
+            await db.execute(
+                select(QuizAttempt)
+                .where(QuizAttempt.application_id == application_id)
+                .order_by(QuizAttempt.created_at.desc())
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
 
 
 async def review_answers(
