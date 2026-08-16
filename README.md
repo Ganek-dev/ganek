@@ -2,6 +2,8 @@
 
 **Open-source careers pages with built-in skill screening.**
 
+![Vetd — a branded careers page, a timed screening quiz, and the recruiter dashboard](docs/assets/readme-hero.jpg)
+
 Vetd gives any company a branded careers page, job posting management, and applicant tracking — plus an optional twist: after a candidate submits their CV, Vetd can serve a short, timed multiple-choice quiz matched to the job's skill tags (Python job → python/asyncio/fastapi questions, ~15 seconds each). Recruiters see applications ranked with real signal instead of just a pile of PDFs.
 
 > ⚠️ **Status: pre-alpha.** Under active development, not yet usable. Watch/star to follow along.
