@@ -4,6 +4,12 @@ const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // next 16.3's standalone tracer ships only @swc/helpers' cjs/ files while
+  // the compiled server requires its esm/ paths at boot — force the whole
+  // package in until the tracer is fixed upstream.
+  outputFileTracingIncludes: {
+    "**": ["./node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**"],
+  },
   async rewrites() {
     // Proxy API calls so session cookies stay same-origin.
     return [{ source: "/api/:path*", destination: `${backendUrl}/api/:path*` }];
