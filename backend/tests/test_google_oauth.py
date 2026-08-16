@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import (
     GOOGLE_FLOW_COOKIE_NAME,
+    GOOGLE_SIGNUP_COOKIE_NAME,
     create_google_flow_token,
     create_google_signup_token,
     create_invite_token,
@@ -122,6 +123,8 @@ async def test_start_redirects_to_google_with_flow_cookie(client: AsyncClient) -
     query = parse_qs(location.query)
     assert query["code_challenge_method"] == ["S256"]
     assert query["prompt"] == ["select_account"]
+    # G4 minimization: only sub/email are ever read — no `profile` scope
+    assert query["scope"] == ["openid email"]
     assert GOOGLE_FLOW_COOKIE_NAME in resp.cookies
 
 
@@ -150,7 +153,11 @@ async def test_callback_unknown_identity_goes_to_setup(
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.status_code == 302
-    assert resp.headers["location"].startswith("/setup?gs=")
+    # G4: sub+email ride the httponly cookie — the redirect URL carries no PII
+    assert resp.headers["location"] == "/setup?google=pending"
+    assert GOOGLE_SIGNUP_COOKIE_NAME in resp.cookies
+    set_cookie = "; ".join(resp.headers.get_list("set-cookie"))
+    assert "HttpOnly" in set_cookie
 
 
 @pytest.mark.usefixtures("google_configured", "migrated_db")
@@ -222,21 +229,36 @@ async def test_callback_inactive_user(
     assert resp.headers["location"] == "/login?error=account-disabled"
 
 
+def _arm_signup(client: AsyncClient, sub: str, email: str) -> None:
+    client.cookies.set(
+        GOOGLE_SIGNUP_COOKIE_NAME,
+        create_google_signup_token(sub, email),
+        path="/api/v1/auth/google",
+    )
+
+
 @pytest.mark.usefixtures("google_configured", "migrated_db")
 async def test_signup_completes_and_sets_session(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
     email = f"founder-{uuid4().hex[:8]}@gmail.com"
-    token = create_google_signup_token(f"sub-{uuid4().hex}", email)
+    _arm_signup(client, f"sub-{uuid4().hex}", email)
     resp = await client.post(
         "/api/v1/auth/google/signup",
-        json={"token": token, "company_name": f"NewCo {uuid4().hex[:6]}"},
+        json={"company_name": f"NewCo {uuid4().hex[:6]}"},
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["email"] == email
     assert body["has_password"] is False
+    # the one-shot signup cookie is consumed on success
+    deletion = next(
+        h
+        for h in resp.headers.get_list("set-cookie")
+        if h.startswith(f"{GOOGLE_SIGNUP_COOKIE_NAME}=")
+    )
+    assert "Max-Age=0" in deletion
     me = await client.get("/api/v1/auth/me")
     assert me.status_code == 200
 
@@ -247,18 +269,36 @@ async def test_signup_registration_closed_in_single_mode(
 ) -> None:
     monkeypatch.setattr(settings, "mode", "single")
     await _make_user(db_session, f"existing-{uuid4().hex[:8]}@gmail.com")  # a company exists
-    token = create_google_signup_token("sub-x", f"late-{uuid4().hex[:8]}@gmail.com")
-    resp = await client.post(
-        "/api/v1/auth/google/signup", json={"token": token, "company_name": "Late Co"}
-    )
+    _arm_signup(client, "sub-x", f"late-{uuid4().hex[:8]}@gmail.com")
+    resp = await client.post("/api/v1/auth/google/signup", json={"company_name": "Late Co"})
     assert resp.status_code == 409
 
 
 @pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_signup_bad_token_is_410(client: AsyncClient) -> None:
-    resp = await client.post(
-        "/api/v1/auth/google/signup", json={"token": "garbage", "company_name": "X"}
-    )
+async def test_signup_bad_cookie_is_410(client: AsyncClient) -> None:
+    client.cookies.set(GOOGLE_SIGNUP_COOKIE_NAME, "garbage", path="/api/v1/auth/google")
+    resp = await client.post("/api/v1/auth/google/signup", json={"company_name": "X"})
+    assert resp.status_code == 410
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_signup_without_cookie_is_410(client: AsyncClient) -> None:
+    resp = await client.post("/api/v1/auth/google/signup", json={"company_name": "X"})
+    assert resp.status_code == 410
+
+
+@pytest.mark.usefixtures("google_configured")
+async def test_signup_pending_returns_email(client: AsyncClient) -> None:
+    email = f"pending-{uuid4().hex[:8]}@gmail.com"
+    _arm_signup(client, "sub-p", email)
+    resp = await client.get("/api/v1/auth/google/signup/pending")
+    assert resp.status_code == 200
+    assert resp.json() == {"email": email}
+
+
+@pytest.mark.usefixtures("google_configured")
+async def test_signup_pending_without_cookie_is_410(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/auth/google/signup/pending")
     assert resp.status_code == 410
 
 

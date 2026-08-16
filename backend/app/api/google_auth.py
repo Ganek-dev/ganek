@@ -17,13 +17,15 @@ from app.core.ratelimit import rate_limit
 from app.core.security import (
     GOOGLE_FLOW_COOKIE_NAME,
     GOOGLE_FLOW_MAX_AGE_SECONDS,
+    GOOGLE_SIGNUP_COOKIE_NAME,
+    GOOGLE_SIGNUP_MAX_AGE_SECONDS,
     create_google_flow_token,
     create_google_signup_token,
     read_google_flow_token,
     read_google_signup_token,
 )
 from app.models import User
-from app.schemas.auth import GoogleSignupRequest, UserOut
+from app.schemas.auth import GoogleSignupPending, GoogleSignupRequest, UserOut
 from app.services import auth as auth_service
 from app.services import email as email_service
 from app.services import google_calendar, oauth_google
@@ -177,8 +179,21 @@ async def google_callback(
 
     resolution, user = await oauth_google.resolve_identity(db, claims)
     if resolution is oauth_google.Resolution.SIGNUP:
+        # sub+email stay out of the URL (browser history / proxy logs): the
+        # signed token rides an httponly cookie and /setup?google=pending
+        # learns the email via GET /signup/pending.
         token = create_google_signup_token(str(claims["sub"]), str(claims["email"]))
-        return _redirect(f"/setup?gs={token}")
+        response = _redirect("/setup?google=pending")
+        response.set_cookie(
+            GOOGLE_SIGNUP_COOKIE_NAME,
+            token,
+            max_age=GOOGLE_SIGNUP_MAX_AGE_SECONDS,
+            httponly=True,
+            samesite="lax",
+            secure=settings.cookie_secure,
+            path=_FLOW_COOKIE_PATH,
+        )
+        return response
     if resolution is oauth_google.Resolution.USE_PASSWORD:
         return _redirect("/login?error=use-password")
     if resolution is oauth_google.Resolution.INACTIVE:
@@ -197,19 +212,40 @@ async def google_callback(
     return response
 
 
+@router.get(
+    "/signup/pending",
+    response_model=GoogleSignupPending,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def google_signup_pending(request: Request) -> GoogleSignupPending:
+    """Which Google account the pending signup is for — /setup shows this
+    instead of decoding the token client-side (the token stays in the
+    httponly cookie)."""
+    _require_configured()
+    data = read_google_signup_token(request.cookies.get(GOOGLE_SIGNUP_COOKIE_NAME, ""))
+    if data is None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This Google signup session has expired — sign in with Google again",
+        )
+    return GoogleSignupPending(email=data[1])
+
+
 @router.post(
     "/signup",
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
-async def google_signup(payload: GoogleSignupRequest, response: Response, db: DbSession) -> User:
+async def google_signup(
+    payload: GoogleSignupRequest, request: Request, response: Response, db: DbSession
+) -> User:
     _require_configured()
-    data = read_google_signup_token(payload.token)
+    data = read_google_signup_token(request.cookies.get(GOOGLE_SIGNUP_COOKIE_NAME, ""))
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="This Google signup link has expired — sign in with Google again",
+            detail="This Google signup session has expired — sign in with Google again",
         )
     sub, email = data
     try:
@@ -226,5 +262,6 @@ async def google_signup(payload: GoogleSignupRequest, response: Response, db: Db
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists",
         ) from None
+    response.delete_cookie(GOOGLE_SIGNUP_COOKIE_NAME, path=_FLOW_COOKIE_PATH)
     _set_session_cookie(response, user)
     return user

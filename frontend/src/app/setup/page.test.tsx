@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 
 import SetupPage from "./page";
 
@@ -21,17 +21,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
       ...original.api,
       register: vi.fn(),
       googleSignup: vi.fn(),
+      googleSignupPending: vi.fn(),
       providers: vi.fn(),
     },
   };
 });
 
 const mocked = vi.mocked(api);
-
-/** payload.timestamp.signature shape; only the payload segment is decoded client-side */
-function gsToken(email: string): string {
-  return `${btoa(JSON.stringify({ sub: "sub-1", email }))}.ts.sig`;
-}
 
 const googleUser = {
   id: "u1",
@@ -47,6 +43,7 @@ describe("SetupPage", () => {
     search = new URLSearchParams();
     mocked.providers.mockResolvedValue({ google: false });
     mocked.googleSignup.mockResolvedValue(googleUser);
+    mocked.googleSignupPending.mockResolvedValue({ email: "grumpy@gmail.com" });
     mocked.register.mockResolvedValue({
       id: "u1",
       company_id: "c1",
@@ -94,41 +91,38 @@ describe("SetupPage", () => {
     expect(link).toHaveAttribute("href", "/api/v1/auth/google/start");
   });
 
-  describe("with a Google signup token", () => {
+  describe("with a pending Google signup (?google=pending)", () => {
     beforeEach(() => {
-      search = new URLSearchParams({ gs: gsToken("grumpy@gmail.com") });
+      search = new URLSearchParams({ google: "pending" });
     });
 
-    it("shows the Google onboarding variant without password fields", () => {
+    it("shows the Google onboarding variant without password fields", async () => {
       render(<SetupPage />);
       expect(screen.getByText(/Signing up with Google as/)).toBeInTheDocument();
-      expect(screen.getByText("grumpy@gmail.com")).toBeInTheDocument();
+      // the vouched-for email comes from the server, never from the URL
+      expect(await screen.findByText("grumpy@gmail.com")).toBeInTheDocument();
+      expect(mocked.googleSignupPending).toHaveBeenCalled();
       expect(screen.queryByLabelText("Work email")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /Sign up with Google/ })).not.toBeInTheDocument();
     });
 
-    it("completes signup with the token and company name", async () => {
+    it("completes signup with just the company name", async () => {
       render(<SetupPage />);
       await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs");
       await userEvent.click(screen.getByRole("button", { name: "Create workspace" }));
 
       await waitFor(() =>
-        expect(mocked.googleSignup).toHaveBeenCalledWith({
-          token: gsToken("grumpy@gmail.com"),
-          company_name: "Acme Labs",
-        }),
+        expect(mocked.googleSignup).toHaveBeenCalledWith({ company_name: "Acme Labs" }),
       );
       expect(push).toHaveBeenCalledWith("/admin");
     });
 
-    it("shows the restart path when the token expired", async () => {
-      mocked.googleSignup.mockRejectedValueOnce(
-        new Error("This Google signup link has expired — sign in with Google again"),
+    it("shows the restart path when the pending session already expired", async () => {
+      mocked.googleSignupPending.mockRejectedValueOnce(
+        new ApiError(410, "This Google signup session has expired — sign in with Google again"),
       );
       render(<SetupPage />);
-      await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs");
-      await userEvent.click(screen.getByRole("button", { name: "Create workspace" }));
 
       const alert = await screen.findByRole("alert");
       expect(alert).toHaveTextContent(/session expired/i);
@@ -136,6 +130,19 @@ describe("SetupPage", () => {
         "href",
         "/login",
       );
+      expect(screen.getByRole("button", { name: "Create workspace" })).toBeDisabled();
+    });
+
+    it("shows the restart path when the session expires at submit time", async () => {
+      mocked.googleSignup.mockRejectedValueOnce(
+        new Error("This Google signup session has expired — sign in with Google again"),
+      );
+      render(<SetupPage />);
+      await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs");
+      await userEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(/session expired/i);
     });
 
     it("surfaces other signup errors inline", async () => {

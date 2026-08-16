@@ -83,7 +83,8 @@ def build_authorization_request(*, calendar: bool = False) -> tuple[str, str, st
         "client_id": settings.google_client_id,
         "redirect_uri": redirect_uri(),
         "response_type": "code",
-        "scope": "openid email profile",
+        # no `profile`: only sub/email are ever read (GDPR minimization)
+        "scope": "openid email",
         "state": state,
         "nonce": nonce,
         "code_challenge": challenge,
