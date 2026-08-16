@@ -58,6 +58,7 @@ loudly if the stack already belongs to someone else.
 - The quiz engine stays domain-agnostic: no domain-specific logic in code; new domains = new question packs.
 - The tool never auto-rejects candidates. Scores and flags inform humans.
 - No ML-based parsing, scoring, ranking, or adaptive testing. Deterministic scoring is a compliance boundary ([AI Act statement](docs/compliance/ai-act-statement.md)) — such a feature needs that analysis redone first, not just code review.
+- No cookies, analytics, or third-party requests on candidate-facing pages (careers, apply, quiz, status, booking). There is deliberately nothing to consent-banner — adding any of these re-opens ePrivacy consent and the [telemetry legitimate-interests analysis](docs/compliance/telemetry-legitimate-interests.md).
 
 ## License
 
