@@ -126,6 +126,31 @@ function useIntegrityTelemetry(token: string, active: boolean, questionId: strin
     };
   }, [active]);
 
+  useEffect(() => {
+    if (!active) return;
+    const onPageHide = () => {
+      // close an open blur segment — on tab close, visibilitychange→hidden
+      // fires first and would otherwise leave the segment dangling
+      if (blurStarted.current !== null) {
+        queue.current.push({
+          type: "blur",
+          duration_ms: Date.now() - blurStarted.current,
+          question_id: currentQuestion.current ?? undefined,
+        });
+        blurStarted.current = null;
+      }
+      if (queue.current.length === 0) return;
+      const batch = queue.current.splice(0, 100);
+      // a fetch would be killed by the unload; sendBeacon survives it
+      navigator.sendBeacon?.(
+        `/api/v1/public/quiz/${token}/events`,
+        new Blob([JSON.stringify({ events: batch })], { type: "application/json" }),
+      );
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [active, token]);
+
   return useCallback(() => {
     if (queue.current.length === 0) return;
     const batch = queue.current.splice(0, 100);
@@ -228,14 +253,34 @@ export default function QuizPage() {
   }, [token, fail]);
 
   const lock = useCallback(
-    async (key: string) => {
+    async (key: string, { forced = false }: { forced?: boolean } = {}) => {
       if (question === null || busy) return;
       setBusy(true);
       setError(null);
-      try {
-        await publicQuiz.answer(token, question.id, key);
-      } catch {
-        // late or already-resolved answers are fine to ignore — just move on
+      let recorded = false;
+      for (let attempt = 0; attempt < 3 && !recorded; attempt += 1) {
+        try {
+          if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 300 : 800));
+          }
+          await publicQuiz.answer(token, question.id, key);
+          recorded = true;
+        } catch (err) {
+          // the server spoke (late/already-resolved) — its ruling stands;
+          // only network-level failures are worth retrying
+          if (err instanceof ApiError) recorded = true;
+        }
+      }
+      // a dropped network must not silently score a miss: keep the question
+      // open so the candidate can lock again — unless the deadline is gone
+      // (the server resolves it either way) or this is the 0:00 auto-lock
+      const deadlinePassed = new Date(question.deadline_at).getTime() <= Date.now();
+      if (!recorded && !forced && !deadlinePassed) {
+        setError(
+          "We couldn't reach the server to record your answer — check your connection and lock again.",
+        );
+        setBusy(false);
+        return;
       }
       flushTelemetry();
       advance();
@@ -256,7 +301,7 @@ export default function QuizPage() {
       advancedFor.current = question.id;
       const submit = selected;
       const timer = setTimeout(() => {
-        if (submit !== null) void lock(submit);
+        if (submit !== null) void lock(submit, { forced: true });
         else advance();
       }, 0);
       return () => clearTimeout(timer);
