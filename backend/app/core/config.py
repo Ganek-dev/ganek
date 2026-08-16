@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     mode: Literal["single", "multi"] = "single"
     secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
+    # Separate key for encrypting stored third-party secrets (Google refresh
+    # tokens). Unset → derived from secret_key, so rotating the signing secret
+    # also invalidates stored credentials; set it to decouple the two.
+    encryption_key: str | None = None
     database_url: str = "postgresql+asyncpg://vetd:vetd@localhost:5432/vetd"
     redis_url: str = "redis://localhost:6379/0"
 
