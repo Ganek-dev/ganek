@@ -139,4 +139,11 @@ describe("ApplyForm", () => {
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
     expect(screen.queryByText(/privacy notice/)).toBeNull();
   });
+
+  it("nudges candidates to leave sensitive details out of the message", () => {
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    expect(
+      screen.getByText(/leave out sensitive personal details/i),
+    ).toBeInTheDocument();
+  });
 });

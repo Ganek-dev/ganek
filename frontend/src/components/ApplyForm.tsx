@@ -311,6 +311,11 @@ export function ApplyForm({
             maxLength={5000}
             className="w-full rounded-md border-[1.5px] border-edge bg-transparent px-3.5 py-2.5 text-[15px] text-foreground focus:border-brand focus:outline-none"
           />
+          {/* Art. 9 minimization nudge — special-category data is not sought */}
+          <span className="block text-[12.5px] leading-[18px] text-g500">
+            Please leave out sensitive personal details (health, beliefs, family situation) —
+            they play no part in the review.
+          </span>
         </label>
       </div>
 
