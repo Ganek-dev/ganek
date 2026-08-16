@@ -122,7 +122,8 @@ export const api = {
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
   me: () => request<UserOut>("/api/v1/auth/me"),
-  providers: () => request<{ google: boolean }>("/api/v1/auth/providers"),
+  providers: () =>
+    request<{ google: boolean; mode: "single" | "multi" }>("/api/v1/auth/providers"),
   googleCalendar: {
     status: () =>
       request<{ connected: boolean; google_email: string | null; needs_reconnect: boolean }>(
@@ -838,6 +839,7 @@ export interface CompanyAdmin {
   slug: string;
   name: string;
   description: string;
+  mode: "single" | "multi";
   logo_url: string | null;
   website: string | null;
   socials: Record<string, unknown>;

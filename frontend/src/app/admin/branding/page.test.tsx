@@ -29,6 +29,7 @@ const mocked = vi.mocked(companyApi);
 function makeCompany(overrides: Partial<CompanyAdmin> = {}): CompanyAdmin {
   return {
     slug: "northwind",
+    mode: "multi" as const,
     name: "Northwind Robotics",
     description: "",
     logo_url: null,
@@ -58,7 +59,10 @@ describe("BrandingPage", () => {
 
   it("loads company branding, shows domain and preview", async () => {
     render(<BrandingPage />);
-    expect(await screen.findByText("northwind.vetd.dev")).toBeInTheDocument();
+    // multi mode: careers live under /c/{slug} on this host — never vetd.dev
+    expect(
+      await screen.findByText(`${window.location.host}/c/northwind`),
+    ).toBeInTheDocument();
     expect(screen.getByText("Work at Northwind Robotics")).toBeInTheDocument();
     expect(screen.getByText("AA contrast ok")).toBeInTheDocument();
     expect(screen.getByLabelText("Brand color hex")).toHaveValue("#18181b");

@@ -6,6 +6,7 @@ import { Check, Copy } from "lucide-react";
 
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, type CompanyAdmin } from "@/lib/api";
+import { careersDisplay, careersUrl } from "@/lib/careers";
 import {
   DEFAULT_BRAND,
   brandForeground,
@@ -110,7 +111,7 @@ export default function BrandingPage() {
   async function copyDomain() {
     if (company === null) return;
     try {
-      await navigator.clipboard.writeText(`${company.slug}.vetd.dev`);
+      await navigator.clipboard.writeText(careersUrl(company.mode, company.slug));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -272,8 +273,10 @@ export default function BrandingPage() {
 
           <div className="card flex items-center gap-3 p-4">
             <div className="min-w-0 flex-1">
-              <p className={labelCls}>Careers domain</p>
-              <p className="mt-1 font-mono text-[13px] text-g700">{company.slug}.vetd.dev</p>
+              <p className={labelCls}>Careers page</p>
+              <p className="mt-1 font-mono text-[13px] text-g700">
+                {careersDisplay(company.mode, company.slug)}
+              </p>
             </div>
             <button
               type="button"

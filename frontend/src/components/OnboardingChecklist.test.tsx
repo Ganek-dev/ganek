@@ -86,6 +86,7 @@ function mockState({
   mockedApi.me.mockResolvedValue(admin);
   mockedCompany.get.mockResolvedValue({
     slug: "acmelabs",
+    mode: "single" as const,
     name: "Acme Labs",
     description: "",
     logo_url: null,
@@ -130,7 +131,9 @@ describe("OnboardingChecklist", () => {
       "/admin/questions",
     );
     expect(screen.getByRole("link", { name: "Invite" })).toHaveAttribute("href", "/admin/team");
-    expect(screen.getByText("acmelabs.vetd.dev")).toBeInTheDocument();
+    // single mode: the canonical careers URL is the instance itself, not a
+    // vetd.dev subdomain that self-hosted deployments don't have
+    expect(screen.getByText(window.location.host)).toBeInTheDocument();
   });
 
   it("derives progress from branding, jobs, assessments, and invites", async () => {

@@ -27,7 +27,7 @@ describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     search = new URLSearchParams();
-    mocked.providers.mockResolvedValue({ google: false });
+    mocked.providers.mockResolvedValue({ google: false, mode: "single" });
     mocked.login.mockResolvedValue({
       id: "u1",
       company_id: "c1",
@@ -50,7 +50,7 @@ describe("LoginPage", () => {
   });
 
   it("shows the Google button when the instance has OAuth configured", async () => {
-    mocked.providers.mockResolvedValue({ google: true });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     render(<LoginPage />);
     const link = await screen.findByRole("link", { name: /Continue with Google/ });
     expect(link).toHaveAttribute("href", "/api/v1/auth/google/start");
