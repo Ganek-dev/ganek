@@ -38,6 +38,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 type StagePill = { value: ApplicationStage | "all"; label: string };
 
+const LIST_PAGE_SIZE = 50;
+
 const STAGE_PILLS: StagePill[] = [
   { value: "all", label: "All" },
   { value: "new", label: "New" },
@@ -855,6 +857,9 @@ function DetailPanel({
 
 export default function ApplicantsPage() {
   const [items, setItems] = useState<ApplicationOut[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [stageCounts, setStageCounts] = useState<Partial<Record<ApplicationStage, number>>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
   const [jobs, setJobs] = useState<JobOut[]>([]);
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "all">("all");
   const [jobFilter, setJobFilter] = useState<string>("");
@@ -882,18 +887,42 @@ export default function ApplicantsPage() {
       .list({
         stage: stageFilter === "all" ? undefined : stageFilter,
         job_id: jobFilter === "" ? undefined : jobFilter,
+        limit: LIST_PAGE_SIZE,
       })
-      .then((rows) => {
-        setItems(rows);
+      .then((page) => {
+        setItems(page.items);
+        setTotal(page.total);
+        setStageCounts(page.stage_counts);
         setSelectedId((current) => {
-          if (current && rows.some((row) => row.id === current)) return current;
-          return rows[0]?.id ?? null;
+          if (current && page.items.some((row) => row.id === current)) return current;
+          return page.items[0]?.id ?? null;
         });
       })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load applications"),
       );
   }, [stageFilter, jobFilter]);
+
+  const loadMore = useCallback(() => {
+    if (items === null) return;
+    setLoadingMore(true);
+    applications
+      .list({
+        stage: stageFilter === "all" ? undefined : stageFilter,
+        job_id: jobFilter === "" ? undefined : jobFilter,
+        limit: LIST_PAGE_SIZE,
+        offset: items.length,
+      })
+      .then((page) => {
+        setItems((prev) => [...(prev ?? []), ...page.items]);
+        setTotal(page.total);
+        setStageCounts(page.stage_counts);
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Failed to load applications"),
+      )
+      .finally(() => setLoadingMore(false));
+  }, [items, stageFilter, jobFilter]);
 
   useEffect(reload, [reload]);
 
@@ -933,8 +962,10 @@ export default function ApplicantsPage() {
   );
 
   const counts = useMemo(() => {
+    // server-side whole-set counts (M5.7 H4): correct even when only one
+    // page of rows is loaded
     const base: Record<StagePill["value"], number> = {
-      all: items?.length ?? 0,
+      all: 0,
       new: 0,
       screening: 0,
       interview: 0,
@@ -943,9 +974,12 @@ export default function ApplicantsPage() {
       rejected: 0,
       withdrawn: 0,
     };
-    for (const app of items ?? []) base[app.stage] += 1;
+    for (const [stage, count] of Object.entries(stageCounts)) {
+      base[stage as ApplicationStage] = count ?? 0;
+      base.all += count ?? 0;
+    }
     return base;
-  }, [items]);
+  }, [stageCounts]);
 
   async function changeStage(id: string, stage: ApplicationStage, notify: boolean) {
     setError(null);
@@ -1161,6 +1195,18 @@ export default function ApplicantsPage() {
               })}
             </ul>
           )}
+          {items !== null && items.length < total ? (
+            <div className="border-t border-divider p-2.5 text-center">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="inline-flex h-8 items-center rounded-md px-3 text-[12.5px] font-medium text-g600 hover:bg-hover-fill disabled:opacity-50"
+              >
+                {loadingMore ? "…" : `Load more (${items.length} of ${total})`}
+              </button>
+            </div>
+          ) : null}
           <BulkRejectBar
             selected={checked}
             onClear={() => setChecked(new Map())}

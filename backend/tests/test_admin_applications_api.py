@@ -75,7 +75,7 @@ async def _company_with_applicant(
 async def test_admin_lists_and_advances_application(client: AsyncClient) -> None:
     job_id, email = await _company_with_applicant(client)
 
-    apps = (await client.get("/api/v1/applications")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
     assert len(apps) == 1
     app = apps[0]
     assert app["candidate"]["email"] == email
@@ -84,8 +84,8 @@ async def test_admin_lists_and_advances_application(client: AsyncClient) -> None
     assert "cv_object_key" not in app  # storage internals stay internal
 
     # filters
-    assert (await client.get(f"/api/v1/applications?job_id={job_id}")).json() != []
-    assert (await client.get("/api/v1/applications?stage=rejected")).json() == []
+    assert (await client.get(f"/api/v1/applications?job_id={job_id}")).json()["items"] != []
+    assert (await client.get("/api/v1/applications?stage=rejected")).json()["items"] == []
 
     # stage change
     resp = await client.patch(
@@ -107,7 +107,7 @@ async def test_admin_lists_and_advances_application(client: AsyncClient) -> None
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_applications_require_auth_and_are_tenant_scoped(client: AsyncClient) -> None:
     await _company_with_applicant(client)
-    target = (await client.get("/api/v1/applications")).json()[0]
+    target = (await client.get("/api/v1/applications")).json()["items"][0]
 
     await client.post("/api/v1/auth/logout")
     assert (await client.get("/api/v1/applications")).status_code == 401
@@ -122,7 +122,7 @@ async def test_applications_require_auth_and_are_tenant_scoped(client: AsyncClie
         },
     )
     assert resp.status_code == 201
-    assert (await client.get("/api/v1/applications")).json() == []
+    assert (await client.get("/api/v1/applications")).json()["items"] == []
     assert (await client.get(f"/api/v1/applications/{target['id']}")).status_code == 404
     assert (
         await client.patch(f"/api/v1/applications/{target['id']}/stage", json={"stage": "hired"})
@@ -192,7 +192,7 @@ async def test_admin_sees_quiz_results(client: AsyncClient) -> None:
         )
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    app = (await client.get("/api/v1/applications")).json()[0]
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
     result = app["quiz_attempt"]
     assert result is not None
     assert result["status"] == "completed"
@@ -274,7 +274,7 @@ async def test_admin_reviews_quiz_answers_with_integrity(client: AsyncClient) ->
         )
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    application = (await client.get("/api/v1/applications")).json()[0]
+    application = (await client.get("/api/v1/applications")).json()["items"][0]
 
     # the completed attempt carries structured, explained flags
     flags = application["quiz_attempt"]["integrity"]["flags"]
@@ -328,7 +328,7 @@ async def test_stage_change_emails_candidate_only_when_asked(
     monkeypatch.setattr(email_service, "send_rejection", lambda **kw: rejections.append(kw))
 
     _, email = await _company_with_applicant(client)
-    app = (await client.get("/api/v1/applications")).json()[0]
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
     url = f"/api/v1/applications/{app['id']}/stage"
 
     # default stays silent
@@ -368,7 +368,7 @@ async def test_remind_sends_reminder_for_pending_attempt(
     monkeypatch.setattr(email_service, "send_quiz_reminder", lambda **kw: reminders.append(kw))
 
     _, email = await _company_with_applicant(client, with_quiz=True)
-    app = (await client.get("/api/v1/applications")).json()[0]
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
 
     resp = await client.post(f"/api/v1/applications/{app['id']}/remind")
     assert resp.status_code == 200, resp.text
@@ -392,8 +392,71 @@ async def test_remind_409s_without_pending_attempt(
     monkeypatch.setattr(email_service, "send_quiz_reminder", lambda **kw: reminders.append(kw))
 
     await _company_with_applicant(client)  # job without assessment → no attempt
-    app = (await client.get("/api/v1/applications")).json()[0]
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
 
     resp = await client.post(f"/api/v1/applications/{app['id']}/remind")
     assert resp.status_code == 409
     assert reminders == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_list_paginates_and_counts_stages(client: AsyncClient) -> None:
+    """M5.7 H4: limit/offset windows plus whole-set stage counts — the old
+    endpoint materialized every row per visit."""
+    creds = {
+        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "password": "a-long-secure-password",
+    }
+    name = f"Page Co {uuid4().hex[:6]}"
+    assert (
+        await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
+    ).status_code == 201
+    slug = name.lower().replace(" ", "-")
+    job = (await client.post("/api/v1/jobs", json={"title": "Role"})).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+
+    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+    for i in range(3):
+        ticket = (await client.post(f"{base}/apply/upload-url")).json()
+        async with httpx.AsyncClient() as raw:
+            put = await raw.put(
+                ticket["upload_url"],
+                content=PDF_BYTES,
+                headers={"Content-Type": ticket["content_type"]},
+            )
+            assert put.status_code == 200
+        resp = await client.post(
+            f"{base}/apply",
+            json={
+                "name": f"Candidate {i}",
+                "email": f"cand-{i}-{uuid4().hex[:8]}@vetd-ci.dev",
+                "cv_object_key": ticket["object_key"],
+                "cv_filename": f"cv-{i}.pdf",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+
+    first = (await client.get("/api/v1/applications?limit=2")).json()
+    assert first["total"] == 3
+    assert len(first["items"]) == 2
+    assert first["stage_counts"] == {"new": 3}
+
+    second = (await client.get("/api/v1/applications?limit=2&offset=2")).json()
+    assert len(second["items"]) == 1
+    ids = {row["id"] for row in first["items"]} | {row["id"] for row in second["items"]}
+    assert len(ids) == 3  # windows are disjoint and cover everything
+
+    # advance one; a stage-filtered page narrows items but NOT the pill counts
+    target = first["items"][0]["id"]
+    assert (
+        await client.patch(f"/api/v1/applications/{target}/stage", json={"stage": "screening"})
+    ).status_code == 200
+    filtered = (await client.get("/api/v1/applications?stage=screening")).json()
+    assert filtered["total"] == 1
+    assert [row["id"] for row in filtered["items"]] == [target]
+    assert filtered["stage_counts"] == {"new": 2, "screening": 1}
+
+    # the limit is capped server-side
+    assert (await client.get("/api/v1/applications?limit=5000")).status_code == 422

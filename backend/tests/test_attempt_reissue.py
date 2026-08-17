@@ -86,7 +86,7 @@ async def _login_and_get_application(
     client: AsyncClient, creds: dict[str, str]
 ) -> dict[str, object]:
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    applications = (await client.get("/api/v1/applications")).json()
+    applications = (await client.get("/api/v1/applications")).json()["items"]
     assert len(applications) == 1
     return applications[0]
 

@@ -133,7 +133,7 @@ async def test_withdraw_is_idempotent_and_final_stages_conflict(client: AsyncCli
 
     # a decided application cannot be withdrawn
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    app = (await client.get("/api/v1/applications")).json()[0]
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
     resp = await client.patch(f"/api/v1/applications/{app['id']}/stage", json={"stage": "rejected"})
     assert resp.status_code == 200
     await client.post("/api/v1/auth/logout")

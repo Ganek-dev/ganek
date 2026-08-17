@@ -68,7 +68,7 @@ async def _company_with_applications(
         token_by_email[email] = resp.json()["status_token"]
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    apps = (await client.get("/api/v1/applications")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
     assert len(apps) == n_candidates
     # the list endpoint's ordering is not apply order — pair via candidate email
     return [

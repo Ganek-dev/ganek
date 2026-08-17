@@ -113,7 +113,7 @@ async def _booking_token(
     await _apply_as_candidate(client, slug, str(job["slug"]), "Marta Vidal")
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    application_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    application_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
 
     user = (await db_session.execute(select(User).where(User.email == creds["email"]))).scalar_one()
     await google_calendar.store_credentials(
@@ -151,7 +151,7 @@ async def _two_applications(
         await _apply_as_candidate(client, slug, str(job["slug"]), candidate_name)
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    applications = (await client.get("/api/v1/applications")).json()
+    applications = (await client.get("/api/v1/applications")).json()["items"]
     assert len(applications) == 2
     await client.post("/api/v1/auth/logout")
 

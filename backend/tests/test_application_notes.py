@@ -65,7 +65,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, dict[s
 
     resp = await client.post("/api/v1/auth/login", json=creds)
     assert resp.status_code == 200
-    application_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    application_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
     return application_id, creds["email"], {**creds, "status_token": apply_body["status_token"]}
 
 
@@ -130,7 +130,7 @@ async def _company_with_quiz_applicant(client: AsyncClient) -> tuple[str, str, s
 
     resp = await client.post("/api/v1/auth/login", json=creds)
     assert resp.status_code == 200
-    application_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    application_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
     return application_id, creds["email"], apply_body["quiz_token"], apply_body["status_token"]
 
 

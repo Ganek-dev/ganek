@@ -318,7 +318,7 @@ async def _apply_flow(client: AsyncClient) -> tuple[str, str]:
     )
     assert resp.status_code == 201, resp.text
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
     return app_id, email
 
 

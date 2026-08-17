@@ -132,10 +132,17 @@ const ANSWERS: QuizAnswerReview[] = [
   },
 ];
 
+
+function pageOf(items: ApplicationOut[]) {
+  const stage_counts: Partial<Record<ApplicationStage, number>> = {};
+  for (const app of items) stage_counts[app.stage] = (stage_counts[app.stage] ?? 0) + 1;
+  return { items, total: items.length, stage_counts };
+}
+
 describe("ApplicantsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedApps.list.mockResolvedValue([
+    mockedApps.list.mockResolvedValue(pageOf([
       makeApp({ id: "app-1", stage: "new" }),
       makeApp({
         id: "app-2",
@@ -156,7 +163,7 @@ describe("ApplicantsPage", () => {
           integrity: { flags: [] },
         },
       }),
-    ]);
+    ]));
     mockedApps.setStage.mockImplementation(async (id, stage) =>
       makeApp({ id, stage: stage as ApplicationStage }),
     );
@@ -202,6 +209,37 @@ describe("ApplicantsPage", () => {
     expect(screen.getByRole("button", { name: /^Screening · 1/ })).toBeInTheDocument();
   });
 
+  it("loads more pages and keeps whole-set pill counts", async () => {
+    mockedApps.list
+      .mockResolvedValueOnce({
+        items: [makeApp({ id: "app-1", stage: "new" })],
+        total: 2,
+        stage_counts: { new: 2 },
+      })
+      .mockResolvedValueOnce({
+        items: [
+          makeApp({
+            id: "app-9",
+            stage: "new",
+            candidate: { id: "c9", name: "Nils Late", email: "nils@example.com", links: {} },
+          }),
+        ],
+        total: 2,
+        stage_counts: { new: 2 },
+      });
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    // pill counts come from the server, not the loaded slice
+    expect(screen.getByRole("button", { name: /^All · 2/ })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Load more (1 of 2)" }));
+    expect(await screen.findByRole("button", { name: /Nils Late/ })).toBeInTheDocument();
+    expect(
+      mockedApps.list.mock.calls[1][0],
+    ).toMatchObject({ offset: 1 });
+    expect(screen.queryByRole("button", { name: /Load more/ })).not.toBeInTheDocument();
+  });
+
   it("selecting an applicant loads answers and renders per-question rows", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
@@ -238,7 +276,7 @@ describe("ApplicantsPage", () => {
   });
 
   it("Send reminder appears for pending attempts and calls the endpoint", async () => {
-    mockedApps.list.mockResolvedValue([
+    mockedApps.list.mockResolvedValue(pageOf([
       makeApp({
         quiz_attempt: {
           status: "pending",
@@ -249,7 +287,7 @@ describe("ApplicantsPage", () => {
           integrity: { blur_count: 0, flags: [] },
         },
       }),
-    ]);
+    ]));
     mockedApps.remind.mockResolvedValue({ sent: true });
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
@@ -277,7 +315,7 @@ describe("ApplicantsPage", () => {
   });
 
   it("withdrawn applications get a chip, a count and a filter", async () => {
-    mockedApps.list.mockResolvedValue([makeApp({ stage: "withdrawn" })]);
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "withdrawn" })]));
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
     expect(screen.getByRole("button", { name: /^Withdrawn · 1/ })).toBeInTheDocument();
@@ -292,7 +330,7 @@ describe("ApplicantsPage", () => {
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });
 
-    mockedApps.list.mockResolvedValueOnce([]);
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
     await userEvent.click(screen.getByRole("button", { name: /^Rejected · 0/ }));
     await waitFor(() =>
       expect(mockedApps.list).toHaveBeenLastCalledWith(
@@ -346,7 +384,7 @@ describe("ApplicantsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
     expect(await screen.findByText("Reject 2 applicants?")).toBeInTheDocument();
 
-    mockedApps.list.mockResolvedValueOnce([]);
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
     await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
 
     await waitFor(() =>
@@ -397,7 +435,7 @@ describe("ApplicantsPage", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
     expect(await screen.findByText("2 selected")).toBeInTheDocument();
 
-    mockedApps.list.mockResolvedValueOnce([]);
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
     await userEvent.click(screen.getByRole("button", { name: /^Rejected · 0/ }));
     await waitFor(() => expect(screen.getByText("No applications match.")).toBeInTheDocument());
 
@@ -460,7 +498,7 @@ describe("ApplicantsPage", () => {
     ).toBeInTheDocument();
     expect(mockedApps.eraseCandidate).not.toHaveBeenCalled();
 
-    mockedApps.list.mockResolvedValueOnce([]);
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
     await userEvent.click(screen.getByRole("button", { name: "Yes, erase" }));
     await waitFor(() => expect(mockedApps.eraseCandidate).toHaveBeenCalledWith("app-1"));
     expect(await screen.findByText("Candidate data erased")).toBeInTheDocument();
@@ -473,7 +511,7 @@ describe("ApplicantsPage", () => {
     });
     const menu = await openMoreActions();
     await userEvent.click(menu.getByRole("menuitem", { name: "Erase candidate…" }));
-    mockedApps.list.mockResolvedValueOnce([]);
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
     await userEvent.click(screen.getByRole("button", { name: "Yes, erase" }));
     expect(
       await screen.findByText(
