@@ -105,10 +105,13 @@ async def set_stage(
     user: CurrentUser,
 ) -> Application:
     application = await _get_or_404(db, company, application_id)
+    # bulk-reject silently skips already-rejected rows; the single route must
+    # not re-send the stage email either when nothing actually changed
+    stage_changed = application.stage is not payload.stage
     updated = await applications_service.set_stage(
         db, application, payload.stage, actor_user_id=user.id
     )
-    if payload.notify_candidate:
+    if payload.notify_candidate and stage_changed:
         await _queue_stage_email(db, company, application, payload.stage)
     return updated
 

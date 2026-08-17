@@ -401,10 +401,10 @@ describe("ApplicantsPage", () => {
 
     await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
     await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
-    expect(await screen.findByText("Reject 1 applicants?")).toBeInTheDocument();
+    expect(await screen.findByText("Reject 1 applicant?")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Keep them" }));
-    expect(screen.queryByText(/Reject 1 applicants\?/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reject 1 applicant\?/)).not.toBeInTheDocument();
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     expect(mockedApps.bulkReject).not.toHaveBeenCalled();
   });

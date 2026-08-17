@@ -10,6 +10,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -278,6 +279,9 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
             </DialogTrigger>
             <DialogContent>
               <DialogTitle>Schedule interview</DialogTitle>
+              <DialogDescription>
+                The invite email lets the candidate pick one of your open times.
+              </DialogDescription>
               <ScheduleDialogBody
                 applicationId={applicationId}
                 onCreated={(created) => {
