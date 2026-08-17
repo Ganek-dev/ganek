@@ -129,10 +129,13 @@ default 6 months), enforced by the nightly purge from the decision date.
   endpoints.
 - **Legal basis:** Art. 6(1)(f).
 - **Data:** client IP addresses in short-lived counters (≈60-second
-  windows) and rotation-capped, token-scrubbed access logs.
+  windows); staff login email addresses in failed-login lockout counters
+  (`lockout:{email}` keys, ~15-minute window); rotation-capped,
+  token-scrubbed access logs.
 - **Recipients:** operations staff.
 - **Transfers:** none.
-- **Retention:** counters expire in ~1 minute; logs bounded by rotation
+- **Retention:** rate-limit counters expire in ~1 minute, lockout
+  counters in ~15 minutes; logs bounded by rotation
   (`{state your proxy/host log retention too}`).
 
 ## Activity 9 — Recruiter user accounts

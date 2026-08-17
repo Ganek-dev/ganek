@@ -39,6 +39,14 @@ describe("PrivacyNotice", () => {
     expect(screen.getByText("1 month")).toBeInTheDocument();
   });
 
+  it("discloses the link lifetimes, the 60-day interview link included", () => {
+    render(<PrivacyNotice notice={makeNotice({})} backHref="/" />);
+    const lifetimes = screen.getByText(/private links you receive expire/);
+    expect(lifetimes.textContent).toContain("status links after 30 days");
+    expect(lifetimes.textContent).toContain("interview booking links after 60 days");
+    expect(lifetimes.textContent).toContain("at the deadline stated in the invitation");
+  });
+
   it("discloses the complete integrity-signal list, pastes included", () => {
     render(<PrivacyNotice notice={makeNotice()} backHref="/" />);
     const signals = screen.getByText(/tab switches \(with how long you were away\)/);
