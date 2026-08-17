@@ -13,15 +13,17 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.models import (
     Application,
+    AttemptStatus,
     Candidate,
     Company,
     Interview,
     InterviewStatus,
     Job,
+    QuizAttempt,
     User,
     UserRole,
 )
-from app.worker import send_interview_reminder
+from app.worker import send_interview_reminder, send_quiz_nudge
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -133,6 +135,71 @@ async def test_reminder_noops_when_cancelled(db_session: AsyncSession, ctx: Any)
     interview.status = InterviewStatus.CANCELLED
     await db_session.commit()
     await send_interview_reminder(ctx, str(interview.id), start.isoformat())
+    assert FakeSMTP.sent == []
+
+
+async def _pending_attempt(db: AsyncSession, *, expires: datetime) -> QuizAttempt:
+    company = Company(slug=f"wk-{uuid4().hex[:8]}", name="Nudge Co")
+    db.add(company)
+    await db.flush()
+    job = Job(company_id=company.id, slug=f"role-{uuid4().hex[:6]}", title="Backend Dev")
+    candidate = Candidate(
+        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
+    )
+    db.add_all([job, candidate])
+    await db.flush()
+    application = Application(
+        company_id=company.id,
+        job_id=job.id,
+        candidate_id=candidate.id,
+        cv_object_key=f"cvs/{uuid4().hex}.pdf",
+        cv_filename="cv.pdf",
+        cv_size=1000,
+    )
+    db.add(application)
+    await db.flush()
+    attempt = QuizAttempt(
+        company_id=company.id,
+        application_id=application.id,
+        status=AttemptStatus.PENDING,
+        question_ids=["py-001", "py-002"],
+        time_limit_seconds=60,
+        expires_at=expires,
+    )
+    db.add(attempt)
+    await db.commit()
+    await db.refresh(attempt)
+    return attempt
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_quiz_nudge_sends_for_pending_attempt(db_session: AsyncSession, ctx: Any) -> None:
+    """The nudge emails candidates unsupervised at night — it needs the same
+    self-validation coverage as the interview reminder."""
+    attempt = await _pending_attempt(db_session, expires=datetime.now(UTC) + timedelta(days=2))
+    await send_quiz_nudge(ctx, str(attempt.id))
+    assert len(FakeSMTP.sent) == 1
+    message = FakeSMTP.sent[0]
+    assert "expires" in message["Subject"]
+    plain = message.get_body(preferencelist=("plain",))
+    assert plain is not None
+    assert "/quiz/" in str(plain.get_content())
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_quiz_nudge_noops_when_no_longer_pending(db_session: AsyncSession, ctx: Any) -> None:
+    attempt = await _pending_attempt(db_session, expires=datetime.now(UTC) + timedelta(days=2))
+    attempt.status = AttemptStatus.COMPLETED
+    await db_session.commit()
+    await send_quiz_nudge(ctx, str(attempt.id))
+    assert FakeSMTP.sent == []
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_quiz_nudge_noops_when_already_expired(db_session: AsyncSession, ctx: Any) -> None:
+    # nudging about a dead link would be worse than silence
+    attempt = await _pending_attempt(db_session, expires=datetime.now(UTC) - timedelta(hours=1))
+    await send_quiz_nudge(ctx, str(attempt.id))
     assert FakeSMTP.sent == []
 
 
