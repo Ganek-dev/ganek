@@ -327,7 +327,16 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "smtp_ok")
+@pytest.fixture
+def no_verification(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These flows have SMTP patched in, which would trigger multi-mode
+    signup verification (H4 item 12) — out of scope for outbox tests."""
+    from app.services import auth as auth_service
+
+    monkeypatch.setattr(auth_service, "verification_required", lambda: False)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "smtp_ok", "no_verification")
 async def test_apply_writes_outbox_and_panel_surfaces_it(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
@@ -353,7 +362,7 @@ async def test_apply_writes_outbox_and_panel_surfaces_it(
     assert (await client.get(f"/api/v1/applications/{app_id}/emails")).status_code == 404
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "smtp_ok")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "smtp_ok", "no_verification")
 async def test_erasure_takes_outbox_rows_with_the_candidate(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:

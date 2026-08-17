@@ -63,6 +63,12 @@ FAMILIES = [
         id="interview",
     ),
     pytest.param(
+        security.EMAIL_VERIFY_MAX_AGE_SECONDS,
+        lambda: security.create_email_verify_token(uuid.uuid4()),
+        security.read_email_verify_token,
+        id="email-verify",
+    ),
+    pytest.param(
         security.PASSWORD_RESET_MAX_AGE_SECONDS,
         lambda: security.create_password_reset_token(uuid.uuid4(), 0),
         security.read_password_reset_token,

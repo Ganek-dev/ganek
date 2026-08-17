@@ -7,6 +7,8 @@ export interface UserOut {
   role: "admin" | "member";
   /** false = Google-only account (signed up via Google, no password set). */
   has_password: boolean;
+  /** Only in the register response: multi-mode signup awaiting the inbox click. */
+  pending_verification?: boolean;
 }
 
 export type RemotePolicy = "onsite" | "hybrid" | "remote";
@@ -137,6 +139,16 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
+  verifyEmail: (payload: { token: string }) =>
+    request<UserOut>("/api/v1/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  resendVerification: (payload: { email: string }) =>
+    request<void>("/api/v1/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   forgotPassword: (payload: { email: string }) =>
     request<void>("/api/v1/auth/forgot-password", {
       method: "POST",

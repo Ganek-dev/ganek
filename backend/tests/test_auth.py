@@ -278,3 +278,149 @@ async def test_forgot_password_skips_deactivated_accounts(
         await client.post("/api/v1/auth/forgot-password", json={"email": email})
     ).status_code == 204
     assert captured_reset == []
+
+
+@pytest.fixture
+def captured_verification(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    from app.services import email as email_service
+
+    sent: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_email_verification", lambda **kw: sent.append(kw))
+    return sent
+
+
+@pytest.fixture
+def multi_with_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "mode", "multi")
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+
+
+def _verify_token(sent: list[dict[str, object]]) -> str:
+    return str(sent[-1]["verify_url"]).rsplit("token=", 1)[-1]
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_with_smtp")
+async def test_multi_mode_signup_requires_email_verification(
+    client: AsyncClient, captured_verification: list[dict[str, object]]
+) -> None:
+    """M5.7 H4: an exposed multi instance must not hand out active companies
+    (and branded email) to anyone who types an address."""
+    payload = _register_payload()
+    resp = await client.post("/api/v1/auth/register", json=payload)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["pending_verification"] is True
+    assert "set-cookie" not in resp.headers  # no session until the inbox click
+    assert len(captured_verification) == 1
+    assert captured_verification[0]["to"] == payload["email"]
+
+    # right password, unverified: a 403 that says what to do — not a bare 401
+    login = await client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": payload["password"]}
+    )
+    assert login.status_code == 403
+    assert "Verify your email" in login.json()["detail"]
+
+    # the inbox click activates and logs in
+    verify = await client.post(
+        "/api/v1/auth/verify-email", json={"token": _verify_token(captured_verification)}
+    )
+    assert verify.status_code == 200, verify.text
+    assert (await client.get("/api/v1/auth/me")).status_code == 200
+
+    # clicking the emailed link again (stale tab) stays friendly
+    again = await client.post(
+        "/api/v1/auth/verify-email", json={"token": _verify_token(captured_verification)}
+    )
+    assert again.status_code == 200
+
+    await client.post("/api/v1/auth/logout")
+    assert (
+        await client.post(
+            "/api/v1/auth/login",
+            json={"email": payload["email"], "password": payload["password"]},
+        )
+    ).status_code == 200
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_with_smtp")
+async def test_resend_verification_is_quiet_and_targeted(
+    client: AsyncClient, captured_verification: list[dict[str, object]]
+) -> None:
+    payload = _register_payload()
+    assert (await client.post("/api/v1/auth/register", json=payload)).status_code == 201
+    assert len(captured_verification) == 1
+
+    resp = await client.post("/api/v1/auth/resend-verification", json={"email": payload["email"]})
+    assert resp.status_code == 204
+    assert len(captured_verification) == 2
+
+    # unknown addresses and already-active accounts get the same 204, no email
+    assert (
+        await client.post(
+            "/api/v1/auth/resend-verification",
+            json={"email": f"nobody-{uuid4().hex[:8]}@vetd-ci.dev"},
+        )
+    ).status_code == 204
+    assert len(captured_verification) == 2
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_with_smtp")
+async def test_bogus_verification_token_is_rejected(client: AsyncClient) -> None:
+    resp = await client.post("/api/v1/auth/verify-email", json={"token": "not-a-token"})
+    assert resp.status_code == 400
+    assert "request a new one" in resp.json()["detail"]
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_single_mode_signup_stays_immediate(
+    client: AsyncClient,
+    captured_verification: list[dict[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single mode closes after the first company — verification would only
+    add friction to the self-hoster's one-time setup."""
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")  # smtp alone must not gate
+    payload = _register_payload()
+    resp = await client.post("/api/v1/auth/register", json=payload)
+    assert resp.status_code in (201, 409)  # 409 = a dev DB already has its company
+    if resp.status_code == 201:
+        assert resp.json()["pending_verification"] is False
+        assert (await client.get("/api/v1/auth/me")).status_code == 200
+    assert captured_verification == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_with_smtp")
+async def test_purge_sweeps_stale_unverified_companies(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    captured_verification: list[dict[str, object]],
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select, update
+
+    from app.services import retention
+
+    payload = _register_payload()
+    assert (await client.post("/api/v1/auth/register", json=payload)).status_code == 201
+    user_row = (
+        await db_session.execute(select(User).where(User.email == payload["email"]))
+    ).scalar_one()
+    company_id = user_row.company_id
+    await db_session.execute(
+        update(Company)
+        .where(Company.id == company_id)
+        .values(created_at=datetime.now(UTC) - timedelta(days=8))
+    )
+    await db_session.commit()
+
+    summary = await retention.run_purge(db_session, now=datetime.now(UTC))
+    assert summary.unverified_companies >= 1
+    db_session.expire_all()
+    assert (
+        await db_session.execute(select(Company.id).where(Company.id == company_id))
+    ).scalar_one_or_none() is None
+    # the admin user cascaded away with it
+    assert (
+        await db_session.execute(select(User.id).where(User.email == payload["email"]))
+    ).scalar_one_or_none() is None

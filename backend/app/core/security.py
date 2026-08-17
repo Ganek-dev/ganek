@@ -43,6 +43,24 @@ def read_password_reset_token(token: str) -> tuple[uuid.UUID, int] | None:
         return None
 
 
+_email_verify_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-email-verify")
+# generous: signup + inbox + coming back later; the 7-day unverified-company
+# sweep is the real deadline
+EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24 * 3
+
+
+def create_email_verify_token(user_id: uuid.UUID) -> str:
+    return _email_verify_serializer.dumps(str(user_id))
+
+
+def read_email_verify_token(token: str) -> uuid.UUID | None:
+    try:
+        raw: str = _email_verify_serializer.loads(token, max_age=EMAIL_VERIFY_MAX_AGE_SECONDS)
+        return uuid.UUID(raw)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+
+
 _google_flow_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-oauth")
 # state/PKCE verifier/nonce only need to survive the redirect to Google and back
 GOOGLE_FLOW_MAX_AGE_SECONDS = 60 * 10

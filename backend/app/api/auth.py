@@ -5,11 +5,14 @@ from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
+    EMAIL_VERIFY_MAX_AGE_SECONDS,
     PASSWORD_RESET_MAX_AGE_SECONDS,
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
+    create_email_verify_token,
     create_password_reset_token,
     create_session_token,
+    read_email_verify_token,
     read_password_reset_token,
 )
 from app.models import User
@@ -20,6 +23,7 @@ from app.schemas.auth import (
     RegisterRequest,
     ResetPasswordRequest,
     UserOut,
+    VerifyEmailRequest,
 )
 from app.services import auth as auth_service
 from app.services import outbox as outbox_service
@@ -44,7 +48,7 @@ def _set_session_cookie(response: Response, user: User) -> None:
     status_code=status.HTTP_201_CREATED,
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
-async def register(payload: RegisterRequest, response: Response, db: DbSession) -> User:
+async def register(payload: RegisterRequest, response: Response, db: DbSession) -> UserOut:
     try:
         user = await auth_service.register_company_admin(
             db,
@@ -62,8 +66,34 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists",
         ) from None
+    if not user.is_active:
+        # multi-mode signup awaiting verification: no session until the
+        # inbox click — the company is inert and sweepable meanwhile
+        await _queue_verification_email(db, user)
+        out = UserOut.model_validate(user)
+        out.pending_verification = True
+        return out
     _set_session_cookie(response, user)
-    return user
+    return UserOut.model_validate(user)
+
+
+async def _queue_verification_email(db: DbSession, user: User) -> None:
+    from sqlalchemy import select as _select
+
+    from app.models import Company
+
+    company = (await db.execute(_select(Company).where(Company.id == user.company_id))).scalar_one()
+    token = create_email_verify_token(user.id)
+    await outbox_service.queue_email(
+        db,
+        kind="email_verification",
+        company_id=company.id,
+        to=user.email,
+        ref=str(user.id),
+        company_name=company.name,
+        verify_url=f"{settings.public_base_url.rstrip('/')}/verify?token={token}",
+        expires_days=EMAIL_VERIFY_MAX_AGE_SECONDS // 86400,
+    )
 
 
 @router.post(
@@ -78,6 +108,11 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Use
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail="Account temporarily locked after repeated failed logins",
+        ) from None
+    except auth_service.EmailUnverifiedError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verify your email first — check your inbox for the activation link",
         ) from None
     if user is None:
         raise HTTPException(
@@ -105,6 +140,43 @@ async def logout(response: Response) -> None:
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> User:
     return user
+
+
+@router.post(
+    "/verify-email",
+    response_model=UserOut,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def verify_email(payload: VerifyEmailRequest, response: Response, db: DbSession) -> User:
+    """Activate a pending multi-mode signup and log its admin in."""
+    user_id = read_email_verify_token(payload.token)
+    if user_id is not None:
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if user is not None:
+            if user.is_active:
+                _set_session_cookie(response, user)
+                return user  # double-click / stale tab: already verified is fine
+            if await auth_service.is_pending_verification(db, user):
+                await auth_service.verify_email(db, user)
+                _set_session_cookie(response, user)
+                return user
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="This verification link is invalid or has expired — request a new one",
+    )
+
+
+@router.post(
+    "/resend-verification",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def resend_verification(payload: ForgotPasswordRequest, db: DbSession) -> None:
+    """Always 204 — reveals nothing about which signups exist."""
+    user = (await db.execute(select(User).where(User.email == payload.email))).scalar_one_or_none()
+    if user is None or user.is_active or not await auth_service.is_pending_verification(db, user):
+        return
+    await _queue_verification_email(db, user)
 
 
 @router.post(
