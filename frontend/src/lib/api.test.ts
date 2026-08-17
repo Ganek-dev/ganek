@@ -50,3 +50,37 @@ describe("request error mapping", () => {
     );
   });
 });
+
+describe("401 interceptor", () => {
+  const realLocation = window.location;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, "location", { value: realLocation, writable: true });
+  });
+
+  function stubLocation(pathname: string) {
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      value: { ...realLocation, pathname, assign },
+      writable: true,
+    });
+    return assign;
+  }
+
+  it("bounces an expired admin session to /login", async () => {
+    const assign = stubLocation("/admin/applicants");
+    mockFetch(401, { detail: "Not authenticated" });
+    await expect(api.me()).rejects.toThrowError(new ApiError(401, "Not authenticated"));
+    expect(assign).toHaveBeenCalledWith("/login");
+  });
+
+  it("leaves non-admin surfaces alone — a failed login is not a redirect", async () => {
+    const assign = stubLocation("/login");
+    mockFetch(401, { detail: "Invalid email or password" });
+    await expect(
+      api.login({ email: "a@b.c", password: "wrong-but-long" }),
+    ).rejects.toThrowError(new ApiError(401, "Invalid email or password"));
+    expect(assign).not.toHaveBeenCalled();
+  });
+});

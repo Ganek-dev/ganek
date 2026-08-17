@@ -136,6 +136,21 @@ describe("AdminLayout", () => {
     expect(mockedCompany.get).not.toHaveBeenCalled();
   });
 
+  it("shows a retryable error when the backend is unreachable", async () => {
+    mockedApi.me.mockRejectedValueOnce(new TypeError("fetch failed"));
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    expect(await screen.findByText(/Can't reach the backend/)).toBeInTheDocument();
+    expect(screen.queryByText("page content")).not.toBeInTheDocument();
+
+    // retry re-arms the fetch; the default mock then succeeds
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("page content")).toBeInTheDocument();
+  });
+
   it("signs out via the footer button", async () => {
     render(
       <AdminLayout>
