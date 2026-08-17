@@ -15,7 +15,9 @@ Semantics:
   orphan delete afterwards is what finally removes the person.
 - One PII-free `retention.purged` receipt per company per run (counts
   only), only when something was actually removed.
-- Sweeps: expired `user_invites`; unreferenced `cvs/**` objects older
+- Sweeps: multi-mode companies still pending email verification after
+  7 days (never activated — the signup was abandoned or abusive; users
+  cascade); expired `user_invites`; unreferenced `cvs/**` objects older
   than 24 h (upload-then-abandon on the apply form); terminal (sent/failed)
   `email_outbox` rows after 30 days — their payload stores recipient PII
   and capability URLs, which only need to live as long as the delivery
@@ -52,6 +54,7 @@ DAYS_PER_MONTH = 31  # never purge earlier than the notice's promise
 UPLOAD_GRACE = timedelta(hours=24)  # upload-first apply flow needs breathing room
 DONE_PRIVACY_TASK_RETENTION = timedelta(days=90)  # completed request tasks name people
 OUTBOX_TERMINAL_RETENTION = timedelta(days=30)  # delivered/failed email records
+UNVERIFIED_COMPANY_RETENTION = timedelta(days=7)  # multi-mode signups never activated
 PURGEABLE_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN)
 
 
@@ -63,6 +66,7 @@ class PurgeSummary:
     cv_objects: int
     privacy_tasks: int
     emails: int
+    unverified_companies: int
     google_event_failures: int
 
     def __str__(self) -> str:  # worker log line
@@ -70,6 +74,7 @@ class PurgeSummary:
             f"applications={self.applications} candidates={self.candidates} "
             f"invites={self.invites} cv_objects={self.cv_objects} "
             f"privacy_tasks={self.privacy_tasks} emails={self.emails} "
+            f"unverified_companies={self.unverified_companies} "
             f"google_event_failures={self.google_event_failures}"
         )
 
@@ -198,6 +203,18 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         ).rowcount
         or 0
     )
+    swept_unverified = (
+        cast(
+            "CursorResult[Any]",
+            await db.execute(
+                delete(Company).where(
+                    Company.settings["pending_verification"].as_boolean().is_(True),
+                    Company.created_at < now - UNVERIFIED_COMPANY_RETENTION,
+                )
+            ),
+        ).rowcount
+        or 0
+    )
     swept_emails = (
         cast(
             "CursorResult[Any]",
@@ -240,5 +257,6 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         cv_objects=swept_objects,
         privacy_tasks=swept_tasks,
         emails=swept_emails,
+        unverified_companies=swept_unverified,
         google_event_failures=total_google_failures,
     )

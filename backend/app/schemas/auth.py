@@ -25,6 +25,10 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+
+
 class ResetPasswordRequest(BaseModel):
     token: str = Field(min_length=1, max_length=512)
     new_password: str = Field(min_length=10, max_length=128)
@@ -48,3 +52,6 @@ class UserOut(BaseModel):
     email: EmailStr
     role: UserRole
     has_password: bool
+    # true only in the register response of a multi-mode signup awaiting
+    # email verification (M5.7 H4); never set from ORM attributes
+    pending_verification: bool = False

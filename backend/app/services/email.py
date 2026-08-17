@@ -496,6 +496,55 @@ def send_team_invite(
     send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
+def send_email_verification(
+    *,
+    to: str,
+    ref: str | None = None,
+    company_name: str,
+    verify_url: str,
+    expires_days: int,
+) -> None:
+    """Multi-mode signup verification (M5.7 H4): the company stays inert
+    until this link is clicked; unverified signups are swept after 7 days."""
+    safe_company = escape(company_name)
+    brand = DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    subject = "Verify your email to activate your vetd workspace"
+
+    body = (
+        f"Hi,\n"
+        f"\n"
+        f"You're one click away from activating the {company_name} hiring\n"
+        f"workspace on vetd. Confirm this is your email address:\n"
+        f"\n"
+        f"{verify_url}\n"
+        f"\n"
+        f"The link works for {expires_days} days; unverified workspaces are\n"
+        f"removed after a week. If you didn't sign up, ignore this email.\n"
+        f"\n"
+        f"— vetd\n"
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"Activate {safe_company}</h1>"
+        + _paragraph(
+            f"You're one click away from activating the {safe_company} hiring "
+            f"workspace. Confirm this is your email address; if you didn't sign "
+            f"up, ignore this email."
+        )
+        + f'<a href="{verify_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Verify email</a>"
+        f'<div style="margin-top: 12px; text-align: center; font-family: monospace; '
+        f'font-size: 11px; color: #a1a1aa;">link valid for {expires_days} days</div>'
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
+
+
 def send_password_reset(
     *,
     to: str,

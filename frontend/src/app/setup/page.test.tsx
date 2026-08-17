@@ -20,6 +20,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: {
       ...original.api,
       register: vi.fn(),
+      resendVerification: vi.fn(),
       googleSignup: vi.fn(),
       googleSignupPending: vi.fn(),
       providers: vi.fn(),
@@ -78,6 +79,35 @@ describe("SetupPage", () => {
       }),
     );
     expect(push).toHaveBeenCalledWith("/admin");
+  });
+
+  it("holds at check-your-inbox when the signup needs verification", async () => {
+    mocked.register.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy@acmelabs.io",
+      has_password: true,
+      role: "admin",
+      pending_verification: true,
+    });
+    mocked.resendVerification.mockResolvedValue(undefined);
+    render(<SetupPage />);
+    await userEvent.type(screen.getByLabelText("Work email"), "grumpy@acmelabs.io");
+    await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
+    await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs");
+    await userEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Check your inbox" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/grumpy@acmelabs\.io/)).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Resend the link" }));
+    await waitFor(() =>
+      expect(mocked.resendVerification).toHaveBeenCalledWith({ email: "grumpy@acmelabs.io" }),
+    );
+    expect(screen.getByRole("button", { name: "Link resent" })).toBeDisabled();
   });
 
   it("links back to login", () => {

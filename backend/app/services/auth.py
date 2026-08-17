@@ -7,6 +7,7 @@ from app.core import lockout
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.models import Company, User, UserRole
+from app.services import email as email_service
 from app.services.slugs import slugify, with_random_suffix
 
 
@@ -20,6 +21,20 @@ class EmailTakenError(Exception):
 
 class AccountLockedError(Exception):
     """Too many failed login attempts for this account."""
+
+
+class EmailUnverifiedError(Exception):
+    """Correct credentials, but the signup email is not verified yet."""
+
+
+def verification_required() -> bool:
+    """Multi-mode signups verify their email BEFORE the company activates
+    (M5.7 H4 — open signup on an exposed instance could mint companies and
+    send branded email). Requires SMTP for two reasons: without it the
+    verification link could never arrive, and the abuse this closes —
+    sending branded email — needs SMTP anyway. Single mode closes after
+    the first company and stays untouched."""
+    return settings.mode == "multi" and email_service.smtp_configured()
 
 
 async def _unique_slug(db: AsyncSession, base: str) -> str:
@@ -51,7 +66,12 @@ async def register_company_admin(
     if email_taken:
         raise EmailTakenError
 
-    company = Company(slug=await _unique_slug(db, slugify(company_name)), name=company_name)
+    pending = verification_required()
+    company = Company(
+        slug=await _unique_slug(db, slugify(company_name)),
+        name=company_name,
+        settings={"pending_verification": True} if pending else {},
+    )
     db.add(company)
     await db.flush()
     user = User(
@@ -59,6 +79,7 @@ async def register_company_admin(
         email=email,
         password_hash=hash_password(password),
         role=UserRole.ADMIN,
+        is_active=not pending,
     )
     db.add(user)
     await db.commit()
@@ -76,10 +97,16 @@ async def authenticate(db: AsyncSession, *, email: str, password: str) -> User |
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if (
         user is None
-        or not user.is_active
         or user.password_hash is None
         or not verify_password(password, user.password_hash)
     ):
+        await lockout.record_failure(email)
+        return None
+    if not user.is_active:
+        if await is_pending_verification(db, user):
+            # right password, unverified signup: send them to their inbox
+            # instead of a bare "invalid credentials"
+            raise EmailUnverifiedError
         await lockout.record_failure(email)
         return None
     await lockout.clear(email)
@@ -103,6 +130,23 @@ async def change_password(
     user.token_version += 1
     await db.commit()
     return True
+
+
+async def is_pending_verification(db: AsyncSession, user: User) -> bool:
+    company = (
+        await db.execute(select(Company).where(Company.id == user.company_id))
+    ).scalar_one_or_none()
+    return bool(company is not None and (company.settings or {}).get("pending_verification"))
+
+
+async def verify_email(db: AsyncSession, user: User) -> None:
+    """Flip a pending signup live: activate the admin and clear the marker."""
+    company = (await db.execute(select(Company).where(Company.id == user.company_id))).scalar_one()
+    new_settings = dict(company.settings or {})
+    new_settings.pop("pending_verification", None)
+    company.settings = new_settings
+    user.is_active = True
+    await db.commit()
 
 
 async def password_reset_target(db: AsyncSession, *, email: str) -> tuple[User, Company] | None:

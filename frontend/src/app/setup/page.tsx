@@ -51,6 +51,8 @@ function SetupForm() {
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [google, setGoogle] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
@@ -97,11 +99,17 @@ function SetupForm() {
       if (googlePending) {
         await api.googleSignup({ company_name });
       } else {
-        await api.register({
+        const email = String(data.get("email") ?? "").trim();
+        const created = await api.register({
           company_name,
-          email: String(data.get("email") ?? "").trim(),
+          email,
           password: String(data.get("password") ?? ""),
         });
+        if (created.pending_verification) {
+          // multi-mode instances verify the inbox before the workspace goes live
+          setPendingEmail(email);
+          return;
+        }
       }
       router.push("/admin");
     } catch (err) {
@@ -113,6 +121,38 @@ function SetupForm() {
       }
       setBusy(false);
     }
+  }
+
+  if (pendingEmail) {
+    return (
+      <AuthShell
+        title="Check your inbox"
+        subtitle={`We sent a verification link to ${pendingEmail}. Your workspace activates when you click it.`}
+        footer={
+          <Link href="/login" className="font-medium text-accent hover:underline">
+            ← Back to log in
+          </Link>
+        }
+      >
+        <p className="text-[13px] leading-[20px] text-g600">
+          Unverified signups are removed after a week. Nothing arriving? Check spam, or
+          resend the link.
+        </p>
+        <button
+          type="button"
+          disabled={resent}
+          onClick={() => {
+            setResent(true);
+            void api.resendVerification({ email: pendingEmail }).catch(() => {
+              /* quiet by design — reveals nothing about which signups exist */
+            });
+          }}
+          className="inline-flex h-9 items-center justify-center rounded-md border-[1.5px] border-edge px-4 text-[13.5px] font-semibold hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          {resent ? "Link resent" : "Resend the link"}
+        </button>
+      </AuthShell>
+    );
   }
 
   return (
