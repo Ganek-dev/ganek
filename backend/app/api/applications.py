@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
@@ -13,6 +13,7 @@ from app.models import Application, ApplicationNote, ApplicationStage, EmailOutb
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
+    ApplicationPage,
     BulkRejectIn,
     BulkRejectOut,
     CandidateEmailUpdate,
@@ -49,14 +50,23 @@ async def _get_or_404(
     return application
 
 
-@router.get("", response_model=list[ApplicationOut])
+@router.get("", response_model=ApplicationPage)
 async def list_applications(
     db: DbSession,
     company: CurrentCompany,
     job_id: uuid.UUID | None = None,
     stage: ApplicationStage | None = None,
-) -> list[Application]:
-    return await applications_service.list_applications(db, company, job_id=job_id, stage=stage)
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> ApplicationPage:
+    items, total = await applications_service.list_applications(
+        db, company, job_id=job_id, stage=stage, limit=limit, offset=offset
+    )
+    return ApplicationPage(
+        items=[ApplicationOut.model_validate(item) for item in items],
+        total=total,
+        stage_counts=await applications_service.count_by_stage(db, company, job_id=job_id),
+    )
 
 
 @router.post("/bulk-reject", response_model=BulkRejectOut)

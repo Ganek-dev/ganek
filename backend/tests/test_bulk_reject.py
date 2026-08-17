@@ -84,7 +84,7 @@ async def _company_with_applicants(
 
 
 async def _ids_by_email(client: AsyncClient) -> dict[str, str]:
-    apps = (await client.get("/api/v1/applications")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
     return {a["candidate"]["email"]: a["id"] for a in apps}
 
 
@@ -98,7 +98,8 @@ async def test_bulk_reject_sets_stage_and_reports_counts(client: AsyncClient) ->
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"rejected": 2, "skipped": 0}
 
-    stages = {app["id"]: app["stage"] for app in (await client.get("/api/v1/applications")).json()}
+    listed = (await client.get("/api/v1/applications")).json()["items"]
+    stages = {app["id"]: app["stage"] for app in listed}
     assert stages[a] == "rejected"
     assert stages[b] == "rejected"
     assert stages[c] == "new"
@@ -137,7 +138,8 @@ async def test_bulk_reject_skips_rejected_withdrawn_foreign_unknown(client: Asyn
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"rejected": 0, "skipped": 4}
 
-    stages = {app["id"]: app["stage"] for app in (await client.get("/api/v1/applications")).json()}
+    listed = (await client.get("/api/v1/applications")).json()["items"]
+    stages = {app["id"]: app["stage"] for app in listed}
     assert stages[withdrawn] == "withdrawn"
     assert stages[untouched] == "new"
 
@@ -146,9 +148,8 @@ async def test_bulk_reject_skips_rejected_withdrawn_foreign_unknown(client: Asyn
 
     await client.post("/api/v1/auth/logout")
     assert (await client.post("/api/v1/auth/login", json=foreign_creds)).status_code == 200
-    foreign_stages = {
-        app["id"]: app["stage"] for app in (await client.get("/api/v1/applications")).json()
-    }
+    foreign_listed = (await client.get("/api/v1/applications")).json()["items"]
+    foreign_stages = {app["id"]: app["stage"] for app in foreign_listed}
     assert foreign_stages[foreign_id] == "new"
 
 

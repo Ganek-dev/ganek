@@ -44,6 +44,16 @@ class ApplicationOut(BaseModel):
     created_at: datetime
 
 
+class ApplicationPage(BaseModel):
+    """One page of the pipeline (M5.7 H4). `stage_counts` covers the whole
+    job-filtered set — the stage pills are how you switch stages, so the
+    stage filter never narrows them."""
+
+    items: list[ApplicationOut]
+    total: int
+    stage_counts: dict[str, int]
+
+
 class StageUpdate(BaseModel):
     stage: ApplicationStage
     # opt-in: emails the candidate for stages with a template (22a/22b);

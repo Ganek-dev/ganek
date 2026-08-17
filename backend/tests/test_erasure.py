@@ -88,7 +88,7 @@ async def test_erase_removes_rows_cv_and_writes_receipt(
     from app.services import storage
 
     await _company_with_applications(client, n_jobs=2)
-    apps = (await client.get("/api/v1/applications")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
     assert len(apps) == 2
     app_ids = [a["id"] for a in apps]
     keys = (
@@ -109,7 +109,7 @@ async def test_erase_removes_rows_cv_and_writes_receipt(
     # every application of the candidate is gone, tenant-wide
     for app_id in app_ids:
         assert (await client.get(f"/api/v1/applications/{app_id}")).status_code == 404
-    assert (await client.get("/api/v1/applications")).json() == []
+    assert (await client.get("/api/v1/applications")).json()["items"] == []
 
     # S3 objects really deleted
     for key in keys:
@@ -128,7 +128,7 @@ async def test_erase_removes_rows_cv_and_writes_receipt(
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_erase_invalidates_status_tokens(client: AsyncClient) -> None:
     _, status_tokens = await _company_with_applications(client, n_jobs=1)
-    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
     assert (await client.get(f"/api/v1/public/applications/{status_tokens[0]}")).status_code == 200
 
     assert (await client.post(f"/api/v1/applications/{app_id}/erase-candidate")).status_code == 200
@@ -141,7 +141,7 @@ async def test_erase_scrubs_privacy_request_tasks(client: AsyncClient) -> None:
     must not survive the erasure that fulfils them — open OR already done.
     A human task, even one shaped exactly like a request task, stays."""
     email, status_tokens = await _company_with_applications(client, n_jobs=1)
-    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
 
     # both request kinds through the real public endpoints (pins the format
     # the scrub matches against); one gets completed before the erasure
@@ -222,7 +222,7 @@ async def test_erase_deletes_google_events_best_effort(
     from app.services import erasure, google_calendar
 
     await _company_with_applications(client, n_jobs=1)
-    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
     application = (
         await db_session.execute(select(Application).where(Application.id == app_id))
     ).scalar_one()
@@ -280,7 +280,7 @@ async def test_erase_deletes_google_events_best_effort(
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_erase_is_admin_only_and_tenant_scoped(client: AsyncClient) -> None:
     await _company_with_applications(client, n_jobs=1)
-    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
 
     member = {"email": f"member-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
     resp = await client.post("/api/v1/users", json={**member, "role": "member"})
@@ -309,7 +309,7 @@ async def test_erase_fail_closed_when_storage_down(
     from app.services import erasure
 
     await _company_with_applications(client, n_jobs=1)
-    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
 
     async def boom(object_key: str) -> None:
         raise RuntimeError("storage down")
@@ -329,7 +329,7 @@ async def test_erase_fail_closed_when_storage_down(
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_email_update_roundtrip_and_guards(client: AsyncClient) -> None:
     await _company_with_applications(client, n_jobs=2)
-    apps = (await client.get("/api/v1/applications")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
     app_id = apps[0]["id"]
 
     fixed = f"fixed-{uuid4().hex[:8]}@vetd-ci.dev"
@@ -376,7 +376,7 @@ async def test_email_update_409_when_taken_by_other_candidate(
     from app.models import Candidate
 
     await _company_with_applications(client, n_jobs=1)
-    apps = (await client.get("/api/v1/applications")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
     app_id = apps[0]["id"]
     taken = f"taken-{uuid4().hex[:8]}@vetd-ci.dev"
     # second candidate row in the same company, no application needed

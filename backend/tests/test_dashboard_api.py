@@ -64,7 +64,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
     assert resp.status_code == 201, resp.text
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    application_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+    application_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
     return application_id, admin_id, creds["email"]
 
 

@@ -373,13 +373,27 @@ export interface EmailDelivery {
   sent_at: string | null;
 }
 
+export interface ApplicationPage {
+  items: ApplicationOut[];
+  total: number;
+  /** Whole job-filtered set — the stage filter never narrows these. */
+  stage_counts: Partial<Record<ApplicationStage, number>>;
+}
+
 export const applications = {
-  list: (filters?: { job_id?: string; stage?: ApplicationStage }) => {
+  list: (filters?: {
+    job_id?: string;
+    stage?: ApplicationStage;
+    limit?: number;
+    offset?: number;
+  }) => {
     const params = new URLSearchParams();
     if (filters?.job_id) params.set("job_id", filters.job_id);
     if (filters?.stage) params.set("stage", filters.stage);
+    if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
+    if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
     const qs = params.toString();
-    return request<ApplicationOut[]>(`/api/v1/applications${qs ? `?${qs}` : ""}`);
+    return request<ApplicationPage>(`/api/v1/applications${qs ? `?${qs}` : ""}`);
   },
   setStage: (id: string, stage: ApplicationStage, notifyCandidate = false) =>
     request<ApplicationOut>(`/api/v1/applications/${id}/stage`, {

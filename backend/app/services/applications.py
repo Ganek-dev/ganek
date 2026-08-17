@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -101,21 +101,48 @@ async def list_applications(
     *,
     job_id: uuid.UUID | None = None,
     stage: ApplicationStage | None = None,
-) -> list[Application]:
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[list[Application], int]:
+    """One page of the pipeline plus the total the filters match.
+
+    M5.7 H4: the old version materialized every row (candidate + all quiz
+    attempts + integrity JSONB) per visit — the first scale cliff.
+    """
+    conditions = [Application.company_id == company.id]
+    if job_id is not None:
+        conditions.append(Application.job_id == job_id)
+    if stage is not None:
+        conditions.append(Application.stage == stage)
+    total = (
+        await db.execute(select(func.count()).select_from(Application).where(*conditions))
+    ).scalar_one()
     query = (
         select(Application)
-        .where(Application.company_id == company.id)
+        .where(*conditions)
         .options(
             selectinload(Application.candidate),
             selectinload(Application.quiz_attempts),
         )
-        .order_by(Application.created_at.desc())
+        .order_by(Application.created_at.desc(), Application.id)
+        .limit(limit)
+        .offset(offset)
     )
+    return list((await db.execute(query)).scalars().all()), total
+
+
+async def count_by_stage(
+    db: AsyncSession, company: Company, *, job_id: uuid.UUID | None = None
+) -> dict[str, int]:
+    """Pipeline pill counts for the WHOLE filtered set (stage filter never
+    applies — the pills are how you switch stages)."""
+    conditions = [Application.company_id == company.id]
     if job_id is not None:
-        query = query.where(Application.job_id == job_id)
-    if stage is not None:
-        query = query.where(Application.stage == stage)
-    return list((await db.execute(query)).scalars().all())
+        conditions.append(Application.job_id == job_id)
+    rows = await db.execute(
+        select(Application.stage, func.count()).where(*conditions).group_by(Application.stage)
+    )
+    return {stage.value: count for stage, count in rows.all()}
 
 
 async def get_application(
