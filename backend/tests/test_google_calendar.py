@@ -55,6 +55,8 @@ class FakeAsyncClient:
 def _reset_fake(monkeypatch: pytest.MonkeyPatch) -> None:
     FakeAsyncClient.next_response = FakeResponse(200)
     FakeAsyncClient.calls = []
+    google_calendar._token_cache.clear()
+    google_calendar._freebusy_cache.clear()
     monkeypatch.setattr(google_calendar.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(settings, "google_client_id", "test-client-id")
     monkeypatch.setattr(settings, "google_client_secret", "test-client-secret")
@@ -215,3 +217,88 @@ async def test_delete_event_swallows_gone(
     monkeypatch.setattr(google_calendar, "access_token", fake_token)
     FakeAsyncClient.next_response = FakeResponse(404)
     await google_calendar.delete_event(db_session, user, "evt-gone")  # must not raise
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_access_token_is_cached_until_expiry(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M5.7 H4: one refresh per ~hour, not one per calendar call."""
+    user = await _make_user(db_session)
+    await google_calendar.store_credentials(
+        db_session, user, refresh_token="1//r", google_email="me@gmail.com"
+    )
+    FakeAsyncClient.calls = []  # drop the connect-time noise
+    FakeAsyncClient.next_response = FakeResponse(
+        200, {"access_token": "ya29.one", "expires_in": 3600}
+    )
+    assert await google_calendar.access_token(db_session, user) == "ya29.one"
+    assert await google_calendar.access_token(db_session, user) == "ya29.one"
+    assert len(FakeAsyncClient.calls) == 1  # second hit came from the cache
+
+    # a revoked grant clears the cache so the reconnect card is honest
+    google_calendar._token_cache[user.id] = ("ya29.stale", 0.0)  # force refresh
+    FakeAsyncClient.next_response = FakeResponse(400, {}, text="invalid_grant")
+    with pytest.raises(google_calendar.NeedsReconnectError):
+        await google_calendar.access_token(db_session, user)
+    assert user.id not in google_calendar._token_cache
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_freebusy_is_cached_within_ttl(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    user = await _make_user(db_session)
+    await google_calendar.store_credentials(
+        db_session, user, refresh_token="1//r", google_email="me@gmail.com"
+    )
+
+    async def fake_token(db: AsyncSession, u: User) -> str:
+        return "ya29.x"
+
+    monkeypatch.setattr(google_calendar, "access_token", fake_token)
+    start = _dt.now(_UTC) + _td(hours=1)
+    end = start + _td(days=14)
+    FakeAsyncClient.calls = []
+    FakeAsyncClient.next_response = FakeResponse(
+        200,
+        {
+            "calendars": {
+                "primary": {
+                    "busy": [
+                        {"start": start.isoformat(), "end": (start + _td(hours=1)).isoformat()}
+                    ]
+                }
+            }
+        },
+    )
+    first = await google_calendar.freebusy(db_session, user, start, end)
+    assert len(first) == 1
+    # a moment later the horizon slid forward — the padded cache still covers
+    second = await google_calendar.freebusy(
+        db_session, user, start + _td(seconds=20), end + _td(seconds=20)
+    )
+    assert second == first
+    assert len([c for c in FakeAsyncClient.calls if "freeBusy" in str(c["url"])]) == 1
+
+    # creating an event invalidates: the next freebusy asks Google again
+    FakeAsyncClient.next_response = FakeResponse(
+        200, {"id": "evt-1", "conferenceData": {"entryPoints": []}}
+    )
+    await google_calendar.create_meet_event(
+        db_session,
+        user,
+        summary="s",
+        description="",
+        start=start,
+        end=start + _td(minutes=30),
+        timezone="Europe/Berlin",
+        attendee_email="c@x.dev",
+    )
+    FakeAsyncClient.next_response = FakeResponse(200, {"calendars": {"primary": {"busy": []}}})
+    third = await google_calendar.freebusy(db_session, user, start, end)
+    assert third == []

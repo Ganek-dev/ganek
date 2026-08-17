@@ -530,3 +530,21 @@ async def test_public_get_survives_calendar_outage(
 async def test_bad_token_404s(client: AsyncClient) -> None:
     resp = await client.get("/api/v1/public/interviews/garbage")
     assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_lock_timeout_fails_fast_as_lock_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """M5.7 H4: the booking lock is held across the Google HTTP call — a
+    hung holder must produce a fast retryable error, not park every waiter."""
+    monkeypatch.setattr(interviews_service, "LOCK_TIMEOUT_MS", 150)
+    interviewer_id = uuid.uuid4()
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with factory() as holder, holder.begin():
+            await interviews_service._lock_interviewer(holder, interviewer_id)
+            async with factory() as waiter, waiter.begin():
+                with pytest.raises(interviews_service.LockBusyError):
+                    await interviews_service._lock_interviewer(waiter, interviewer_id)
+    finally:
+        await engine.dispose()
