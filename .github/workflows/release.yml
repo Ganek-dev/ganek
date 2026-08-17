@@ -1,11 +1,17 @@
 name: Release images
 
-# Build (and on version tags, publish) the GHCR images for the compose
-# quickstart. The frontend image bakes its CSP upload origin and backend
-# URL at build time — published defaults match the bundled compose
-# topology; custom upload domains still rebuild locally (documented in
-# .env.example). workflow_dispatch runs build-only as a dry run, so the
-# workflow itself is testable before the first tag exists.
+# Build, boot-smoke, scan, and (on version tags) publish the GHCR images
+# for the compose quickstart. The frontend image bakes its CSP upload
+# origin and backend URL at build time — published defaults match the
+# bundled compose topology; custom upload domains still rebuild locally
+# (documented in .env.example). workflow_dispatch runs everything except
+# the push as a dry run, so the workflow itself is testable before the
+# first tag exists.
+#
+# The boot-smoke exists because of PR #147: next's standalone tracer once
+# shipped an image that built green everywhere and crashed only at
+# container boot (MODULE_NOT_FOUND). Never publish an image that hasn't
+# actually booted.
 
 on:
   push:
@@ -16,18 +22,15 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: release-${{ github.ref }}
+
 jobs:
   images:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Image tags
         id: meta
         run: |
@@ -40,7 +43,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: backend
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          load: true
           tags: |
             ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
             ghcr.io/vetd-dev/vetd-backend:latest
@@ -48,10 +51,66 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: frontend
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          load: true
           build-args: |
             BACKEND_URL=http://backend:8000
             VETD_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
           tags: |
             ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
             ghcr.io/vetd-dev/vetd-frontend:latest
+      - name: Boot the built images
+        run: |
+          cp .env.example .env
+          cat > compose.release-smoke.yml <<EOF
+          services:
+            backend:  { image: "ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}" }
+            worker:   { image: "ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}" }
+            migrate:  { image: "ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}" }
+            frontend: { image: "ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}" }
+          EOF
+          # images exist locally, so compose uses them as-is (no --build)
+          docker compose -f docker-compose.yml -f compose.release-smoke.yml up -d
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1 \
+               && curl -fsS -o /dev/null http://localhost:3000 2>/dev/null; then
+              echo "stack is up"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "stack did not become healthy in time"
+          docker compose -f docker-compose.yml -f compose.release-smoke.yml ps
+          docker compose -f docker-compose.yml -f compose.release-smoke.yml logs
+          exit 1
+      - name: Smoke test against the built images
+        run: bash scripts/e2e_smoke.sh http://localhost:3000
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f compose.release-smoke.yml ps
+          docker compose -f docker-compose.yml -f compose.release-smoke.yml logs
+      - name: Trivy scan backend image (advisory)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+      - name: Trivy scan frontend image (advisory)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+      - uses: docker/login-action@v4
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          docker push ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
+          docker push ghcr.io/vetd-dev/vetd-backend:latest
+          docker push ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
+          docker push ghcr.io/vetd-dev/vetd-frontend:latest

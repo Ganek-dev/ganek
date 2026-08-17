@@ -4,6 +4,12 @@ on:
   push: { branches: [main] }
   pull_request:
 
+# a re-push supersedes the running PR build (the stall quirk stacks
+# retriggered runs); main pushes always run to completion
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   questions:
     name: Validate question bank
@@ -75,11 +81,12 @@ jobs:
       - run: pnpm build
 
   dependency-audit:
-    name: Dependency audit (advisory)
+    name: Dependency audit
     runs-on: ubuntu-latest
-    # informational: a fresh transitive advisory with no fix should not block
-    # unrelated PRs. Review failures; escalate to blocking once the tree is clean.
-    continue-on-error: true
+    # BLOCKING since the tree went clean (SECURITY_REVIEW #4's escalation
+    # condition, met 2026-08-16 with PR #147). A fresh transitive advisory
+    # with no fix yet is handled by ignoring it EXPLICITLY (pip-audit
+    # --ignore-vuln / pnpm audit exceptions in a PR), not by looking away.
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -87,7 +94,7 @@ jobs:
         working-directory: backend
         run: |
           uv sync
-          uv run --with pip-audit pip-audit || true
+          uv run --with pip-audit pip-audit
       - uses: pnpm/action-setup@v4
         with: { version: 9 }
       - uses: actions/setup-node@v4
@@ -96,4 +103,4 @@ jobs:
         working-directory: frontend
         run: |
           pnpm install --frozen-lockfile
-          pnpm audit --audit-level high || true
+          pnpm audit --audit-level high
