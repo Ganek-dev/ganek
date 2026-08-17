@@ -1,8 +1,22 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { CareersFooter, CompanyHero, themeStyle } from "@/components/careers";
 import { JobList } from "@/components/careers-list";
 import { fetchInstanceMode, publicApi } from "@/lib/public-api";
+
+/** The flagship self-host careers page must carry the company's identity,
+ * not the generic Vetd title (M5.7 H5 item 16). */
+export async function generateMetadata(): Promise<Metadata> {
+  const mode = await fetchInstanceMode();
+  if (mode === "multi") return {};
+  const page = await publicApi.singleCompanyPage();
+  if (page === null) return {};
+  return {
+    title: `${page.company.name} — Careers`,
+    description: page.company.description || `Open positions at ${page.company.name}`,
+  };
+}
 
 export default async function Home() {
   const mode = await fetchInstanceMode();
