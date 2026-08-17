@@ -24,7 +24,9 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
       minio: { condition: service_started }
-    ports: ["8000:8000"]
+    # loopback-only by default: a host-published backend + XFF trust would let
+    # remote clients spoof their IP past the rate limits (SECURITY_REVIEW #1)
+    ports: ["127.0.0.1:8000:8000"]
 
   worker:
     logging: *default-logging
@@ -90,7 +92,9 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes: [miniodata:/data]
-    ports: ["9000:9000", "9001:9001"]
+    # loopback-only: candidates only ever need the presigned-upload host you
+    # configured — never the MinIO API/console themselves (.env.example §prod)
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
 
 volumes:
   pgdata:

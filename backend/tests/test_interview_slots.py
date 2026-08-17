@@ -51,10 +51,8 @@ def _fake_freebusy(windows: list[tuple[datetime, datetime]]) -> object:
     return freebusy
 
 
-async def _booked_interview(
-    db: AsyncSession, user: User, *, start: datetime, duration_minutes: int
-) -> Interview:
-    """A BOOKED interview occupying `start` — FKs need company/job/candidate/application rows."""
+async def _application_row(db: AsyncSession, user: User) -> Application:
+    """The FK chain an interview needs: job + candidate + application."""
     job = Job(company_id=user.company_id, slug=f"job-{uuid4().hex[:8]}", title="Backend Dev")
     candidate = Candidate(
         company_id=user.company_id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
@@ -71,6 +69,14 @@ async def _booked_interview(
     )
     db.add(application)
     await db.flush()
+    return application
+
+
+async def _booked_interview(
+    db: AsyncSession, user: User, *, start: datetime, duration_minutes: int
+) -> Interview:
+    """A BOOKED interview occupying `start`."""
+    application = await _application_row(db, user)
     interview = Interview(
         company_id=user.company_id,
         application_id=application.id,
@@ -79,6 +85,22 @@ async def _booked_interview(
         timezone="Europe/Berlin",
         status=InterviewStatus.BOOKED,
         scheduled_start=start,
+    )
+    db.add(interview)
+    await db.commit()
+    return interview
+
+
+async def _pending_interview(db: AsyncSession, user: User, *, duration_minutes: int) -> Interview:
+    """An offered-but-unbooked interview, ready for the candidate to pick."""
+    application = await _application_row(db, user)
+    interview = Interview(
+        company_id=user.company_id,
+        application_id=application.id,
+        interviewer_user_id=user.id,
+        duration_minutes=duration_minutes,
+        timezone="Europe/Berlin",
+        status=InterviewStatus.PENDING,
     )
     db.add(interview)
     await db.commit()
@@ -205,3 +227,47 @@ async def test_unknown_timezone_raises(db_session: AsyncSession) -> None:
         await interviews_service.generate_slots(
             db_session, user, duration_minutes=30, timezone="Mars/Olympus_Mons"
         )
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_failed_booking_commit_compensates_the_created_event(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the DB commit dies after the Meet event was created, the event is
+    best-effort deleted — otherwise the candidate holds a calendar invite
+    for a booking Vetd never recorded (and the slot stays double-bookable)."""
+    user = await _interviewer(db_session)
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
+    baseline = await interviews_service.generate_slots(
+        db_session, user, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    target = baseline[0]
+    pending = await _pending_interview(db_session, user, duration_minutes=30)
+    pending_id = pending.id  # capture now: book()'s rollback expires the object
+    interview = await interviews_service.get_by_id_public(db_session, pending_id)
+    assert interview is not None
+
+    deleted: list[str] = []
+
+    async def fake_create(db: AsyncSession, u: User, **kwargs: object) -> tuple[str, str]:
+        return "evt-doomed", "https://meet.google.com/xyz"
+
+    async def fake_delete(db: AsyncSession, u: User, event_id: str) -> None:
+        deleted.append(event_id)
+
+    monkeypatch.setattr(interviews_service.google_calendar, "create_meet_event", fake_create)
+    monkeypatch.setattr(interviews_service.google_calendar, "delete_event", fake_delete)
+
+    async def failing_commit() -> None:
+        raise RuntimeError("connection lost mid-commit")
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RuntimeError, match="connection lost"):
+        await interviews_service.book(db_session, interview, start=target)
+    monkeypatch.undo()  # restore commit (and the fakes) before reusing the session
+
+    assert deleted == ["evt-doomed"]
+    fresh = await interviews_service.get_by_id_public(db_session, pending_id)
+    assert fresh is not None
+    assert fresh.status is InterviewStatus.PENDING  # the booking never landed
+    assert fresh.google_event_id is None

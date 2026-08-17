@@ -349,7 +349,21 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
         payload={"start": start.isoformat()},
     )
     interview.reminder_job_id = await _queue_reminder(interview, start)
-    await db.commit()
+    interviewer_id = interview.interviewer_user_id
+    try:
+        await db.commit()
+    except Exception:
+        # the Meet event exists (Google already emailed the invite) but the
+        # booking never landed — best-effort delete so the candidate isn't
+        # left holding a phantom invite; sendUpdates=all emails the removal
+        await db.rollback()
+        try:
+            interviewer = await db.get(User, interviewer_id)
+            if interviewer is not None:
+                await google_calendar.delete_event(db, interviewer, event_id)
+        except Exception:
+            logger.warning("orphaned google event %s after failed booking commit", event_id)
+        raise
     return interview
 
 

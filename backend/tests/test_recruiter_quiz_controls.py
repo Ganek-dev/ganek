@@ -185,6 +185,18 @@ async def test_bank_browse_filters_and_tenancy(client: AsyncClient) -> None:
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "multi_mode")
+async def test_bank_search_treats_wildcards_literally(client: AsyncClient) -> None:
+    """`%`/`_` are ilike wildcards — unescaped, `q=%%%%%%%` matched the whole
+    bank. Searches must only ever match the literal characters typed."""
+    await _register(client)
+    assert (await client.get("/api/v1/questions/bank")).json()["total"] > 0
+    for probe in ("%%%%%%%", "___________________"):
+        hits = (await client.get("/api/v1/questions/bank", params={"q": probe})).json()
+        assert hits["total"] == 0, probe
+        assert hits["items"] == []
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "multi_mode")
 async def test_bank_block_roundtrip_and_member_forbidden(client: AsyncClient) -> None:
     await _register(client)
     first = (await client.get("/api/v1/questions/bank?limit=1")).json()["items"][0]

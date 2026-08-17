@@ -80,7 +80,9 @@
           "display:block;padding:12px 18px;text-decoration:none;color:inherit" +
             (index > 0 ? ";border-top:1px solid " + palette.line : ""),
         );
-        row.href = job.apply_url;
+        // trust but verify our own feed: never let a non-http(s) value
+        // (e.g. javascript:) become a clickable link on the host page
+        if (/^https?:\/\//i.test(job.apply_url)) row.href = job.apply_url;
         row.target = "_blank";
         row.rel = "noreferrer";
         var title = el("div", "font-size:14px;font-weight:600;color:" + brand, job.title);
