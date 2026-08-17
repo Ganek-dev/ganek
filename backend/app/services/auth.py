@@ -105,6 +105,30 @@ async def change_password(
     return True
 
 
+async def password_reset_target(db: AsyncSession, *, email: str) -> tuple[User, Company] | None:
+    """Resolve who a reset email may go to; None (quietly) for everyone else.
+
+    Google-only accounts are eligible on purpose: the reset link proves
+    control of the same inbox Google vouched for, so completing it simply
+    ADDS password sign-in (password_hash is nullable since 0013).
+    """
+    user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if user is None or not user.is_active:
+        return None
+    company = (await db.execute(select(Company).where(Company.id == user.company_id))).scalar_one()
+    return user, company
+
+
+async def set_password(db: AsyncSession, user: User, *, new_password: str) -> None:
+    """Reset-flow companion to change_password: no current-password check —
+    the signed reset token was the proof. Bumps token_version, which both
+    kills existing sessions and single-uses every outstanding reset link
+    (they carry the version they were issued against)."""
+    user.password_hash = hash_password(new_password)
+    user.token_version += 1
+    await db.commit()
+
+
 async def register_company_google(
     db: AsyncSession, *, company_name: str, email: str, google_sub: str
 ) -> User:

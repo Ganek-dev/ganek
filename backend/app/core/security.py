@@ -21,6 +21,28 @@ _invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-team
 INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 
+_password_reset_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-password-reset")
+# short-lived: possession of the inbox is the whole proof here
+PASSWORD_RESET_MAX_AGE_SECONDS = 60 * 45
+
+
+def create_password_reset_token(user_id: uuid.UUID, token_version: int) -> str:
+    """Carries the CURRENT token_version so a completed reset (or any other
+    password change) retires every outstanding reset link at once."""
+    return _password_reset_serializer.dumps({"uid": str(user_id), "v": token_version})
+
+
+def read_password_reset_token(token: str) -> tuple[uuid.UUID, int] | None:
+    """Return (user_id, token_version-at-issue) or None if unusable."""
+    try:
+        raw = _password_reset_serializer.loads(token, max_age=PASSWORD_RESET_MAX_AGE_SECONDS)
+        if not isinstance(raw, dict):
+            return None
+        return uuid.UUID(str(raw["uid"])), int(raw["v"])
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+        return None
+
+
 _google_flow_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-oauth")
 # state/PKCE verifier/nonce only need to survive the redirect to Google and back
 GOOGLE_FLOW_MAX_AGE_SECONDS = 60 * 10

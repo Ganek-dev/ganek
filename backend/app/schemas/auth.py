@@ -21,6 +21,15 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=10, max_length=128)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+    new_password: str = Field(min_length=10, max_length=128)
+
+
 class GoogleSignupRequest(BaseModel):
     # the signed sub+email token arrives via the httponly signup cookie,
     # never the request body (GDPR G4)
