@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
 import { questionnaires, questions } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
 import type {
   Difficulty,
   EmploymentType,
@@ -448,23 +449,11 @@ export function JobForm({
         <div className="card px-5 py-[18px]">
           <div className="flex items-center justify-between">
             <span className="font-heading text-[15px] font-semibold">Skills assessment</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={quizEnabled}
+            <Switch
+              checked={quizEnabled}
               aria-label="Skills assessment"
-              onClick={() => setQuizEnabled((on) => !on)}
-              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                quizEnabled ? "bg-accent" : "bg-muted-fill border border-edge"
-              }`}
-            >
-              <span
-                aria-hidden
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface shadow-sm transition-all ${
-                  quizEnabled ? "right-0.5" : "left-0.5"
-                }`}
-              />
-            </button>
+              onCheckedChange={setQuizEnabled}
+            />
           </div>
           <p className="mt-1 text-[12.5px] text-g500">
             Sent to candidates right after they apply.

@@ -7,22 +7,12 @@ import { useCallback, useEffect, useState } from "react";
 import { ClipboardList, Plus } from "lucide-react";
 
 import { questionnaires, type QuestionnaireOut } from "@/lib/api";
+import { relativeTime } from "@/lib/time";
 
 /** Questionnaire index — the D4 companion to the question library. Rows link
  * into the builder (screen 16). Row-level actions are intentionally minimal
  * here; edit lives in the builder itself. */
 
-function relativeShort(iso: string, now: Date = new Date()): string {
-  const diff = now.getTime() - new Date(iso).getTime();
-  const minutes = Math.round(diff / 60_000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  const weeks = Math.round(days / 7);
-  return `${weeks}w ago`;
-}
 
 export default function QuestionnairesIndexPage() {
   const router = useRouter();
@@ -147,7 +137,7 @@ export default function QuestionnairesIndexPage() {
                     {item.shuffle ? "yes" : "no"}
                   </td>
                   <td className="px-3 py-3 align-middle font-mono text-xs text-g500">
-                    {relativeShort(item.updated_at, now)}
+                    {relativeTime(item.updated_at, now)}
                   </td>
                 </tr>
               ))}

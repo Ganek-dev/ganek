@@ -10,7 +10,6 @@ import {
   ChevronDown,
   Clock,
   FileText,
-  MoreHorizontal,
   X,
 } from "lucide-react";
 
@@ -29,6 +28,7 @@ import { InterviewCard } from "@/components/InterviewCard";
 import { EmailTrailCard } from "@/components/EmailTrailCard";
 import { NotesCard } from "@/components/NotesCard";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
 /** Applicant review, handoff screen 11: split view — a 360px list of
  * candidates (score chips, flag dots, stage chip) beside a detail panel
@@ -522,37 +522,17 @@ function DetailPanel({
 }) {
   const [notify, setNotify] = useState(false);
   const [reminded, setReminded] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingErase, setConfirmingErase] = useState(false);
   const [eraseBusy, setEraseBusy] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailDraft, setEmailDraft] = useState(app.candidate.email);
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const nextStage = useMemo(() => {
     const currentIndex = STAGE_ORDER.indexOf(app.stage);
     if (currentIndex < 0 || currentIndex >= STAGE_ORDER.length - 1) return null;
     return STAGE_ORDER[currentIndex + 1];
   }, [app.stage]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onDocClick(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    function onEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEscape);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEscape);
-    };
-  }, [menuOpen]);
 
   async function confirmErase() {
     setEraseBusy(true);
@@ -639,60 +619,27 @@ function DetailPanel({
                 className="pointer-events-none absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-g500"
               />
             </div>
-            <div ref={menuRef} className="relative inline-block">
-              <button
-                type="button"
-                aria-label="More actions"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((open) => !open)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-edge bg-surface text-g500 hover:bg-muted-fill"
-              >
-                <MoreHorizontal aria-hidden className="h-4 w-4" />
-              </button>
-              {menuOpen ? (
-                <div
-                  role="menu"
-                  className="absolute top-full right-0 z-10 mt-1 w-52 rounded-md border border-edge bg-surface py-1 text-left shadow-lg"
+            <Menu>
+              <MenuDotsTrigger
+                label="More actions"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-edge bg-surface text-g500 hover:bg-muted-fill data-[state=open]:bg-muted-fill"
+              />
+              <MenuContent className="w-52">
+                <MenuItem onSelect={onExport}>Export data (JSON)</MenuItem>
+                <MenuItem
+                  onSelect={() => {
+                    setEmailDraft(app.candidate.email);
+                    setEmailError(null);
+                    setEmailOpen(true);
+                  }}
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onExport();
-                    }}
-                    className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
-                  >
-                    Export data (JSON)
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setEmailDraft(app.candidate.email);
-                      setEmailError(null);
-                      setEmailOpen(true);
-                    }}
-                    className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
-                  >
-                    Edit candidate email…
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setConfirmingErase(true);
-                    }}
-                    className="block w-full px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-muted-fill dark:text-red-400"
-                  >
-                    Erase candidate…
-                  </button>
-                </div>
-              ) : null}
-            </div>
+                  Edit candidate email…
+                </MenuItem>
+                <MenuItem onSelect={() => setConfirmingErase(true)} className="text-danger">
+                  Erase candidate…
+                </MenuItem>
+              </MenuContent>
+            </Menu>
           </div>
           <div className="flex items-center gap-3">
             {app.quiz_attempt?.status === "pending" ? (

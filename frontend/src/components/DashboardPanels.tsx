@@ -12,6 +12,7 @@ import {
   type TaskItem,
   type TodayPanelData,
 } from "@/lib/api";
+import { relativeTime } from "@/lib/time";
 
 /** Dashboard 06 right-rail trio: Today (calendar), Your queue (derived +
  * manual tasks), Activity feed. Each panel fetches its own data. */
@@ -23,13 +24,6 @@ function timeOf(iso: string | null): string {
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function relative(iso: string): string {
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 90) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
-  return `${Math.round(seconds / 86400)}d ago`;
-}
 
 const panelCls = "card flex min-h-[180px] flex-col p-4";
 const headCls =
@@ -260,7 +254,7 @@ export function ActivityPanel() {
             <li key={item.id} className="flex items-baseline justify-between gap-2">
               <p className="min-w-0 truncate text-[12.5px]">{activityCopy(item)}</p>
               <span className="shrink-0 font-mono text-[10.5px] text-g400">
-                {relative(item.created_at)}
+                {relativeTime(item.created_at)}
               </span>
             </li>
           ))}

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { Check, Copy } from "lucide-react";
+import { Check } from "lucide-react";
 
+import { CopyButton } from "@/components/CopyButton";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, type CompanyAdmin } from "@/lib/api";
 import { careersDisplay, careersUrl } from "@/lib/careers";
@@ -38,7 +39,6 @@ export default function BrandingPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     companyApi
@@ -105,17 +105,6 @@ export default function BrandingPage() {
       setError(err instanceof Error ? err.message : "Failed to remove logo");
     } finally {
       setLogoBusy(false);
-    }
-  }
-
-  async function copyDomain() {
-    if (company === null) return;
-    try {
-      await navigator.clipboard.writeText(careersUrl(company.mode, company.slug));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setError("Couldn't copy to clipboard");
     }
   }
 
@@ -278,18 +267,12 @@ export default function BrandingPage() {
                 {careersDisplay(company.mode, company.slug)}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={copyDomain}
+            <CopyButton
+              text={careersUrl(company.mode, company.slug)}
+              label="Copy careers URL"
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill"
-            >
-              {copied ? (
-                <Check aria-hidden className="h-3.5 w-3.5 text-emerald-600" />
-              ) : (
-                <Copy aria-hidden className="h-3.5 w-3.5" />
-              )}
-              {copied ? "Copied" : "Copy"}
-            </button>
+              onError={() => setError("Couldn't copy to clipboard")}
+            />
           </div>
 
           <button

@@ -5,19 +5,12 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { api, notes, type Note, type UserOut } from "@/lib/api";
+import { relativeTime } from "@/lib/time";
 
 /** Internal recruiter notes on an applicant (screen 11 detail panel, below
  * the Integrity card). Self-contained: fetches its own note list + the
  * current user (for delete visibility) once per applicant. Notes are
  * always company-authored — every row gets the same "internal" blue tint. */
-
-function relativeTime(iso: string): string {
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 90) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
-  return `${Math.round(seconds / 86400)}d ago`;
-}
 
 function authorLabel(email: string | null): string {
   return email ? email.split("@")[0] : "former teammate";

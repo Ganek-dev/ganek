@@ -12,7 +12,7 @@ import { brandStyle } from "@/lib/brand";
  * vertical timeline (received → assessment → under review → decision) and a
  * two-step withdraw. Candidate-facing: never shows a score. */
 
-const RED = "oklch(0.45 0.120 25)";
+const RED = "var(--danger)";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });

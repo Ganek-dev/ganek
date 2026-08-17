@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical, Search, Trash2, X } from "lucide-react";
 
 import { DifficultyDots } from "@/components/DifficultyDots";
+import { Switch } from "@/components/ui/switch";
 import {
   questionnaires,
   questions,
@@ -443,23 +444,12 @@ export default function QuestionnaireBuilderPage() {
             </div>
             <label className="flex shrink-0 items-center gap-2 text-[12.5px] text-g700">
               <span>Shuffle</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={shuffle}
+              <Switch
+                size="sm"
+                checked={shuffle}
                 aria-label="Shuffle question order"
-                onClick={() => setShuffle((on) => !on)}
-                className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
-                  shuffle ? "bg-accent" : "border border-edge bg-muted-fill"
-                }`}
-              >
-                <span
-                  aria-hidden
-                  className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-surface shadow-sm transition-all ${
-                    shuffle ? "right-0.5" : "left-0.5"
-                  }`}
-                />
-              </button>
+                onCheckedChange={setShuffle}
+              />
             </label>
           </div>
 

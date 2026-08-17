@@ -13,9 +13,9 @@ import { stats, type StatsOverview } from "@/lib/api";
  * distribution with a pass-line that is VISUALIZATION ONLY, positions and
  * recent applicants. Today panel / tasks / activity land with D7. */
 
-const GREEN = "oklch(0.37 0.084 168)";
-const GREEN_BG = "oklch(0.95 0.052 163)";
-const AMBER = "oklch(0.55 0.16 55)";
+const GREEN = "var(--ok)";
+const GREEN_BG = "var(--ok-soft)";
+const AMBER = "var(--warn)";
 const PASS_LINE = 0.6; // where the dashed "pass" marker is drawn — never a filter
 
 function greeting(now: Date): string {
@@ -203,7 +203,7 @@ export default function AdminDashboard() {
 
   if (error) {
     return (
-      <p role="alert" className="text-sm" style={{ color: "oklch(0.45 0.120 25)" }}>
+      <p role="alert" className="text-sm" style={{ color: "var(--danger)" }}>
         {error}
       </p>
     );

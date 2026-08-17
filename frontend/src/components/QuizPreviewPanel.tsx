@@ -52,11 +52,11 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
     );
   }
   if (!preview) {
-    return <p className="text-sm text-zinc-500">Loading quiz preview…</p>;
+    return <div aria-busy="true" className="h-24 animate-pulse rounded-lg bg-muted-fill" />;
   }
   if (!preview.enabled) {
     return (
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-g500">
         Quiz is disabled for this job — enable it above to preview questions.
       </p>
     );
@@ -67,11 +67,11 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
   const shown = showPool ? preview.pool : sampleQuestions;
 
   return (
-    <section className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+    <section className="space-y-3 card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Quiz preview</h2>
-          <p className="text-xs text-zinc-500">
+          <h2 className="font-heading text-sm font-semibold">Quiz preview</h2>
+          <p className="text-xs text-g500">
             {preview.eligible_count} eligible question{preview.eligible_count === 1 ? "" : "s"}
             {" · "}
             {Object.entries(preview.eligible_by_tag)
@@ -87,14 +87,14 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
           <button
             type="button"
             onClick={() => setShowPool((v) => !v)}
-            className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className="rounded-md border border-edge px-2 py-1 text-sm text-g700 hover:bg-muted-fill"
           >
             {showPool ? `Show sample (${sampleQuestions.length})` : `Show pool (${preview.pool.length})`}
           </button>
           <button
             type="button"
             onClick={reload}
-            className="rounded-md border border-zinc-300 px-2 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className="rounded-md border border-edge px-2 py-1 text-sm text-g700 hover:bg-muted-fill"
           >
             Redraw sample
           </button>
@@ -102,7 +102,7 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
       </div>
 
       {preview.eligible_count === 0 ? (
-        <p className="text-sm text-amber-700 dark:text-amber-400">
+        <p className="text-sm text-warn">
           No eligible questions — loosen the difficulty filter, add tags, or un-exclude questions.
         </p>
       ) : null}
@@ -113,26 +113,26 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
           return (
             <li
               key={question.id}
-              className={`rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800 ${
+              className={`rounded-lg border border-edge p-3 text-sm ${
                 inactive ? "opacity-50" : ""
               }`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="font-medium text-zinc-900 dark:text-zinc-50">{question.prompt_md}</p>
+                <p className="font-medium text-strong">{question.prompt_md}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   {sample.has(question.id) && showPool ? (
-                    <span className={`${badgeCls} bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900`}>
+                    <span className={`${badgeCls} bg-inverse text-inverse-foreground`}>
                       in sample
                     </span>
                   ) : null}
                   <DifficultyDots level={question.difficulty} />
                   {question.source === "company" ? (
-                    <span className={`${badgeCls} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200`}>
+                    <span className={`${badgeCls} bg-accent/10 text-accent`}>
                       yours
                     </span>
                   ) : null}
                   {question.blocked ? (
-                    <span className={`${badgeCls} bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200`}>
+                    <span className={`${badgeCls} bg-warn-soft text-warn`}>
                       blocked company-wide
                     </span>
                   ) : (
@@ -140,7 +140,7 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
                       type="button"
                       disabled={busyId === question.id}
                       onClick={() => toggleExclude(question.id, question.excluded)}
-                      className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                      className="rounded-md border border-edge px-2 py-0.5 text-xs text-g700 hover:bg-muted-fill disabled:opacity-50"
                     >
                       {question.excluded ? "Include" : "Exclude"}
                     </button>
@@ -153,15 +153,15 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
                     key={key}
                     className={
                       key === question.correct_key
-                        ? "text-green-700 dark:text-green-400"
-                        : "text-zinc-600 dark:text-zinc-400"
+                        ? "text-ok"
+                        : "text-g600"
                     }
                   >
                     {`${key === question.correct_key ? "✓" : "·"} ${key}) ${text}`}
                   </li>
                 ))}
               </ul>
-              <p className="mt-1 text-xs text-zinc-400">{question.tags.join(" · ")}</p>
+              <p className="mt-1 text-xs text-g400">{question.tags.join(" · ")}</p>
             </li>
           );
         })}

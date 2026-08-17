@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { ArrowUpRight, Check, Copy } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
+import { CopyButton } from "@/components/CopyButton";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
 
@@ -13,33 +14,6 @@ import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
  * for the company's own marketing site. */
 
 type WidgetTheme = "auto" | "light" | "dark";
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        } catch {
-          // clipboard unavailable — the text is selectable right there
-        }
-      }}
-      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-edge bg-surface px-2 text-[12px] font-medium text-g700 hover:bg-muted-fill"
-    >
-      {copied ? (
-        <Check aria-hidden className="h-3 w-3 text-emerald-600" />
-      ) : (
-        <Copy aria-hidden className="h-3 w-3" />
-      )}
-      {copied ? "Copied" : "Copy"}
-    </button>
-  );
-}
 
 function sampleJson(slug: string, origin: string): string {
   return JSON.stringify(
@@ -214,10 +188,14 @@ export default function DevelopersPage() {
                 {feed === null ? "…" : `${feed.jobs.length} role${feed.jobs.length === 1 ? "" : "s"}`}
               </span>
             </div>
-            {feed === null || feed.jobs.length === 0 ? (
-              <p className="px-4 py-4 text-[13px] text-g500">
-                {feed === null ? "Loading your roles…" : "No open positions right now."}
-              </p>
+            {feed === null ? (
+              <div aria-busy="true" className="space-y-2 px-4 py-4">
+                {Array.from({ length: 2 }, (_, i) => (
+                  <div key={i} className="h-8 animate-pulse rounded-md bg-muted-fill" />
+                ))}
+              </div>
+            ) : feed.jobs.length === 0 ? (
+              <p className="px-4 py-4 text-[13px] text-g500">No open positions right now.</p>
             ) : (
               feed.jobs.map((job) => (
                 <div key={job.slug} className="border-t border-divider px-4 py-3 first:border-t-0">

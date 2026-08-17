@@ -32,6 +32,15 @@
   --accent: #7e14ff;
   --accent-soft: oklch(from #7e14ff calc(l + 0.25) c h);
 
+  /* semantic status hues (chips, alerts, quiz states) — single source for
+     what was scattered per-file oklch literals before M5.7 H5 */
+  --ok: oklch(0.37 0.084 168);
+  --ok-soft: oklch(0.95 0.052 163);
+  --warn: oklch(0.55 0.16 55);
+  --warn-soft: oklch(0.96 0.04 55);
+  --danger: oklch(0.45 0.12 25);
+  --danger-soft: oklch(0.96 0.03 25);
+
   /* per-company brand (candidate surfaces) — set at runtime via brandStyle() */
   --brand-primary: #18181b;
   --brand-primary-foreground: #ffffff;
@@ -56,6 +65,13 @@
     --card-ring: 0 0 0 1px rgba(255, 255, 255, 0.1);
     --primary-btn: #ededf0;
     --primary-btn-foreground: #18181b;
+
+    --ok: oklch(0.78 0.1 168);
+    --ok-soft: oklch(0.3 0.05 168);
+    --warn: oklch(0.8 0.12 70);
+    --warn-soft: oklch(0.31 0.05 60);
+    --danger: oklch(0.72 0.13 25);
+    --danger-soft: oklch(0.3 0.06 25);
   }
 }
 
@@ -82,6 +98,12 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-brand: var(--brand-primary);
   --color-brand-foreground: var(--brand-primary-foreground);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
 
   /* typography (fonts imported in app/layout.tsx) */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
