@@ -235,3 +235,63 @@ async def test_cancel_without_active_interview_404s(client: AsyncClient) -> None
     application_id, _, _ = await _company_with_applicant(client)
     resp = await client.post(f"/api/v1/applications/{application_id}/interview/cancel")
     assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+async def test_interview_endpoints_are_tenant_scoped(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The interviews admin API was the only tenant-owned family without a
+    cross-tenant test. A foreign company gets 404 on every endpoint — never
+    a 409 or data — and a foreign interviewer is invisible even on your own
+    application."""
+    from app.services import email as email_service
+
+    application_id, admin_id, admin_email = await _company_with_applicant(client)
+    await _connect_calendar(db_session, admin_id, admin_email)
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
+    created = await client.post(
+        f"/api/v1/applications/{application_id}/interview",
+        json={
+            "interviewer_user_id": admin_id,
+            "duration_minutes": 45,
+            "timezone": "Europe/Berlin",
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    # a second company; _company_with_applicant leaves us logged in as ITS admin
+    other_app_id, other_admin_id, _ = await _company_with_applicant(client)
+
+    slot_payload = {
+        "interviewer_user_id": other_admin_id,
+        "duration_minutes": 30,
+        "timezone": "Europe/Berlin",
+    }
+    preview = await client.post(
+        f"/api/v1/applications/{application_id}/interview/slot-preview", json=slot_payload
+    )
+    assert preview.status_code == 404
+    create = await client.post(
+        f"/api/v1/applications/{application_id}/interview", json=slot_payload
+    )
+    assert create.status_code == 404
+    assert (await client.get(f"/api/v1/applications/{application_id}/interview")).status_code == 404
+    assert (
+        await client.post(f"/api/v1/applications/{application_id}/interview/cancel")
+    ).status_code == 404
+
+    # the FIRST company's interviewer must not resolve on the second's application
+    foreign_interviewer = {
+        "interviewer_user_id": admin_id,
+        "duration_minutes": 30,
+        "timezone": "Europe/Berlin",
+    }
+    resp = await client.post(
+        f"/api/v1/applications/{other_app_id}/interview/slot-preview", json=foreign_interviewer
+    )
+    assert resp.status_code == 404
+    resp = await client.post(
+        f"/api/v1/applications/{other_app_id}/interview", json=foreign_interviewer
+    )
+    assert resp.status_code == 404
