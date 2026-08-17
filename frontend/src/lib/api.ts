@@ -354,6 +354,16 @@ export interface ApplicationOut {
   created_at: string;
 }
 
+export interface EmailDelivery {
+  id: string;
+  kind: string;
+  status: "queued" | "sent" | "failed";
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
+}
+
 export const applications = {
   list: (filters?: { job_id?: string; stage?: ApplicationStage }) => {
     const params = new URLSearchParams();
@@ -373,6 +383,8 @@ export const applications = {
     request<{ sent: boolean }>(`/api/v1/applications/${id}/remind`, { method: "POST" }),
   quizAnswers: (id: string) =>
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
+  /** Delivery trail (M5.7 H4): whether this application's emails went out. */
+  emails: (id: string) => request<EmailDelivery[]>(`/api/v1/applications/${id}/emails`),
   get: (id: string) => request<ApplicationOut>(`/api/v1/applications/${id}`),
   reissueQuiz: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/reissue`, { method: "POST" }),
@@ -857,6 +869,7 @@ export interface CompanyAdmin {
   name: string;
   description: string;
   mode: "single" | "multi";
+  smtp_configured: boolean;
   logo_url: string | null;
   website: string | null;
   socials: Record<string, unknown>;
@@ -903,6 +916,9 @@ export const companyApi = {
     return request<CompanyAdmin>("/api/v1/company/logo", { method: "POST", body: form });
   },
   removeLogo: () => request<CompanyAdmin>("/api/v1/company/logo", { method: "DELETE" }),
+  /** Sends a real email to the calling admin, surfacing transport errors. */
+  testEmail: () =>
+    request<{ sent: boolean }>("/api/v1/company/test-email", { method: "POST" }),
 };
 
 export interface TeamInvite {

@@ -24,6 +24,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       setStage: vi.fn(),
       cvUrl: vi.fn(),
       quizAnswers: vi.fn(),
+      emails: vi.fn(),
       remind: vi.fn(),
       bulkReject: vi.fn(),
       eraseCandidate: vi.fn(),
@@ -176,6 +177,7 @@ describe("ApplicantsPage", () => {
       has_password: true,
     });
     mockedNotes.list.mockResolvedValue([]);
+    mockedApps.emails.mockResolvedValue([]);
     mockedNotes.add.mockResolvedValue({
       id: "note-1",
       body: "",

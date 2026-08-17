@@ -30,6 +30,7 @@ function makeCompany(overrides: Partial<CompanyAdmin> = {}): CompanyAdmin {
   return {
     slug: "northwind",
     mode: "multi" as const,
+    smtp_configured: true,
     name: "Northwind Robotics",
     description: "",
     logo_url: null,

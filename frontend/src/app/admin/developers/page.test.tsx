@@ -45,6 +45,7 @@ describe("DevelopersPage", () => {
     mockedCompany.get.mockResolvedValue({
       slug: "acmelabs",
     mode: "single" as const,
+    smtp_configured: true,
       name: "Acme Labs",
       description: "",
       logo_url: null,
