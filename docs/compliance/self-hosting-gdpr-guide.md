@@ -152,7 +152,12 @@ staff's accounts. **Team → ⋯ → Remove & anonymize…** tombstones the user
 email replaced with a random placeholder, password and Google sign-in
 severed, saved interview availability wiped, calendar connection revoked
 and deleted, account deactivated and sessions cut. It refuses while the
-user still has upcoming interviews (reassign first) or is the last admin.
+user still has upcoming interviews (cancel those first — there is no
+reassign) or is the last admin. One honest limit: activity-log entries
+written while they worked keep the staff email snapshotted in their
+payloads at the time (e.g. an interview entry records which interviewer
+email it was scheduled with), so the hiring trail stays legible — factor
+that into what you promise departing staff.
 
 **Breach.** Read the [breach runbook](breach-runbook.md) once now, not
 during the incident.
@@ -172,8 +177,11 @@ during the incident.
   so.
 - Abandoned CV uploads (file picked, form never submitted) are swept after
   24 hours; expired team invites are swept nightly.
-- **Status links expire after 30 days**; quiz links after their own
-  deadline. Expired links can be re-issued, which invalidates the old one.
+- **Status links expire after 30 days**, interview booking links after
+  60 days; quiz links expire at their own deadline and are the only kind
+  that can be re-issued (from the applicant view — a re-issue invalidates
+  the old link). Expired status and booking links simply stop working;
+  there is no re-issue for them.
 - Access logs in the bundled compose are token-scrubbed (capability tokens
   become `[token]`) and size-capped (json-file rotation), and application
   logs reference internal IDs, not candidate emails.

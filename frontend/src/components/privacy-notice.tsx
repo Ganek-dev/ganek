@@ -154,6 +154,11 @@ export function PrivacyNotice({
             decision. If you&apos;re hired, your application becomes part of your employment
             records instead.
           </p>
+          <p className={pCls}>
+            The private links you receive expire on their own: status links after 30 days,
+            interview booking links after 60 days, and assessment links at the deadline
+            stated in the invitation.
+          </p>
         </section>
 
         <section className="mt-7">
