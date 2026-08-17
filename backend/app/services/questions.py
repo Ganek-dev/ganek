@@ -25,7 +25,9 @@ async def list_bank_questions(
     if difficulty:
         conditions.append(Question.difficulty == difficulty)
     if search:
-        conditions.append(Question.prompt_md.ilike(f"%{search}%"))
+        # `%`/`_` are ilike wildcards — searches must match them literally
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append(Question.prompt_md.ilike(f"%{escaped}%", escape="\\"))
     total = (
         await db.execute(select(func.count()).select_from(Question).where(*conditions))
     ).scalar_one()
