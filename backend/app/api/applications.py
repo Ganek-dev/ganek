@@ -490,9 +490,15 @@ async def cancel_interview(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No active interview to cancel"
         )
-    await interviews_service.cancel_interview(
-        db, interview, interviewer=interview.interviewer, actor_user_id=user.id
-    )
+    try:
+        await interviews_service.cancel_interview(
+            db, interview, interviewer=interview.interviewer, actor_user_id=user.id
+        )
+    except interviews_service.LockBusyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Scheduling is busy — try again in a moment",
+        ) from None
     await outbox_service.queue_email(
         db,
         kind="interview_cancelled",

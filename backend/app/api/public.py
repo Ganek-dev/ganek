@@ -821,6 +821,8 @@ async def interview_book(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="already-booked") from None
     except interviews_service.SlotUnavailableError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
+    except interviews_service.LockBusyError:
+        raise _scheduling_unavailable() from None
     except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
     return await _interview_public(db, interview, await _interview_company(db, interview))
@@ -841,6 +843,8 @@ async def interview_reschedule(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="not-booked") from None
     except interviews_service.SlotUnavailableError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
+    except interviews_service.LockBusyError:
+        raise _scheduling_unavailable() from None
     except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
     return await _interview_public(db, interview, await _interview_company(db, interview))
@@ -855,6 +859,8 @@ async def interview_cancel(token: str, db: DbSession) -> InterviewPublicOut:
     interview = await _interview_by_token_or_404(db, token)
     try:
         interview = await interviews_service.candidate_cancel(db, interview)
+    except interviews_service.LockBusyError:
+        raise _scheduling_unavailable() from None
     except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
     return await _interview_public(db, interview, await _interview_company(db, interview))

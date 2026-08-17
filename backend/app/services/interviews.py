@@ -13,6 +13,7 @@ from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -82,6 +83,13 @@ class AlreadyBookedError(Exception):
 
 class NotBookedError(Exception):
     """Reschedule attempted before any slot was booked."""
+
+
+LOCK_TIMEOUT_MS = 8000  # tests shrink this to force the timeout path
+
+
+class LockBusyError(Exception):
+    """The per-interviewer booking lock stayed contended past the timeout."""
 
 
 class SlotUnavailableError(Exception):
@@ -275,9 +283,18 @@ async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Intervi
 
 
 async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
-    """Serialize bookings per interviewer for the rest of the transaction."""
+    """Serialize bookings per interviewer for the rest of the transaction.
+
+    The lock is held across the Google HTTP call (scheduling-v2 parked
+    item), so a hung request could park every waiter indefinitely —
+    lock_timeout turns that into a fast, retryable failure instead.
+    """
     key = int.from_bytes(hashlib.sha256(interviewer_id.bytes).digest()[:8], "big", signed=True)
-    await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+    await db.execute(text(f"SET LOCAL lock_timeout = '{int(LOCK_TIMEOUT_MS)}ms'"))
+    try:
+        await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+    except DBAPIError as exc:
+        raise LockBusyError from exc
 
 
 async def _require_available(db: AsyncSession, interview: Interview, start: datetime) -> None:
