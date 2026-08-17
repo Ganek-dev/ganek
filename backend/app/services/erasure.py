@@ -12,7 +12,8 @@ Ordering is deliberate, per application:
 
 ``erase_application`` is the per-application primitive (no commit — the
 caller owns the transaction); ``erase_candidate`` wraps it for the whole
-person and writes the anonymized ``candidate.erased`` receipt with
+person, scrubs the system-created privacy-request tasks naming them, and
+writes the anonymized ``candidate.erased`` receipt with
 ``application_id=None`` (the linked rows just cascaded away) and a
 count-only payload.
 """
@@ -20,14 +21,21 @@ count-only payload.
 import logging
 import uuid
 from dataclasses import dataclass
+from typing import Any, cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Application, Candidate, Company, Interview
+from app.models import Application, Candidate, Company, Interview, Task
 from app.services import activity, google_calendar, storage
 
 logger = logging.getLogger(__name__)
+
+# Title shape of the tasks the public request-data/request-deletion endpoints
+# create (see api/public.py _record_privacy_request). The scrub below and the
+# nightly done-task sweep both match on it; test_erasure pins the coupling by
+# creating the task through the real endpoint.
+PRIVACY_TASK_TITLE_LIKE = "Privacy: %request — %"
 
 
 @dataclass
@@ -36,6 +44,38 @@ class EraseSummary:
     cv_objects: int
     google_events: int
     google_event_failures: int
+    tasks: int
+
+
+def _like_literal(text: str) -> str:
+    """Escape LIKE wildcards so an email like a_b@x.dev matches literally."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def scrub_privacy_request_tasks(
+    db: AsyncSession, company_id: uuid.UUID, candidate_email: str
+) -> int:
+    """Delete the system-created privacy-request tasks naming a candidate.
+
+    Those tasks carry the candidate's name+email on purpose (the task IS the
+    request) — but they must not outlive the person they name. Matching is
+    deliberately narrow: system-created only (created_by NULL), the request
+    title shape, and the "(email)" the note carries. A task a human typed
+    that merely mentions the candidate is the recruiter's own record and
+    stays (the self-hosting guide tells them to check those by hand).
+    """
+    result = cast(
+        "CursorResult[Any]",
+        await db.execute(
+            delete(Task).where(
+                Task.company_id == company_id,
+                Task.created_by.is_(None),
+                Task.title.like(PRIVACY_TASK_TITLE_LIKE),
+                Task.note.like(f"%({_like_literal(candidate_email)})%", escape="\\"),
+            )
+        ),
+    )
+    return result.rowcount or 0
 
 
 async def erase_application(db: AsyncSession, application: Application) -> tuple[int, int]:
@@ -104,6 +144,7 @@ async def erase_candidate(
         attempted += events
         failed += failures
 
+    scrubbed_tasks = await scrub_privacy_request_tasks(db, company.id, candidate.email)
     await db.execute(delete(Candidate).where(Candidate.id == candidate.id))
     activity.record(
         db,
@@ -111,7 +152,7 @@ async def erase_candidate(
         type=activity.CANDIDATE_ERASED,
         actor_user_id=actor_user_id,
         application_id=None,
-        payload={"applications": len(applications)},
+        payload={"applications": len(applications), "tasks": scrubbed_tasks},
     )
     await db.commit()
     return EraseSummary(
@@ -119,4 +160,5 @@ async def erase_candidate(
         cv_objects=cv_objects,
         google_events=attempted - failed,
         google_event_failures=failed,
+        tasks=scrubbed_tasks,
     )

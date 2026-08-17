@@ -269,6 +269,105 @@ async def test_sweeps_invites_and_orphan_cvs(db_session: AsyncSession) -> None:
     assert await _exists(db_session, UserInvite, live_invite_id)
 
 
+def _request_task(company_id: object, name: str, email: str, **overrides: object) -> object:
+    """A task shaped exactly like the public request endpoints create them
+    (the shape itself is pinned by the endpoint-driven test in test_erasure)."""
+    from app.models import Task
+
+    fields: dict[str, object] = {
+        "company_id": company_id,
+        "created_by": None,
+        "title": f"Privacy: deletion request — {name}",
+        "note": f"{name} ({email}) asked via their status page (Role). "
+        "GDPR clock: respond within one month.",
+    }
+    fields.update(overrides)
+    return Task(**fields)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket")
+async def test_purge_scrubs_tasks_of_purged_candidates(db_session: AsyncSession) -> None:
+    """A candidate the retention purge erases must not live on inside the
+    privacy-request task that once named them."""
+    from app.models import Candidate, Task
+    from app.services import retention
+
+    company = await _company(db_session, retention_months=6)
+    company_id = company.id
+    _, purged_cand, _ = await _application(
+        db_session, company, stage="rejected", decided_days_ago=200
+    )
+    _, live_cand, _ = await _application(db_session, company, stage="new", decided_days_ago=None)
+    emails = {
+        cand_id: (
+            await db_session.execute(select(Candidate.email).where(Candidate.id == cand_id))
+        ).scalar_one()
+        for cand_id in (purged_cand, live_cand)
+    }
+    purged_task = _request_task(company_id, "Ret Candidate", emails[purged_cand])
+    live_task = _request_task(company_id, "Ret Candidate", emails[live_cand])
+    db_session.add_all([purged_task, live_task])
+    await db_session.flush()
+    purged_task_id, live_task_id = purged_task.id, live_task.id
+    await db_session.commit()
+
+    await retention.run_purge(db_session, now=NOW)
+
+    assert not await _exists(db_session, Candidate, purged_cand)
+    assert not await _exists(db_session, Task, purged_task_id)
+    assert await _exists(db_session, Task, live_task_id)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket")
+async def test_purge_sweeps_done_privacy_tasks(db_session: AsyncSession) -> None:
+    """Completed request tasks are swept 90 days after done_at: still-open
+    requests and humans' own tasks are never touched, however old."""
+    from app.models import Task, User, UserRole
+    from app.services import retention
+
+    company = await _company(db_session)
+    company_id = company.id
+    human = User(
+        company_id=company_id,
+        email=f"rec-{uuid4().hex[:8]}@vetd-ci.dev",
+        password_hash="x",
+        role=UserRole.MEMBER,
+    )
+    db_session.add(human)
+    await db_session.flush()
+    old_done = _request_task(
+        company_id, "Old Done", "old@vetd-ci.dev", done_at=NOW - timedelta(days=91)
+    )
+    fresh_done = _request_task(
+        company_id, "Fresh Done", "fresh@vetd-ci.dev", done_at=NOW - timedelta(days=10)
+    )
+    still_open = _request_task(company_id, "Still Open", "open@vetd-ci.dev")
+    human_done = _request_task(
+        company_id,
+        "Human Done",
+        "human@vetd-ci.dev",
+        created_by=human.id,
+        done_at=NOW - timedelta(days=400),
+    )
+    db_session.add_all([old_done, fresh_done, still_open, human_done])
+    await db_session.flush()
+    ids = {
+        "old_done": old_done.id,
+        "fresh_done": fresh_done.id,
+        "still_open": still_open.id,
+        "human_done": human_done.id,
+    }
+    await db_session.commit()
+
+    summary = await retention.run_purge(db_session, now=NOW)
+    assert summary.privacy_tasks >= 1  # instance-global, like the other sums
+
+    assert not await _exists(db_session, Task, ids["old_done"])
+    assert await _exists(db_session, Task, ids["fresh_done"])
+    assert await _exists(db_session, Task, ids["still_open"])
+    assert await _exists(db_session, Task, ids["human_done"])
+
+
 @pytest.mark.usefixtures("migrated_db", "bucket")
 async def test_worker_job_runs_and_cron_registered(db_session: AsyncSession) -> None:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
