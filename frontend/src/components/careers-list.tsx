@@ -49,7 +49,7 @@ function buildFilters(jobs: PublicJobSummary[]): JobFilter[] {
 }
 
 const PILL_BASE =
-  "inline-flex h-8 cursor-pointer items-center rounded-full px-3 text-[13px] sm:h-7";
+  "inline-flex h-8 cursor-pointer items-center rounded-full px-3 text-[13px] pointer-coarse:h-11 pointer-coarse:px-4 sm:h-7";
 const PILL_ACTIVE = `${PILL_BASE} bg-inverse font-medium text-inverse-foreground`;
 const PILL_IDLE = `${PILL_BASE} border border-edge text-g700 hover:border-brand hover:text-brand`;
 

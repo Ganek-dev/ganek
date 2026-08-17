@@ -24,10 +24,16 @@ import {
   type QuizResult,
   type ReviewIntegrityEvent,
 } from "@/lib/api";
+import { relativeTime } from "@/lib/time";
 import { InterviewCard } from "@/components/InterviewCard";
 import { EmailTrailCard } from "@/components/EmailTrailCard";
 import { NotesCard } from "@/components/NotesCard";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
 /** Applicant review, handoff screen 11: split view — a 360px list of
@@ -82,18 +88,6 @@ function toneFor(percent: number): keyof typeof SCORE_TONE {
   return "red";
 }
 
-function relativeTime(iso: string, now: Date = new Date()): string {
-  const diff = now.getTime() - new Date(iso).getTime();
-  const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  const weeks = Math.round(days / 7);
-  return `${weeks}w ago`;
-}
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -303,7 +297,7 @@ function BulkRejectBar({
             <>
               <span className="flex flex-col">
                 <span className="text-[12.5px] text-g600">
-                  Reject {selected.size} applicants?
+                  Reject {selected.size} applicant{selected.size === 1 ? "" : "s"}?
                 </span>
                 <span className="text-[11.5px] text-g500">{namesLine}</span>
               </span>
@@ -337,11 +331,17 @@ function BulkRejectBar({
               </label>
               <button
                 type="button"
+                disabled={selected.size > 100}
                 onClick={() => setConfirming(true)}
-                className={`inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium hover:bg-muted-fill ${SCORE_TONE.red.text}`}
+                className={`inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium hover:bg-muted-fill disabled:opacity-50 ${SCORE_TONE.red.text}`}
               >
                 Reject…
               </button>
+              {selected.size > 100 ? (
+                <span className="text-[11.5px] text-warn">
+                  Up to 100 at a time — narrow the selection.
+                </span>
+              ) : null}
             </>
           )}
           <button
@@ -701,6 +701,9 @@ function DetailPanel({
       <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
         <DialogContent>
           <DialogTitle>Edit candidate email</DialogTitle>
+          <DialogDescription>
+            Quiz, status and booking emails go to this address. Existing links keep working.
+          </DialogDescription>
           <form onSubmit={(event) => void saveEmail(event)} className="mt-3 space-y-3">
             <div>
               <label
@@ -718,10 +721,6 @@ function DetailPanel({
                 onChange={(event) => setEmailDraft(event.target.value)}
                 className="h-8 w-full rounded-md border border-edge bg-surface px-2.5 text-[13px] outline-none focus:border-accent disabled:opacity-60"
               />
-              <p className="mt-1.5 text-[11.5px] text-g500">
-                Quiz, status and booking emails go to this address. Existing links keep
-                working.
-              </p>
             </div>
             {emailError ? (
               <p role="alert" className="text-[12.5px] text-red-600 dark:text-red-400">
@@ -1090,32 +1089,31 @@ export default function ApplicantsPage() {
                 const isSelected = selectedId === app.id;
                 const hasFlags = (app.quiz_attempt?.integrity.flags?.length ?? 0) > 0;
                 return (
-                  <li key={app.id}>
+                  <li
+                    key={app.id}
+                    className={`flex items-center gap-3 border-t border-divider first:border-t-0 ${
+                      isSelected
+                        ? "border-l-[3px] border-l-accent bg-accent/[0.06]"
+                        : "border-l-[3px] border-l-transparent hover:bg-hover-fill"
+                    }`}
+                  >
+                    {/* sibling of the row button — a checkbox nested inside a
+                        button is invalid and unreachable for AT (H5 ledger) */}
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${app.candidate.name}`}
+                      checked={checked.has(app.id)}
+                      onChange={(event) =>
+                        toggleChecked(app.id, app.candidate.name, event.target.checked)
+                      }
+                      className="ml-4 h-[15px] w-[15px] shrink-0 cursor-pointer accent-[var(--color-accent)]"
+                    />
                     <button
                       type="button"
                       onClick={() => setSelectedId(app.id)}
                       aria-current={isSelected ? "true" : undefined}
-                      className={`flex w-full items-center gap-3 border-t border-divider px-4 py-[13px] text-left first:border-t-0 ${
-                        isSelected
-                          ? "border-l-[3px] border-l-accent bg-accent/[0.06]"
-                          : "border-l-[3px] border-l-transparent hover:bg-hover-fill"
-                      }`}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-[13px] pr-4 text-left"
                     >
-                      <span
-                        onClick={(event) => event.stopPropagation()}
-                        className="shrink-0"
-                      >
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${app.candidate.name}`}
-                          checked={checked.has(app.id)}
-                          onChange={(event) =>
-                            toggleChecked(app.id, app.candidate.name, event.target.checked)
-                          }
-                          onClick={(event) => event.stopPropagation()}
-                          className="h-[15px] w-[15px] cursor-pointer accent-[var(--color-accent)]"
-                        />
-                      </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span

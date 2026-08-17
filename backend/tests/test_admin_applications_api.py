@@ -332,7 +332,7 @@ async def test_stage_change_emails_candidate_only_when_asked(
     url = f"/api/v1/applications/{app['id']}/stage"
 
     # default stays silent
-    assert (await client.patch(url, json={"stage": "interview"})).status_code == 200
+    assert (await client.patch(url, json={"stage": "screening"})).status_code == 200
     assert advances == [] and rejections == []
 
     # advance with notify → 22a with candidate + branding context
@@ -356,6 +356,15 @@ async def test_stage_change_emails_candidate_only_when_asked(
     resp = await client.patch(url, json={"stage": "screening", "notify_candidate": True})
     assert resp.status_code == 200
     assert len(advances) == 1 and len(rejections) == 1
+
+    # re-picking the CURRENT stage never re-sends — parity with bulk-reject,
+    # which silently skips already-rejected rows (M5.7 H5 ledger item)
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
+    assert resp.status_code == 200
+    assert len(rejections) == 2
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
+    assert resp.status_code == 200
+    assert len(rejections) == 2
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")

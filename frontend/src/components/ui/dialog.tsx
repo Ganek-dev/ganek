@@ -48,4 +48,16 @@ function DialogTitle({
   );
 }
 
-export { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogClose };
+function DialogDescription({
+  className = "",
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
+  return (
+    <DialogPrimitive.Description
+      className={`mt-1 text-[12.5px] leading-[18px] text-g500 ${className}`}
+      {...props}
+    />
+  );
+}
+
+export { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogClose };

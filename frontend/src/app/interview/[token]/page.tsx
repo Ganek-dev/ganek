@@ -108,6 +108,19 @@ function DayPicker({
       <div
         role="tablist"
         aria-label="Choose a day"
+        onKeyDown={(event) => {
+          const keys = days.map(([key]) => key);
+          const idx = keys.indexOf(currentDay);
+          let next: number | null = null;
+          if (event.key === "ArrowRight") next = Math.min(idx + 1, keys.length - 1);
+          else if (event.key === "ArrowLeft") next = Math.max(idx - 1, 0);
+          else if (event.key === "Home") next = 0;
+          else if (event.key === "End") next = keys.length - 1;
+          if (next === null || next === idx) return;
+          event.preventDefault();
+          setActiveDay(keys[next]);
+          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+        }}
         className="flex gap-2 overflow-x-auto pb-1"
       >
         {days.map(([key, slots]) => {
@@ -119,6 +132,7 @@ function DayPicker({
               type="button"
               role="tab"
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               disabled={busy}
               onClick={() => setActiveDay(key)}
               className={`flex shrink-0 flex-col items-center gap-0.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors disabled:opacity-50 ${
@@ -144,7 +158,7 @@ function DayPicker({
             onClick={() => onSelect(iso)}
             aria-pressed={selected === iso}
             disabled={busy}
-            className={`h-9 rounded-md border font-mono text-[12.5px] transition-colors disabled:opacity-50 ${
+            className={`h-9 rounded-md border font-mono text-[12.5px] transition-colors disabled:opacity-50 pointer-coarse:h-11 ${
               selected === iso
                 ? "border-brand bg-brand text-brand-foreground"
                 : "border-edge bg-surface hover:border-strong"
