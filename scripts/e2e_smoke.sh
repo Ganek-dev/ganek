@@ -26,6 +26,21 @@ expect() {
 step "backend health via frontend proxy"
 expect 200 "$BASE/api/health"
 
+step "wait for migrations (schema-backed endpoint stops 500ing)"
+# /api/health is DB-free, so "stack is up" can beat the migrate container —
+# registering into a schemaless database 500s (bit ci_local twice 2026-08-17)
+for _ in $(seq 1 40); do
+  schema_status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/v1/public/company")
+  case "$schema_status" in
+    5*) sleep 3 ;;
+    *) break ;;
+  esac
+done
+if [ "${schema_status:-500}" -ge 500 ]; then
+  echo "FAIL: schema never became ready (last status $schema_status)"
+  exit 1
+fi
+
 step "unauthenticated /me is 401"
 expect 401 "$BASE/api/v1/auth/me"
 

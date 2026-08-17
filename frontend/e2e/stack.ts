@@ -11,6 +11,13 @@ export const QUIZ_JOB_SLUG = "e2e-quiz-engineer";
 export const QUIZ_QUESTION_COUNT = 3;
 
 export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void> {
+  // /api/health is DB-free, so a "healthy" stack can still be mid-migration —
+  // wait until a schema-backed endpoint stops 500ing before registering
+  for (let i = 0; i < 40; i += 1) {
+    const probe = await api.get("/api/v1/public/company");
+    if (probe.status() < 500) break;
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
   const register = await api.post("/api/v1/auth/register", {
     data: { company_name: COMPANY_NAME, email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
