@@ -120,8 +120,11 @@ in the activity log. Honest limits — copies Vetd cannot reach:
 
 - Emails already sent (in the candidate's and your mailboxes).
 - Google Calendar events where deletion failed (reported to you).
-- Free text your team typed into **tasks** (tasks aren't linked to
-  candidates — check them after an erasure).
+- Free text your team typed into **your own tasks** (manual tasks aren't
+  linked to candidates — check them after an erasure). The privacy-request
+  tasks Vetd itself creates are handled for you: erasing a candidate
+  deletes their request tasks, and completed request tasks are swept by
+  the nightly job 90 days after they're marked done.
 - Your backups (covered by your rotation rule, §2) and any logs kept by
   layers you run in front of Vetd.
 
@@ -134,7 +137,10 @@ carries **"Request a copy of my data"** and **"Ask for my data to be
 deleted"**. Each creates a task on your dashboard (due in 14 days, deduped
 per application) with the candidate's name and email in the note — the task
 *is* the request; there is no auto-deletion. Answer like any other Art. 15/
-17 request, within the month.
+17 request, within the month. The task doesn't outlive the person it names:
+erasing the candidate removes it, and done request tasks are swept 90 days
+after completion (the PII-free activity entry is the lasting record that a
+request was received).
 
 **Withdrawals.** A candidate withdrawing moves the application to
 `withdrawn` — a pipeline state, not an erasure. The status page tells them

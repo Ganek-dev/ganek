@@ -119,7 +119,7 @@ async def test_erase_removes_rows_cv_and_writes_receipt(
     feed = (await client.get("/api/v1/activity")).json()
     erased = [e for e in feed if e["type"] == "candidate.erased"]
     assert len(erased) == 1
-    assert erased[0]["payload"] == {"applications": 2}
+    assert erased[0]["payload"] == {"applications": 2, "tasks": 0}
     assert erased[0]["application_id"] is None
     # candidate-linked feed rows (application.received) cascaded away with the rows
     assert [e for e in feed if e["type"] == "application.received"] == []
@@ -133,6 +133,84 @@ async def test_erase_invalidates_status_tokens(client: AsyncClient) -> None:
 
     assert (await client.post(f"/api/v1/applications/{app_id}/erase-candidate")).status_code == 200
     assert (await client.get(f"/api/v1/public/applications/{status_tokens[0]}")).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_erase_scrubs_privacy_request_tasks(client: AsyncClient) -> None:
+    """The system-created request tasks name the candidate on purpose; they
+    must not survive the erasure that fulfils them — open OR already done.
+    A human task, even one shaped exactly like a request task, stays."""
+    email, status_tokens = await _company_with_applications(client, n_jobs=1)
+    app_id = (await client.get("/api/v1/applications")).json()[0]["id"]
+
+    # both request kinds through the real public endpoints (pins the format
+    # the scrub matches against); one gets completed before the erasure
+    token = status_tokens[0]
+    assert (await client.post(f"/api/v1/public/applications/{token}/request-data")).status_code == (
+        200
+    )
+    assert (
+        await client.post(f"/api/v1/public/applications/{token}/request-deletion")
+    ).status_code == 200
+    tasks = (await client.get("/api/v1/tasks")).json()
+    data_task = next(t for t in tasks if t["title"].startswith("Privacy: data request"))
+    resp = await client.patch(f"/api/v1/tasks/{data_task['id']}", json={"done": True})
+    assert resp.status_code == 200, resp.text
+
+    # a recruiter's own note about the person — survives, whatever it says.
+    # Created AFTER the requests: its request-shaped title would otherwise
+    # trip the endpoint's open-task dedupe and suppress the system task.
+    human = await client.post(
+        "/api/v1/tasks",
+        json={
+            "title": "Privacy: deletion request — Erika Applicant",
+            "note": f"Erika Applicant ({email}) asked me over the phone",
+        },
+    )
+    assert human.status_code == 201, human.text
+
+    assert (await client.post(f"/api/v1/applications/{app_id}/erase-candidate")).status_code == 200
+
+    remaining = (await client.get("/api/v1/tasks", params={"include_done": True})).json()
+    assert [t["id"] for t in remaining] == [human.json()["id"]]
+    feed = (await client.get("/api/v1/activity")).json()
+    erased = [e for e in feed if e["type"] == "candidate.erased"]
+    assert erased[0]["payload"] == {"applications": 1, "tasks": 2}
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_scrub_matches_email_literally(db_session: AsyncSession) -> None:
+    """LIKE wildcards in the email must not widen the match: scrubbing
+    a_b@x.dev may not take a lookalike axb@x.dev's request task with it."""
+    from app.models import Company, Task
+    from app.services import erasure
+
+    company = Company(slug=f"scrub-{uuid4().hex[:8]}", name="Scrub Co", settings={})
+    db_session.add(company)
+    await db_session.flush()
+    company_id = company.id  # plain value before expire_all (async lazy-refresh trap)
+
+    def request_task(name: str, email: str) -> Task:
+        return Task(
+            company_id=company_id,
+            created_by=None,
+            title=f"Privacy: deletion request — {name}",
+            note=f"{name} ({email}) asked via their status page (Role).",
+        )
+
+    lookalike = request_task("Ax B", "axb@x.dev")
+    db_session.add_all([request_task("A B", "a_b@x.dev"), lookalike])
+    await db_session.flush()
+    lookalike_id = lookalike.id  # plain value before expire_all (async lazy-refresh trap)
+
+    assert await erasure.scrub_privacy_request_tasks(db_session, company_id, "a_b@x.dev") == 1
+    db_session.expire_all()
+    remaining = (
+        (await db_session.execute(select(Task.id).where(Task.company_id == company_id)))
+        .scalars()
+        .all()
+    )
+    assert remaining == [lookalike_id]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

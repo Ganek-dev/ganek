@@ -16,7 +16,10 @@ Semantics:
 - One PII-free `retention.purged` receipt per company per run (counts
   only), only when something was actually removed.
 - Sweeps: expired `user_invites`; unreferenced `cvs/**` objects older
-  than 24 h (upload-then-abandon on the apply form).
+  than 24 h (upload-then-abandon on the apply form); DONE privacy-request
+  tasks 90 days after completion (the note names the candidate on purpose;
+  the lasting accountability record is the PII-free activity entry, so the
+  task itself only needs to survive the team's own follow-up window).
 """
 
 import logging
@@ -27,7 +30,7 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Application, ApplicationStage, Candidate, Company, UserInvite
+from app.models import Application, ApplicationStage, Candidate, Company, Task, UserInvite
 from app.services import activity, erasure, storage
 from app.services.company import RETENTION_DEFAULT_MONTHS
 
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 DAYS_PER_MONTH = 31  # never purge earlier than the notice's promise
 UPLOAD_GRACE = timedelta(hours=24)  # upload-first apply flow needs breathing room
+DONE_PRIVACY_TASK_RETENTION = timedelta(days=90)  # completed request tasks name people
 PURGEABLE_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN)
 
 
@@ -44,12 +48,14 @@ class PurgeSummary:
     candidates: int
     invites: int
     cv_objects: int
+    privacy_tasks: int
     google_event_failures: int
 
     def __str__(self) -> str:  # worker log line
         return (
             f"applications={self.applications} candidates={self.candidates} "
             f"invites={self.invites} cv_objects={self.cv_objects} "
+            f"privacy_tasks={self.privacy_tasks} "
             f"google_event_failures={self.google_event_failures}"
         )
 
@@ -91,16 +97,25 @@ async def purge_company(
         purged += 1
         google_failures += failures
 
-    orphans = cast(
-        "CursorResult[Any]",
-        await db.execute(
-            delete(Candidate).where(
-                Candidate.company_id == company.id,
-                ~exists(select(Application.id).where(Application.candidate_id == Candidate.id)),
+    # RETURNING keeps the not-exists predicate atomic with the delete AND
+    # tells us exactly whose privacy-request tasks to scrub afterwards
+    removed_emails = list(
+        (
+            await db.execute(
+                delete(Candidate)
+                .where(
+                    Candidate.company_id == company.id,
+                    ~exists(select(Application.id).where(Application.candidate_id == Candidate.id)),
+                )
+                .returning(Candidate.email)
             )
-        ),
+        )
+        .scalars()
+        .all()
     )
-    removed_candidates = orphans.rowcount or 0
+    for email in removed_emails:
+        await erasure.scrub_privacy_request_tasks(db, company.id, email)
+    removed_candidates = len(removed_emails)
 
     if purged or removed_candidates:
         activity.record(
@@ -155,6 +170,20 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         ).rowcount
         or 0
     )
+    swept_tasks = (
+        cast(
+            "CursorResult[Any]",
+            await db.execute(
+                delete(Task).where(
+                    Task.created_by.is_(None),
+                    Task.title.like(erasure.PRIVACY_TASK_TITLE_LIKE),
+                    Task.done_at.is_not(None),
+                    Task.done_at < now - DONE_PRIVACY_TASK_RETENTION,
+                )
+            ),
+        ).rowcount
+        or 0
+    )
     await db.commit()
 
     referenced = set(
@@ -183,5 +212,6 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         candidates=total_candidates,
         invites=swept_invites,
         cv_objects=swept_objects,
+        privacy_tasks=swept_tasks,
         google_event_failures=total_google_failures,
     )
