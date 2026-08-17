@@ -6,7 +6,7 @@ import logging
 import secrets
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
@@ -27,9 +27,9 @@ from app.core.security import (
 from app.models import User
 from app.schemas.auth import GoogleSignupPending, GoogleSignupRequest, UserOut
 from app.services import auth as auth_service
-from app.services import email as email_service
 from app.services import google_calendar, oauth_google
 from app.services import invites as invites_service
+from app.services import outbox as outbox_service
 
 logger = logging.getLogger(__name__)
 
@@ -151,9 +151,7 @@ async def _connect_calendar_via_google(
 
 
 @router.get("/callback")
-async def google_callback(
-    request: Request, db: DbSession, background: BackgroundTasks
-) -> RedirectResponse:
+async def google_callback(request: Request, db: DbSession) -> RedirectResponse:
     _require_configured()
     if request.query_params.get("error") == "access_denied":
         return _redirect("/login")  # user cancelled on Google's screen: no error banner
@@ -201,8 +199,10 @@ async def google_callback(
 
     assert user is not None
     if resolution is oauth_google.Resolution.LINKED:
-        background.add_task(
-            email_service.send_google_linked,
+        await outbox_service.queue_email(
+            db,
+            kind="google_linked",
+            company_id=user.company_id,
             to=user.email,
             ref=str(user.id),
             company_name=user.company.name,

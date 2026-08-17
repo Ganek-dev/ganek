@@ -1,8 +1,9 @@
 """Outbound email. SMTP when configured, logged no-op otherwise.
 
-Sending must never break a user-facing flow: callers schedule sends as
-background tasks and this module swallows transport errors with a log.
-(Queue-based delivery via arq arrives with later milestones.)
+Senders RAISE on transport errors since M5.7 H4: every send goes through
+the email outbox (services/outbox.py), whose worker job owns retry with
+backoff and records the failure on the row. Never call a sender directly
+from a request path — queue it.
 """
 
 import logging
@@ -80,10 +81,7 @@ def send_application_received(
         f"\n"
         f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
     )
-    try:
-        send_email(to=to, subject=subject, body=body, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break the apply flow
-        logger.warning("failed to send confirmation email (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, ref=ref)
 
 
 def send_quiz_invite(
@@ -173,10 +171,7 @@ def send_quiz_invite(
         privacy_url=privacy_url,
     )
 
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break the apply flow
-        logger.warning("failed to send quiz invite (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def _card_html(
@@ -308,10 +303,7 @@ def send_quiz_reminder(
         privacy_url=privacy_url,
     )
 
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
-        logger.warning("failed to send quiz reminder (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_stage_advance(
@@ -373,10 +365,7 @@ def send_stage_advance(
         privacy_url=privacy_url,
     )
 
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
-        logger.warning("failed to send advance email (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_rejection(
@@ -445,10 +434,7 @@ def send_rejection(
         privacy_url=privacy_url,
     )
 
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
-        logger.warning("failed to send rejection email (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 # Matches the team page's role select labels (Owner/Recruiter naming is
@@ -507,10 +493,7 @@ def send_team_invite(
         bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
     )
 
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
-        logger.warning("failed to send team invite (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_password_reset(
@@ -562,10 +545,7 @@ def send_password_reset(
         bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
     )
 
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break the request flow
-        logger.warning("failed to send password reset (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_google_linked(*, to: str, company_name: str, ref: str | None = None) -> None:
@@ -607,10 +587,7 @@ def send_google_linked(*, to: str, company_name: str, ref: str | None = None) ->
         safe_company=safe_company,
         content=content,
     )
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a login flow
-        logger.warning("failed to send google-linked notice (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_interview_invite(
@@ -673,10 +650,7 @@ def send_interview_invite(
         safe_controller=escape(controller_name) if controller_name else None,
         privacy_url=privacy_url,
     )
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
-        logger.warning("failed to send interview invite (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_interview_cancelled(
@@ -723,10 +697,7 @@ def send_interview_cancelled(
         safe_controller=escape(controller_name) if controller_name else None,
         privacy_url=privacy_url,
     )
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break a recruiter flow
-        logger.warning("failed to send interview cancel notice (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
 
 
 def send_interview_reminder(
@@ -792,7 +763,4 @@ def send_interview_reminder(
         safe_controller=escape(controller_name) if controller_name else None,
         privacy_url=privacy_url,
     )
-    try:
-        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
-    except Exception:  # noqa: BLE001 - email must never break the worker loop
-        logger.warning("failed to send interview reminder (ref=%s)", ref, exc_info=True)
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)

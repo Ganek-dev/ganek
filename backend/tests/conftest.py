@@ -16,6 +16,17 @@ from app.main import app
 # the dedicated rate-limit tests re-enable explicitly
 settings.rate_limit_enabled = False
 
+
+@pytest.fixture(autouse=True)
+def _eager_outbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deliver queued email inline (emulating an instant worker) so API
+    tests keep asserting against monkeypatched email_service senders.
+    The outbox/worker tests flip this back off to exercise the real path."""
+    from app.services import outbox
+
+    monkeypatch.setattr(outbox, "EAGER_DELIVERY_FOR_TESTS", True)
+
+
 BACKEND_DIR = Path(__file__).parents[1]
 
 

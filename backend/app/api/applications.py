@@ -3,13 +3,13 @@ import uuid
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
-from app.models import Application, ApplicationNote, ApplicationStage, User, UserRole
+from app.models import Application, ApplicationNote, ApplicationStage, EmailOutbox, User, UserRole
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
@@ -17,6 +17,7 @@ from app.schemas.applications import (
     BulkRejectOut,
     CandidateEmailUpdate,
     CvDownload,
+    EmailDeliveryOut,
     EraseCandidateOut,
     NoteCreate,
     NoteOut,
@@ -31,9 +32,9 @@ from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
-from app.services import email as email_service
 from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
+from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -64,7 +65,6 @@ async def bulk_reject_applications(
     db: DbSession,
     company: CurrentCompany,
     user: CurrentUser,
-    background: BackgroundTasks,
 ) -> BulkRejectOut:
     # literal path — must stay declared before /{application_id} routes,
     # which would otherwise shadow it (FastAPI matches in declaration order)
@@ -73,7 +73,7 @@ async def bulk_reject_applications(
     )
     if payload.notify_candidates:
         for application in rejected:
-            _schedule_rejection_email(background, company, application)
+            await _queue_rejection_email(db, company, application)
     return BulkRejectOut(
         rejected=len(rejected), skipped=len(payload.application_ids) - len(rejected)
     )
@@ -93,14 +93,13 @@ async def set_stage(
     db: DbSession,
     company: CurrentCompany,
     user: CurrentUser,
-    background: BackgroundTasks,
 ) -> Application:
     application = await _get_or_404(db, company, application_id)
     updated = await applications_service.set_stage(
         db, application, payload.stage, actor_user_id=user.id
     )
     if payload.notify_candidate:
-        _schedule_stage_email(background, company, application, payload.stage)
+        await _queue_stage_email(db, company, application, payload.stage)
     return updated
 
 
@@ -167,7 +166,6 @@ async def remind_candidate(
     application_id: uuid.UUID,
     db: DbSession,
     company: CurrentCompany,
-    background: BackgroundTasks,
 ) -> dict[str, bool]:
     """Manually resend the assessment link (17b) while the attempt is untouched."""
     application = await _get_or_404(db, company, application_id)
@@ -179,8 +177,11 @@ async def remind_candidate(
             detail="No pending assessment to remind about",
         )
     days_left = max(0, math.ceil((attempt.expires_at - now).total_seconds() / 86400))
-    background.add_task(
-        email_service.send_quiz_reminder,
+    await outbox_service.queue_email(
+        db,
+        kind="quiz_reminder",
+        company_id=company.id,
+        application_id=application.id,
         to=application.candidate.email,
         ref=str(application.id),
         candidate_name=application.candidate.name,
@@ -279,7 +280,6 @@ async def reissue_quiz(
     db: DbSession,
     company: CurrentCompany,
     user: CurrentUser,
-    background: BackgroundTasks,
 ) -> QuizAttempt:
     """Invalidate & re-invite to a fresh quiz (screen 24; also the expired-link
     path). The superseded attempt stays as history; the candidate gets a new
@@ -305,8 +305,11 @@ async def reissue_quiz(
             status_code=status.HTTP_409_CONFLICT,
             detail="This job's assessment is disabled or has no questions to serve",
         )
-    background.add_task(
-        email_service.send_quiz_invite,
+    await outbox_service.queue_email(
+        db,
+        kind="quiz_invite",
+        company_id=company.id,
+        application_id=application.id,
         to=application.candidate.email,
         ref=str(application.id),
         candidate_name=application.candidate.name,
@@ -403,7 +406,6 @@ async def create_interview(
     db: DbSession,
     company: CurrentCompany,
     user: CurrentUser,
-    background: BackgroundTasks,
 ) -> object:
     application = await _get_or_404(db, company, application_id)
     interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
@@ -438,8 +440,11 @@ async def create_interview(
     booking_url = (
         f"{settings.public_base_url.rstrip('/')}/interview/{create_interview_token(interview.id)}"
     )
-    background.add_task(
-        email_service.send_interview_invite,
+    await outbox_service.queue_email(
+        db,
+        kind="interview_invite",
+        company_id=company.id,
+        application_id=application.id,
         to=application.candidate.email,
         ref=str(application.id),
         candidate_name=application.candidate.name,
@@ -468,7 +473,6 @@ async def cancel_interview(
     db: DbSession,
     company: CurrentCompany,
     user: CurrentUser,
-    background: BackgroundTasks,
 ) -> object:
     application = await _get_or_404(db, company, application_id)
     interview = await interviews_service.get_for_application(db, company, application_id)
@@ -479,8 +483,11 @@ async def cancel_interview(
     await interviews_service.cancel_interview(
         db, interview, interviewer=interview.interviewer, actor_user_id=user.id
     )
-    background.add_task(
-        email_service.send_interview_cancelled,
+    await outbox_service.queue_email(
+        db,
+        kind="interview_cancelled",
+        company_id=company.id,
+        application_id=application.id,
         to=application.candidate.email,
         ref=str(application.id),
         candidate_name=application.candidate.name,
@@ -492,8 +499,8 @@ async def cancel_interview(
     return interview
 
 
-def _schedule_rejection_email(
-    background: BackgroundTasks, company: CurrentCompany, application: Application
+async def _queue_rejection_email(
+    db: DbSession, company: CurrentCompany, application: Application
 ) -> None:
     """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
     candidate = application.candidate
@@ -501,8 +508,11 @@ def _schedule_rejection_email(
     base = settings.public_base_url.rstrip("/")
     careers_url = base if settings.mode == "single" else f"{base}/c/{company.slug}"
     attempt = application.quiz_attempt
-    background.add_task(
-        email_service.send_rejection,
+    await outbox_service.queue_email(
+        db,
+        kind="rejection",
+        company_id=company.id,
+        application_id=application.id,
         to=candidate.email,
         ref=str(application.id),
         candidate_name=candidate.name,
@@ -515,8 +525,8 @@ def _schedule_rejection_email(
     )
 
 
-def _schedule_stage_email(
-    background: BackgroundTasks,
+async def _queue_stage_email(
+    db: DbSession,
     company: CurrentCompany,
     application: Application,
     stage: ApplicationStage,
@@ -526,8 +536,11 @@ def _schedule_stage_email(
         candidate = application.candidate
         job = application.job
         base = settings.public_base_url.rstrip("/")
-        background.add_task(
-            email_service.send_stage_advance,
+        await outbox_service.queue_email(
+            db,
+            kind="stage_advance",
+            company_id=company.id,
+            application_id=application.id,
             to=candidate.email,
             ref=str(application.id),
             candidate_name=candidate.name,
@@ -539,7 +552,7 @@ def _schedule_stage_email(
             privacy_url=company_service.privacy_notice_url(company),
         )
     elif stage is ApplicationStage.REJECTED:
-        _schedule_rejection_email(background, company, application)
+        await _queue_rejection_email(db, company, application)
 
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)
@@ -549,6 +562,29 @@ async def cv_download_url(
     application = await _get_or_404(db, company, application_id)
     return CvDownload(
         download_url=storage.presign_cv_download(application.cv_object_key, application.cv_filename)
+    )
+
+
+@router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])
+async def email_deliveries(
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+) -> list[EmailOutbox]:
+    """Delivery trail for the applicant panel (M5.7 H4): whether the mails
+    this application depends on actually went out, newest first."""
+    await _get_or_404(db, company, application_id)
+    return list(
+        (
+            await db.execute(
+                select(EmailOutbox)
+                .where(
+                    EmailOutbox.company_id == company.id,
+                    EmailOutbox.application_id == application_id,
+                )
+                .order_by(EmailOutbox.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
     )
 
 

@@ -16,7 +16,10 @@ Semantics:
 - One PII-free `retention.purged` receipt per company per run (counts
   only), only when something was actually removed.
 - Sweeps: expired `user_invites`; unreferenced `cvs/**` objects older
-  than 24 h (upload-then-abandon on the apply form); DONE privacy-request
+  than 24 h (upload-then-abandon on the apply form); terminal (sent/failed)
+  `email_outbox` rows after 30 days — their payload stores recipient PII
+  and capability URLs, which only need to live as long as the delivery
+  question does (stated in the records template); DONE privacy-request
   tasks 90 days after completion (the note names the candidate on purpose;
   the lasting accountability record is the PII-free activity entry, so the
   task itself only needs to survive the team's own follow-up window).
@@ -30,7 +33,16 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Application, ApplicationStage, Candidate, Company, Task, UserInvite
+from app.models import (
+    Application,
+    ApplicationStage,
+    Candidate,
+    Company,
+    EmailOutbox,
+    EmailStatus,
+    Task,
+    UserInvite,
+)
 from app.services import activity, erasure, storage
 from app.services.company import RETENTION_DEFAULT_MONTHS
 
@@ -39,6 +51,7 @@ logger = logging.getLogger(__name__)
 DAYS_PER_MONTH = 31  # never purge earlier than the notice's promise
 UPLOAD_GRACE = timedelta(hours=24)  # upload-first apply flow needs breathing room
 DONE_PRIVACY_TASK_RETENTION = timedelta(days=90)  # completed request tasks name people
+OUTBOX_TERMINAL_RETENTION = timedelta(days=30)  # delivered/failed email records
 PURGEABLE_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN)
 
 
@@ -49,13 +62,14 @@ class PurgeSummary:
     invites: int
     cv_objects: int
     privacy_tasks: int
+    emails: int
     google_event_failures: int
 
     def __str__(self) -> str:  # worker log line
         return (
             f"applications={self.applications} candidates={self.candidates} "
             f"invites={self.invites} cv_objects={self.cv_objects} "
-            f"privacy_tasks={self.privacy_tasks} "
+            f"privacy_tasks={self.privacy_tasks} emails={self.emails} "
             f"google_event_failures={self.google_event_failures}"
         )
 
@@ -184,6 +198,18 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         ).rowcount
         or 0
     )
+    swept_emails = (
+        cast(
+            "CursorResult[Any]",
+            await db.execute(
+                delete(EmailOutbox).where(
+                    EmailOutbox.status.in_((EmailStatus.SENT, EmailStatus.FAILED)),
+                    EmailOutbox.created_at < now - OUTBOX_TERMINAL_RETENTION,
+                )
+            ),
+        ).rowcount
+        or 0
+    )
     await db.commit()
 
     referenced = set(
@@ -213,5 +239,6 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         invites=swept_invites,
         cv_objects=swept_objects,
         privacy_tasks=swept_tasks,
+        emails=swept_emails,
         google_event_failures=total_google_failures,
     )

@@ -63,6 +63,23 @@ class BulkRejectOut(BaseModel):
     skipped: int
 
 
+class EmailDeliveryOut(BaseModel):
+    """One outbox row for the applicant panel's delivery trail (M5.7 H4).
+
+    Deliberately WITHOUT the payload — the panel needs kind + state, not
+    the stored kwargs (which carry capability URLs)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    kind: str
+    status: str
+    attempts: int
+    last_error: str | None
+    created_at: datetime
+    sent_at: datetime | None
+
+
 class CvDownload(BaseModel):
     download_url: str
 
