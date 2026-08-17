@@ -144,13 +144,13 @@ export function ApplyForm({
       <div className="mx-auto max-w-[560px] text-center">
         <div
           className="mx-auto flex h-11 w-11 items-center justify-center rounded-full"
-          style={{ background: "oklch(0.95 0.052 163)" }}
+          style={{ background: "var(--ok-soft)" }}
         >
           <Check
             aria-hidden
             className="h-5 w-5"
             strokeWidth={2.5}
-            style={{ color: "oklch(0.37 0.084 168)" }}
+            style={{ color: "var(--ok)" }}
           />
         </div>
         <h2 className="mt-5 font-heading text-[27px] leading-[1.2] font-semibold tracking-[-0.01em]">
@@ -320,7 +320,7 @@ export function ApplyForm({
       </div>
 
       {error ? (
-        <p role="alert" className="mt-4 text-sm" style={{ color: "oklch(0.45 0.120 25)" }}>
+        <p role="alert" className="mt-4 text-sm" style={{ color: "var(--danger)" }}>
           {error}
         </p>
       ) : null}

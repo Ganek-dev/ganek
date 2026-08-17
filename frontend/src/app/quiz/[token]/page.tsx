@@ -20,7 +20,7 @@ import { brandStyle } from "@/lib/brand";
  * per question — integrity telemetry records resize, so nothing may shift
  * mid-question. Client timers are cosmetic; the server owns deadlines. */
 
-const RED = "oklch(0.45 0.120 25)";
+const RED = "var(--danger)";
 
 function useCountdownMs(deadline: string | null): number | null {
   // remaining time is derived at render from a ticking clock — no state
@@ -363,13 +363,13 @@ export default function QuizPage() {
         <div className="text-center">
           <div
             className="mx-auto flex h-11 w-11 items-center justify-center rounded-full"
-            style={{ background: "oklch(0.96 0.04 55)" }}
+            style={{ background: "var(--warn-soft)" }}
           >
             <Clock
               aria-hidden
               className="h-5 w-5"
               strokeWidth={2.5}
-              style={{ color: "oklch(0.55 0.16 55)" }}
+              style={{ color: "var(--warn)" }}
             />
           </div>
           <h1 className="mt-5 font-heading text-[25px] leading-[1.2] font-semibold">

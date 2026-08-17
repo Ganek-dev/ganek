@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ArrowUpRight, Check, Copy } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
 
 import { api, companyApi, team, type CompanyAdmin } from "@/lib/api";
+import { CopyButton } from "@/components/CopyButton";
 import { careersDisplay, careersUrl } from "@/lib/careers";
 
 /** First-run checklist, handoff screen 14: lives on the dashboard until all
@@ -25,7 +26,6 @@ interface Step {
 export function OnboardingChecklist() {
   const [company, setCompany] = useState<CompanyAdmin | null>(null);
   const [steps, setSteps] = useState<Step[] | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,17 +89,6 @@ export function OnboardingChecklist() {
   const doneCount = steps.filter((step) => step.done).length;
   if (doneCount === steps.length) return null;
 
-  async function copyDomain() {
-    if (company === null) return;
-    try {
-      await navigator.clipboard.writeText(careersUrl(company.mode, company.slug));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard unavailable — the domain is visible right next to the button
-    }
-  }
-
   return (
     <div className="card p-4" data-testid="onboarding-checklist">
       <div className="flex flex-wrap items-center gap-2">
@@ -155,18 +144,7 @@ export function OnboardingChecklist() {
         <p className="font-mono text-[12px] text-g600">
           {careersDisplay(company.mode, company.slug)}
         </p>
-        <button
-          type="button"
-          onClick={copyDomain}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-edge bg-surface px-2 text-[12px] font-medium text-g700 hover:bg-muted-fill"
-        >
-          {copied ? (
-            <Check aria-hidden className="h-3 w-3 text-emerald-600" />
-          ) : (
-            <Copy aria-hidden className="h-3 w-3" />
-          )}
-          {copied ? "Copied" : "Copy"}
-        </button>
+        <CopyButton text={careersUrl(company.mode, company.slug)} label="Copy careers URL" />
         <a
           href="/"
           target="_blank"

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import { api, stats, type JobOut, type JobStatus } from "@/lib/api";
+import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
 /** Admin jobs table, screen 07: search + status pills, role with tag chips,
  * status badge, applicants with "+N new" accent, assessment chip, posted
@@ -60,71 +61,33 @@ function AssessmentChip({ job }: { job: JobOut }) {
 
 function RowMenu({
   job,
-  open,
-  onToggle,
   onAction,
 }: {
   job: JobOut;
-  open: boolean;
-  onToggle: () => void;
   onAction: (action: () => Promise<unknown>) => void;
 }) {
   return (
-    <div className="relative inline-block">
-      <button
-        type="button"
-        aria-label={`Actions for ${job.title}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-sm text-g500 hover:bg-muted-fill"
-      >
-        <MoreHorizontal aria-hidden className="h-4 w-4" />
-      </button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute top-full right-0 z-10 mt-1 w-40 rounded-md border border-edge bg-surface py-1 text-left shadow-lg"
-        >
-          <Link
-            role="menuitem"
-            href={`/admin/jobs/${job.id}`}
-            className="block px-3 py-1.5 text-[13px] hover:bg-muted-fill"
+    <Menu>
+      <MenuDotsTrigger label={`Actions for ${job.title}`} />
+      <MenuContent>
+        <MenuItem asChild>
+          <Link href={`/admin/jobs/${job.id}`}>Edit</Link>
+        </MenuItem>
+        {job.status !== "published" ? (
+          <MenuItem onSelect={() => onAction(() => api.jobs.publish(job.id))}>Publish</MenuItem>
+        ) : (
+          <MenuItem onSelect={() => onAction(() => api.jobs.close(job.id))}>Close</MenuItem>
+        )}
+        {job.status === "draft" ? (
+          <MenuItem
+            onSelect={() => onAction(() => api.jobs.delete(job.id))}
+            className="text-danger"
           >
-            Edit
-          </Link>
-          {job.status !== "published" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => onAction(() => api.jobs.publish(job.id))}
-              className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
-            >
-              Publish
-            </button>
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => onAction(() => api.jobs.close(job.id))}
-              className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
-            >
-              Close
-            </button>
-          )}
-          {job.status === "draft" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => onAction(() => api.jobs.delete(job.id))}
-              className="block w-full px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-muted-fill dark:text-red-400"
-            >
-              Delete
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+            Delete
+          </MenuItem>
+        ) : null}
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -133,7 +96,6 @@ export default function JobsPage() {
   const [applicants, setApplicants] = useState<Record<string, ApplicantCounts> | null>(null);
   const [filter, setFilter] = useState<JobFilter>("all");
   const [query, setQuery] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
@@ -160,23 +122,8 @@ export default function JobsPage() {
 
   useEffect(reload, [reload]);
 
-  useEffect(() => {
-    if (openMenuId === null) return;
-    const close = () => setOpenMenuId(null);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("click", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [openMenuId]);
-
   async function act(action: () => Promise<unknown>) {
     setError(null);
-    setOpenMenuId(null);
     try {
       await action();
       reload();
@@ -357,14 +304,7 @@ export default function JobsPage() {
                         : "—"}
                     </td>
                     <td className="px-3 py-3 text-right align-middle">
-                      <RowMenu
-                        job={job}
-                        open={openMenuId === job.id}
-                        onToggle={() =>
-                          setOpenMenuId((current) => (current === job.id ? null : job.id))
-                        }
-                        onAction={act}
-                      />
+                      <RowMenu job={job} onAction={act} />
                     </td>
                   </tr>
                 );

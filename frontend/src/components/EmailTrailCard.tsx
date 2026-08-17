@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { applications, type EmailDelivery } from "@/lib/api";
+import { relativeTime } from "@/lib/time";
 
 /** Delivery trail for an applicant (M5.7 H4): the emails this application
  * depends on and whether they actually went out. Renders nothing while the
@@ -18,14 +19,6 @@ const KIND_LABELS: Record<string, string> = {
   interview_invite: "Interview booking link",
   interview_cancelled: "Interview cancellation",
 };
-
-function relativeTime(iso: string): string {
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 90) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
-  return `${Math.round(seconds / 86400)}d ago`;
-}
 
 const STATUS_META: Record<
   EmailDelivery["status"],

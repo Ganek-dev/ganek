@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ChevronDown, Mail, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronDown, Mail, Plus } from "lucide-react";
 
 import { team, type TeamInvite, type TeamUser, type UserRole } from "@/lib/api";
+import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
 /** Team page, handoff screen 12: invite bar (email + role + Send invite),
  * member rows (avatar with initials, role select chip, active-X-ago, ⋯
@@ -82,7 +83,6 @@ export default function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [confirmAnonymizeId, setConfirmAnonymizeId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const emailRef = useRef<HTMLInputElement>(null);
@@ -107,20 +107,6 @@ export default function TeamPage() {
       );
   }, []);
   useEffect(reload, [reload]);
-
-  useEffect(() => {
-    if (openMenuId === null) return;
-    const close = () => setOpenMenuId(null);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("click", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [openMenuId]);
 
   async function sendInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -167,7 +153,6 @@ export default function TeamPage() {
 
   async function patch(id: string, patch: { role?: UserRole; is_active?: boolean }) {
     setError(null);
-    setOpenMenuId(null);
     try {
       await team.update(id, patch);
       reload();
@@ -273,7 +258,6 @@ export default function TeamPage() {
           <ul>
             {users.map((user) => {
               const tone = avatarTone(user.email);
-              const menuOpen = openMenuId === user.id;
               return (
                 <li
                   key={user.id}
@@ -318,47 +302,20 @@ export default function TeamPage() {
                   <span className="w-[110px] text-right font-mono text-[11px] text-g400">
                     {relativeActivity(user.last_login_at, now)}
                   </span>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      aria-label={`Actions for ${user.email}`}
-                      aria-haspopup="menu"
-                      aria-expanded={menuOpen}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setOpenMenuId((current) => (current === user.id ? null : user.id));
-                      }}
-                      className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-sm text-g500 hover:bg-muted-fill"
-                    >
-                      <MoreHorizontal aria-hidden className="h-4 w-4" />
-                    </button>
-                    {menuOpen ? (
-                      <div
-                        role="menu"
-                        className="absolute top-full right-0 z-10 mt-1 w-40 rounded-md border border-edge bg-surface py-1 text-left shadow-lg"
+                  <Menu>
+                    <MenuDotsTrigger label={`Actions for ${user.email}`} />
+                    <MenuContent>
+                      <MenuItem onSelect={() => patch(user.id, { is_active: !user.is_active })}>
+                        {user.is_active ? "Deactivate" : "Reactivate"}
+                      </MenuItem>
+                      <MenuItem
+                        onSelect={() => setConfirmAnonymizeId(user.id)}
+                        className="text-danger"
                       >
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => patch(user.id, { is_active: !user.is_active })}
-                          className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-muted-fill"
-                        >
-                          {user.is_active ? "Deactivate" : "Reactivate"}
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setOpenMenuId(null);
-                            setConfirmAnonymizeId(user.id);
-                          }}
-                          className="block w-full px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-muted-fill dark:text-red-400"
-                        >
-                          Remove &amp; anonymize…
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
+                        Remove &amp; anonymize…
+                      </MenuItem>
+                    </MenuContent>
+                  </Menu>
                   {confirmAnonymizeId === user.id ? (
                     <div className="flex w-full flex-wrap items-center gap-3 rounded-md border border-edge bg-muted-fill p-2.5">
                       <span className="text-[12.5px] text-g700">
