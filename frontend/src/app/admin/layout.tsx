@@ -15,7 +15,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Wordmark } from "@/components/Wordmark";
-import { api, ApiError, stats, type StatsOverview, type UserOut } from "@/lib/api";
+import { api, ApiError, companyApi, stats, type StatsOverview, type UserOut } from "@/lib/api";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutGrid, exact: true },
@@ -41,6 +41,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [user, setUser] = useState<UserOut | null>(null);
   const [overview, setOverview] = useState<StatsOverview | null>(null);
+  const [smtpMissing, setSmtpMissing] = useState(false);
 
   useEffect(() => {
     api
@@ -50,6 +51,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (err instanceof ApiError && err.status === 401) router.replace("/login");
       });
   }, [router]);
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    companyApi
+      .get()
+      .then((company) => setSmtpMissing(!company.smtp_configured))
+      .catch(() => setSmtpMissing(false)); // the banner is advisory; never block the shell
+  }, [user]);
   useEffect(() => {
     stats
       .overview()
@@ -131,7 +139,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      <div className="ml-56 flex-1 p-7">{children}</div>
+      <div className="ml-56 flex-1 p-7">
+        {smtpMissing ? (
+          <div
+            role="alert"
+            className="mb-5 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+          >
+            Email is not configured on this instance — candidates are <b>not</b> receiving
+            assessment invites or updates. Set the <code className="font-mono">VETD_SMTP_*</code>{" "}
+            variables, then verify with the test send on{" "}
+            <Link href="/admin/privacy" className="font-medium underline">
+              Settings → Privacy
+            </Link>
+            .
+          </div>
+        ) : null}
+        {children}
+      </div>
     </div>
   );
 }

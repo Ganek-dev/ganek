@@ -26,6 +26,7 @@ import {
   type ReviewIntegrityEvent,
 } from "@/lib/api";
 import { InterviewCard } from "@/components/InterviewCard";
+import { EmailTrailCard } from "@/components/EmailTrailCard";
 import { NotesCard } from "@/components/NotesCard";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -846,6 +847,7 @@ function DetailPanel({
         </p>
       ) : null}
 
+      <EmailTrailCard key={`emails-${app.id}`} applicationId={app.id} />
       <NotesCard key={app.id} applicationId={app.id} />
     </div>
   );

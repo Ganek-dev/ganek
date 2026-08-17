@@ -14,7 +14,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    companyApi: { get: vi.fn(), updateSettings: vi.fn() },
+    companyApi: { get: vi.fn(), updateSettings: vi.fn(), testEmail: vi.fn() },
   };
 });
 
@@ -24,6 +24,7 @@ function makeCompany(settings: CompanyAdmin["settings"] = {}): CompanyAdmin {
   return {
     slug: "acmelabs",
     mode: "single" as const,
+    smtp_configured: true,
     name: "Acme Labs",
     description: "",
     logo_url: null,
@@ -143,5 +144,28 @@ describe("nightly purge note (G3)", () => {
     expect(
       await screen.findByText(/deleted automatically 6 months after a decision/),
     ).toBeInTheDocument();
+  });
+
+  it("sends a test email and reports the outcome", async () => {
+    mocked.testEmail.mockResolvedValue({ sent: true });
+    render(<PrivacySettingsPage />);
+    const button = await screen.findByRole("button", { name: "Send test email to me" });
+    await userEvent.click(button);
+    expect(await screen.findByRole("status")).toHaveTextContent(/check your inbox/i);
+
+    mocked.testEmail.mockRejectedValueOnce(new Error("SMTP send failed: boom"));
+    await userEvent.click(button);
+    expect(await screen.findByText(/SMTP send failed: boom/)).toBeInTheDocument();
+  });
+
+  it("disables the test send while SMTP is unconfigured", async () => {
+    const company = makeCompany();
+    company.smtp_configured = false;
+    mocked.get.mockResolvedValue(company);
+    render(<PrivacySettingsPage />);
+    expect(
+      await screen.findByRole("button", { name: "Send test email to me" }),
+    ).toBeDisabled();
+    expect(screen.getByText(/SMTP is NOT configured/)).toBeInTheDocument();
   });
 });

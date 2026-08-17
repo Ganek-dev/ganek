@@ -28,6 +28,24 @@ export default function PrivacySettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function sendTest() {
+    setTestResult(null);
+    setTestBusy(true);
+    try {
+      await companyApi.testEmail();
+      setTestResult({ ok: true, message: "Sent — check your inbox." });
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Test send failed",
+      });
+    } finally {
+      setTestBusy(false);
+    }
+  }
 
   useEffect(() => {
     companyApi
@@ -199,6 +217,39 @@ export default function PrivacySettingsPage() {
             spellCheck={false}
             className={inputCls}
           />
+        </div>
+      </div>
+
+      <div className="card space-y-3 p-4">
+        <div>
+          <p className={labelCls}>Email delivery</p>
+          <p className={hintCls}>
+            {company.smtp_configured
+              ? "SMTP is configured. Send yourself a test email to prove the pipe end to end — failed candidate emails also show on each applicant."
+              : "SMTP is NOT configured — candidates receive no invites or updates. Set the VETD_SMTP_* variables and restart, then test here."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={sendTest}
+            disabled={testBusy || !company.smtp_configured}
+            className="inline-flex h-9 items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
+          >
+            {testBusy ? "…" : "Send test email to me"}
+          </button>
+          {testResult ? (
+            <p
+              role="status"
+              className={`text-[12.5px] ${
+                testResult.ok
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              }`}
+            >
+              {testResult.message}
+            </p>
+          ) : null}
         </div>
       </div>
 
