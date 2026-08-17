@@ -106,3 +106,19 @@ async def test_single_mode_company_endpoint(
     monkeypatch.setattr(settings, "mode", "multi")
     assert (await client.get("/api/v1/public/company")).status_code == 404
     assert job["slug"]  # published fixture used
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_public_payloads_carry_salary_period_and_closes_at(client: AsyncClient) -> None:
+    slug = await _register(client)
+    job = await _create_and_publish(
+        client, "Deadline Role", salary_period="month", closes_at="2026-12-01"
+    )
+    await client.post("/api/v1/auth/logout")
+
+    page = (await client.get(f"/api/v1/public/companies/{slug}")).json()
+    assert page["jobs"][0]["salary_period"] == "month"
+
+    detail = (await client.get(f"/api/v1/public/companies/{slug}/jobs/{job['slug']}")).json()
+    assert detail["salary_period"] == "month"
+    assert detail["closes_at"].startswith("2026-12-01T00:00:00")

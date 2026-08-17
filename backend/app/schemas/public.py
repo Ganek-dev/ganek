@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
-from app.models import EmploymentType, RemotePolicy
+from app.models import EmploymentType, RemotePolicy, SalaryPeriod
 
 
 class PublicJobSummary(BaseModel):
@@ -23,12 +23,15 @@ class PublicJobSummary(BaseModel):
     salary_min: int | None
     salary_max: int | None
     salary_currency: str | None
+    salary_period: SalaryPeriod
     tags: list[str]
     published_at: datetime | None
 
 
 class PublicJobDetail(PublicJobSummary):
     description_md: str
+    # advisory deadline → JSON-LD validThrough; the posting stays applyable
+    closes_at: datetime | None
 
 
 class PublicCompanyOut(BaseModel):

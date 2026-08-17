@@ -52,7 +52,10 @@ async def _unique_slug(db: AsyncSession, company_id: uuid.UUID, base: str) -> st
 
 async def create_job(db: AsyncSession, company: Company, payload: JobCreate) -> Job:
     await _ensure_questionnaire_visible(db, company, payload.quiz_config.questionnaire_id)
-    values = payload.model_dump(mode="json")
+    # python-mode dump: closes_at must stay a datetime for the timestamptz
+    # column; quiz_config alone re-dumps json-mode (UUID → str for JSONB)
+    values = payload.model_dump()
+    values["quiz_config"] = payload.quiz_config.model_dump(mode="json")
     job = Job(
         company_id=company.id,
         slug=await _unique_slug(db, company.id, slugify(payload.title)),
@@ -81,7 +84,9 @@ async def list_jobs(
 async def update_job(db: AsyncSession, company: Company, job: Job, payload: JobUpdate) -> Job:
     if payload.quiz_config is not None:
         await _ensure_questionnaire_visible(db, company, payload.quiz_config.questionnaire_id)
-    values = payload.model_dump(mode="json", exclude_unset=True)
+    values = payload.model_dump(exclude_unset=True)
+    if payload.quiz_config is not None:
+        values["quiz_config"] = payload.quiz_config.model_dump(mode="json")
     for field, value in values.items():
         setattr(job, field, value)
     if (
