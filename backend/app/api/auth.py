@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
@@ -22,7 +22,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.services import auth as auth_service
-from app.services import email as email_service
+from app.services import outbox as outbox_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -112,9 +112,7 @@ async def me(user: CurrentUser) -> User:
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
-async def forgot_password(
-    payload: ForgotPasswordRequest, db: DbSession, background: BackgroundTasks
-) -> None:
+async def forgot_password(payload: ForgotPasswordRequest, db: DbSession) -> None:
     """Always 204 — the response must not reveal whether an account exists.
 
     The one true dropped ball of D5 (13c): until now a locked-out
@@ -125,8 +123,10 @@ async def forgot_password(
         return
     user, company = resolved
     token = create_password_reset_token(user.id, user.token_version)
-    background.add_task(
-        email_service.send_password_reset,
+    await outbox_service.queue_email(
+        db,
+        kind="password_reset",
+        company_id=company.id,
         to=user.email,
         ref=str(user.id),
         company_name=company.name,

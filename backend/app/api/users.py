@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
 from app.core.config import settings
@@ -16,10 +16,10 @@ from app.schemas.users import (
     UserCreate,
     UserUpdate,
 )
-from app.services import email as email_service
 from app.services import google_calendar
 from app.services import interviews as interviews_service
 from app.services import invites as invites_service
+from app.services import outbox as outbox_service
 from app.services import users as users_service
 
 # every route requires an admin of the current company
@@ -83,12 +83,14 @@ async def create_user(
         ) from None
 
 
-def _schedule_invite_email(
-    background: BackgroundTasks, company: Company, inviter: User, invite: UserInvite
+async def _queue_invite_email(
+    db: DbSession, company: Company, inviter: User, invite: UserInvite
 ) -> None:
     base = settings.public_base_url.rstrip("/")
-    background.add_task(
-        email_service.send_team_invite,
+    await outbox_service.queue_email(
+        db,
+        kind="team_invite",
+        company_id=company.id,
         to=invite.email,
         ref=str(invite.id),
         company_name=company.name,
@@ -113,7 +115,6 @@ async def create_invite(
     db: DbSession,
     company: CurrentCompany,
     admin: AdminUser,
-    background: BackgroundTasks,
 ) -> UserInvite:
     try:
         invite = await invites_service.create_invite(db, company, payload)
@@ -127,7 +128,7 @@ async def create_invite(
             status_code=status.HTTP_409_CONFLICT,
             detail="This email already has a pending invite",
         ) from None
-    _schedule_invite_email(background, company, admin, invite)
+    await _queue_invite_email(db, company, admin, invite)
     return invite
 
 
@@ -137,13 +138,12 @@ async def resend_invite(
     db: DbSession,
     company: CurrentCompany,
     admin: AdminUser,
-    background: BackgroundTasks,
 ) -> UserInvite:
     invite = await invites_service.get_invite(db, company, invite_id)
     if invite is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
     invite = await invites_service.resend_invite(db, invite)
-    _schedule_invite_email(background, company, admin, invite)
+    await _queue_invite_email(db, company, admin, invite)
     return invite
 
 

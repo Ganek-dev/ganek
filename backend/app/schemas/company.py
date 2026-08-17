@@ -21,6 +21,9 @@ class CompanyOut(BaseModel):
     # not a column — the instance's deployment mode, so admin surfaces can
     # render the real careers URL (single mode serves it at the root)
     mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
+    # not a column — whether outbound email can be delivered at all; the
+    # admin banner ("candidates are NOT receiving email") keys off this
+    smtp_configured: bool = Field(default_factory=lambda: app_settings.smtp_host is not None)
 
 
 class BrandingUpdate(BaseModel):

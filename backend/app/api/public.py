@@ -1,7 +1,7 @@
 import random
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.auth import _set_session_cookie
@@ -59,10 +59,10 @@ from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
-from app.services import email as email_service
 from app.services import interviews as interviews_service
 from app.services import invites as invites_service
 from app.services import jobs as jobs_service
+from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -233,7 +233,6 @@ async def _apply(
     company: Company,
     job_slug: str,
     payload: ApplicationSubmit,
-    background: BackgroundTasks,
 ) -> ApplicationReceived:
     job = await _published_job_or_404(db, company, job_slug)
     try:
@@ -251,8 +250,11 @@ async def _apply(
     quiz_token = create_quiz_token(attempt.id) if attempt is not None else None
     if attempt is not None and quiz_token is not None:
         # assessment attached → the invite (17a) subsumes the generic confirmation
-        background.add_task(
-            email_service.send_quiz_invite,
+        await outbox_service.queue_email(
+            db,
+            kind="quiz_invite",
+            company_id=company.id,
+            application_id=application.id,
             to=payload.email,
             ref=str(application.id),
             candidate_name=payload.name,
@@ -267,8 +269,11 @@ async def _apply(
             privacy_url=company_service.privacy_notice_url(company),
         )
     else:
-        background.add_task(
-            email_service.send_application_received,
+        await outbox_service.queue_email(
+            db,
+            kind="application_received",
+            company_id=company.id,
+            application_id=application.id,
             to=payload.email,
             ref=str(application.id),
             candidate_name=payload.name,
@@ -304,9 +309,8 @@ async def company_apply(
     job_slug: str,
     payload: ApplicationSubmit,
     db: DbSession,
-    background: BackgroundTasks,
 ) -> ApplicationReceived:
-    return await _apply(db, company, job_slug, payload, background)
+    return await _apply(db, company, job_slug, payload)
 
 
 @router.post(
@@ -332,9 +336,8 @@ async def single_apply(
     job_slug: str,
     payload: ApplicationSubmit,
     db: DbSession,
-    background: BackgroundTasks,
 ) -> ApplicationReceived:
-    return await _apply(db, company, job_slug, payload, background)
+    return await _apply(db, company, job_slug, payload)
 
 
 async def _attempt_or_404(db: DbSession, token: str) -> "QuizAttempt":
@@ -478,9 +481,7 @@ async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizE
     response_model=dict[str, bool],
     dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
 )
-async def quiz_request_reissue(
-    token: str, db: DbSession, background: BackgroundTasks
-) -> dict[str, bool]:
+async def quiz_request_reissue(token: str, db: DbSession) -> dict[str, bool]:
     """Expired-link screen (27c): ask for a fresh assessment link.
 
     Company setting ``quiz_expired_reissue`` decides: 'auto' re-issues a
@@ -523,8 +524,11 @@ async def quiz_request_reissue(
             db, company, application, job, reason="expired", mode="auto", by_user_id=None
         )
         if fresh is not None:
-            background.add_task(
-                email_service.send_quiz_invite,
+            await outbox_service.queue_email(
+                db,
+                kind="quiz_invite",
+                company_id=company.id,
+                application_id=application.id,
                 to=application.candidate.email,
                 ref=str(application.id),
                 candidate_name=application.candidate.name,

@@ -167,9 +167,10 @@ def test_privacy_footer_absent_when_not_wired(monkeypatch: pytest.MonkeyPatch) -
     assert "Sent by vetd on behalf of Northwind Robotics" in html
 
 
-def test_quiz_invite_transport_errors_are_swallowed(
+def test_quiz_invite_transport_errors_propagate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Since the outbox (M5.7 H4) senders RAISE — the worker owns retry."""
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
 
     class ExplodingSMTP(FakeSMTP):
@@ -177,7 +178,8 @@ def test_quiz_invite_transport_errors_are_swallowed(
             raise smtplib.SMTPException("boom")
 
     monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
-    email_service.send_quiz_invite(**_invite_kwargs())  # must not raise
+    with pytest.raises(smtplib.SMTPException):
+        email_service.send_quiz_invite(**_invite_kwargs())
 
 
 def test_quiz_reminder_renders_expiry_and_link(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -323,61 +325,8 @@ def test_rejection_omits_assessment_line_without_completed_attempt(
     assert "a real person reviewed it" not in html
 
 
-def test_stage_emails_swallow_transport_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
-
-    class ExplodingSMTP(FakeSMTP):
-        def send_message(self, message: EmailMessage) -> None:
-            raise smtplib.SMTPException("boom")
-
-    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
-    email_service.send_stage_advance(
-        to="a@b.c", candidate_name="A", job_title="T", company_name="C", brand_primary=None
-    )
-    email_service.send_rejection(
-        to="a@b.c",
-        candidate_name="A",
-        job_title="T",
-        company_name="C",
-        careers_url="https://x.example",
-        completed_assessment=False,
-    )
-
-
-def test_transport_errors_are_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
-
-    class ExplodingSMTP(FakeSMTP):
-        def send_message(self, message: EmailMessage) -> None:
-            raise smtplib.SMTPException("boom")
-
-    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
-    # send_application_received must never raise
-    email_service.send_application_received(
-        to="jane@example.com", candidate_name="J", job_title="T", company_name="C"
-    )
-
-
-def test_failure_log_carries_ref_never_the_address(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """M5.6 G4: recipient addresses stay out of log lines; the opaque ref goes in."""
-    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
-
-    class ExplodingSMTP(FakeSMTP):
-        def send_message(self, message: EmailMessage) -> None:
-            raise smtplib.SMTPException("boom")
-
-    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
-    with caplog.at_level(logging.WARNING, logger="app.services.email"):
-        email_service.send_quiz_invite(**_invite_kwargs(ref="11111111-2222-3333-4444-555555555555"))
-
-    assert "marta@example.com" not in caplog.text
-    assert "ref=11111111-2222-3333-4444-555555555555" in caplog.text
-
-
-def test_failure_log_without_ref_still_hides_address(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+def test_stage_and_confirmation_transport_errors_propagate(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
 
@@ -386,10 +335,46 @@ def test_failure_log_without_ref_still_hides_address(
             raise smtplib.SMTPException("boom")
 
     monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
-    with caplog.at_level(logging.WARNING, logger="app.services.email"):
-        email_service.send_quiz_invite(**_invite_kwargs())
+    with pytest.raises(smtplib.SMTPException):
+        email_service.send_stage_advance(
+            to="a@b.c", candidate_name="A", job_title="T", company_name="C", brand_primary=None
+        )
+    with pytest.raises(smtplib.SMTPException):
+        email_service.send_rejection(
+            to="a@b.c",
+            candidate_name="A",
+            job_title="T",
+            company_name="C",
+            careers_url="https://x.example",
+            completed_assessment=False,
+        )
+    with pytest.raises(smtplib.SMTPException):
+        email_service.send_application_received(
+            to="jane@example.com", candidate_name="J", job_title="T", company_name="C"
+        )
+
+
+def test_transport_failure_logs_nothing_here(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """M5.6 G4 continues to hold under the outbox: this module no longer
+    logs failures at all (nothing to leak an address into) — the worker's
+    failure line carries the outbox row id, never the recipient."""
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+
+    class ExplodingSMTP(FakeSMTP):
+        def send_message(self, message: EmailMessage) -> None:
+            raise smtplib.SMTPException("boom")
+
+    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
+    with caplog.at_level(logging.INFO, logger="app.services.email"):
+        with pytest.raises(smtplib.SMTPException):
+            email_service.send_quiz_invite(
+                **_invite_kwargs(ref="11111111-2222-3333-4444-555555555555")
+            )
 
     assert "marta@example.com" not in caplog.text
+    assert caplog.text == ""
 
 
 def test_smtp_unconfigured_skip_log_hides_address(

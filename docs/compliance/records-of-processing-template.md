@@ -92,8 +92,11 @@ default 6 months), enforced by the nightly purge from the decision date.
   controller identity and the privacy-notice link.
 - **Recipients:** `{email relay}`.
 - **Transfers:** `{per your relay}`.
-- **Retention:** sent mail per `{your mailbox policy}`; Vetd logs email
-  events by internal reference only.
+- **Retention:** sent mail per `{your mailbox policy}`; Vetd keeps a
+  per-email delivery record (recipient, template kind, delivery state)
+  for 30 days so failures are visible to recruiters, then the nightly job
+  removes it — records are deleted immediately with the candidate on
+  erasure; logs reference internal IDs only.
 
 ## Activity 6 — Interview scheduling via Google Calendar
 
