@@ -90,13 +90,13 @@ jobs:
           docker compose -f docker-compose.yml -f compose.release-smoke.yml ps
           docker compose -f docker-compose.yml -f compose.release-smoke.yml logs
       - name: Trivy scan backend image (advisory)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
           severity: CRITICAL,HIGH
           exit-code: "0"
       - name: Trivy scan frontend image (advisory)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
           severity: CRITICAL,HIGH
