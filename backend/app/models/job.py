@@ -32,6 +32,14 @@ class JobStatus(enum.StrEnum):
     CLOSED = "closed"
 
 
+class SalaryPeriod(enum.StrEnum):
+    HOUR = "hour"
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
 def _str_enum(enum_cls: type[enum.StrEnum]) -> Enum:
     return Enum(
         enum_cls,
@@ -64,6 +72,12 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     salary_min: Mapped[int | None] = mapped_column(Integer)
     salary_max: Mapped[int | None] = mapped_column(Integer)
     salary_currency: Mapped[str | None] = mapped_column(String(3))
+    salary_period: Mapped[SalaryPeriod] = mapped_column(
+        _str_enum(SalaryPeriod), default=SalaryPeriod.YEAR, server_default="year"
+    )
+    # Advisory application deadline: surfaces as JSON-LD validThrough for Google
+    # Jobs; never auto-closes the posting (rule 5 — the tool decides nothing).
+    closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
     status: Mapped[JobStatus] = mapped_column(_str_enum(JobStatus), default=JobStatus.DRAFT)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

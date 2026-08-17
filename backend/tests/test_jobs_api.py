@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -207,3 +208,45 @@ async def test_attach_questionnaire_roundtrips_and_is_tenant_scoped(
     )
     assert bad_create.status_code == 422
     assert "not found in this workspace" in bad_create.json()["detail"]
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_salary_period_and_closes_at_roundtrip(client: AsyncClient) -> None:
+    await _register(client)
+
+    # defaults: annual salary, no application deadline
+    job = (await client.post("/api/v1/jobs", json=_job_payload())).json()
+    assert job["salary_period"] == "year"
+    assert job["closes_at"] is None
+
+    # date-only closes_at parses naive and is stored as UTC midnight
+    resp = await client.post(
+        "/api/v1/jobs",
+        json=_job_payload(salary_period="month", closes_at="2026-09-30"),
+    )
+    assert resp.status_code == 201, resp.text
+    job = resp.json()
+    assert job["salary_period"] == "month"
+    assert _dt(job["closes_at"]) == datetime(2026, 9, 30, tzinfo=UTC)
+
+    # PATCH updates both; an offset input normalizes to the same instant
+    resp = await client.patch(
+        f"/api/v1/jobs/{job['id']}",
+        json={"salary_period": "hour", "closes_at": "2026-10-15T12:00:00+02:00"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["salary_period"] == "hour"
+    assert _dt(resp.json()["closes_at"]) == datetime(2026, 10, 15, 10, 0, tzinfo=UTC)
+
+    # explicit null clears the deadline
+    resp = await client.patch(f"/api/v1/jobs/{job['id']}", json={"closes_at": None})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["closes_at"] is None
+
+    # unknown period rejected
+    resp = await client.post("/api/v1/jobs", json=_job_payload(salary_period="fortnight"))
+    assert resp.status_code == 422
+
+
+def _dt(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))

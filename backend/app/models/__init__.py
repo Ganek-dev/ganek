@@ -7,7 +7,7 @@ from app.models.company import Company
 from app.models.email_outbox import EmailOutbox, EmailStatus
 from app.models.google_credential import UserGoogleCredential
 from app.models.interview import Interview, InterviewStatus
-from app.models.job import EmploymentType, Job, JobStatus, RemotePolicy
+from app.models.job import EmploymentType, Job, JobStatus, RemotePolicy, SalaryPeriod
 from app.models.question import (
     MAX_DIFFICULTY,
     MIN_DIFFICULTY,
@@ -47,6 +47,7 @@ __all__ = [
     "QuestionSource",
     "QuestionStatus",
     "RemotePolicy",
+    "SalaryPeriod",
     "User",
     "UserGoogleCredential",
     "UserInvite",

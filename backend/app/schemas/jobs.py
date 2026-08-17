@@ -1,12 +1,22 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-from app.models import EmploymentType, JobStatus, RemotePolicy
+from app.models import EmploymentType, JobStatus, RemotePolicy, SalaryPeriod
 
 DifficultyLevel = Annotated[int, Field(ge=1, le=5)]
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """Date-only input parses naive; a timestamptz column needs an aware value."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+ClosesAt = Annotated[datetime | None, AfterValidator(_as_utc)]
 
 
 class QuizConfigSchema(BaseModel):
@@ -72,6 +82,8 @@ class JobCreate(BaseModel):
     salary_min: int | None = Field(default=None, ge=0)
     salary_max: int | None = Field(default=None, ge=0)
     salary_currency: str | None = Field(default=None, min_length=3, max_length=3)
+    salary_period: SalaryPeriod = SalaryPeriod.YEAR
+    closes_at: ClosesAt = None
     tags: list[str] = Field(default_factory=list, max_length=20)
     quiz_config: QuizConfigSchema = Field(default_factory=QuizConfigSchema)
 
@@ -95,6 +107,8 @@ class JobUpdate(BaseModel):
     salary_min: int | None = Field(default=None, ge=0)
     salary_max: int | None = Field(default=None, ge=0)
     salary_currency: str | None = Field(default=None, min_length=3, max_length=3)
+    salary_period: SalaryPeriod | None = None
+    closes_at: ClosesAt = None
     tags: list[str] | None = Field(default=None, max_length=20)
     quiz_config: QuizConfigSchema | None = None
 
@@ -112,6 +126,8 @@ class JobOut(BaseModel):
     salary_min: int | None
     salary_max: int | None
     salary_currency: str | None
+    salary_period: SalaryPeriod
+    closes_at: datetime | None
     tags: list[str]
     status: JobStatus
     quiz_config: QuizConfigSchema
