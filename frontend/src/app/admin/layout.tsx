@@ -42,15 +42,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [user, setUser] = useState<UserOut | null>(null);
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [smtpMissing, setSmtpMissing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
+    if (loadFailed) return; // retry re-arms by flipping this back
     api
       .me()
       .then(setUser)
       .catch((err: unknown) => {
-        if (err instanceof ApiError && err.status === 401) router.replace("/login");
+        if (err instanceof ApiError && err.status === 401) {
+          router.replace("/login");
+          return;
+        }
+        setLoadFailed(true); // backend down/unreachable: say so, don't skeleton forever
       });
-  }, [router]);
+  }, [router, loadFailed]);
   useEffect(() => {
     if (user?.role !== "admin") return;
     companyApi
@@ -65,6 +71,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => setOverview(null)); // counters are decoration; never block the shell
   }, [pathname]);
 
+  if (loadFailed) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="max-w-[380px] text-center">
+          <h1 className="font-heading text-[20px] font-semibold">Can&apos;t reach the backend</h1>
+          <p className="mt-2 text-[14px] leading-[21px] text-g600">
+            The admin app couldn&apos;t load your session. The API may be restarting —
+            check the backend container if this persists.
+          </p>
+          <button
+            type="button"
+            onClick={() => setLoadFailed(false)}
+            className="mt-5 inline-flex h-9 items-center rounded-md border-[1.5px] border-edge px-4 text-[13.5px] font-semibold hover:border-accent hover:text-accent"
+          >
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center">

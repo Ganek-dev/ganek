@@ -91,6 +91,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // non-JSON error body; keep statusText
     }
+    // mid-session expiry anywhere in the admin app: back to login instead
+    // of raw error strings sprinkled over whatever surface made the call
+    if (
+      resp.status === 401 &&
+      typeof window !== "undefined" &&
+      window.location.pathname.startsWith("/admin")
+    ) {
+      window.location.assign("/login");
+    }
     throw new ApiError(resp.status, detail);
   }
   if (resp.status === 204) return undefined as T;
