@@ -63,6 +63,12 @@ FAMILIES = [
         id="interview",
     ),
     pytest.param(
+        security.PASSWORD_RESET_MAX_AGE_SECONDS,
+        lambda: security.create_password_reset_token(uuid.uuid4(), 0),
+        security.read_password_reset_token,
+        id="password-reset",
+    ),
+    pytest.param(
         security.GOOGLE_FLOW_MAX_AGE_SECONDS,
         lambda: security.create_google_flow_token("state", "verifier", "nonce"),
         security.read_google_flow_token,

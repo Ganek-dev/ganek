@@ -513,6 +513,61 @@ def send_team_invite(
         logger.warning("failed to send team invite (ref=%s)", ref, exc_info=True)
 
 
+def send_password_reset(
+    *,
+    to: str,
+    ref: str | None = None,
+    company_name: str,
+    reset_url: str,
+    brand_primary: str | None,
+    expires_minutes: int,
+) -> None:
+    """Password reset link for a recruiter (M5.7 H4). Sent only from the
+    forgot-password endpoint, which never reveals whether an account exists."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_company = escape(company_name)
+    subject = "Reset your vetd password"
+
+    body = (
+        f"Hi,\n"
+        f"\n"
+        f"Someone asked to reset the password for your {company_name}\n"
+        f"workspace account on vetd. If that was you, set a new password\n"
+        f"here (the link works for {expires_minutes} minutes):\n"
+        f"\n"
+        f"{reset_url}\n"
+        f"\n"
+        f"If it wasn't you, ignore this email — your password is unchanged\n"
+        f"and the link expires on its own.\n"
+        f"\n"
+        f"— {company_name} (via Vetd)\n"
+    )
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        "Reset your password</h1>"
+        + _paragraph(
+            f"Someone asked to reset the password for your {safe_company} workspace "
+            f"account. If that was you, set a new one below; if not, ignore this "
+            f"email — your password is unchanged."
+        )
+        + f'<a href="{reset_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Set a new password</a>"
+        f'<div style="margin-top: 12px; text-align: center; font-family: monospace; '
+        f'font-size: 11px; color: #a1a1aa;">link valid for {expires_minutes} minutes</div>'
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+
+    try:
+        send_email(to=to, subject=subject, body=body, html=html, ref=ref)
+    except Exception:  # noqa: BLE001 - email must never break the request flow
+        logger.warning("failed to send password reset (ref=%s)", ref, exc_info=True)
+
+
 def send_google_linked(*, to: str, company_name: str, ref: str | None = None) -> None:
     """Security notice: a Google identity was just linked to an existing account.
 

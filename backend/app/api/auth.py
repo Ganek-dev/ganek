@@ -1,17 +1,28 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
-from app.core.security import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_token
+from app.core.security import (
+    PASSWORD_RESET_MAX_AGE_SECONDS,
+    SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE_SECONDS,
+    create_password_reset_token,
+    create_session_token,
+    read_password_reset_token,
+)
 from app.models import User
 from app.schemas.auth import (
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     UserOut,
 )
 from app.services import auth as auth_service
+from app.services import email as email_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -94,6 +105,59 @@ async def logout(response: Response) -> None:
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> User:
     return user
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def forgot_password(
+    payload: ForgotPasswordRequest, db: DbSession, background: BackgroundTasks
+) -> None:
+    """Always 204 — the response must not reveal whether an account exists.
+
+    The one true dropped ball of D5 (13c): until now a locked-out
+    single-mode admin had no recovery but SQL.
+    """
+    resolved = await auth_service.password_reset_target(db, email=payload.email)
+    if resolved is None:
+        return
+    user, company = resolved
+    token = create_password_reset_token(user.id, user.token_version)
+    background.add_task(
+        email_service.send_password_reset,
+        to=user.email,
+        ref=str(user.id),
+        company_name=company.name,
+        reset_url=f"{settings.public_base_url.rstrip('/')}/reset?token={token}",
+        brand_primary=(company.theme or {}).get("primary_color"),
+        expires_minutes=PASSWORD_RESET_MAX_AGE_SECONDS // 60,
+    )
+
+
+@router.post(
+    "/reset-password",
+    response_model=UserOut,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def reset_password(payload: ResetPasswordRequest, response: Response, db: DbSession) -> User:
+    """Completes a reset and logs the user in. The token embeds the
+    token_version it was issued against, so it is single-use: set_password
+    bumps the version, retiring this link, its siblings, and every
+    existing session in one move."""
+    parsed = read_password_reset_token(payload.token)
+    if parsed is not None:
+        user_id, version = parsed
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if user is not None and user.is_active and user.token_version == version:
+            await auth_service.set_password(db, user, new_password=payload.new_password)
+            _set_session_cookie(response, user)
+            return user
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="This reset link is invalid or has expired — request a new one",
+    )
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

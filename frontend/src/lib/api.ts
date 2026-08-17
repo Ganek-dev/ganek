@@ -128,6 +128,16 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
+  forgotPassword: (payload: { email: string }) =>
+    request<void>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  resetPassword: (payload: { token: string; new_password: string }) =>
+    request<UserOut>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   me: () => request<UserOut>("/api/v1/auth/me"),
   providers: () =>
     request<{ google: boolean; mode: "single" | "multi" }>("/api/v1/auth/providers"),
