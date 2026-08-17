@@ -22,7 +22,11 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-markdown": "^10.1.0",
-    "server-only": "^0.0.1"
+    "rehype-stringify": "^10.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "server-only": "^0.0.1",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

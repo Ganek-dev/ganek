@@ -58,6 +58,8 @@ function makeJob(overrides: Partial<JobOut> = {}): JobOut {
     salary_min: null,
     salary_max: null,
     salary_currency: null,
+    salary_period: "year",
+    closes_at: null,
     tags: [],
     status: "draft",
     quiz_config: {

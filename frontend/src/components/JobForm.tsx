@@ -14,6 +14,7 @@ import type {
   QuestionnaireOut,
   QuizConfig,
   RemotePolicy,
+  SalaryPeriod,
 } from "@/lib/api";
 
 /** Job form, handoff screen 08: two-column layout with a fields card and a
@@ -34,6 +35,14 @@ const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
   { value: "part_time", label: "Part-time" },
   { value: "contract", label: "Contract" },
   { value: "internship", label: "Internship" },
+];
+
+const SALARY_PERIODS: { value: SalaryPeriod; label: string }[] = [
+  { value: "year", label: "per year" },
+  { value: "month", label: "per month" },
+  { value: "week", label: "per week" },
+  { value: "day", label: "per day" },
+  { value: "hour", label: "per hour" },
 ];
 
 const inputCls =
@@ -218,6 +227,8 @@ export function JobForm({
         salary_min: num("salary_min"),
         salary_max: num("salary_max"),
         salary_currency: str("salary_currency") === "" ? null : str("salary_currency"),
+        salary_period: str("salary_period") as SalaryPeriod,
+        closes_at: str("closes_at") === "" ? null : str("closes_at"),
         tags,
         quiz_config,
       });
@@ -275,7 +286,7 @@ export function JobForm({
           </label>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <label className="flex flex-col gap-2">
             <span className={labelCls}>Salary min</span>
             <input
@@ -305,6 +316,36 @@ export function JobForm({
               defaultValue={initial?.salary_currency ?? ""}
               className={inputCls}
             />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className={labelCls}>Period</span>
+            <select
+              name="salary_period"
+              defaultValue={initial?.salary_period ?? "year"}
+              className={inputCls}
+            >
+              {SALARY_PERIODS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-2">
+            <span className={labelCls}>Closes on</span>
+            <input
+              name="closes_at"
+              type="date"
+              defaultValue={initial?.closes_at?.slice(0, 10) ?? ""}
+              className={inputCls}
+            />
+            <span className="text-xs text-g500">
+              Optional. Tells search engines when the posting expires — it never
+              closes the job for you.
+            </span>
           </label>
         </div>
 

@@ -27,9 +27,11 @@ const job: PublicJobDetail = {
   salary_min: 15000,
   salary_max: 25000,
   salary_currency: "PLN",
+  salary_period: "year",
   tags: ["python", "fastapi"],
   published_at: "2026-07-21T12:00:00Z",
   description_md: "# Role\nBuild things.",
+  closes_at: null,
 };
 
 const designJob: PublicJobSummary = {
@@ -41,6 +43,7 @@ const designJob: PublicJobSummary = {
   salary_min: null,
   salary_max: null,
   salary_currency: null,
+  salary_period: "year",
   tags: ["design"],
   published_at: null,
 };
@@ -68,7 +71,7 @@ describe("job list", () => {
     render(<JobList jobs={[job]} hrefPrefix="/jobs" />);
     const link = screen.getByRole("link", { name: /Senior Python Developer/ });
     expect(link).toHaveAttribute("href", "/jobs/senior-python-developer");
-    expect(link).toHaveTextContent(/Warsaw · Hybrid · Full-time · 15,000–25,000 PLN/);
+    expect(link).toHaveTextContent(/Warsaw · Hybrid · Full-time · 15,000–25,000 PLN\/yr/);
   });
 
   it("shows the empty state without pills when there are no jobs", () => {
@@ -112,7 +115,7 @@ describe("job list", () => {
 
 describe("meta helpers", () => {
   it("formats salary bounds", () => {
-    expect(formatSalary({ ...job, salary_max: null })).toBe("from 15,000 PLN");
+    expect(formatSalary({ ...job, salary_max: null })).toBe("from 15,000 PLN/yr");
     expect(formatSalary({ ...job, salary_min: null, salary_max: null })).toBeNull();
   });
 
@@ -128,7 +131,7 @@ describe("meta helpers", () => {
 
   it("joins the meta line and skips missing parts", () => {
     const now = new Date("2026-07-24T12:00:00Z");
-    expect(jobMetaLine(job, now)).toBe("Warsaw · Hybrid · Full-time · 15,000–25,000 PLN · 3d ago");
+    expect(jobMetaLine(job, now)).toBe("Warsaw · Hybrid · Full-time · 15,000–25,000 PLN/yr · 3d ago");
     expect(jobMetaLine(designJob, now)).toBe("London · Remote · Full-time");
   });
 });
@@ -140,5 +143,29 @@ describe("JSON-LD", () => {
     expect(ld.employmentType).toBe("FULL_TIME");
     expect(ld.hiringOrganization).toMatchObject({ name: "Acme" });
     expect(ld.baseSalary).toMatchObject({ currency: "PLN" });
+  });
+
+  it("renders the description as HTML, not raw markdown", () => {
+    const ld = jobPostingJsonLd(company, job) as Record<string, unknown>;
+    expect(ld.description).toContain("<h1>Role</h1>");
+    expect(ld.description).not.toContain("# Role");
+  });
+
+  it("declares the salary unit from the job's period", () => {
+    const yearly = jobPostingJsonLd(company, job) as { baseSalary: { value: object } };
+    expect(yearly.baseSalary.value).toMatchObject({ unitText: "YEAR" });
+    const monthly = jobPostingJsonLd(company, { ...job, salary_period: "month" }) as {
+      baseSalary: { value: object };
+    };
+    expect(monthly.baseSalary.value).toMatchObject({ unitText: "MONTH" });
+  });
+
+  it("emits validThrough only when the job has a deadline", () => {
+    expect(jobPostingJsonLd(company, job)).not.toHaveProperty("validThrough");
+    const withDeadline = jobPostingJsonLd(company, {
+      ...job,
+      closes_at: "2026-12-01T00:00:00Z",
+    }) as Record<string, unknown>;
+    expect(withDeadline.validThrough).toBe("2026-12-01T00:00:00Z");
   });
 });

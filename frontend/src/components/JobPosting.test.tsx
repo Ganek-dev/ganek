@@ -24,9 +24,11 @@ const job: PublicJobDetail = {
   salary_min: 15000,
   salary_max: 25000,
   salary_currency: "PLN",
+  salary_period: "year",
   tags: ["python", "fastapi"],
   published_at: "2026-07-21T12:00:00Z",
   description_md: "Intro paragraph.\n\n## What you'll do\n\n- Ship `FastAPI` services\n- Review code",
+  closes_at: null,
 };
 
 describe("JobHero", () => {
@@ -38,7 +40,7 @@ describe("JobHero", () => {
       "href",
       "/c/acme",
     );
-    for (const chip of ["Warsaw", "Hybrid", "Full-time", "15,000–25,000 PLN"]) {
+    for (const chip of ["Warsaw", "Hybrid", "Full-time", "15,000–25,000 PLN/yr"]) {
       expect(screen.getByText(chip)).toBeInTheDocument();
     }
     expect(screen.getByText(/^Posted .+ ago$|^Posted today$/)).toBeInTheDocument();
@@ -109,5 +111,16 @@ describe("JobPosting", () => {
     };
     const { container } = render(<JobPosting company={company} job={tracked} />);
     expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("escapes '<' in the JSON-LD script so content can't break out of it", () => {
+    const evil: PublicCompany = { ...company, name: "Acme </script><script>alert(1)" };
+    const { container } = render(<JobPosting company={evil} job={job} />);
+    const script = container.querySelector('script[type="application/ld+json"]');
+    expect(script).not.toBeNull();
+    expect(script!.innerHTML).not.toContain("</script");
+    expect(JSON.parse(script!.innerHTML)).toMatchObject({
+      hiringOrganization: { name: "Acme </script><script>alert(1)" },
+    });
   });
 });

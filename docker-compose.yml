@@ -51,6 +51,8 @@ services:
         VETD_S3_PUBLIC_ENDPOINT_URL: ${VETD_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     environment:
       BACKEND_URL: http://backend:8000
+      # absolute URLs in sitemap.xml / robots.txt / OG metadata
+      VETD_PUBLIC_BASE_URL: ${VETD_PUBLIC_BASE_URL:-http://localhost:3000}
     depends_on: [backend]
     ports: ["3000:3000"]
 

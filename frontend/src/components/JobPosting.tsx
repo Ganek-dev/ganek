@@ -8,6 +8,7 @@ import {
   formatPostedAgo,
   formatSalary,
 } from "@/components/careers";
+import { mdToHtml } from "@/lib/md-html";
 import type { PublicCompany, PublicJobDetail } from "@/lib/public-api";
 
 const EMPLOYMENT_TYPE_SCHEMA: Record<string, string> = {
@@ -17,13 +18,23 @@ const EMPLOYMENT_TYPE_SCHEMA: Record<string, string> = {
   internship: "INTERN",
 };
 
+const SALARY_UNIT_SCHEMA: Record<string, string> = {
+  hour: "HOUR",
+  day: "DAY",
+  week: "WEEK",
+  month: "MONTH",
+  year: "YEAR",
+};
+
 export function jobPostingJsonLd(company: PublicCompany, job: PublicJobDetail): object {
   return {
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: job.title,
-    description: job.description_md,
+    // Google wants an HTML description, not raw markdown
+    description: mdToHtml(job.description_md),
     datePosted: job.published_at,
+    ...(job.closes_at ? { validThrough: job.closes_at } : {}),
     employmentType: EMPLOYMENT_TYPE_SCHEMA[job.employment_type],
     hiringOrganization: {
       "@type": "Organization",
@@ -49,7 +60,7 @@ export function jobPostingJsonLd(company: PublicCompany, job: PublicJobDetail): 
               "@type": "QuantitativeValue",
               minValue: job.salary_min,
               ...(job.salary_max !== null ? { maxValue: job.salary_max } : {}),
-              unitText: "MONTH",
+              unitText: SALARY_UNIT_SCHEMA[job.salary_period] ?? "YEAR",
             },
           },
         }
@@ -232,7 +243,11 @@ export function JobPosting({
     <article>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingJsonLd(company, job)) }}
+        // '<' must not survive verbatim: a description containing
+        // "</script>" would otherwise break out of this element
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jobPostingJsonLd(company, job)).replaceAll("<", "\\u003c"),
+        }}
       />
       <div className="job-body">
         <ReactMarkdown components={jobMd}>{job.description_md}</ReactMarkdown>

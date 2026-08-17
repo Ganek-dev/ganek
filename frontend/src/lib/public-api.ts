@@ -2,7 +2,7 @@
 
 import "server-only";
 
-import type { EmploymentType, RemotePolicy } from "@/lib/api";
+import type { EmploymentType, RemotePolicy, SalaryPeriod } from "@/lib/api";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
@@ -15,12 +15,15 @@ export interface PublicJobSummary {
   salary_min: number | null;
   salary_max: number | null;
   salary_currency: string | null;
+  salary_period: SalaryPeriod;
   tags: string[];
   published_at: string | null;
 }
 
 export interface PublicJobDetail extends PublicJobSummary {
   description_md: string;
+  /** Advisory deadline → JSON-LD validThrough; the posting stays applyable. */
+  closes_at: string | null;
 }
 
 export interface PublicCompany {

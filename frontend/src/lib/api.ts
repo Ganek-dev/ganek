@@ -13,6 +13,7 @@ export interface UserOut {
 
 export type RemotePolicy = "onsite" | "hybrid" | "remote";
 export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
+export type SalaryPeriod = "hour" | "day" | "week" | "month" | "year";
 export type JobStatus = "draft" | "published" | "closed";
 
 export interface QuizConfig {
@@ -41,6 +42,8 @@ export interface JobOut {
   salary_min: number | null;
   salary_max: number | null;
   salary_currency: string | null;
+  salary_period: SalaryPeriod;
+  closes_at: string | null;
   tags: string[];
   status: JobStatus;
   quiz_config: QuizConfig;
@@ -58,6 +61,8 @@ export interface JobInput {
   salary_min: number | null;
   salary_max: number | null;
   salary_currency: string | null;
+  salary_period: SalaryPeriod;
+  closes_at: string | null;
   tags: string[];
   quiz_config: QuizConfig;
 }

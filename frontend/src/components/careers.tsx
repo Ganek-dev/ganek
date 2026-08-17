@@ -23,15 +23,24 @@ export function themeStyle(company: PublicCompany): React.CSSProperties {
   return brandStyle(theme.primary_color, theme.radius);
 }
 
+const SALARY_PERIOD_LABELS: Record<string, string> = {
+  hour: "/hr",
+  day: "/day",
+  week: "/wk",
+  month: "/mo",
+  year: "/yr",
+};
+
 export function formatSalary(job: PublicJobSummary): string | null {
   if (job.salary_min === null && job.salary_max === null) return null;
   const currency = job.salary_currency ?? "";
+  const period = SALARY_PERIOD_LABELS[job.salary_period] ?? "";
   const fmt = (n: number) => n.toLocaleString("en-US");
   if (job.salary_min !== null && job.salary_max !== null) {
-    return `${fmt(job.salary_min)}–${fmt(job.salary_max)} ${currency}`.trim();
+    return `${fmt(job.salary_min)}–${fmt(job.salary_max)} ${currency}${period}`.trim();
   }
   const bound = job.salary_min ?? job.salary_max;
-  return bound === null ? null : `from ${fmt(bound)} ${currency}`.trim();
+  return bound === null ? null : `from ${fmt(bound)} ${currency}${period}`.trim();
 }
 
 /** Compact relative age for the job-card meta row ("2w ago"), per screen 01. */

@@ -80,6 +80,8 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
     salary_min: null,
     salary_max: null,
     salary_currency: null,
+    salary_period: "year",
+    closes_at: null,
     tags: ["react", "typescript"],
     status: "published",
     quiz_config: {
@@ -131,6 +133,32 @@ describe("JobForm", () => {
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Backend Dev", tags: ["python", "fastapi"] }),
+    );
+  });
+
+  it("submits salary period and the closes-on date", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Dev");
+    await userEvent.selectOptions(screen.getByLabelText("Period"), "month");
+    await userEvent.type(screen.getByLabelText(/Closes on/), "2026-12-01");
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ salary_period: "month", closes_at: "2026-12-01" }),
+    );
+  });
+
+  it("defaults to a yearly salary and no deadline", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Dev");
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ salary_period: "year", closes_at: null }),
     );
   });
 
