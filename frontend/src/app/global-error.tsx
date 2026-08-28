@@ -19,7 +19,7 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
         }}
       >
         <div style={{ maxWidth: 380, textAlign: "center", padding: 24 }}>
-          <p style={{ fontWeight: 700, letterSpacing: "-0.01em", fontSize: 20 }}>vetd</p>
+          <p style={{ fontWeight: 700, letterSpacing: "-0.01em", fontSize: 20 }}>ganek</p>
           <h1 style={{ fontSize: 24, margin: "18px 0 8px" }}>Something broke</h1>
           <p style={{ fontSize: 14.5, lineHeight: "22px", color: "#52525b" }}>
             The app hit an unexpected error at the very top. Reload, and if it keeps

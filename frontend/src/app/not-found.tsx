@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Wordmark } from "@/components/Wordmark";
 
-/** Global 404 (screen 27b): vetd-branded — used when there is no company
+/** Global 404 (screen 27b): ganek-branded — used when there is no company
  * context to theme with (unknown workspace, unknown path). */
 export default function NotFound() {
   return (

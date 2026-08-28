@@ -26,7 +26,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def _register_admin(client: AsyncClient) -> dict[str, str]:
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     resp = await client.post(
@@ -37,7 +37,7 @@ async def _register_admin(client: AsyncClient) -> dict[str, str]:
 
 
 async def _create_invite(client: AsyncClient, role: str = "member") -> dict[str, str]:
-    email = f"invitee-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"invitee-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post("/api/v1/users/invites", json={"email": email, "role": role})
     assert resp.status_code == 201, resp.text
     return resp.json()
@@ -80,7 +80,7 @@ async def test_invite_crud_and_conflicts(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
 async def test_invites_are_admin_only(client: AsyncClient) -> None:
     await _register_admin(client)
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     member_pw = "member-password-1234"
     resp = await client.post(
         "/api/v1/users", json={"email": member_email, "password": member_pw, "role": "member"}
@@ -95,7 +95,7 @@ async def test_invites_are_admin_only(client: AsyncClient) -> None:
     assert (await client.get("/api/v1/users/invites")).status_code == 403
     assert (
         await client.post(
-            "/api/v1/users/invites", json={"email": "x@vetd-ci.dev", "role": "member"}
+            "/api/v1/users/invites", json={"email": "x@ganek-ci.dev", "role": "member"}
         )
     ).status_code == 403
 
@@ -194,17 +194,17 @@ def test_team_invite_email_content(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(email_service, "send_email", _capture)
     email_service.send_team_invite(
-        to="dana@vetd-ci.dev",
+        to="dana@ganek-ci.dev",
         company_name="Acme Labs",
-        inviter_email="grumpy@vetd-ci.dev",
+        inviter_email="grumpy@ganek-ci.dev",
         role="member",
         invite_url="http://localhost:3000/invite/tok123",
         expires_at=datetime(2026, 8, 2, tzinfo=UTC),
         brand_primary="#7E14FF",
     )
-    assert sent["to"] == "dana@vetd-ci.dev"
-    assert sent["subject"] == "You're invited to join Acme Labs on vetd"
-    assert "grumpy@vetd-ci.dev" in sent["body"]
+    assert sent["to"] == "dana@ganek-ci.dev"
+    assert sent["subject"] == "You're invited to join Acme Labs on ganek"
+    assert "grumpy@ganek-ci.dev" in sent["body"]
     assert "as Member" in sent["body"]
     assert "http://localhost:3000/invite/tok123" in sent["body"]
     html = sent["html"]

@@ -28,7 +28,7 @@ describe("brand", () => {
     expect(brandForeground("#f5d90a")).toBe("#18181b"); // yellow → dark text
     expect(brandForeground("#18181b")).toBe("#ffffff"); // near-black → white
     expect(brandForeground("#E4572E")).toBe("#ffffff"); // demo brand orange → white
-    expect(brandForeground("#6D28D9")).toBe("#ffffff"); // vetd purple → white
+    expect(brandForeground("#6D28D9")).toBe("#ffffff"); // ganek purple → white
   });
 
   it("brandStyle sets both CSS variables and falls back on bad input", () => {

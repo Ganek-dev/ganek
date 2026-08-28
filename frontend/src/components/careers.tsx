@@ -140,7 +140,7 @@ export function CareersFooter({ privacyHref }: { privacyHref?: string }) {
   return (
     <div className="mt-7 flex justify-center gap-2 sm:mt-12">
       <span className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
-        Careers powered by vetd
+        Careers powered by ganek
       </span>
       {privacyHref ? (
         <>

@@ -25,7 +25,7 @@ async def today(
     db: DbSession, company: CurrentCompany, user: CurrentUser, tz: str = "UTC"
 ) -> TodayOut:
     """Dashboard Today panel: the signed-in user's Google Calendar when
-    connected; their booked vetd interviews otherwise. Never 500s on a
+    connected; their booked ganek interviews otherwise. Never 500s on a
     weird browser timezone — falls back to UTC."""
     try:
         ZoneInfo(tz)
@@ -46,7 +46,7 @@ async def today(
                 ],
             )
         except google_calendar.GoogleCalendarError:
-            pass  # broken consent → vetd fallback below; Account card flags it
+            pass  # broken consent → ganek fallback below; Account card flags it
     zone = ZoneInfo(tz)
     day = datetime.now(zone).date()
     start = datetime.combine(day, time.min, tzinfo=zone)

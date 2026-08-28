@@ -13,7 +13,7 @@ wrong address, ransomware making data unavailable: all breaches.
 
 ## 1. Detect and contain
 
-**Where candidate data lives in a Vetd deployment** — check what's touched:
+**Where candidate data lives in a Ganek deployment** — check what's touched:
 
 | Store | Contents |
 |---|---|
@@ -99,7 +99,7 @@ the last three bullets above. Template to adapt:
 > further links until this is resolved"}`. Questions: `{privacy contact
 > email}`.
 
-**If you run Vetd for another company** (agency/service setup): you are a
+**If you run Ganek for another company** (agency/service setup): you are a
 processor for them — notify *that controller* without undue delay
 (Art. 33(2)); the notification duties above are theirs.
 

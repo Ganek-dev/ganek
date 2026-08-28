@@ -11,7 +11,7 @@ import { COMPANY_NAME, QUIZ_JOB_SLUG, QUIZ_JOB_TITLE, QUIZ_QUESTION_COUNT } from
 
 const CANDIDATE_NAME = "Goldie Path";
 // unique per run/retry so a CI retry re-applies instead of hitting the 409 dup guard
-const candidateEmail = `e2e-candidate-${Date.now()}@e2e.vetd.dev`;
+const candidateEmail = `e2e-candidate-${Date.now()}@e2e.ganek.dev`;
 
 test("candidate applies, takes the quiz, and lands on the status page", async ({ page }) => {
   await test.step("careers page lists the job (SSR, single mode)", async () => {

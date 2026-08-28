@@ -1,4 +1,4 @@
-# Records of processing activities (Art. 30) — Vetd recruitment
+# Records of processing activities (Art. 30) — Ganek recruitment
 
 > Pre-filled template. `{Curly braces}` are yours. Not legal advice — see
 > the [pack README](README.md).
@@ -92,7 +92,7 @@ default 6 months), enforced by the nightly purge from the decision date.
   controller identity and the privacy-notice link.
 - **Recipients:** `{email relay}`.
 - **Transfers:** `{per your relay}`.
-- **Retention:** sent mail per `{your mailbox policy}`; Vetd keeps a
+- **Retention:** sent mail per `{your mailbox policy}`; Ganek keeps a
   per-email delivery record (recipient, template kind, delivery state)
   for 30 days so failures are visible to recruiters, then the nightly job
   removes it — records are deleted immediately with the candidate on
@@ -111,7 +111,7 @@ default 6 months), enforced by the nightly purge from the decision date.
   the invitation email to the candidate directly).
 - **Transfers:** USA — Google's data-processing terms (SCCs); Google is
   DPF-certified while that framework stands.
-- **Retention:** Vetd deletes its events best-effort on erasure/purge;
+- **Retention:** Ganek deletes its events best-effort on erasure/purge;
   calendar copies per `{your Google Workspace retention}`.
 
 ## Activity 7 — Post-decision retention for claims defense

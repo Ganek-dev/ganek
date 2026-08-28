@@ -68,7 +68,7 @@ function LoginForm() {
       title="Log in to your workspace"
       footer={
         <>
-          New to vetd?{" "}
+          New to ganek?{" "}
           <Link href="/setup" className="font-medium text-accent hover:underline">
             Create a workspace
           </Link>

@@ -1,4 +1,4 @@
-/** Minimal typed wrapper around the Vetd API (proxied same-origin via Next rewrites). */
+/** Minimal typed wrapper around the Ganek API (proxied same-origin via Next rewrites). */
 
 export interface UserOut {
   id: string;

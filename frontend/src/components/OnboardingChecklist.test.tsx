@@ -135,7 +135,7 @@ describe("OnboardingChecklist", () => {
     );
     expect(screen.getByRole("link", { name: "Invite" })).toHaveAttribute("href", "/admin/team");
     // single mode: the canonical careers URL is the instance itself, not a
-    // vetd.dev subdomain that self-hosted deployments don't have
+    // ganek.dev subdomain that self-hosted deployments don't have
     expect(screen.getByText(window.location.host)).toBeInTheDocument();
   });
 

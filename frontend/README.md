@@ -1,4 +1,4 @@
-# Vetd frontend
+# Ganek frontend
 
 Next.js (App Router, TypeScript, Tailwind). API calls are proxied same-origin
 to the backend via `next.config.ts` rewrites (`BACKEND_URL`, default

@@ -1,7 +1,7 @@
 export type InstanceMode = "single" | "multi";
 
 /** The careers-page URL this deployment actually serves — single mode at the
- * instance root, multi mode under /c/{slug}. Never a vetd.dev domain: those
+ * instance root, multi mode under /c/{slug}. Never a ganek.dev domain: those
  * don't exist for self-hosted instances. Origin resolves in the browser; the
  * callers are client components that render after data fetches. */
 export function careersUrl(mode: InstanceMode, slug: string): string {

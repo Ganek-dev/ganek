@@ -11,7 +11,7 @@ import { publicBaseUrl } from "@/lib/site";
 export const metadata: Metadata = {
   // absolute URLs for OG/twitter images and the sitemap's canonical origin
   metadataBase: new URL(publicBaseUrl()),
-  title: "Vetd",
+  title: "Ganek",
   description: "Open-source careers pages with built-in skill screening",
 };
 

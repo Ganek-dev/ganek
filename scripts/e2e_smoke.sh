@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test against a running Vetd stack (default: compose on localhost).
+# End-to-end smoke test against a running Ganek stack (default: compose on localhost).
 # Exercises the auth flow through the FRONTEND proxy so cookies + rewrites are covered.
 set -euo pipefail
 

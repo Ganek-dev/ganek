@@ -64,9 +64,9 @@ async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str
     try:
         email_service.send_email(
             to=admin.email,
-            subject=f"Vetd test email — {company.name}",
+            subject=f"Ganek test email — {company.name}",
             body=(
-                "This is the test email from your Vetd settings page.\n"
+                "This is the test email from your Ganek settings page.\n"
                 "If you can read this, candidate email delivery works.\n"
             ),
             ref=str(admin.id),

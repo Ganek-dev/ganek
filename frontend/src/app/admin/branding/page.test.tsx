@@ -60,7 +60,7 @@ describe("BrandingPage", () => {
 
   it("loads company branding, shows domain and preview", async () => {
     render(<BrandingPage />);
-    // multi mode: careers live under /c/{slug} on this host — never vetd.dev
+    // multi mode: careers live under /c/{slug} on this host — never ganek.dev
     expect(
       await screen.findByText(`${window.location.host}/c/northwind`),
     ).toBeInTheDocument();

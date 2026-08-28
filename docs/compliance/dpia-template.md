@@ -1,6 +1,6 @@
-# Data protection impact assessment — recruitment screening with Vetd
+# Data protection impact assessment — recruitment screening with Ganek
 
-> Pre-filled template. Everything describing Vetd's behavior is filled in
+> Pre-filled template. Everything describing Ganek's behavior is filled in
 > and accurate for the version you deployed it with; everything in
 > `{curly braces}` is yours to complete. Not legal advice — see the
 > [pack README](README.md).
@@ -106,7 +106,7 @@ stands. `{Add any transfer created by your hosting/email choices.}`
 ## 4. Risks and mitigations
 
 Assess likelihood and severity (`low / medium / high`) for your deployment;
-the mitigation column states what Vetd already does — add your own.
+the mitigation column states what Ganek already does — add your own.
 
 | # | Risk to candidates | Mitigations in place | L | S | Residual |
 |---|---|---|---|---|---|

@@ -10,7 +10,7 @@ import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
 
 /** Developers page, handoff screen 25: the public jobs API (no auth, CORS,
  * cached 60s) and the embed widget snippet with a live preview. Careers
- * pages on vetd stay SSR with Google Jobs structured data — the widget is
+ * pages on ganek stay SSR with Google Jobs structured data — the widget is
  * for the company's own marketing site. */
 
 type WidgetTheme = "auto" | "light" | "dark";
@@ -173,7 +173,7 @@ export default function DevelopersPage() {
               </label>
             </div>
             <p className="mt-3 text-[12px] leading-[18px] text-g400">
-              Careers pages on vetd stay SSR with Google Jobs structured data — the widget is
+              Careers pages on ganek stay SSR with Google Jobs structured data — the widget is
               for your marketing site.
             </p>
           </div>
@@ -222,7 +222,7 @@ export default function DevelopersPage() {
               ))
             )}
             <p className="border-t border-divider px-4 py-2.5 font-mono text-[10.5px] text-g400">
-              Careers powered by vetd
+              Careers powered by ganek
             </p>
           </div>
         </aside>
