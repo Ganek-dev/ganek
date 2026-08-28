@@ -28,7 +28,7 @@
   --sidebar-foreground: #fafafa;
   --sidebar-border: rgba(255, 255, 255, 0.12);
 
-  /* vetd admin accent */
+  /* ganek admin accent */
   --accent: #7e14ff;
   --accent-soft: oklch(from #7e14ff calc(l + 0.25) c h);
 

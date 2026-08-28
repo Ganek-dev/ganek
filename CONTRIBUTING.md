@@ -1,4 +1,4 @@
-# Contributing to Vetd
+# Contributing to Ganek
 
 Two ways to contribute: **code** and **questions**. Question contributions need zero backend knowledge.
 

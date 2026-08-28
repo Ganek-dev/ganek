@@ -6,7 +6,7 @@ import { JobList } from "@/components/careers-list";
 import { fetchInstanceMode, publicApi } from "@/lib/public-api";
 
 /** The flagship self-host careers page must carry the company's identity,
- * not the generic Vetd title (M5.7 H5 item 16). */
+ * not the generic Ganek title (M5.7 H5 item 16). */
 export async function generateMetadata(): Promise<Metadata> {
   const mode = await fetchInstanceMode();
   if (mode === "multi") return {};

@@ -1,25 +1,25 @@
-# Self-hosting Vetd under the GDPR
+# Self-hosting Ganek under the GDPR
 
 > Not legal advice — see the [pack README](README.md). This guide maps GDPR
-> duties onto the controls Vetd actually ships, so "comply" becomes a list
+> duties onto the controls Ganek actually ships, so "comply" becomes a list
 > of things you can point at.
 
 ## 1. You are the controller
 
-When you self-host Vetd, your company decides why and how candidate data is
-processed — that makes you the **data controller** (Art. 4(7)). Vetd (the
+When you self-host Ganek, your company decides why and how candidate data is
+processed — that makes you the **data controller** (Art. 4(7)). Ganek (the
 project) has no role in your deployment: it never sees your data, exactly
 like your database or web server don't make their vendors controllers.
 
 Concretely, being the controller means:
 
-- Candidate-facing notices name **your company**. Vetd renders them from
+- Candidate-facing notices name **your company**. Ganek renders them from
   your settings; the words are yours.
 - Data-subject requests (access, deletion, rectification, objection) are
-  **yours to answer**, within one month (Art. 12(3)). Vetd gives you the
+  **yours to answer**, within one month (Art. 12(3)). Ganek gives you the
   buttons; you own the response.
 - Your lawful bases, retention choice, and security posture are yours to
-  document — the templates in this pack pre-fill the Vetd-shaped parts.
+  document — the templates in this pack pre-fill the Ganek-shaped parts.
 - If you engage others to process the data (hosting provider, email relay,
   Google for interviews), they are **your** processors/recipients and
   belong in your records.
@@ -81,9 +81,9 @@ Work through this once, before the careers page goes public.
 - [ ] Decide your **backup policy before you hold candidate data**:
       encrypted backups, rotation window at or below your retention
       period, and a rule that you never restore erased candidates —
-      completing the rotation is what completes an erasure. (Vetd doesn't
+      completing the rotation is what completes an erasure. (Ganek doesn't
       ship backups; whatever you add must honor this.)
-- [ ] Your reverse proxy and host keep their own logs. Vetd's bundled
+- [ ] Your reverse proxy and host keep their own logs. Ganek's bundled
       compose scrubs capability tokens from access logs and rotates them —
       apply the same discipline (don't log the full URLs of quiz, status,
       interview, or invite links — the token is the credential; keep
@@ -93,7 +93,7 @@ Work through this once, before the careers page goes public.
 
 **Access & portability requests (Art. 15/20).** Open the applicant, use the
 **⋯ → Export data (JSON)** action, and hand the candidate the bundle plus
-the CV file. The bundle contains everything Vetd stores about them:
+the CV file. The bundle contains everything Ganek stores about them:
 identity, all their applications and messages, quiz attempts with scores,
 per-question answers (with correctness, never the answer key), integrity
 events and flags (with your staff's identifiers scrubbed), interview
@@ -116,17 +116,17 @@ fixed via **⋯ → Edit candidate email…** on the applicant.
 leave an orphaned CV), then best-effort deletion of any Google Calendar
 events (failures are counted and shown — clean those up in the calendar by
 hand), then the database records, leaving one anonymized count-only receipt
-in the activity log. Honest limits — copies Vetd cannot reach:
+in the activity log. Honest limits — copies Ganek cannot reach:
 
 - Emails already sent (in the candidate's and your mailboxes).
 - Google Calendar events where deletion failed (reported to you).
 - Free text your team typed into **your own tasks** (manual tasks aren't
   linked to candidates — check them after an erasure). The privacy-request
-  tasks Vetd itself creates are handled for you: erasing a candidate
+  tasks Ganek itself creates are handled for you: erasing a candidate
   deletes their request tasks, and completed request tasks are swept by
   the nightly job 90 days after they're marked done.
 - Your backups (covered by your rotation rule, §2) and any logs kept by
-  layers you run in front of Vetd.
+  layers you run in front of Ganek.
 
 You may *defer* erasure while your retention window (claims defense,
 Art. 17(3)(e)) still runs — that's what the automatic purge is for. "Erase
@@ -221,19 +221,19 @@ scheduling. When they do:
   with the candidate's full name in the title, their email as an attendee,
   and a Meet link. Google emails the invitation to the candidate directly.
 - Availability is computed by reading the connected calendar's free/busy
-  status, and Vetd stores the recruiter's refresh token encrypted. The
-  candidate data Vetd writes to Google is limited to the interview events
+  status, and Ganek stores the recruiter's refresh token encrypted. The
+  candidate data Ganek writes to Google is limited to the interview events
   it creates. (Recruiters also see their own day's calendar events on
   their own dashboard — their data, shown only to them.)
 - For your records: this is a transfer to Google LLC (US). Mechanisms:
   Google's data-processing terms incorporate SCCs, and Google is DPF-
   certified while that framework stands. The candidate-facing booking page
   and privacy notice already disclose the Google involvement.
-- On erasure, Vetd deletes the events it created **best-effort** and
+- On erasure, Ganek deletes the events it created **best-effort** and
   reports failures; sent invitation emails are out of reach (§3).
 
 Don't connect calendars if this transfer doesn't fit your posture —
-interviews then simply happen outside Vetd.
+interviews then simply happen outside Ganek.
 
 ## 7. Do you need a DPO? (Art. 37)
 
@@ -246,15 +246,15 @@ the records template):
 3. Do your core activities consist of large-scale processing of
    special-category or criminal-conviction data?
 
-For a company using Vetd to hire for its own roles, the honest answers are
+For a company using Ganek to hire for its own roles, the honest answers are
 usually no/no/no — hiring is a support activity, not your core business,
-and Vetd's telemetry is neither large-scale nor the kind of systematic
+and Ganek's telemetry is neither large-scale nor the kind of systematic
 monitoring the trigger means. Then a DPO is not mandatory; you may still
 appoint one voluntarily (the full Art. 37–39 duties then apply). If you're
 a recruitment business processing candidates *at scale as your core
 activity*, get advice — question 2 may genuinely bite.
 
-## 8. What Vetd never does (cite these in your DPIA)
+## 8. What Ganek never does (cite these in your DPIA)
 
 Product guarantees you can rely on, as shipped:
 

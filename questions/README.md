@@ -1,4 +1,4 @@
-# Vetd Question Bank
+# Ganek Question Bank
 
 Open, community-maintained pool of screening questions. Layout: `{domain}/{tag}.yaml`, one file per primary tag. Validated by `schema.json` — run `python questions/validate.py` before committing.
 

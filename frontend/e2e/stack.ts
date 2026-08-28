@@ -3,7 +3,7 @@ import { type APIRequestContext, expect } from "@playwright/test";
 /** Identity the suite owns on the stack under test. Register-or-login makes
  * reruns against the same stack work; anything else fails loudly so a
  * misconfigured stack never surfaces as spec flake. */
-export const ADMIN_EMAIL = "admin@e2e.vetd.dev";
+export const ADMIN_EMAIL = "admin@e2e.ganek.dev";
 export const ADMIN_PASSWORD = "e2e-super-secret-password";
 export const COMPANY_NAME = "E2E Test Co";
 export const QUIZ_JOB_TITLE = "E2E Quiz Engineer";

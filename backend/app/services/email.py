@@ -79,7 +79,7 @@ def send_application_received(
         f"Your application and CV were received; the team will review them and\n"
         f"get back to you.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
+        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     send_email(to=to, subject=subject, body=body, ref=ref)
 
@@ -134,7 +134,7 @@ def send_quiz_invite(
         f"\n"
         f"Link valid until {valid_until} · works on any device\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
+        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
 
     html_details = "".join(
@@ -189,7 +189,7 @@ def _card_html(
     The footer names the data controller (legal name when the company set
     one — M5.6 G1) and links their privacy notice on candidate-facing mail.
     """
-    footer = f"Sent by vetd on behalf of {safe_controller or safe_company}"
+    footer = f"Sent by ganek on behalf of {safe_controller or safe_company}"
     if privacy_url:
         footer += (
             f' · <a href="{privacy_url}" style="color: #a1a1aa; '
@@ -276,7 +276,7 @@ def send_quiz_reminder(
         f"\n"
         f"Take it now: {quiz_url}\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
+        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -460,23 +460,23 @@ def send_team_invite(
     safe_inviter = escape(inviter_email)
     role_label = ROLE_LABELS.get(role, role)
     valid_until = f"{expires_at:%a}, {expires_at:%b} {expires_at.day}"
-    subject = f"You're invited to join {company_name} on vetd"
+    subject = f"You're invited to join {company_name} on ganek"
 
     body = (
         f"Hi,\n"
         f"\n"
         f"{inviter_email} invited you to join {company_name}'s hiring workspace\n"
-        f"on vetd as {role_label}.\n"
+        f"on ganek as {role_label}.\n"
         f"\n"
         f"Accept the invite and set your password: {invite_url}\n"
         f"\n"
         f"Invite valid until {valid_until}.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Ganek)\n"
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
-        f"Join {safe_company} on vetd</h1>"
+        f"Join {safe_company} on ganek</h1>"
         + _paragraph(
             f'<b style="font-weight: 600;">{safe_inviter}</b> invited you to join '
             f"{safe_company}'s hiring workspace as "
@@ -509,20 +509,20 @@ def send_email_verification(
     safe_company = escape(company_name)
     brand = DEFAULT_BRAND_PRIMARY
     brand_fg = _brand_foreground(brand)
-    subject = "Verify your email to activate your vetd workspace"
+    subject = "Verify your email to activate your ganek workspace"
 
     body = (
         f"Hi,\n"
         f"\n"
         f"You're one click away from activating the {company_name} hiring\n"
-        f"workspace on vetd. Confirm this is your email address:\n"
+        f"workspace on ganek. Confirm this is your email address:\n"
         f"\n"
         f"{verify_url}\n"
         f"\n"
         f"The link works for {expires_days} days; unverified workspaces are\n"
         f"removed after a week. If you didn't sign up, ignore this email.\n"
         f"\n"
-        f"— vetd\n"
+        f"— ganek\n"
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -559,13 +559,13 @@ def send_password_reset(
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
     brand_fg = _brand_foreground(brand)
     safe_company = escape(company_name)
-    subject = "Reset your vetd password"
+    subject = "Reset your ganek password"
 
     body = (
         f"Hi,\n"
         f"\n"
         f"Someone asked to reset the password for your {company_name}\n"
-        f"workspace account on vetd. If that was you, set a new password\n"
+        f"workspace account on ganek. If that was you, set a new password\n"
         f"here (the link works for {expires_minutes} minutes):\n"
         f"\n"
         f"{reset_url}\n"
@@ -573,7 +573,7 @@ def send_password_reset(
         f"If it wasn't you, ignore this email — your password is unchanged\n"
         f"and the link expires on its own.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n"
+        f"— {company_name} (via Ganek)\n"
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -604,23 +604,23 @@ def send_google_linked(*, to: str, company_name: str, ref: str | None = None) ->
     learns immediately if someone else's Google sign-in claimed their email.
     """
     safe_company = escape(company_name)
-    subject = "Google sign-in was added to your Vetd account"
+    subject = "Google sign-in was added to your Ganek account"
     body = (
         f"Hi,\n"
         f"\n"
-        f"Signing in with Google is now enabled for your Vetd account\n"
+        f"Signing in with Google is now enabled for your Ganek account\n"
         f"at {company_name}. Your password continues to work as before.\n"
         f"\n"
         f"If you did not just sign in with Google, change your password\n"
         f"in Settings -> Account right away.\n"
         f"\n"
-        f"— Vetd\n"
+        f"— Ganek\n"
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
         "Google sign-in added</h1>"
         + _paragraph(
-            f"Signing in with Google is now enabled for your Vetd account at "
+            f"Signing in with Google is now enabled for your Ganek account at "
             f'<b style="font-weight: 600;">{safe_company}</b>. '
             f"Your password continues to work as before."
         )
@@ -671,7 +671,7 @@ def send_interview_invite(
         f"Once you confirm, a calendar invite with the meeting link lands\n"
         f"in your inbox. You can reschedule or cancel from the same page.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
+        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -725,7 +725,7 @@ def send_interview_cancelled(
         f"{company_name} has been cancelled. If a new time is needed,\n"
         f"you'll receive a fresh scheduling link.\n"
         f"\n"
-        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
+        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -784,7 +784,7 @@ def send_interview_reminder(
         f"A quick reminder about your {job_title} interview at\n"
         f"{company_name}: {when} ({timezone}).\n"
         f"\n" + (f"Join via Google Meet: {meet_url}\n\n" if meet_url else "") + f"Good luck!\n"
-        f"— {company_name} (via Vetd)\n" + _privacy_text(privacy_url)
+        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'

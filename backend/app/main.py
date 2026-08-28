@@ -47,7 +47,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Vetd",
+    title="Ganek",
     version="0.1.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",

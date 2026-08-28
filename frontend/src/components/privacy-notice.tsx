@@ -61,7 +61,7 @@ export function PrivacyNotice({
         </h1>
         <p className={pCls}>
           <span className={termCls}>{notice.legal_name}</span> is the data controller for
-          applications made on this careers site. The site runs on Vetd, an open-source
+          applications made on this careers site. The site runs on Ganek, an open-source
           hiring platform.
         </p>
 

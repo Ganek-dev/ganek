@@ -1,7 +1,7 @@
 """Interview scheduling (single-round v1).
 
 Slots are always computed live from the interviewer's saved availability
-(``effective_availability``) plus Google free/busy plus vetd's own booked
+(``effective_availability``) plus Google free/busy plus ganek's own booked
 interviews — never frozen on the interview row. Booking re-checks the
 chosen slot against live free/busy before creating the calendar event.
 """
@@ -99,7 +99,7 @@ class SlotUnavailableError(Exception):
 async def _booked_windows(
     db: AsyncSession, interviewer_id: uuid.UUID, window_start: datetime, window_end: datetime
 ) -> list[tuple[datetime, datetime]]:
-    """Busy windows from vetd's own BOOKED interviews — freebusy-lag insurance."""
+    """Busy windows from ganek's own BOOKED interviews — freebusy-lag insurance."""
     rows = (
         (
             await db.execute(

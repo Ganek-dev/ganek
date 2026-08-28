@@ -1,6 +1,6 @@
 # Legitimate interests assessment — quiz integrity telemetry
 
-> The balancing analysis (Art. 6(1)(f)) behind Vetd's integrity monitoring,
+> The balancing analysis (Art. 6(1)(f)) behind Ganek's integrity monitoring,
 > written to be attached to your [DPIA](dpia-template.md) and referenced
 > from your [records](records-of-processing-template.md). Not legal
 > advice — see the [pack README](README.md). Sign and date it as the
@@ -42,7 +42,7 @@ Alternatives considered:
 - **Proctoring (webcam/screen recording/lockdown browsers):** vastly more
   intrusive; plainly disproportionate for a ~10-minute screening quiz.
 - **Server-side-only design measures** (large randomized pools, per-attempt
-  option shuffling, one-question-at-a-time serving, server timing): Vetd
+  option shuffling, one-question-at-a-time serving, server timing): Ganek
   does all of these *first*; telemetry only covers what they cannot see —
   live assistance during the attempt.
 
@@ -119,5 +119,5 @@ This assessment holds **only** while all of the following stay true:
 
 Any change — a new event type, weighting flags into scores, gating stages
 on flags, expanded capture — **invalidates this LIA**; redo it (and the
-DPIA risk table) before shipping. Upstream Vetd treats these conditions as
+DPIA risk table) before shipping. Upstream Ganek treats these conditions as
 product invariants; forks that alter them inherit the re-assessment duty.

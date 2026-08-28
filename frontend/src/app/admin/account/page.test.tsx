@@ -135,7 +135,7 @@ describe("AccountPage", () => {
     mocked.providers.mockResolvedValue({ google: true, mode: "single" });
     search = new URLSearchParams({ calendar: "wrong-account" });
     render(<AccountPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/different vetd user/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/different ganek user/i);
   });
 
   it("shows the Google note instead of the form for google-only accounts", async () => {

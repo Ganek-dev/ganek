@@ -34,7 +34,7 @@ const CALENDAR_NOTICES: Record<string, { tone: "ok" | "bad"; text: string }> = {
   failed: { tone: "bad", text: "Connecting Google Calendar didn't complete. Please try again." },
   "wrong-account": {
     tone: "bad",
-    text: "That Google account belongs to a different vetd user. Pick the account you sign in with.",
+    text: "That Google account belongs to a different ganek user. Pick the account you sign in with.",
   },
 };
 

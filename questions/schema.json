@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Vetd question pack",
+  "title": "Ganek question pack",
   "type": "object",
   "required": ["domain", "tag", "questions"],
   "additionalProperties": false,

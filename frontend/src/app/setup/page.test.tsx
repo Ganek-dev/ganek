@@ -59,7 +59,7 @@ describe("SetupPage", () => {
     expect(screen.getByText(/your careers page URL will show here/)).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs!");
-    // slug-bearing /c/ path — resolves on any deployment, unlike a vetd.dev
+    // slug-bearing /c/ path — resolves on any deployment, unlike a ganek.dev
     // subdomain a self-hosted instance doesn't have
     expect(screen.getByText(new RegExp(`${window.location.host}/c/acme-labs`))).toBeInTheDocument();
   });

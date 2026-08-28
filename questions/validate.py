@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the Vetd question bank: JSON Schema + cross-file invariants.
+"""Validate the Ganek question bank: JSON Schema + cross-file invariants.
 
 Usage: python questions/validate.py
 Exits non-zero on any error. Requires: pyyaml, jsonschema.

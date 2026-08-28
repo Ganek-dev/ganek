@@ -1,6 +1,6 @@
-/* vetd jobs widget — drop your open roles into any site.
+/* ganek jobs widget — drop your open roles into any site.
  *
- * <script src="https://YOUR-VETD/embed/jobs.js" data-workspace="acmelabs"></script>
+ * <script src="https://YOUR-GANEK/embed/jobs.js" data-workspace="acmelabs"></script>
  *
  * Attributes: data-workspace (required — your careers slug),
  * data-theme "auto" | "light" | "dark" (default auto),
@@ -32,7 +32,7 @@
     : { bg: "#ffffff", fg: "#18181b", muted: "#71717a", line: "#e4e4e7", chipBg: "#f4f4f5" };
 
   var container = document.createElement("div");
-  container.setAttribute("data-vetd-jobs", "");
+  container.setAttribute("data-ganek-jobs", "");
   container.style.cssText =
     "box-sizing:border-box;max-width:560px;border:1px solid " +
     palette.line +
@@ -128,7 +128,7 @@
       foot.rel = "noreferrer";
       foot.style.textDecoration = "none";
       foot.appendChild(
-        el("span", "font-size:11px;color:" + palette.muted, "Careers powered by vetd"),
+        el("span", "font-size:11px;color:" + palette.muted, "Careers powered by ganek"),
       );
       container.appendChild(foot);
     })

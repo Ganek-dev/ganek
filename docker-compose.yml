@@ -1,4 +1,4 @@
-# Vetd self-host stack. Copy .env.example to .env first.
+# Ganek self-host stack. Copy .env.example to .env first.
 name: vetd
 
 # Bounded log retention (GDPR G4): access logs hold client IPs — without
