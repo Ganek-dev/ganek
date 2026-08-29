@@ -47,6 +47,9 @@ test("candidate applies, takes the quiz, and lands on the status page", async ({
       page.getByText(/tab switches \(and how long\), pastes, and window resizes/),
     ).toBeVisible();
     await expect(page.getByText(/application still stands/)).toBeVisible();
+    // the start button stays disabled until monitoring is acknowledged
+    await expect(page.getByRole("button", { name: "Start the real assessment" })).toBeDisabled();
+    await page.getByRole("checkbox", { name: /integrity monitoring/ }).check();
     await page.getByRole("button", { name: "Start the real assessment" }).click();
   });
 

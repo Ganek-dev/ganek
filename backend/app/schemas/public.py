@@ -185,6 +185,8 @@ class QuizStateOut(BaseModel):
     practice_available: bool
     # the finished screen links the candidate status page with this
     status_token: str
+    # the acknowledgment checkbox links the full telemetry disclosure
+    privacy_url: str
 
 
 class QuizNextOut(BaseModel):

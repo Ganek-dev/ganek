@@ -377,6 +377,7 @@ async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
         expires_at=attempt.expires_at,
         practice_available=practice_available,
         status_token=create_status_token(attempt.application_id),
+        privacy_url=company_service.privacy_notice_url(company),
     )
 
 
