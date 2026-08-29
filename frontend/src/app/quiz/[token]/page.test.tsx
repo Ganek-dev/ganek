@@ -61,6 +61,7 @@ function makeState(overrides: Partial<QuizState> = {}): QuizState {
     expires_at: new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString(),
     practice_available: true,
     status_token: "st-tok",
+    privacy_url: "https://careers.test/privacy",
     ...overrides,
   };
 }
@@ -68,6 +69,12 @@ function makeState(overrides: Partial<QuizState> = {}): QuizState {
 function lockButton() {
   // desktop + mobile lock buttons both exist in the DOM; either works
   return screen.getAllByRole("button", { name: /Lock answer/ })[0];
+}
+
+/** The gate requires the monitoring acknowledgment before anything runs. */
+async function startRealAssessment() {
+  await userEvent.click(await screen.findByRole("checkbox"));
+  await userEvent.click(screen.getByRole("button", { name: "Start the real assessment" }));
 }
 
 describe("QuizPage", () => {
@@ -96,7 +103,7 @@ describe("QuizPage", () => {
       screen.getByText(/come back with the same link.*application still stands/),
     ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     expect(await screen.findByText(/Question 1/)).toBeInTheDocument();
     expect(screen.getByText("What does the GIL prevent?")).toBeInTheDocument();
     // options rendered in served order, lettered A–D
@@ -105,10 +112,33 @@ describe("QuizPage", () => {
     expect(screen.getByLabelText("time remaining")).toBeInTheDocument();
   });
 
+  it("requires the monitoring acknowledgment before practice or the real start", async () => {
+    render(<QuizPage />);
+    await screen.findByText("Ready when you are, Jane");
+
+    // plain-words scope with the explicit ceiling, linked to the full disclosure
+    expect(
+      screen.getByText(/no webcam, no screen recording, no keystroke contents/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Full details" })).toHaveAttribute(
+      "href",
+      "https://careers.test/privacy",
+    );
+
+    const checkbox = screen.getByRole("checkbox", { name: /integrity monitoring/ });
+    expect(checkbox).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Start the real assessment" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Try a practice run first/ })).toBeDisabled();
+
+    await userEvent.click(checkbox);
+    expect(screen.getByRole("button", { name: "Start the real assessment" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Try a practice run first/ })).toBeEnabled();
+  });
+
   it("locks nothing until an option is selected", async () => {
     mocked.next.mockResolvedValue({ done: false, question });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     await screen.findByText(/Question 1/);
 
     expect(lockButton()).toBeDisabled();
@@ -120,7 +150,7 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
 
     const option = await screen.findByRole("button", { name: /Any use of threads/ });
     await userEvent.click(option);
@@ -143,7 +173,7 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     await screen.findByText(/Question 1/);
     const examMain = document.querySelector("main") as HTMLElement;
     expect(examMain.style.getPropertyValue("--brand-primary")).toBe("#3d5afe");
@@ -160,7 +190,7 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     await screen.findByText(/Question 1/);
 
     await userEvent.keyboard("b");
@@ -178,7 +208,7 @@ describe("QuizPage", () => {
     mocked.next.mockResolvedValue({ done: false, question });
     mocked.answer.mockRejectedValue(new TypeError("fetch failed"));
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     await userEvent.click(await screen.findByRole("button", { name: /Any use of threads/ }));
     await userEvent.click(lockButton());
 
@@ -196,7 +226,7 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: true, question: null });
     mocked.answer.mockRejectedValue(new ApiError(410, "already resolved"));
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     await userEvent.click(await screen.findByRole("button", { name: /Any use of threads/ }));
     await userEvent.click(lockButton());
 
@@ -209,7 +239,7 @@ describe("QuizPage", () => {
     const beacon = vi.fn<(url: string, data: Blob) => boolean>(() => true);
     Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true });
     render(<QuizPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start the real assessment" }));
+    await startRealAssessment();
     await screen.findByText(/Question 1/);
 
     window.dispatchEvent(new Event("paste"));
@@ -306,6 +336,7 @@ describe("practice run", () => {
     render(<QuizPage />);
     await screen.findByText("Ready when you are, Jane");
 
+    await userEvent.click(screen.getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", { name: /Try a practice run first/ }));
     expect(await screen.findByText("Practice — not recorded")).toBeInTheDocument();
     expect(screen.getByText("Which array method returns a new array?")).toBeInTheDocument();

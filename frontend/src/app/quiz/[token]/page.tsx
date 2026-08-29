@@ -170,6 +170,10 @@ export default function QuizPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // acknowledgment of integrity monitoring — a transparency safeguard,
+  // deliberately NOT consent (processing rests on necessity, so it must
+  // not be framed as withdrawable permission)
+  const [acknowledged, setAcknowledged] = useState(false);
   // 27c request-a-new-link outcome on the expired screen
   const [reissueState, setReissueState] = useState<
     "idle" | "busy" | "emailed" | "notified" | "already"
@@ -548,13 +552,37 @@ export default function QuizPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            {/* active acknowledgment before anything runs — affirms the
+                disclosure above; monitoring itself never expands past
+                focus/paste/resize */}
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[14px] border border-edge px-4 py-3.5 text-[13.5px] leading-5 text-g600">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.target.checked)}
+                className="mt-[3px] h-[15px] w-[15px] shrink-0 cursor-pointer accent-brand"
+              />
+              <span>
+                I have read and understood how integrity monitoring works during this
+                assessment — tab/window focus, paste events, and window resizing.
+                Nothing else: no webcam, no screen recording, no keystroke contents.{" "}
+                <a
+                  href={state.privacy_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand hover:underline"
+                >
+                  Full details
+                </a>
+              </span>
+            </label>
+            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
               {state.practice_available ? (
                 <button
                   type="button"
                   onClick={startPractice}
-                  disabled={busy}
-                  className="flex h-12 w-full items-center justify-center rounded-[10px] border-[1.5px] border-edge px-5 text-[15px] font-semibold hover:border-brand hover:text-brand disabled:text-g500 sm:w-auto"
+                  disabled={busy || !acknowledged}
+                  className="flex h-12 w-full items-center justify-center rounded-[10px] border-[1.5px] border-edge px-5 text-[15px] font-semibold hover:border-brand hover:text-brand disabled:text-g500 disabled:hover:border-edge disabled:hover:text-g500 sm:w-auto"
                 >
                   Try a practice run first
                 </button>
@@ -562,8 +590,8 @@ export default function QuizPage() {
               <button
                 type="button"
                 onClick={advance}
-                disabled={busy}
-                className="flex h-12 w-full items-center justify-center rounded-[10px] bg-brand px-6 text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500 sm:w-auto"
+                disabled={busy || !acknowledged}
+                className="flex h-12 w-full items-center justify-center rounded-[10px] bg-brand px-6 text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500 disabled:hover:brightness-100 sm:w-auto"
               >
                 {busy ? "…" : "Start the real assessment"}
               </button>

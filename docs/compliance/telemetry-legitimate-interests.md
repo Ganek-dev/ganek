@@ -65,6 +65,15 @@ surveillance-like; misread flags could unfairly color a review.
   that events are tied to the open question, stored with the attempt,
   reviewed by humans, and never auto-score. Also disclosed in the apply
   confirmation and the privacy notice. No surprise monitoring.
+- **Active acknowledgment.** The gate additionally requires an affirmative
+  action before anything runs: a checkbox confirming the candidate has read
+  and understood how monitoring works, restating the scope in plain words
+  (tab/window focus, paste events, window resizing — no webcam, no screen
+  recording, no keystroke contents) and linking the full disclosure, with
+  the skip route offered at the same decision point. This is a
+  transparency/fairness safeguard that strengthens the necessity basis; it
+  is deliberately *not* framed as consent and creates no withdrawable
+  permission.
 - **Reasonable expectations.** A candidate who starts a timed,
   explicitly-rules-gated assessment reasonably expects integrity measures;
   these are far short of the proctoring that is common in assessment

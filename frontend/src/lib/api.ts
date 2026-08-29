@@ -519,6 +519,7 @@ export interface QuizState {
   expires_at: string;
   practice_available: boolean;
   status_token: string;
+  privacy_url: string;
 }
 
 export interface PracticeQuestion {
