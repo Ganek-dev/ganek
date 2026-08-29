@@ -1,0 +1,66 @@
+Ganek Commercial License (the "Commercial License")
+Copyright (c) 2026 Nestor Code Crafters UG (haftungsbeschränkt)
+
+With regard to the software in this directory ("ee/") and its
+subdirectories:
+
+This software and associated documentation files (the "Software") may
+only be used in production if you (and any entity that you represent)
+hold a valid Ganek subscription or another written commercial agreement
+with Nestor Code Crafters UG covering the applicable use, and only for
+the duration of that subscription or agreement and within its usage
+limits (such as jobs, users, or tenants).
+
+Subject to the foregoing sentence, you are free to modify this Software
+and publish patches to it. You hereby grant Nestor Code Crafters UG a
+perpetual, worldwide, exclusive, sublicensable, no-charge license to
+use, reproduce, modify, distribute, and otherwise exploit such
+modifications and patches under any license and, where permitted by
+applicable law, assign them to Nestor Code Crafters UG. All such
+modifications and patches may only be used, copied, modified,
+displayed, distributed, or otherwise exploited under a valid Ganek
+subscription or agreement.
+
+Holders of a valid subscription or agreement additionally receive the
+Ganek core (the code outside this directory) under the terms of that
+subscription or agreement, so that running the combined software does
+not put them in breach of the core's AGPL-3.0 obligations.
+
+Notwithstanding the foregoing, you may copy and modify the Software for
+development and testing purposes, without requiring a subscription.
+
+You agree not to copy, merge, publish, distribute, sublicense, or sell
+the Software except as expressly permitted above or by your agreement,
+and not to remove or obscure any licensing, copyright, or other notices
+in the Software.
+
+Third-party components incorporated into the Software are licensed
+under the original license provided by the owner of the applicable
+component.
+
+If you use the Software in violation of this license and do not cure
+the violation within 30 days of becoming aware of it, your rights
+under this license terminate for the current and all other versions of
+the Software.
+
+This license does not grant you any right in or to the trademarks,
+service marks, brand names, or logos of Nestor Code Crafters UG or
+Ganek (see TRADEMARK.md in the repository root).
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This license is governed by German law; place of jurisdiction is the
+seat of Nestor Code Crafters UG. If any provision of this license is
+held unenforceable, the remaining provisions stay in effect.
+
+This license file and the README in this directory may be freely
+copied and redistributed.
+
+For everything outside this "ee/" directory, the repository's root
+LICENSE (AGPL-3.0) applies.

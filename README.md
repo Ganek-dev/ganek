@@ -57,3 +57,10 @@ Code and question-pack contributions welcome — see [CONTRIBUTING.md](CONTRIBUT
 ## License
 
 [AGPL-3.0](LICENSE). You can self-host Ganek freely, including commercially, for your own hiring. If you offer Ganek as a service to others, the AGPL requires you to share your modifications.
+
+Ganek is open core: the product is AGPL and stays that way (the
+no-clawbacks promise in [CONTRIBUTING](CONTRIBUTING.md)); the empty
+[`ee/`](ee/README.md) directory reserves the future SaaS-operator plane
+under a [commercial license](ee/LICENSE). Contributions are covered by a
+[CLA](CLA.md) — you keep your copyright. The name and logo are covered
+by the [trademark policy](TRADEMARK.md).

@@ -2,6 +2,25 @@
 
 Two ways to contribute: **code** and **questions**. Question contributions need zero backend knowledge.
 
+## What's open vs. commercial (the litmus test)
+
+Ganek is open core. The boundary is a published promise, not a vibe:
+
+> Does a single company self-hosting Ganek need it to hire?
+> → **AGPL core, forever.**
+> Is it about running Ganek-as-a-service for many tenants (billing,
+> quotas, tenant administration, custom-domain provisioning) or
+> enterprise IT integration (SAML/SCIM)?
+> → **`ee/`, commercial license.**
+
+Two rules make this trustworthy:
+
+- **No clawbacks.** Nothing shipped under AGPL ever moves to `ee/`.
+- **Security is never paid.** Account-security basics land in core.
+
+`ee/` ships empty today — the boundary is declared before any closed
+code exists (see [ee/README.md](ee/README.md)).
+
 ## Contributing questions
 
 Questions live in `questions/{domain}/{tag}.yaml` and are validated against `questions/schema.json`.
@@ -62,6 +81,12 @@ loudly if the stack already belongs to someone else.
 - No ML-based parsing, scoring, ranking, or adaptive testing. Deterministic scoring is a compliance boundary ([AI Act statement](docs/compliance/ai-act-statement.md)) — such a feature needs that analysis redone first, not just code review.
 - No cookies, analytics, or third-party requests on candidate-facing pages (careers, apply, quiz, status, booking). There is deliberately nothing to consent-banner — adding any of these re-opens ePrivacy consent and the [telemetry legitimate-interests analysis](docs/compliance/telemetry-legitimate-interests.md).
 
-## License
+## License and CLA
 
-Contributions are licensed under AGPL-3.0. By submitting a PR you agree to license your contribution under the project license.
+The core is AGPL-3.0. First-time contributors sign the
+[Contributor License Agreement](CLA.md) — a bot asks on your first PR,
+signing is one comment. You keep the copyright to your contribution;
+the CLA grants Nestor Code Crafters UG a license broad enough that your
+contribution can also ship in the hosted product and coexist with the
+commercially licensed `ee/` code. What's AGPL stays AGPL — see the
+no-clawbacks rule above.
