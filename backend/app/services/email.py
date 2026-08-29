@@ -189,7 +189,7 @@ def _card_html(
     The footer names the data controller (legal name when the company set
     one — M5.6 G1) and links their privacy notice on candidate-facing mail.
     """
-    footer = f"Sent by ganek on behalf of {safe_controller or safe_company}"
+    footer = f"Sent by Ganek on behalf of {safe_controller or safe_company}"
     if privacy_url:
         footer += (
             f' · <a href="{privacy_url}" style="color: #a1a1aa; '
@@ -460,13 +460,13 @@ def send_team_invite(
     safe_inviter = escape(inviter_email)
     role_label = ROLE_LABELS.get(role, role)
     valid_until = f"{expires_at:%a}, {expires_at:%b} {expires_at.day}"
-    subject = f"You're invited to join {company_name} on ganek"
+    subject = f"You're invited to join {company_name} on Ganek"
 
     body = (
         f"Hi,\n"
         f"\n"
         f"{inviter_email} invited you to join {company_name}'s hiring workspace\n"
-        f"on ganek as {role_label}.\n"
+        f"on Ganek as {role_label}.\n"
         f"\n"
         f"Accept the invite and set your password: {invite_url}\n"
         f"\n"
@@ -476,7 +476,7 @@ def send_team_invite(
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
-        f"Join {safe_company} on ganek</h1>"
+        f"Join {safe_company} on Ganek</h1>"
         + _paragraph(
             f'<b style="font-weight: 600;">{safe_inviter}</b> invited you to join '
             f"{safe_company}'s hiring workspace as "
@@ -509,20 +509,20 @@ def send_email_verification(
     safe_company = escape(company_name)
     brand = DEFAULT_BRAND_PRIMARY
     brand_fg = _brand_foreground(brand)
-    subject = "Verify your email to activate your ganek workspace"
+    subject = "Verify your email to activate your Ganek workspace"
 
     body = (
         f"Hi,\n"
         f"\n"
         f"You're one click away from activating the {company_name} hiring\n"
-        f"workspace on ganek. Confirm this is your email address:\n"
+        f"workspace on Ganek. Confirm this is your email address:\n"
         f"\n"
         f"{verify_url}\n"
         f"\n"
         f"The link works for {expires_days} days; unverified workspaces are\n"
         f"removed after a week. If you didn't sign up, ignore this email.\n"
         f"\n"
-        f"— ganek\n"
+        f"— Ganek\n"
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -559,13 +559,13 @@ def send_password_reset(
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
     brand_fg = _brand_foreground(brand)
     safe_company = escape(company_name)
-    subject = "Reset your ganek password"
+    subject = "Reset your Ganek password"
 
     body = (
         f"Hi,\n"
         f"\n"
         f"Someone asked to reset the password for your {company_name}\n"
-        f"workspace account on ganek. If that was you, set a new password\n"
+        f"workspace account on Ganek. If that was you, set a new password\n"
         f"here (the link works for {expires_minutes} minutes):\n"
         f"\n"
         f"{reset_url}\n"
