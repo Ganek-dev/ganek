@@ -116,7 +116,7 @@ def test_quiz_invite_renders_link_details_and_branding(
         assert "one attempt" in part
         assert "Jul 31" in part  # link validity from expires_at
     assert "#3d5afe" in html  # brand top bar + CTA
-    assert "Sent by ganek on behalf of Northwind Robotics" in html
+    assert "Sent by Ganek on behalf of Northwind Robotics" in html
 
 
 def test_quiz_invite_defaults_brand_and_omits_timer_line(
@@ -149,7 +149,7 @@ def test_privacy_footer_names_controller_and_links_notice(
 
     text, html = _sent_parts(FakeSMTP.sent[0])
     assert "Privacy & your data: https://jobs.example.com/c/northwind/privacy" in text
-    assert "Sent by ganek on behalf of Northwind Robotics Sp. z o.o." in html
+    assert "Sent by Ganek on behalf of Northwind Robotics Sp. z o.o." in html
     assert 'href="https://jobs.example.com/c/northwind/privacy"' in html
     assert ">privacy notice</a>" in html
 
@@ -164,7 +164,7 @@ def test_privacy_footer_absent_when_not_wired(monkeypatch: pytest.MonkeyPatch) -
     assert "Privacy & your data" not in text
     assert "privacy notice" not in html
     # footer falls back to the display name
-    assert "Sent by ganek on behalf of Northwind Robotics" in html
+    assert "Sent by Ganek on behalf of Northwind Robotics" in html
 
 
 def test_quiz_invite_transport_errors_propagate(
@@ -253,7 +253,7 @@ def test_stage_advance_renders_branding_and_team_signoff(
         assert "move you to interviews" in part
         assert "hiring team" in part
     assert "#3d5afe" in html
-    assert "Sent by ganek on behalf of Northwind Robotics" in html
+    assert "Sent by Ganek on behalf of Northwind Robotics" in html
 
 
 def test_stage_advance_links_status_page_when_given(

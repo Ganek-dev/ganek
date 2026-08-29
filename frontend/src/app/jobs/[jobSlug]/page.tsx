@@ -52,7 +52,7 @@ export default async function SingleModeJobPage({ params }: Props) {
           Apply for this position
         </a>
         <p className="mt-3 text-center font-mono text-[11px] text-g400">
-          No account needed · Careers powered by ganek
+          No account needed · Careers powered by Ganek
         </p>
         <section id="apply" className="mt-12 scroll-mt-8">
           <ApplyForm

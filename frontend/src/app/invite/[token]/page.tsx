@@ -173,7 +173,7 @@ function InviteAcceptForm() {
         </button>
       </form>
       <p className="text-center font-mono text-[10.5px] leading-4 text-g400">
-        Joining {invite.company_name}&apos;s hiring workspace on ganek
+        Joining {invite.company_name}&apos;s hiring workspace on Ganek
       </p>
     </AuthShell>
   );

@@ -218,7 +218,7 @@ export function JobGone({
         </div>
       </div>
       <div className="flex h-11 shrink-0 items-center justify-center">
-        <span className="font-mono text-[10.5px] text-g400">Careers powered by ganek</span>
+        <span className="font-mono text-[10.5px] text-g400">Careers powered by Ganek</span>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-/* ganek jobs widget — drop your open roles into any site.
+/* Ganek jobs widget — drop your open roles into any site.
  *
  * <script src="https://YOUR-GANEK/embed/jobs.js" data-workspace="acmelabs"></script>
  *
@@ -128,7 +128,7 @@
       foot.rel = "noreferrer";
       foot.style.textDecoration = "none";
       foot.appendChild(
-        el("span", "font-size:11px;color:" + palette.muted, "Careers powered by ganek"),
+        el("span", "font-size:11px;color:" + palette.muted, "Careers powered by Ganek"),
       );
       container.appendChild(foot);
     })

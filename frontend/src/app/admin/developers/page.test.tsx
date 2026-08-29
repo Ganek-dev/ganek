@@ -68,7 +68,7 @@ describe("DevelopersPage", () => {
     expect(preview).toHaveTextContent("Senior Frontend Engineer");
     expect(preview).toHaveTextContent("1 role");
     expect(preview).toHaveTextContent("react");
-    expect(preview).toHaveTextContent("Careers powered by ganek");
+    expect(preview).toHaveTextContent("Careers powered by Ganek");
   });
 
   it("builds the snippet from theme and tags choices", async () => {

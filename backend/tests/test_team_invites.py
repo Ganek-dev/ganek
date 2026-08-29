@@ -203,7 +203,7 @@ def test_team_invite_email_content(monkeypatch: pytest.MonkeyPatch) -> None:
         brand_primary="#7E14FF",
     )
     assert sent["to"] == "dana@ganek-ci.dev"
-    assert sent["subject"] == "You're invited to join Acme Labs on ganek"
+    assert sent["subject"] == "You're invited to join Acme Labs on Ganek"
     assert "grumpy@ganek-ci.dev" in sent["body"]
     assert "as Member" in sent["body"]
     assert "http://localhost:3000/invite/tok123" in sent["body"]
