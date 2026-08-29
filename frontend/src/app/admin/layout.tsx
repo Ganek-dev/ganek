@@ -172,7 +172,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className="mb-5 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
           >
             Email is not configured on this instance — candidates are <b>not</b> receiving
-            assessment invites or updates. Set the <code className="font-mono">VETD_SMTP_*</code>{" "}
+            assessment invites or updates. Set the <code className="font-mono">GANEK_SMTP_*</code>{" "}
             variables, then verify with the test send on{" "}
             <Link href="/admin/privacy" className="font-medium underline">
               Settings → Privacy

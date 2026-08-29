@@ -39,7 +39,7 @@ async def _company_with_applications(
 
     Ends logged in as the admin; returns (candidate_email, status_tokens).
     """
-    creds = {"email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     name = f"Erase Co {uuid4().hex[:6]}"
     resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
     assert resp.status_code == 201, resp.text
@@ -52,7 +52,7 @@ async def _company_with_applications(
         jobs.append(job)
     await client.post("/api/v1/auth/logout")
 
-    email = f"cand-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
     status_tokens: list[str] = []
     for job in jobs:
         base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
@@ -282,7 +282,7 @@ async def test_erase_is_admin_only_and_tenant_scoped(client: AsyncClient) -> Non
     await _company_with_applications(client, n_jobs=1)
     app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
 
-    member = {"email": f"member-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    member = {"email": f"member-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     resp = await client.post("/api/v1/users", json={**member, "role": "member"})
     assert resp.status_code == 201, resp.text
     await client.post("/api/v1/auth/logout")
@@ -294,7 +294,7 @@ async def test_erase_is_admin_only_and_tenant_scoped(client: AsyncClient) -> Non
         "/api/v1/auth/register",
         json={
             "company_name": f"Nosy Co {uuid4().hex[:6]}",
-            "email": f"nosy-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"nosy-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": PASSWORD,
         },
     )
@@ -332,7 +332,7 @@ async def test_email_update_roundtrip_and_guards(client: AsyncClient) -> None:
     apps = (await client.get("/api/v1/applications")).json()["items"]
     app_id = apps[0]["id"]
 
-    fixed = f"fixed-{uuid4().hex[:8]}@vetd-ci.dev"
+    fixed = f"fixed-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.patch(
         f"/api/v1/applications/{app_id}/candidate-email", json={"email": fixed}
     )
@@ -355,7 +355,7 @@ async def test_email_update_roundtrip_and_guards(client: AsyncClient) -> None:
     assert resp.status_code == 422
 
     # member cannot rectify (admin-only)
-    member = {"email": f"member-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    member = {"email": f"member-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     assert (
         await client.post("/api/v1/users", json={**member, "role": "member"})
     ).status_code == 201
@@ -364,7 +364,7 @@ async def test_email_update_roundtrip_and_guards(client: AsyncClient) -> None:
     assert (
         await client.patch(
             f"/api/v1/applications/{app_id}/candidate-email",
-            json={"email": "x@vetd-ci.dev"},
+            json={"email": "x@ganek-ci.dev"},
         )
     ).status_code == 403
 
@@ -378,7 +378,7 @@ async def test_email_update_409_when_taken_by_other_candidate(
     await _company_with_applications(client, n_jobs=1)
     apps = (await client.get("/api/v1/applications")).json()["items"]
     app_id = apps[0]["id"]
-    taken = f"taken-{uuid4().hex[:8]}@vetd-ci.dev"
+    taken = f"taken-{uuid4().hex[:8]}@ganek-ci.dev"
     # second candidate row in the same company, no application needed
     company_id = (
         await db_session.execute(

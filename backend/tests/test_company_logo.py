@@ -30,7 +30,7 @@ async def _register(client: AsyncClient) -> str:
         "/api/v1/auth/register",
         json={
             "company_name": name,
-            "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )
@@ -98,7 +98,7 @@ async def test_logo_validation(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_logo_is_admin_only(client: AsyncClient) -> None:
     await _register(client)
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     member_pw = "member-password-1234"
     resp = await client.post(
         "/api/v1/users", json={"email": member_email, "password": member_pw, "role": "member"}

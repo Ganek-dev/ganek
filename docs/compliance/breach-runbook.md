@@ -26,13 +26,13 @@ wrong address, ransomware making data unavailable: all breaches.
 
 **Containment levers, in escalation order:**
 
-- **Rotate `VETD_SECRET_KEY`** — the nuclear lever: instantly invalidates
+- **Rotate `GANEK_SECRET_KEY`** — the nuclear lever: instantly invalidates
   *every* outstanding candidate link (quiz/status/interview/invite) and all
   admin sessions. Recruiters log in again; candidates with live processes
   need re-sent links (quiz links can be re-issued from the applicant view).
-  Unless you set a separate `VETD_ENCRYPTION_KEY`, this also severs stored
+  Unless you set a separate `GANEK_ENCRYPTION_KEY`, this also severs stored
   Google Calendar connections (recruiters reconnect).
-- **Rotate `VETD_ENCRYPTION_KEY`** (if set) — invalidates stored Google
+- **Rotate `GANEK_ENCRYPTION_KEY`** (if set) — invalidates stored Google
   refresh tokens only; recruiters reconnect their calendars.
 - **Revoke Google access** at the account level (Google Account →
   Security → third-party access) for affected recruiters, and/or delete

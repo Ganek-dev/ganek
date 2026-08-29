@@ -24,7 +24,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def _register_company(client: AsyncClient, name_prefix: str) -> dict[str, str]:
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"{name_prefix} {uuid4().hex[:6]}"
@@ -42,7 +42,7 @@ async def _company_with_applicants(
     applicants is [{"email": ..., "status_token": ...}, ...] in apply order.
     """
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"{name_prefix} {uuid4().hex[:6]}"
@@ -65,7 +65,7 @@ async def _company_with_applicants(
                 headers={"Content-Type": ticket["content_type"]},
             )
             assert put.status_code == 200
-        email = f"cand-{uuid4().hex[:8]}@vetd-ci.dev"
+        email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
         resp = await client.post(
             f"{base}/apply",
             json={

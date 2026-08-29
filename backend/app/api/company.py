@@ -59,7 +59,7 @@ async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str
     if not email_service.smtp_configured():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="SMTP is not configured — set the VETD_SMTP_* variables first",
+            detail="SMTP is not configured — set the GANEK_SMTP_* variables first",
         )
     try:
         email_service.send_email(

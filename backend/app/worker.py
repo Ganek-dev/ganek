@@ -154,7 +154,7 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
         if row is None or row.status is not EmailStatus.QUEUED:
             return
         if not email_service.smtp_configured():
-            # not retryable by waiting — an operator has to set VETD_SMTP_*
+            # not retryable by waiting — an operator has to set GANEK_SMTP_*
             row.status = EmailStatus.FAILED
             row.last_error = "SMTP not configured"
             await db.commit()

@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * spares logged-out visitors the skeleton-then-redirect dance. */
 
 export function middleware(request: NextRequest) {
-  if (!request.cookies.has("vetd_session")) {
+  if (!request.cookies.has("ganek_session")) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   return NextResponse.next();

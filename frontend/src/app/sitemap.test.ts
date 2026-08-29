@@ -14,11 +14,11 @@ vi.mock("@/lib/public-api", () => ({
 }));
 
 beforeEach(() => {
-  process.env.VETD_PUBLIC_BASE_URL = "https://jobs.example.com";
+  process.env.GANEK_PUBLIC_BASE_URL = "https://jobs.example.com";
 });
 
 afterEach(() => {
-  delete process.env.VETD_PUBLIC_BASE_URL;
+  delete process.env.GANEK_PUBLIC_BASE_URL;
   vi.clearAllMocks();
 });
 

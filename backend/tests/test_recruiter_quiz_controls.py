@@ -38,7 +38,7 @@ async def _register(client: AsyncClient) -> None:
         "/api/v1/auth/register",
         json={
             "company_name": f"RCo {uuid4().hex[:6]}",
-            "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )
@@ -61,7 +61,7 @@ async def _engine_fixture(db: AsyncSession, quiz_config: dict) -> tuple[Company,
         quiz_config=quiz_config,
     )
     candidate = Candidate(
-        company_id=company.id, email=f"c-{uuid4().hex[:8]}@vetd-ci.dev", name="Jane"
+        company_id=company.id, email=f"c-{uuid4().hex[:8]}@ganek-ci.dev", name="Jane"
     )
     db.add_all([job, candidate])
     await db.flush()
@@ -210,7 +210,7 @@ async def test_bank_block_roundtrip_and_member_forbidden(client: AsyncClient) ->
     assert (await client.put("/api/v1/questions/bank/nope-404/block")).status_code == 404
 
     # members can browse but not block
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         "/api/v1/users",
         json={"email": member_email, "password": "member-password-1234", "role": "member"},
@@ -309,7 +309,7 @@ async def test_stats_score_distribution_median_and_duration(db_session: AsyncSes
     applications = [first_app]
     for i in range(1, len(scores)):
         candidate = Candidate(
-            company_id=company.id, email=f"s{i}-{uuid4().hex[:6]}@vetd-ci.dev", name=f"S{i}"
+            company_id=company.id, email=f"s{i}-{uuid4().hex[:6]}@ganek-ci.dev", name=f"S{i}"
         )
         db_session.add(candidate)
         await db_session.flush()

@@ -38,7 +38,7 @@ The company deploying Ganek is the data controller for its candidates. Ganek shi
 ## Quickstart (self-host)
 
 ```bash
-git clone https://github.com/vetd-dev/vetd && cd vetd
+git clone https://github.com/ganek-dev/ganek && cd ganek
 cp .env.example .env        # edit as needed
 docker compose up
 # open http://localhost:3000 and follow the setup wizard
@@ -47,7 +47,7 @@ docker compose up
 Ganek expects a **database of its own**. The bundled compose stack provides one
 (isolated volume, port not published). If you point Ganek at an existing
 postgres server instead, create a dedicated database for it and set
-`VETD_DATABASE_URL` accordingly — don't share a database with another
+`GANEK_DATABASE_URL` accordingly — don't share a database with another
 application.
 
 ## Contributing

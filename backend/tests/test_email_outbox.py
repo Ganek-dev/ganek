@@ -82,7 +82,7 @@ async def _queued(db: AsyncSession, company: Company, **overrides: object) -> Em
         "kind": "application_received",
         "payload": outbox_service._serialize(
             {
-                "to": "jane@vetd-ci.dev",
+                "to": "jane@ganek-ci.dev",
                 "ref": "r-1",
                 "candidate_name": "Jane",
                 "job_title": "Role",
@@ -127,7 +127,7 @@ async def test_deliver_sends_and_marks_row(db_session: AsyncSession, ctx: Any) -
     assert fresh.attempts == 1
     assert fresh.sent_at is not None
     assert len(FakeSMTP.sent) == 1
-    assert FakeSMTP.sent[0]["To"] == "jane@vetd-ci.dev"
+    assert FakeSMTP.sent[0]["To"] == "jane@ganek-ci.dev"
 
 
 @pytest.mark.usefixtures("migrated_db", "real_outbox", "smtp_ok")
@@ -213,7 +213,7 @@ async def test_failure_log_carries_row_id_never_the_address(
 
     with caplog.at_level(logging.WARNING, logger="app.worker"):
         await deliver_email(ctx, str(row.id))
-    assert "jane@vetd-ci.dev" not in caplog.text
+    assert "jane@ganek-ci.dev" not in caplog.text
     assert str(row.id) in caplog.text
 
 
@@ -287,7 +287,7 @@ async def _apply_flow(client: AsyncClient) -> tuple[str, str]:
     returns (application_id, candidate_email)."""
     import httpx
 
-    creds = {"email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev", "password": "a-long-secure-password"}
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
     name = f"Outbox Api Co {uuid4().hex[:6]}"
     assert (
         await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
@@ -306,7 +306,7 @@ async def _apply_flow(client: AsyncClient) -> tuple[str, str]:
             headers={"Content-Type": ticket["content_type"]},
         )
         assert put.status_code == 200
-    email = f"cand-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"{base}/apply",
         json={
@@ -350,7 +350,7 @@ async def test_apply_writes_outbox_and_panel_surfaces_it(
 
     # tenant-scoped like every application subresource
     other = {
-        "email": f"other-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"other-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     assert (
@@ -383,7 +383,7 @@ async def test_erasure_takes_outbox_rows_with_the_candidate(
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_test_email_endpoint(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    creds = {"email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev", "password": "a-long-secure-password"}
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
     assert (
         await client.post(
             "/api/v1/auth/register",

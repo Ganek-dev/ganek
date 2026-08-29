@@ -65,12 +65,12 @@ Work through this once, before the careers page goes public.
 
 - [ ] Work through the **production hardening checklist** at the bottom of
       `.env.example` — it exists because candidate PII lives in this stack.
-      In short: HTTPS everywhere with `VETD_COOKIE_SECURE=true` (quiz,
+      In short: HTTPS everywhere with `GANEK_COOKIE_SECURE=true` (quiz,
       status, and interview links are bearer tokens; plain HTTP exposes
       them), TLS SMTP relay, change the MinIO defaults and don't expose its
       ports, keep the backend behind your reverse proxy, Redis AUTH outside
       the bundled compose network, and consider a separate
-      `VETD_ENCRYPTION_KEY` for stored Google credentials.
+      `GANEK_ENCRYPTION_KEY` for stored Google credentials.
 - [ ] Enable **encryption at rest on your storage layer**. The app sets no
       S3 server-side-encryption headers by design — use MinIO KMS/SSE, disk
       encryption, or a provider that encrypts by default, for both the CV

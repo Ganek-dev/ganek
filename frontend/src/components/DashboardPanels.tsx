@@ -37,7 +37,7 @@ export function TodayPanel() {
     dashboard
       .today(tz)
       .then(setData)
-      .catch(() => setData({ source: "vetd", events: [] }));
+      .catch(() => setData({ source: "ganek", events: [] }));
   }, []);
 
   return (
@@ -54,7 +54,7 @@ export function TodayPanel() {
       ) : data.events.length === 0 ? (
         <p className="mt-3 text-[12.5px] text-g500">
           Nothing scheduled today.
-          {data.source === "vetd" ? (
+          {data.source === "ganek" ? (
             <>
               {" "}
               <Link href="/admin/account" className="text-accent hover:underline">

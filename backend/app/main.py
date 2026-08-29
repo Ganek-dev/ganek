@@ -32,7 +32,7 @@ install_access_log_scrubber()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.secret_key == "change-me":  # noqa: S105
         message = (
-            "VETD_SECRET_KEY is the default value — sessions and quiz tokens are "
+            "GANEK_SECRET_KEY is the default value — sessions and quiz tokens are "
             "forgeable. Set a real secret: openssl rand -hex 32"
         )
         if settings.mode == "multi":

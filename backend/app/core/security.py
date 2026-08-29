@@ -6,22 +6,24 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.core.config import settings
 
-SESSION_COOKIE_NAME = "vetd_session"
+SESSION_COOKIE_NAME = "ganek_session"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14  # 14 days
 
 _hasher = PasswordHasher()
-_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-session")
-_quiz_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-quiz")
+_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-session")
+_quiz_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-quiz")
 QUIZ_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
-_status_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-application-status")
+_status_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-application-status")
 STATUS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days (G0 minimization decision, was 60)
-_invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-team-invite")
+_invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-team-invite")
 # generous signature window — the invite row's expires_at is the real
 # deadline (resend pushes it forward without re-emailing a new token)
 INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 
-_password_reset_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-password-reset")
+_password_reset_serializer = URLSafeTimedSerializer(
+    settings.secret_key, salt="ganek-password-reset"
+)
 # short-lived: possession of the inbox is the whole proof here
 PASSWORD_RESET_MAX_AGE_SECONDS = 60 * 45
 
@@ -43,7 +45,7 @@ def read_password_reset_token(token: str) -> tuple[uuid.UUID, int] | None:
         return None
 
 
-_email_verify_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-email-verify")
+_email_verify_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-email-verify")
 # generous: signup + inbox + coming back later; the 7-day unverified-company
 # sweep is the real deadline
 EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24 * 3
@@ -61,16 +63,16 @@ def read_email_verify_token(token: str) -> uuid.UUID | None:
         return None
 
 
-_google_flow_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-oauth")
+_google_flow_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-google-oauth")
 # state/PKCE verifier/nonce only need to survive the redirect to Google and back
 GOOGLE_FLOW_MAX_AGE_SECONDS = 60 * 10
-GOOGLE_FLOW_COOKIE_NAME = "vetd_google_flow"
-_google_signup_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-google-signup")
+GOOGLE_FLOW_COOKIE_NAME = "ganek_google_flow"
+_google_signup_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-google-signup")
 # window to type a company name on /setup after Google authenticated the user
 GOOGLE_SIGNUP_MAX_AGE_SECONDS = 60 * 15
 # the signup token carries sub+email (PII) — it rides an httponly cookie,
 # never a URL (browser history / proxy logs), per GDPR G4
-GOOGLE_SIGNUP_COOKIE_NAME = "vetd_google_signup"
+GOOGLE_SIGNUP_COOKIE_NAME = "ganek_google_signup"
 
 
 def hash_password(password: str) -> str:
@@ -135,7 +137,7 @@ def read_invite_token(token: str) -> uuid.UUID | None:
         return None
 
 
-_interview_serializer = URLSafeTimedSerializer(settings.secret_key, salt="vetd-interview")
+_interview_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-interview")
 # candidates may sit on the booking link a while; interview rows gate real access
 INTERVIEW_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 60
 

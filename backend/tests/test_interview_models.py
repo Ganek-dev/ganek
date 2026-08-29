@@ -27,7 +27,7 @@ async def _fixture(db: AsyncSession) -> tuple[Company, Application, User]:
     await db.flush()
     job = Job(company_id=company.id, slug="backend-dev", title="Backend Dev")
     candidate = Candidate(
-        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
+        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@ganek-ci.dev", name="Marta"
     )
     interviewer = User(
         company_id=company.id,

@@ -28,7 +28,7 @@ async def _company_with_applicant(
     Ends logged in as the admin; returns (job_id, candidate_email).
     """
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Hire Co {uuid4().hex[:6]}"
@@ -53,7 +53,7 @@ async def _company_with_applicant(
             headers={"Content-Type": ticket["content_type"]},
         )
         assert put.status_code == 200
-    email = f"cand-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"{base}/apply",
         json={
@@ -117,7 +117,7 @@ async def test_applications_require_auth_and_are_tenant_scoped(client: AsyncClie
         "/api/v1/auth/register",
         json={
             "company_name": f"Other Co {uuid4().hex[:6]}",
-            "email": f"other-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"other-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )
@@ -139,7 +139,7 @@ async def test_admin_sees_quiz_results(client: AsyncClient) -> None:
     from app.models import Job
 
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Score Co {uuid4().hex[:6]}"
@@ -174,7 +174,7 @@ async def test_admin_sees_quiz_results(client: AsyncClient) -> None:
         f"{base}/apply",
         json={
             "name": "Jane",
-            "email": f"jane-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"jane-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "cv.pdf",
         },
@@ -213,7 +213,7 @@ async def test_admin_reviews_quiz_answers_with_integrity(client: AsyncClient) ->
     from app.models import Job
 
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Review Co {uuid4().hex[:6]}"
@@ -248,7 +248,7 @@ async def test_admin_reviews_quiz_answers_with_integrity(client: AsyncClient) ->
         f"{base}/apply",
         json={
             "name": "Jane",
-            "email": f"jane-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"jane-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "cv.pdf",
         },
@@ -306,7 +306,7 @@ async def test_admin_reviews_quiz_answers_with_integrity(client: AsyncClient) ->
             "/api/v1/auth/register",
             json={
                 "company_name": f"Nosy Co {uuid4().hex[:6]}",
-                "email": f"nosy-{uuid4().hex[:8]}@vetd-ci.dev",
+                "email": f"nosy-{uuid4().hex[:8]}@ganek-ci.dev",
                 "password": "a-long-secure-password",
             },
         )
@@ -413,7 +413,7 @@ async def test_list_paginates_and_counts_stages(client: AsyncClient) -> None:
     """M5.7 H4: limit/offset windows plus whole-set stage counts — the old
     endpoint materialized every row per visit."""
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Page Co {uuid4().hex[:6]}"
@@ -439,7 +439,7 @@ async def test_list_paginates_and_counts_stages(client: AsyncClient) -> None:
             f"{base}/apply",
             json={
                 "name": f"Candidate {i}",
-                "email": f"cand-{i}-{uuid4().hex[:8]}@vetd-ci.dev",
+                "email": f"cand-{i}-{uuid4().hex[:8]}@ganek-ci.dev",
                 "cv_object_key": ticket["object_key"],
                 "cv_filename": f"cv-{i}.pdf",
             },

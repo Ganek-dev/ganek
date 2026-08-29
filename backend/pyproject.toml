@@ -1,5 +1,5 @@
 [project]
-name = "vetd-backend"
+name = "ganek-backend"
 version = "0.1.0"
 description = "Ganek backend — open-source careers pages with skill screening"
 requires-python = ">=3.12"

@@ -33,19 +33,19 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: vetd
-          POSTGRES_PASSWORD: vetd
-          POSTGRES_DB: vetd_test
+          POSTGRES_USER: ganek
+          POSTGRES_PASSWORD: ganek
+          POSTGRES_DB: ganek_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U vetd"
+          --health-cmd "pg_isready -U ganek"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      VETD_DATABASE_URL: postgresql+asyncpg://vetd:vetd@localhost:5432/vetd_test
-      VETD_S3_ENDPOINT_URL: http://localhost:9000
-      VETD_S3_BUCKET: vetd-cvs-test
+      GANEK_DATABASE_URL: postgresql+asyncpg://ganek:ganek@localhost:5432/ganek_test
+      GANEK_S3_ENDPOINT_URL: http://localhost:9000
+      GANEK_S3_BUCKET: ganek-cvs-test
     steps:
       - uses: actions/checkout@v7
       # GH service containers can't override the image command, and the

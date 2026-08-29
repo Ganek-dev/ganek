@@ -36,7 +36,7 @@ async def _company_with_completed_quiz(
 
     Ends logged in as the admin; returns (application_id, candidate_email, creds).
     """
-    creds = {"email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     name = f"Dsar Co {uuid4().hex[:6]}"
     resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
     assert resp.status_code == 201, resp.text
@@ -63,7 +63,7 @@ async def _company_with_completed_quiz(
             headers={"Content-Type": ticket["content_type"]},
         )
         assert put.status_code == 200
-    email = f"cand-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"{base}/apply",
         json={
@@ -142,7 +142,7 @@ async def test_dsar_bundle_contents_and_third_party_scrub(client: AsyncClient) -
 async def test_dsar_is_admin_only_and_tenant_scoped(client: AsyncClient) -> None:
     app_id, _, _ = await _company_with_completed_quiz(client)
 
-    member = {"email": f"member-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    member = {"email": f"member-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     assert (
         await client.post("/api/v1/users", json={**member, "role": "member"})
     ).status_code == 201
@@ -155,7 +155,7 @@ async def test_dsar_is_admin_only_and_tenant_scoped(client: AsyncClient) -> None
         "/api/v1/auth/register",
         json={
             "company_name": f"Nosy Co {uuid4().hex[:6]}",
-            "email": f"nosy-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"nosy-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": PASSWORD,
         },
     )

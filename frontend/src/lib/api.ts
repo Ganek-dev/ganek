@@ -866,7 +866,7 @@ export interface TaskItem {
 }
 
 export interface TodayPanelData {
-  source: "google" | "vetd";
+  source: "google" | "ganek";
   events: { start: string | null; summary: string; hangout_link: string | null }[];
 }
 

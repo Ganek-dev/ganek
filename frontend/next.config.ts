@@ -20,9 +20,9 @@ const nextConfig: NextConfig = {
     // required by Tailwind's runtime and Next's inline style attributes.
     // CVs PUT straight from the browser to a presigned S3 URL, so connect-src
     // must also allow the storage origin (headers are baked at build time —
-    // compose passes VETD_S3_PUBLIC_ENDPOINT_URL as a build arg).
+    // compose passes GANEK_S3_PUBLIC_ENDPOINT_URL as a build arg).
     const cvUploadOrigin = new URL(
-      process.env.VETD_S3_PUBLIC_ENDPOINT_URL || "http://localhost:9000",
+      process.env.GANEK_S3_PUBLIC_ENDPOINT_URL || "http://localhost:9000",
     ).origin;
     const csp = [
       "default-src 'self'",

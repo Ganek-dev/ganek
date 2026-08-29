@@ -62,7 +62,7 @@ async def _register_and_publish(
     """Register a company/admin and publish one job. Returns
     (admin_id, slug, job, creds), logged OUT."""
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"{company_prefix} {uuid4().hex[:6]}"
@@ -93,7 +93,7 @@ async def _apply_as_candidate(
         f"{base}/apply",
         json={
             "name": candidate_name,
-            "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "cv.pdf",
         },
@@ -172,11 +172,11 @@ async def _two_applications(
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
-async def test_booked_vetd_interview_blocks_second_booking_despite_freebusy_lag(
+async def test_booked_ganek_interview_blocks_second_booking_despite_freebusy_lag(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     """Two candidates, same interviewer, same slot; Google freebusy stays empty
-    (simulating propagation lag) — the vetd-side booked row must still win."""
+    (simulating propagation lag) — the ganek-side booked row must still win."""
     interviewer, company, application_one, application_two = await _two_applications(
         client, db_session
     )

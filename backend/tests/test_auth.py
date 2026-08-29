@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skipif(
 def _register_payload(**overrides: str) -> dict[str, str]:
     payload = {
         "company_name": f"Acme {uuid4().hex[:6]}",
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     payload.update(overrides)
@@ -179,7 +179,7 @@ async def test_forgot_password_never_reveals_accounts(
 ) -> None:
     resp = await client.post(
         "/api/v1/auth/forgot-password",
-        json={"email": f"nobody-{uuid4().hex[:8]}@vetd-ci.dev"},
+        json={"email": f"nobody-{uuid4().hex[:8]}@ganek-ci.dev"},
     )
     assert resp.status_code == 204  # indistinguishable from a real account
     assert captured_reset == []
@@ -193,7 +193,7 @@ async def test_reset_token_is_single_use_and_kills_old_sessions(
     assert (await client.post("/api/v1/auth/register", json=payload)).status_code == 201
     # keep the registration session cookie around to prove the reset kills it
     assert (await client.get("/api/v1/auth/me")).status_code == 200
-    pre_reset_session = client.cookies["vetd_session"]
+    pre_reset_session = client.cookies["ganek_session"]
 
     assert (
         await client.post("/api/v1/auth/forgot-password", json={"email": payload["email"]})
@@ -215,7 +215,7 @@ async def test_reset_token_is_single_use_and_kills_old_sessions(
 
     # the reset issued a fresh session; the PRE-reset one died with the bump
     assert (await client.get("/api/v1/auth/me")).status_code == 200
-    client.cookies.set("vetd_session", pre_reset_session)
+    client.cookies.set("ganek_session", pre_reset_session)
     assert (await client.get("/api/v1/auth/me")).status_code == 401
 
 
@@ -262,7 +262,7 @@ async def test_forgot_password_skips_deactivated_accounts(
     company = Company(slug=f"da-{uuid4().hex[:8]}", name="Deactivated Co")
     db_session.add(company)
     await db_session.flush()
-    email = f"gone-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"gone-{uuid4().hex[:8]}@ganek-ci.dev"
     db_session.add(
         User(
             company_id=company.id,
@@ -358,7 +358,7 @@ async def test_resend_verification_is_quiet_and_targeted(
     assert (
         await client.post(
             "/api/v1/auth/resend-verification",
-            json={"email": f"nobody-{uuid4().hex[:8]}@vetd-ci.dev"},
+            json={"email": f"nobody-{uuid4().hex[:8]}@ganek-ci.dev"},
         )
     ).status_code == 204
     assert len(captured_verification) == 2

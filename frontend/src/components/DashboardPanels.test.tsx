@@ -52,8 +52,8 @@ describe("TodayPanel", () => {
     );
   });
 
-  it("suggests connecting when empty on the vetd fallback", async () => {
-    mocked.today.mockResolvedValue({ source: "vetd", events: [] });
+  it("suggests connecting when empty on the ganek fallback", async () => {
+    mocked.today.mockResolvedValue({ source: "ganek", events: [] });
     render(<TodayPanel />);
     expect(
       await screen.findByRole("link", { name: "Connect Google Calendar" }),

@@ -10,7 +10,7 @@
 #               each leg against fresh throwaway postgres+minio containers
 #               (CI-faithful; never touches the dev stack or its data)
 #   e2e       — compose smoke + Playwright golden paths on a scratch
-#               `-p vetd-e2e` stack with the mandatory volume override;
+#               `-p ganek-e2e` stack with the mandatory volume override;
 #               stops a running dev stack first and restores it after
 #
 # Usage:
@@ -24,12 +24,12 @@ cd "$ROOT"
 
 PYTHONS="3.12 3.14"
 NODE_MAJOR=22
-VENV_BASE="${VETD_CI_VENVS:-$HOME/.cache/vetd-ci}"
-PG_CTR=vetd-ci-postgres
+VENV_BASE="${GANEK_CI_VENVS:-$HOME/.cache/ganek-ci}"
+PG_CTR=ganek-ci-postgres
 PG_PORT=55433
-MINIO_CTR=vetd-ci-minio
+MINIO_CTR=ganek-ci-minio
 MINIO_PORT=9100
-E2E_COMPOSE="docker compose --env-file .env.example -p vetd-e2e -f docker-compose.yml -f docker-compose.e2e.yml"
+E2E_COMPOSE="docker compose --env-file .env.example -p ganek-e2e -f docker-compose.yml -f docker-compose.e2e.yml"
 
 STAGES=""
 while [ $# -gt 0 ]; do
@@ -99,14 +99,14 @@ wait_stack() {
 start_backend_services() {
   docker rm -f "$PG_CTR" "$MINIO_CTR" >/dev/null 2>&1 || true
   docker run -d --rm --name "$PG_CTR" \
-    -e POSTGRES_USER=vetd -e POSTGRES_PASSWORD=vetd -e POSTGRES_DB=vetd_test \
+    -e POSTGRES_USER=ganek -e POSTGRES_PASSWORD=ganek -e POSTGRES_DB=ganek_test \
     -p "127.0.0.1:$PG_PORT:5432" postgres:16-alpine >/dev/null
   docker run -d --rm --name "$MINIO_CTR" \
     -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
     -p "127.0.0.1:$MINIO_PORT:9000" minio/minio:latest server /data >/dev/null
   local i
   for i in $(seq 1 30); do
-    if docker exec "$PG_CTR" pg_isready -U vetd >/dev/null 2>&1; then return 0; fi
+    if docker exec "$PG_CTR" pg_isready -U ganek >/dev/null 2>&1; then return 0; fi
     sleep 1
   done
   echo "throwaway postgres did not become ready"
@@ -157,9 +157,13 @@ stage_backend() {
     (
       cd backend
       export UV_PROJECT_ENVIRONMENT="$VENV_BASE/venv-$py"
-      export VETD_DATABASE_URL="postgresql+asyncpg://vetd:vetd@localhost:$PG_PORT/vetd_test"
-      export VETD_S3_ENDPOINT_URL="http://localhost:$MINIO_PORT"
-      export VETD_S3_BUCKET=vetd-cvs-test
+      # UV_PYTHON (not just sync --python): the uv run calls below re-sync
+      # implicitly, and without it .python-version wins and silently
+      # rebuilds the venv on the wrong interpreter
+      export UV_PYTHON="$py"
+      export GANEK_DATABASE_URL="postgresql+asyncpg://ganek:ganek@localhost:$PG_PORT/ganek_test"
+      export GANEK_S3_ENDPOINT_URL="http://localhost:$MINIO_PORT"
+      export GANEK_S3_BUCKET=ganek-cvs-test
       uv sync --python "$py" --frozen -q \
         && uv run --frozen ruff check . \
         && uv run --frozen ruff format --check . \

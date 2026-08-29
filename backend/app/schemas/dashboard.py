@@ -49,5 +49,5 @@ class TodayEvent(BaseModel):
 
 
 class TodayOut(BaseModel):
-    source: str  # "google" | "vetd"
+    source: str  # "google" | "ganek"
     events: list[TodayEvent]
