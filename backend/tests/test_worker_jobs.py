@@ -70,7 +70,7 @@ async def _booked_interview(db: AsyncSession, *, start: datetime) -> Interview:
     await db.flush()
     job = Job(company_id=company.id, slug="backend-dev", title="Backend Dev")
     candidate = Candidate(
-        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
+        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@ganek-ci.dev", name="Marta"
     )
     interviewer = User(
         company_id=company.id,
@@ -144,7 +144,7 @@ async def _pending_attempt(db: AsyncSession, *, expires: datetime) -> QuizAttemp
     await db.flush()
     job = Job(company_id=company.id, slug=f"role-{uuid4().hex[:6]}", title="Backend Dev")
     candidate = Candidate(
-        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
+        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@ganek-ci.dev", name="Marta"
     )
     db.add_all([job, candidate])
     await db.flush()

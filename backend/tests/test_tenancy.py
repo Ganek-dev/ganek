@@ -40,7 +40,7 @@ async def test_get_current_company_resolves_users_company(db_session: AsyncSessi
     company = await _make_company(db_session)
     user = User(
         company_id=company.id,
-        email=f"member-{uuid4().hex[:8]}@vetd-ci.dev",
+        email=f"member-{uuid4().hex[:8]}@ganek-ci.dev",
         password_hash="irrelevant",
         role=UserRole.MEMBER,
     )

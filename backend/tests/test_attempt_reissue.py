@@ -30,7 +30,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 async def _register_admin(client: AsyncClient) -> tuple[dict[str, str], str]:
     """Register a fresh company; returns (admin creds, slug), still logged in."""
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Reissue Co {uuid4().hex[:6]}"
@@ -61,7 +61,7 @@ async def _publish_job_and_apply(
         f"{base}/apply",
         json={
             "name": "Tomas Hruby",
-            "email": f"tomas-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"tomas-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "tomas-cv.pdf",
         },
@@ -162,7 +162,7 @@ async def test_reissue_is_tenant_scoped(client: AsyncClient) -> None:
 
     # a different company's admin can't touch the application
     other = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     resp = await client.post(
@@ -258,7 +258,7 @@ async def test_active_link_refuses_reissue_request(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
 async def test_settings_patch_is_admin_only_and_validated(client: AsyncClient) -> None:
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     resp = await client.post(
@@ -276,7 +276,7 @@ async def test_settings_patch_is_admin_only_and_validated(client: AsyncClient) -
         await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": None})
     ).json()["settings"] == {}
 
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     member_pw = "member-password-1234"
     resp = await client.post(
         "/api/v1/users", json={"email": member_email, "password": member_pw, "role": "member"}

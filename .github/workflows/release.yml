@@ -45,8 +45,8 @@ jobs:
           context: backend
           load: true
           tags: |
-            ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
-            ghcr.io/vetd-dev/vetd-backend:latest
+            ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
+            ghcr.io/ganek-dev/ganek-backend:latest
       - name: Frontend image (compose-default build args)
         uses: docker/build-push-action@v7
         with:
@@ -54,19 +54,19 @@ jobs:
           load: true
           build-args: |
             BACKEND_URL=http://backend:8000
-            VETD_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
+            GANEK_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
           tags: |
-            ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
-            ghcr.io/vetd-dev/vetd-frontend:latest
+            ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}
+            ghcr.io/ganek-dev/ganek-frontend:latest
       - name: Boot the built images
         run: |
           cp .env.example .env
           cat > compose.release-smoke.yml <<EOF
           services:
-            backend:  { image: "ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}" }
-            worker:   { image: "ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}" }
-            migrate:  { image: "ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}" }
-            frontend: { image: "ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}" }
+            backend:  { image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}" }
+            worker:   { image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}" }
+            migrate:  { image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}" }
+            frontend: { image: "ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}" }
           EOF
           # images exist locally, so compose uses them as-is (no --build)
           docker compose -f docker-compose.yml -f compose.release-smoke.yml up -d
@@ -92,13 +92,13 @@ jobs:
       - name: Trivy scan backend image (advisory)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
+          image-ref: ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
           severity: CRITICAL,HIGH
           exit-code: "0"
       - name: Trivy scan frontend image (advisory)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
+          image-ref: ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}
           severity: CRITICAL,HIGH
           exit-code: "0"
       - uses: docker/login-action@v4
@@ -110,7 +110,7 @@ jobs:
       - name: Publish (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          docker push ghcr.io/vetd-dev/vetd-backend:${{ steps.meta.outputs.version }}
-          docker push ghcr.io/vetd-dev/vetd-backend:latest
-          docker push ghcr.io/vetd-dev/vetd-frontend:${{ steps.meta.outputs.version }}
-          docker push ghcr.io/vetd-dev/vetd-frontend:latest
+          docker push ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
+          docker push ghcr.io/ganek-dev/ganek-backend:latest
+          docker push ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}
+          docker push ghcr.io/ganek-dev/ganek-frontend:latest

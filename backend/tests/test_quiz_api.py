@@ -29,7 +29,7 @@ async def _apply_with_quiz(client: AsyncClient, *, quiz_config: dict | None = No
         "/api/v1/auth/register",
         json={
             "company_name": name,
-            "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )
@@ -72,7 +72,7 @@ async def _apply_with_quiz(client: AsyncClient, *, quiz_config: dict | None = No
         f"{base}/apply",
         json={
             "name": "Jane",
-            "email": f"jane-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"jane-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "cv.pdf",
         },

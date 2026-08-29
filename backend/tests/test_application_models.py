@@ -19,7 +19,7 @@ async def _fixture(db: AsyncSession) -> tuple[Company, Job, Candidate]:
     await db.flush()
     job = Job(company_id=company.id, slug="backend-dev", title="Backend Dev")
     candidate = Candidate(
-        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Jane Doe"
+        company_id=company.id, email=f"cand-{uuid4().hex[:8]}@ganek-ci.dev", name="Jane Doe"
     )
     db.add_all([job, candidate])
     await db.commit()

@@ -1,7 +1,7 @@
 """Symmetric encryption for stored third-party secrets (Google refresh tokens).
 
-Fernet with a key derived from VETD_ENCRYPTION_KEY when set, else from
-VETD_SECRET_KEY. Without the dedicated key, rotating the app secret
+Fernet with a key derived from GANEK_ENCRYPTION_KEY when set, else from
+GANEK_SECRET_KEY. Without the dedicated key, rotating the app secret
 invalidates stored credentials (users just reconnect); with it, the
 signing secret rotates freely and only rotating the encryption key
 itself forces reconnects.

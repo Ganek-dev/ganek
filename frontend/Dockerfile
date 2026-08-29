@@ -15,8 +15,8 @@ ARG BACKEND_URL=http://localhost:8000
 ENV BACKEND_URL=$BACKEND_URL
 # The CSP connect-src must allow the presigned-upload origin, and headers
 # are baked at build time too.
-ARG VETD_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
-ENV VETD_S3_PUBLIC_ENDPOINT_URL=$VETD_S3_PUBLIC_ENDPOINT_URL
+ARG GANEK_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
+ENV GANEK_S3_PUBLIC_ENDPOINT_URL=$GANEK_S3_PUBLIC_ENDPOINT_URL
 RUN pnpm build
 
 FROM node:22-alpine AS run

@@ -30,7 +30,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, dict[s
     Ends logged in as the admin; returns (application_id, admin_email, admin_creds).
     """
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Notes Co {uuid4().hex[:6]}"
@@ -55,7 +55,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, dict[s
         f"{base}/apply",
         json={
             "name": "Jane Applicant",
-            "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "jane.pdf",
         },
@@ -76,7 +76,7 @@ async def _company_with_quiz_applicant(client: AsyncClient) -> tuple[str, str, s
     Ends logged in as the admin.
     """
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Notes Quiz Co {uuid4().hex[:6]}"
@@ -120,7 +120,7 @@ async def _company_with_quiz_applicant(client: AsyncClient) -> tuple[str, str, s
         f"{base}/apply",
         json={
             "name": "Jane Quiz Applicant",
-            "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "jane.pdf",
         },
@@ -205,7 +205,7 @@ async def test_member_deletes_own_but_not_others(client: AsyncClient) -> None:
     app_id, _, admin_creds = await _company_with_applicant(client)
 
     member_pw = "member-password-1234"
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         "/api/v1/users",
         json={"email": member_email, "password": member_pw, "role": "member"},
@@ -251,7 +251,7 @@ async def test_tenant_isolation(client: AsyncClient) -> None:
         "/api/v1/auth/register",
         json={
             "company_name": f"Other Co {uuid4().hex[:6]}",
-            "email": f"other-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"other-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )

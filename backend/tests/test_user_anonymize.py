@@ -37,13 +37,13 @@ async def _company_with_member(
 
     Returns (admin_creds, member_creds, member_id).
     """
-    admin = {"email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    admin = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     resp = await client.post(
         "/api/v1/auth/register",
         json={"company_name": f"Anon Co {uuid4().hex[:6]}", **admin},
     )
     assert resp.status_code == 201, resp.text
-    member = {"email": f"member-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    member = {"email": f"member-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     resp = await client.post("/api/v1/users", json={**member, "role": "member"})
     assert resp.status_code == 201, resp.text
     return admin, member, resp.json()["id"]
@@ -70,7 +70,7 @@ async def test_anonymize_tombstones_revokes_and_kills_sessions(
 
     # capture a live member session cookie to prove it dies
     assert (await client.post("/api/v1/auth/login", json=member)).status_code == 200
-    member_cookie = client.cookies.get("vetd_session")
+    member_cookie = client.cookies.get("ganek_session")
     assert member_cookie
     assert (await client.post("/api/v1/auth/login", json=admin)).status_code == 200
 
@@ -99,7 +99,7 @@ async def test_anonymize_tombstones_revokes_and_kills_sessions(
     assert cred is None
 
     # the captured session no longer works (token_version bumped)
-    resp = await client.get("/api/v1/auth/me", headers={"Cookie": f"vetd_session={member_cookie}"})
+    resp = await client.get("/api/v1/auth/me", headers={"Cookie": f"ganek_session={member_cookie}"})
     assert resp.status_code == 401
     # and the old password is dead too
     assert (await client.post("/api/v1/auth/login", json=member)).status_code == 401
@@ -137,7 +137,9 @@ async def test_anonymize_guards(client: AsyncClient, db_session: AsyncSession) -
         await db_session.execute(select(User.company_id).where(User.id == member_id))
     ).scalar_one()
     job = Job(company_id=company_id, title="Guard Role", slug=f"guard-{uuid4().hex[:6]}")
-    candidate = Candidate(company_id=company_id, email=f"c-{uuid4().hex[:8]}@vetd-ci.dev", name="C")
+    candidate = Candidate(
+        company_id=company_id, email=f"c-{uuid4().hex[:8]}@ganek-ci.dev", name="C"
+    )
     db_session.add_all([job, candidate])
     await db_session.flush()
     application = Application(

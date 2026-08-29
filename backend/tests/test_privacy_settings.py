@@ -36,7 +36,7 @@ async def _register_admin(client: AsyncClient) -> tuple[str, str]:
         "/api/v1/auth/register",
         json={
             "company_name": name,
-            "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )
@@ -52,7 +52,7 @@ async def test_privacy_settings_roundtrip(client: AsyncClient) -> None:
         "/api/v1/company/settings",
         json={
             "legal_name": "Privacy Co Sp. z o.o.",
-            "privacy_contact_email": "privacy@vetd-ci.dev",
+            "privacy_contact_email": "privacy@ganek-ci.dev",
             "retention_months": 12,
             "privacy_policy_url": "https://example.com/privacy",
         },
@@ -60,7 +60,7 @@ async def test_privacy_settings_roundtrip(client: AsyncClient) -> None:
     assert resp.status_code == 200, resp.text
     stored = resp.json()["settings"]
     assert stored["legal_name"] == "Privacy Co Sp. z o.o."
-    assert stored["privacy_contact_email"] == "privacy@vetd-ci.dev"
+    assert stored["privacy_contact_email"] == "privacy@ganek-ci.dev"
     assert stored["retention_months"] == 12
     # HttpUrl must land in JSONB as a plain string
     assert stored["privacy_policy_url"] == "https://example.com/privacy"
@@ -131,7 +131,7 @@ async def test_single_mode_privacy_notice(
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
 async def test_privacy_settings_admin_only(client: AsyncClient) -> None:
     await _register_admin(client)
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     member_pw = "member-password-1234"
     resp = await client.post(
         "/api/v1/users", json={"email": member_email, "password": member_pw, "role": "member"}

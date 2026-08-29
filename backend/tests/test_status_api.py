@@ -27,7 +27,7 @@ async def _apply(
 ) -> tuple[dict[str, str | None], dict[str, str]]:
     """Register + publish + apply; returns (apply response json, admin creds)."""
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Status Co {uuid4().hex[:6]}"
@@ -55,7 +55,7 @@ async def _apply(
         f"{base}/apply",
         json={
             "name": "Marta Vidal",
-            "email": f"marta-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"marta-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "marta-vidal-cv.pdf",
         },

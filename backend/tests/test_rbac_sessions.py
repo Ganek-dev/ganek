@@ -19,7 +19,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def _register_admin(client: AsyncClient) -> dict[str, str]:
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     resp = await client.post(
@@ -35,7 +35,7 @@ async def test_admin_creates_member_who_lacks_admin_rights(client: AsyncClient) 
 
     # admin creates a member
     member_pw = "member-password-1234"
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         "/api/v1/users",
         json={"email": member_email, "password": member_pw, "role": "member"},
@@ -107,7 +107,7 @@ async def test_password_change_invalidates_old_sessions(client: AsyncClient) -> 
 async def test_deactivated_user_is_locked_out(client: AsyncClient) -> None:
     admin = await _register_admin(client)
     member_pw = "member-password-1234"
-    member_email = f"member-{uuid4().hex[:8]}@vetd-ci.dev"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
     member = (
         await client.post(
             "/api/v1/users",

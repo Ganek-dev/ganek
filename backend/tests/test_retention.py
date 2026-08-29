@@ -47,7 +47,7 @@ async def _application(
 
     job = Job(company_id=company.id, slug=f"job-{uuid4().hex[:8]}", title="Role")
     candidate = Candidate(
-        company_id=company.id, email=f"c-{uuid4().hex[:8]}@vetd-ci.dev", name="Ret Candidate"
+        company_id=company.id, email=f"c-{uuid4().hex[:8]}@ganek-ci.dev", name="Ret Candidate"
     )
     db.add_all([job, candidate])
     await db.flush()
@@ -237,13 +237,13 @@ async def test_sweeps_invites_and_orphan_cvs(db_session: AsyncSession) -> None:
     )
     expired_invite = UserInvite(
         company_id=company.id,
-        email="old@vetd-ci.dev",
+        email="old@ganek-ci.dev",
         role=UserRole.MEMBER,
         expires_at=NOW - timedelta(days=1),
     )
     live_invite = UserInvite(
         company_id=company.id,
-        email="new@vetd-ci.dev",
+        email="new@ganek-ci.dev",
         role=UserRole.MEMBER,
         expires_at=NOW + timedelta(days=5),
     )
@@ -329,23 +329,23 @@ async def test_purge_sweeps_done_privacy_tasks(db_session: AsyncSession) -> None
     company_id = company.id
     human = User(
         company_id=company_id,
-        email=f"rec-{uuid4().hex[:8]}@vetd-ci.dev",
+        email=f"rec-{uuid4().hex[:8]}@ganek-ci.dev",
         password_hash="x",
         role=UserRole.MEMBER,
     )
     db_session.add(human)
     await db_session.flush()
     old_done = _request_task(
-        company_id, "Old Done", "old@vetd-ci.dev", done_at=NOW - timedelta(days=91)
+        company_id, "Old Done", "old@ganek-ci.dev", done_at=NOW - timedelta(days=91)
     )
     fresh_done = _request_task(
-        company_id, "Fresh Done", "fresh@vetd-ci.dev", done_at=NOW - timedelta(days=10)
+        company_id, "Fresh Done", "fresh@ganek-ci.dev", done_at=NOW - timedelta(days=10)
     )
-    still_open = _request_task(company_id, "Still Open", "open@vetd-ci.dev")
+    still_open = _request_task(company_id, "Still Open", "open@ganek-ci.dev")
     human_done = _request_task(
         company_id,
         "Human Done",
-        "human@vetd-ci.dev",
+        "human@ganek-ci.dev",
         created_by=human.id,
         done_at=NOW - timedelta(days=400),
     )

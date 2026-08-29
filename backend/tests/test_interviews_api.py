@@ -43,7 +43,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
     """Register company, publish job, apply as candidate; returns
     (application_id, admin_user_id, admin_email), logged in as admin."""
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Iv Co {uuid4().hex[:6]}"
@@ -69,7 +69,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
         f"{base}/apply",
         json={
             "name": "Marta Vidal",
-            "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "marta.pdf",
         },

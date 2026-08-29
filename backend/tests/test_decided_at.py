@@ -34,7 +34,7 @@ async def _company_with_applications(
 
     Returns per-candidate dicts {application_id, status_token}.
     """
-    creds = {"email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev", "password": PASSWORD}
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": PASSWORD}
     name = f"Clock Co {uuid4().hex[:6]}"
     resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
     assert resp.status_code == 201, resp.text
@@ -54,7 +54,7 @@ async def _company_with_applications(
                 headers={"Content-Type": ticket["content_type"]},
             )
             assert put.status_code == 200
-        email = f"cand-{uuid4().hex[:8]}@vetd-ci.dev"
+        email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
         resp = await client.post(
             f"{base}/apply",
             json={

@@ -70,7 +70,7 @@ async def today(
         .all()
     )
     return TodayOut(
-        source="vetd",
+        source="ganek",
         events=[
             TodayEvent(
                 start=iv.scheduled_start.isoformat() if iv.scheduled_start else None,

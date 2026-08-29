@@ -1,5 +1,5 @@
 # Ganek self-host stack. Copy .env.example to .env first.
-name: vetd
+name: ganek
 
 # Bounded log retention (GDPR G4): access logs hold client IPs — without
 # rotation, Docker's json-file driver keeps them forever.
@@ -15,11 +15,11 @@ services:
     logging: *default-logging
     env_file: .env
     environment:
-      VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
-      VETD_REDIS_URL: redis://redis:6379/0
-      VETD_S3_ENDPOINT_URL: http://minio:9000
+      GANEK_DATABASE_URL: postgresql+asyncpg://ganek:${POSTGRES_PASSWORD:-ganek}@postgres:5432/ganek
+      GANEK_REDIS_URL: redis://redis:6379/0
+      GANEK_S3_ENDPOINT_URL: http://minio:9000
       # Presigned upload URLs must be reachable from candidates' browsers
-      VETD_S3_PUBLIC_ENDPOINT_URL: ${VETD_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+      GANEK_S3_PUBLIC_ENDPOINT_URL: ${GANEK_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -34,8 +34,8 @@ services:
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
     env_file: .env
     environment:
-      VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
-      VETD_REDIS_URL: redis://redis:6379/0
+      GANEK_DATABASE_URL: postgresql+asyncpg://ganek:${POSTGRES_PASSWORD:-ganek}@postgres:5432/ganek
+      GANEK_REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -48,11 +48,11 @@ services:
         BACKEND_URL: http://backend:8000
         # Baked into the CSP (connect-src) — must match what the backend
         # signs upload URLs against, or browsers block the CV upload.
-        VETD_S3_PUBLIC_ENDPOINT_URL: ${VETD_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+        GANEK_S3_PUBLIC_ENDPOINT_URL: ${GANEK_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     environment:
       BACKEND_URL: http://backend:8000
       # absolute URLs in sitemap.xml / robots.txt / OG metadata
-      VETD_PUBLIC_BASE_URL: ${VETD_PUBLIC_BASE_URL:-http://localhost:3000}
+      GANEK_PUBLIC_BASE_URL: ${GANEK_PUBLIC_BASE_URL:-http://localhost:3000}
     depends_on: [backend]
     ports: ["3000:3000"]
 
@@ -61,7 +61,7 @@ services:
     build: ./backend
     env_file: .env
     environment:
-      VETD_DATABASE_URL: postgresql+asyncpg://vetd:${POSTGRES_PASSWORD:-vetd}@postgres:5432/vetd
+      GANEK_DATABASE_URL: postgresql+asyncpg://ganek:${POSTGRES_PASSWORD:-ganek}@postgres:5432/ganek
     volumes:
       - ./questions:/srv/questions:ro
     command: sh -c "uv run alembic upgrade head && uv run python -m app.services.seed"
@@ -73,12 +73,12 @@ services:
     logging: *default-logging
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: vetd
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vetd}
-      POSTGRES_DB: vetd
+      POSTGRES_USER: ganek
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ganek}
+      POSTGRES_DB: ganek
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vetd"]
+      test: ["CMD-SHELL", "pg_isready -U ganek"]
       interval: 5s
       retries: 10
 
@@ -101,8 +101,8 @@ services:
 volumes:
   pgdata:
     # Explicit global names: Docker matches volumes by name only, so a
-    # generic name like vetd_pgdata can silently collide with (and reuse
+    # generic name like ganek_pgdata can silently collide with (and reuse
     # the data of) another project's volume.
-    name: vetd-postgres-data
+    name: ganek-postgres-data
   miniodata:
-    name: vetd-minio-data
+    name: ganek-minio-data

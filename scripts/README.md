@@ -11,6 +11,9 @@
   diff touches — runtime-dependency changes warrant the full run.
 - `e2e_smoke.sh` — curl smoke suite against a running stack (used by
   CI and by `ci_local.sh`'s e2e stage).
+- `migrate_dev_data_ganek.sh` — one-time migration of a pre-rename dev
+  environment (vetd-* volumes, postgres role/db, minio bucket) to the
+  ganek names. Copies volumes; the old ones stay behind as backups.
 
 Operational helpers. Planned:
 

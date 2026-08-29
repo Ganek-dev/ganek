@@ -226,7 +226,7 @@ export default function PrivacySettingsPage() {
           <p className={hintCls}>
             {company.smtp_configured
               ? "SMTP is configured. Send yourself a test email to prove the pipe end to end — failed candidate emails also show on each applicant."
-              : "SMTP is NOT configured — candidates receive no invites or updates. Set the VETD_SMTP_* variables and restart, then test here."}
+              : "SMTP is NOT configured — candidates receive no invites or updates. Set the GANEK_SMTP_* variables and restart, then test here."}
           </p>
         </div>
         <div className="flex items-center gap-3">

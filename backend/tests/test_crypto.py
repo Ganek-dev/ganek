@@ -22,7 +22,7 @@ def test_tampered_returns_none() -> None:
 def test_dedicated_encryption_key_decouples_from_signing_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """G4: with VETD_ENCRYPTION_KEY set, rotating the signing secret must not
+    """G4: with GANEK_ENCRYPTION_KEY set, rotating the signing secret must not
     invalidate stored credentials."""
     monkeypatch.setattr(settings, "encryption_key", "dedicated-key")
     token = encrypt_secret("1//refresh-token-value")

@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """All configuration comes from environment variables (see .env.example)."""
 
-    model_config = SettingsConfigDict(env_prefix="VETD_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="GANEK_", env_file=".env", extra="ignore")
 
     mode: Literal["single", "multi"] = "single"
     secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
@@ -14,14 +14,14 @@ class Settings(BaseSettings):
     # tokens). Unset → derived from secret_key, so rotating the signing secret
     # also invalidates stored credentials; set it to decouple the two.
     encryption_key: str | None = None
-    database_url: str = "postgresql+asyncpg://vetd:vetd@localhost:5432/vetd"
+    database_url: str = "postgresql+asyncpg://ganek:ganek@localhost:5432/ganek"
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint_url: str = "http://localhost:9000"
     # Endpoint candidates' browsers can reach (presigned URLs are signed
     # against this host). Defaults to s3_endpoint_url.
     s3_public_endpoint_url: str | None = None
-    s3_bucket: str = "vetd-cvs"
+    s3_bucket: str = "ganek-cvs"
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"  # noqa: S105
 

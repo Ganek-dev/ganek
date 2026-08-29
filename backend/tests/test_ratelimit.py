@@ -22,7 +22,7 @@ def limited(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("limited")
 async def test_auth_limit_returns_429_with_retry_after(client: AsyncClient) -> None:
-    payload = {"email": "rl-test@vetd-ci.dev", "password": "definitely-wrong"}
+    payload = {"email": "rl-test@ganek-ci.dev", "password": "definitely-wrong"}
     statuses = []
     for _ in range(4):
         resp = await client.post("/api/v1/auth/login", json=payload)
@@ -35,7 +35,7 @@ async def test_auth_limit_returns_429_with_retry_after(client: AsyncClient) -> N
 
 @pytest.mark.usefixtures("limited")
 async def test_scopes_are_independent(client: AsyncClient) -> None:
-    payload = {"email": "rl-scope@vetd-ci.dev", "password": "definitely-wrong"}
+    payload = {"email": "rl-scope@ganek-ci.dev", "password": "definitely-wrong"}
     for _ in range(4):
         await client.post("/api/v1/auth/login", json=payload)
     # auth scope exhausted, but unlimited endpoints still respond
@@ -48,7 +48,7 @@ async def test_disabled_by_conftest_default(client: AsyncClient) -> None:
     for _ in range(6):
         resp = await client.post(
             "/api/v1/auth/login",
-            json={"email": "rl-off@vetd-ci.dev", "password": "definitely-wrong"},
+            json={"email": "rl-off@ganek-ci.dev", "password": "definitely-wrong"},
         )
         assert resp.status_code == 401
 

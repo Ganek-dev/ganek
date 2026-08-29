@@ -55,7 +55,7 @@ async def _application_row(db: AsyncSession, user: User) -> Application:
     """The FK chain an interview needs: job + candidate + application."""
     job = Job(company_id=user.company_id, slug=f"job-{uuid4().hex[:8]}", title="Backend Dev")
     candidate = Candidate(
-        company_id=user.company_id, email=f"cand-{uuid4().hex[:8]}@vetd-ci.dev", name="Marta"
+        company_id=user.company_id, email=f"cand-{uuid4().hex[:8]}@ganek-ci.dev", name="Marta"
     )
     db.add_all([job, candidate])
     await db.flush()
@@ -149,10 +149,10 @@ async def test_slots_respect_saved_windows_and_zone(
 
 
 @pytest.mark.usefixtures("migrated_db")
-async def test_slots_exclude_vetd_booked_interviews(
+async def test_slots_exclude_ganek_booked_interviews(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Google freebusy lag must not reopen a slot vetd already booked."""
+    """Google freebusy lag must not reopen a slot ganek already booked."""
     user = await _interviewer(db_session)
     monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
     baseline = await interviews_service.generate_slots(
@@ -235,7 +235,7 @@ async def test_failed_booking_commit_compensates_the_created_event(
 ) -> None:
     """If the DB commit dies after the Meet event was created, the event is
     best-effort deleted — otherwise the candidate holds a calendar invite
-    for a booking Vetd never recorded (and the slot stays double-bookable)."""
+    for a booking Ganek never recorded (and the slot stays double-bookable)."""
     user = await _interviewer(db_session)
     monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))
     baseline = await interviews_service.generate_slots(

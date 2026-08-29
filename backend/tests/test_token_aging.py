@@ -82,7 +82,7 @@ FAMILIES = [
     ),
     pytest.param(
         security.GOOGLE_SIGNUP_MAX_AGE_SECONDS,
-        lambda: security.create_google_signup_token("sub-1", "g@vetd-ci.dev"),
+        lambda: security.create_google_signup_token("sub-1", "g@ganek-ci.dev"),
         security.read_google_signup_token,
         id="google-signup",
     ),

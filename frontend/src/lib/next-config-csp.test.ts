@@ -22,22 +22,22 @@ afterEach(() => {
 
 describe("Content-Security-Policy connect-src", () => {
   it("allows the default local MinIO origin so CV uploads work out of the box", async () => {
-    const csp = await cspFor({ VETD_S3_PUBLIC_ENDPOINT_URL: undefined });
+    const csp = await cspFor({ GANEK_S3_PUBLIC_ENDPOINT_URL: undefined });
     expect(csp).toContain("connect-src 'self' http://localhost:9000");
   });
 
   it("allows the configured public S3 origin", async () => {
     const csp = await cspFor({
-      VETD_S3_PUBLIC_ENDPOINT_URL: "https://uploads.example.com",
+      GANEK_S3_PUBLIC_ENDPOINT_URL: "https://uploads.example.com",
     });
     expect(csp).toContain("connect-src 'self' https://uploads.example.com");
   });
 
   it("normalizes a path-style endpoint down to its origin", async () => {
     const csp = await cspFor({
-      VETD_S3_PUBLIC_ENDPOINT_URL: "https://s3.example.com/vetd-cvs/",
+      GANEK_S3_PUBLIC_ENDPOINT_URL: "https://s3.example.com/ganek-cvs/",
     });
     expect(csp).toContain("connect-src 'self' https://s3.example.com");
-    expect(csp).not.toContain("vetd-cvs");
+    expect(csp).not.toContain("ganek-cvs");
   });
 });

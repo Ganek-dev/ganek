@@ -42,7 +42,7 @@ async def _fixture(db: AsyncSession) -> tuple[Company, Job, Application]:
         quiz_config=QUIZ_CONFIG,
     )
     candidate = Candidate(
-        company_id=company.id, email=f"c-{uuid4().hex[:8]}@vetd-ci.dev", name="Jane"
+        company_id=company.id, email=f"c-{uuid4().hex[:8]}@ganek-ci.dev", name="Jane"
     )
     db.add_all([job, candidate])
     await db.flush()
@@ -217,7 +217,7 @@ async def test_company_questions_join_the_pool_and_stay_private(
         quiz_config={"enabled": True, "tags": [unique_tag], "question_count": 1},
     )
     other_candidate = Candidate(
-        company_id=other.id, email=f"c-{uuid4().hex[:8]}@vetd-ci.dev", name="X"
+        company_id=other.id, email=f"c-{uuid4().hex[:8]}@ganek-ci.dev", name="X"
     )
     db_session.add_all([other_job, other_candidate])
     await db_session.flush()

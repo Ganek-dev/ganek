@@ -87,7 +87,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def _register(client: AsyncClient) -> None:
-    creds = {"email": f"a-{uuid4().hex[:8]}@vetd-ci.dev", "password": "a-long-secure-password"}
+    creds = {"email": f"a-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
     resp = await client.post(
         "/api/v1/auth/register", json={"company_name": f"Av Co {uuid4().hex[:6]}", **creds}
     )

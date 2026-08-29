@@ -28,7 +28,7 @@ async def _publishing_company(client: AsyncClient, *, with_quiz: bool = False) -
         "/api/v1/auth/register",
         json={
             "company_name": name,
-            "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )
@@ -63,7 +63,7 @@ async def _uploaded_cv(client: AsyncClient, company_slug: str, job_slug: str) ->
 def _submission(object_key: str, **overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "name": "Jane Applicant",
-        "email": f"jane-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"jane-{uuid4().hex[:8]}@ganek-ci.dev",
         "message": "Excited to apply!",
         "github": "https://github.com/jane",
         "cv_object_key": object_key,
@@ -79,7 +79,7 @@ async def test_full_application_flow(client: AsyncClient) -> None:
     key = await _uploaded_cv(client, company_slug, job_slug)
     apply_url = f"/api/v1/public/companies/{company_slug}/jobs/{job_slug}/apply"
 
-    email = f"jane-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"jane-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(apply_url, json=_submission(key, email=email))
     assert resp.status_code == 201, resp.text
 
@@ -137,7 +137,7 @@ async def test_apply_sends_confirmation_email(
     monkeypatch.setattr(email_service, "send_application_received", _capture)
     company_slug, job_slug = await _publishing_company(client)
     key = await _uploaded_cv(client, company_slug, job_slug)
-    email = f"jane-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"jane-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"/api/v1/public/companies/{company_slug}/jobs/{job_slug}/apply",
         json=_submission(key, email=email),
@@ -160,7 +160,7 @@ async def test_apply_sends_quiz_invite_when_assessment_enabled(
     )
     company_slug, job_slug = await _publishing_company(client, with_quiz=True)
     key = await _uploaded_cv(client, company_slug, job_slug)
-    email = f"jane-{uuid4().hex[:8]}@vetd-ci.dev"
+    email = f"jane-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"/api/v1/public/companies/{company_slug}/jobs/{job_slug}/apply",
         json=_submission(key, email=email),

@@ -25,7 +25,7 @@ async def _register(client: AsyncClient) -> str:
         "/api/v1/auth/register",
         json={
             "company_name": company_name,
-            "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
             "password": "a-long-secure-password",
         },
     )

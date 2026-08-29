@@ -30,7 +30,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
     """Returns (application_id, admin_user_id, admin_email), logged in as admin."""
     creds = {
-        "email": f"admin-{uuid4().hex[:8]}@vetd-ci.dev",
+        "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
     }
     name = f"Dash Co {uuid4().hex[:6]}"
@@ -56,7 +56,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
         f"{base}/apply",
         json={
             "name": "Marta Vidal",
-            "email": f"cand-{uuid4().hex[:8]}@vetd-ci.dev",
+            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
             "cv_object_key": ticket["object_key"],
             "cv_filename": "marta.pdf",
         },
@@ -150,7 +150,7 @@ async def test_today_prefers_google_when_connected(
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
-async def test_today_falls_back_to_vetd_interviews(
+async def test_today_falls_back_to_ganek_interviews(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     application_id, admin_id, _ = await _company_with_applicant(client)
@@ -184,7 +184,7 @@ async def test_today_falls_back_to_vetd_interviews(
 
     resp = await client.get("/api/v1/stats/today?tz=not-a-real-zone")  # bad tz → UTC
     body = resp.json()
-    assert body["source"] == "vetd"
+    assert body["source"] == "ganek"
     assert len(body["events"]) == 1
     assert "Marta Vidal" in body["events"][0]["summary"]
     assert body["events"][0]["hangout_link"] == "https://meet.google.com/xyz"
@@ -194,4 +194,4 @@ async def test_today_falls_back_to_vetd_interviews(
 async def test_today_empty_without_anything(client: AsyncClient) -> None:
     await _company_with_applicant(client)
     body = (await client.get("/api/v1/stats/today")).json()
-    assert body == {"source": "vetd", "events": []}
+    assert body == {"source": "ganek", "events": []}
