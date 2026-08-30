@@ -22,7 +22,7 @@ Ganek gives any company a branded careers page, job posting management, and appl
 - ⏱️ Tag-matched screening quizzes: open question bank + your own private questions, per-job configuration, server-side timing and scoring, cheat-resistant by design
 - 📊 ATS-lite: pipeline stages, quiz scores with per-tag breakdown, integrity flags, notes
 - 🛡️ GDPR-ready: per-company privacy notices, retention automation, erasure & DSAR tooling, no cookies or trackers on candidate pages — plus a [compliance pack](docs/compliance/README.md) with DPIA and records templates
-- 🐳 Self-host with one `docker compose up` — or use the hosted version at ganek.dev (coming later)
+- 🐳 Self-host with one `docker compose up` — or use the hosted version at ganek.io (coming later)
 - 🧩 Domain-agnostic engine: engineering first, any field via community question packs
 
 ## Quiz integrity, in short

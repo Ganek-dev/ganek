@@ -59,7 +59,7 @@ pack — at minimum redo the
 [telemetry LIA](telemetry-legitimate-interests.md) and the
 [AI Act statement](ai-act-statement.md), and revisit the DPIA's risk table.
 
-## Hosted ganek.dev
+## Hosted ganek.io
 
 The hosted service (when it launches) ships its own controller/processor
 pack: a data processing agreement, sub-processor list, and processor breach
