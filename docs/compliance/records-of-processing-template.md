@@ -1,6 +1,6 @@
-# Records of processing activities (Art. 30) — Ganek recruitment
+# Records of processing activities (Art. 30) - Ganek recruitment
 
-> Pre-filled template. `{Curly braces}` are yours. Not legal advice — see
+> Pre-filled template. `{Curly braces}` are yours. Not legal advice - see
 > the [pack README](README.md).
 
 Keep this record even if you have fewer than 250 employees: the Art. 30(5)
@@ -10,7 +10,7 @@ authority asks for first.
 
 **Controller:** `{legal name}`, `{address}`, `{contact email/phone}`
 **Representative (Art. 27, non-EU controllers only):** `{name or n/a}`
-**DPO:** `{name, or "not designated — assessed under Art. 37, see below"}`
+**DPO:** `{name, or "not designated - assessed under Art. 37, see below"}`
 **DPO assessment (keep current):** `{e.g. "Not required: not a public
 authority; recruitment for our own roles is a support activity, not our
 core activity; no large-scale monitoring or special-category processing.
@@ -32,7 +32,7 @@ default 6 months), enforced by the nightly purge from the decision date.
 
 ---
 
-## Activity 1 — Application intake and review
+## Activity 1 - Application intake and review
 
 - **Purpose:** receiving and assessing applications for our own open roles.
 - **Legal basis:** Art. 6(1)(b) (steps prior to a contract, at the
@@ -46,31 +46,31 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Retention:** W months after rejection/withdrawal; hired → employee
   records per `{HR policy}`.
 
-## Activity 2 — Skill screening quiz
+## Activity 2 - Skill screening quiz
 
 - **Purpose:** job-related knowledge screening as part of the application.
 - **Legal basis:** Art. 6(1)(b). Candidates who skip the quiz remain
-  reviewable — stated at the start gate.
+  reviewable - stated at the start gate.
 - **Data:** served questions, per-question answers with correctness,
   total and per-tag scores, server-measured timing.
 - **Recipients:** recruiting staff; `{hosting provider}`.
 - **Transfers:** none.
 - **Retention:** with the application (W).
 
-## Activity 3 — Quiz integrity telemetry
+## Activity 3 - Quiz integrity telemetry
 
 - **Purpose:** assessment fairness (deterring/flagging assistance during
   the timed quiz). Balancing documented in the
   [legitimate interests assessment](telemetry-legitimate-interests.md).
 - **Legal basis:** Art. 6(1)(f).
-- **Data:** events of three types — focus lost (with duration), paste
-  occurred, window resized — tied to the open question; derived flags.
+- **Data:** events of three types - focus lost (with duration), paste
+  occurred, window resized - tied to the open question; derived flags.
   No IP, no user agent, no keystrokes, no clipboard contents.
 - **Recipients:** recruiting staff (informational flags only).
 - **Transfers:** none.
 - **Retention:** with the attempt (W).
 
-## Activity 4 — Pipeline management, notes, activity log
+## Activity 4 - Pipeline management, notes, activity log
 
 - **Purpose:** organising the hiring process; internal accountability.
 - **Legal basis:** Art. 6(1)(f) (managing recruitment).
@@ -81,12 +81,12 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Retention:** with the application (W); erasure receipts and purge
   receipts are anonymized counts and persist.
 
-## Activity 5 — Candidate communications
+## Activity 5 - Candidate communications
 
-- **Purpose:** transactional email — application confirmation, quiz
+- **Purpose:** transactional email - application confirmation, quiz
   invitation and reminder (including re-issued links), decision updates
   (opt-in per send), interview invitation, cancellation, and reminder.
-- **Legal basis:** Art. 6(1)(b)/(f). No marketing, no newsletter — no
+- **Legal basis:** Art. 6(1)(b)/(f). No marketing, no newsletter - no
   ePrivacy opt-in involved.
 - **Data:** name, email, application/interview context; every mail carries
   controller identity and the privacy-notice link.
@@ -95,10 +95,10 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Retention:** sent mail per `{your mailbox policy}`; Ganek keeps a
   per-email delivery record (recipient, template kind, delivery state)
   for 30 days so failures are visible to recruiters, then the nightly job
-  removes it — records are deleted immediately with the candidate on
+  removes it - records are deleted immediately with the candidate on
   erasure; logs reference internal IDs only.
 
-## Activity 6 — Interview scheduling via Google Calendar
+## Activity 6 - Interview scheduling via Google Calendar
 
 *(Delete this activity if your recruiters never connect Google Calendar.)*
 
@@ -109,12 +109,12 @@ default 6 months), enforced by the nightly purge from the decision date.
   time; recruiter free/busy status is read to compute slots.
 - **Recipients:** Google LLC (recruiter's connected calendar; Google sends
   the invitation email to the candidate directly).
-- **Transfers:** USA — Google's data-processing terms (SCCs); Google is
+- **Transfers:** USA - Google's data-processing terms (SCCs); Google is
   DPF-certified while that framework stands.
 - **Retention:** Ganek deletes its events best-effort on erasure/purge;
   calendar copies per `{your Google Workspace retention}`.
 
-## Activity 7 — Post-decision retention for claims defense
+## Activity 7 - Post-decision retention for claims defense
 
 - **Purpose:** ability to respond to discrimination/selection-process
   claims within statutory windows.
@@ -123,10 +123,10 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Recipients:** recruiting staff; `{legal advisers on need}`.
 - **Transfers:** none.
 - **Retention:** exactly W months from the decision, then automatic purge.
-  W chosen with member-state context in mind (`{note your reasoning — see
+  W chosen with member-state context in mind (`{note your reasoning - see
   the guide §2}`).
 
-## Activity 8 — Abuse prevention on public endpoints
+## Activity 8 - Abuse prevention on public endpoints
 
 - **Purpose:** rate limiting and platform security on apply/quiz/status
   endpoints.
@@ -141,7 +141,7 @@ default 6 months), enforced by the nightly purge from the decision date.
   counters in ~15 minutes; logs bounded by rotation
   (`{state your proxy/host log retention too}`).
 
-## Activity 9 — Recruiter user accounts
+## Activity 9 - Recruiter user accounts
 
 - **Purpose:** authentication and authorisation of our own staff in the
   hiring tool.
@@ -159,7 +159,7 @@ default 6 months), enforced by the nightly purge from the decision date.
 
 ---
 
-`{Add activities your deployment introduces — additional integrations,
+`{Add activities your deployment introduces - additional integrations,
 analytics on the admin side, imports/exports to other HR systems, …}`
 
 **Record maintained by:** `{name}` · **Last reviewed:** `{date}`

@@ -19,5 +19,5 @@ Routes so far: `/login`, `/setup` (first-run company creation), `/admin`
 (auth-gated shell). Public careers pages land in M1.
 
 Notes:
-- No `next/font/google` — build must not depend on Google's network (self-hosters build offline).
+- No `next/font/google` - build must not depend on Google's network (self-hosters build offline).
 - shadcn/ui can be introduced when the admin UI grows; keep components hand-rolled until then.

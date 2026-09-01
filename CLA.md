@@ -2,16 +2,16 @@
 
 <!--
 Drafting record (DIY triple-check protocol):
-- Pass 1 — sources: Apache Individual/Corporate CLA v2.2
+- Pass 1 - sources: Apache Individual/Corporate CLA v2.2
   (apache.org/licenses), cla-assistant default CLA (SAP, Apache-derived).
-- Pass 2 — adversarial review in a fresh context, 2026-08-30: 15 findings;
+- Pass 2 - adversarial review in a fresh context, 2026-08-30: 15 findings;
   fixes applied include per-Contribution grant timing + max-extent
   language (UrhG §§ 32/40 concerns), splitting the relicensing grant so
   only the Company receives it, Apache-pattern corporate flow (individual
   bot signature always required; corporate schedule by email, recorded
   in-repo), Project/Work definitions scoped to Ganek, severability,
   contact address.
-- Pass 3 — real-world diff vs PostHog shipped practice + the
+- Pass 3 - real-world diff vs PostHog shipped practice + the
   contributor-assistant action docs, 2026-08-30.
 -->
 
@@ -23,7 +23,7 @@ you down later.
 
 **The short version:** you keep the copyright to your contribution. You
 give Nestor Code Crafters UG (haftungsbeschränkt) a broad license to use
-it — including in the hosted product and commercially licensed code.
+it - including in the hosted product and commercially licensed code.
 You promise the contribution is really yours to give. Nothing here
 obliges you to provide support.
 
@@ -149,7 +149,7 @@ governs the license You grant, and ee/LICENSE governs Your use of the
 
 ## Why a CLA at all?
 
-Ganek's core is AGPL-3.0 and always will be — nothing shipped under
+Ganek's core is AGPL-3.0 and always will be - nothing shipped under
 AGPL ever moves to a commercial license (the "no clawbacks" rule in
 [CONTRIBUTING](CONTRIBUTING.md)). But the same codebase will carry a
 hosted service and, eventually, commercially licensed operator code

@@ -1,7 +1,7 @@
-# ee/ — commercial code (empty by design)
+# ee/ - commercial code (empty by design)
 
 This directory is reserved for the code that runs Ganek **as a
-service** — billing, plan quotas, tenant administration, custom-domain
+service** - billing, plan quotas, tenant administration, custom-domain
 provisioning, and enterprise IT integration (SAML/SCIM) when they are
 built. It is covered by the [commercial license](LICENSE) in this
 directory, not by the repository's AGPL-3.0 license.

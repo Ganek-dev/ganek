@@ -18,21 +18,21 @@ Two rules make this trustworthy:
 - **No clawbacks.** Nothing shipped under AGPL ever moves to `ee/`.
 - **Security is never paid.** Account-security basics land in core.
 
-`ee/` ships empty today — the boundary is declared before any closed
+`ee/` ships empty today - the boundary is declared before any closed
 code exists (see [ee/README.md](ee/README.md)).
 
 ## Contributing questions
 
 Questions live in `questions/{domain}/{tag}.yaml` and are validated against `questions/schema.json`.
 
-1. Pick a tag file (or start a new tag/domain pack — seeding rules in
+1. Pick a tag file (or start a new tag/domain pack - seeding rules in
    [questions/README.md](questions/README.md), "Starting a new tag or domain").
 2. Add questions following the format in `questions/README.md`. Key rules:
-   - Answerable in ~15 seconds by someone who knows the topic — recall/recognition, not puzzle-solving.
+   - Answerable in ~15 seconds by someone who knows the topic - recall/recognition, not puzzle-solving.
    - Exactly 4 options, exactly one clearly correct. No "all of the above", no trick ambiguity.
    - Distractors must be plausible (common misconceptions make the best wrong answers).
-   - Difficulty is an integer 1–5 — the ladder is defined in `questions/README.md`; when unsure, rate down.
-   - Include an `explanation` — shown to recruiters reviewing answers.
+   - Difficulty is an integer 1-5 - the ladder is defined in `questions/README.md`; when unsure, rate down.
+   - Include an `explanation` - shown to recruiters reviewing answers.
    - IDs are permanent slugs: `{tag-prefix}-{topic}-{n}` (e.g. `py-asyncio-gather-1`). Never reuse an ID.
 3. Run `python questions/validate.py`.
 4. Open a PR, updating the coverage table in `questions/README.md`. Reviewers check: technical correctness, unambiguity, difficulty rating, 15-second answerability.
@@ -66,7 +66,7 @@ Question bank (if touched): `python questions/validate.py`
 
 Browser e2e (`frontend/e2e/`, Playwright) covers the golden paths and runs in CI
 against a fresh compose stack. If you touch the apply/quiz/review surfaces, run
-it locally against a fresh scratch stack — `docker-compose.e2e.yml` swaps in
+it locally against a fresh scratch stack - `docker-compose.e2e.yml` swaps in
 e2e-scoped data volumes so your dev data is never touched (commands in that
 file's header). The suite registers the single-mode company itself and aborts
 loudly if the stack already belongs to someone else.
@@ -75,18 +75,18 @@ loudly if the stack already belongs to someone else.
 
 - `correct_key` must never appear in a public API schema.
 - Quiz timing/scoring stays server-side; client timers are cosmetic.
-- Tenant-scoped queries go through the tenancy dependency — never hand-written `WHERE company_id`.
+- Tenant-scoped queries go through the tenancy dependency - never hand-written `WHERE company_id`.
 - The quiz engine stays domain-agnostic: no domain-specific logic in code; new domains = new question packs.
 - The tool never auto-rejects candidates. Scores and flags inform humans.
-- No ML-based parsing, scoring, ranking, or adaptive testing. Deterministic scoring is a compliance boundary ([AI Act statement](docs/compliance/ai-act-statement.md)) — such a feature needs that analysis redone first, not just code review.
-- No cookies, analytics, or third-party requests on candidate-facing pages (careers, apply, quiz, status, booking). There is deliberately nothing to consent-banner — adding any of these re-opens ePrivacy consent and the [telemetry legitimate-interests analysis](docs/compliance/telemetry-legitimate-interests.md).
+- No ML-based parsing, scoring, ranking, or adaptive testing. Deterministic scoring is a compliance boundary ([AI Act statement](docs/compliance/ai-act-statement.md)) - such a feature needs that analysis redone first, not just code review.
+- No cookies, analytics, or third-party requests on candidate-facing pages (careers, apply, quiz, status, booking). There is deliberately nothing to consent-banner - adding any of these re-opens ePrivacy consent and the [telemetry legitimate-interests analysis](docs/compliance/telemetry-legitimate-interests.md).
 
 ## License and CLA
 
 The core is AGPL-3.0. First-time contributors sign the
-[Contributor License Agreement](CLA.md) — a bot asks on your first PR,
+[Contributor License Agreement](CLA.md) - a bot asks on your first PR,
 signing is one comment. You keep the copyright to your contribution;
 the CLA grants Nestor Code Crafters UG a license broad enough that your
 contribution can also ship in the hosted product and coexist with the
-commercially licensed `ee/` code. What's AGPL stays AGPL — see the
+commercially licensed `ee/` code. What's AGPL stays AGPL - see the
 no-clawbacks rule above.
