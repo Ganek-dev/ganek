@@ -1,19 +1,19 @@
-# Data protection impact assessment — recruitment screening with Ganek
+# Data protection impact assessment - recruitment screening with Ganek
 
 > Pre-filled template. Everything describing Ganek's behavior is filled in
 > and accurate for the version you deployed it with; everything in
-> `{curly braces}` is yours to complete. Not legal advice — see the
+> `{curly braces}` is yours to complete. Not legal advice - see the
 > [pack README](README.md).
 
 **Controller:** `{legal name, address, contact}`
-**DPO / responsible person:** `{name or "no DPO — see records, Art. 37 assessment"}`
+**DPO / responsible person:** `{name or "no DPO - see records, Art. 37 assessment"}`
 **Assessment date:** `{date}` · **Author:** `{name}` · **Version:** `{n}`
 
 ## 1. Why a DPIA
 
 Art. 35(1) requires a DPIA where processing is "likely to result in a high
 risk". The WP248 screening criteria include *evaluation or scoring* and
-*data concerning vulnerable data subjects* — candidate assessment meets the
+*data concerning vulnerable data subjects* - candidate assessment meets the
 first, and job applicants are the textbook power-imbalanced subjects for
 the second. Two criteria met means a DPIA is the safe default, and several
 national mandatory lists (e.g. Poland's UODO, the German DSK) explicitly
@@ -36,7 +36,7 @@ staff (accounts, calendar connections).
 | Identity & contact | Name, email | Apply form |
 | Application content | CV file, links (portfolio/profiles), free-text message | Apply form |
 | Assessment | Per-question answers with correctness, total and per-tag scores, time used | Quiz engine (server-side scoring) |
-| Integrity telemetry | Events of exactly three types — window focus lost (with duration), paste occurred, window resized — each tied to the question that was open; derived review flags | Quiz page during an attempt |
+| Integrity telemetry | Events of exactly three types - window focus lost (with duration), paste occurred, window resized - each tied to the question that was open; derived review flags | Quiz page during an attempt |
 | Scheduling | Chosen interview slot, timezone; Google Calendar event with name + email (only if used) | Booking page |
 | Pipeline metadata | Stage history, decision timestamps, recruiter notes about the candidate, activity entries | Recruiting staff |
 
@@ -62,17 +62,17 @@ at their deadline; rejected/withdrawn applications are purged
 are token-scrubbed and rotation-capped.
 
 **Recipients.** Recruiting staff (role-restricted); `{hosting provider}`;
-`{email relay}`; Google LLC — only when an interview is scheduled and only
+`{email relay}`; Google LLC - only when an interview is scheduled and only
 the event data (name, email, time, Meet link).
 
-**Transfers.** None built-in except the Google Calendar leg (US) — SCCs
+**Transfers.** None built-in except the Google Calendar leg (US) - SCCs
 via Google's data-processing terms, DPF certification while that framework
 stands. `{Add any transfer created by your hosting/email choices.}`
 
 ## 3. Necessity and proportionality
 
 - **Lawful bases.** Application handling and the quiz run on Art. 6(1)(b)
-  (pre-contractual steps at the candidate's request — the candidate
+  (pre-contractual steps at the candidate's request - the candidate
   initiates by applying); integrity telemetry, notes/pipeline, and
   time-boxed post-decision retention run on Art. 6(1)(f); the balancing
   for telemetry is documented in the
@@ -100,13 +100,13 @@ stands. `{Add any transfer created by your hosting/email choices.}`
 - **No automated decision-making.** Scores and flags never trigger
   rejection, advancement, or filtering; reviewers always see the full
   application. This keeps the processing outside Art. 22 (no decision
-  based *solely* on automated processing) — and it is a product
+  based *solely* on automated processing) - and it is a product
   invariant, not a configuration.
 
 ## 4. Risks and mitigations
 
 Assess likelihood and severity (`low / medium / high`) for your deployment;
-the mitigation column states what Ganek already does — add your own.
+the mitigation column states what Ganek already does - add your own.
 
 | # | Risk to candidates | Mitigations in place | L | S | Residual |
 |---|---|---|---|---|---|
@@ -124,7 +124,7 @@ integrations, staff access from outside the EU, …}`
 
 ## 5. Consultation
 
-Views of data subjects or their representatives sought: `{yes/no — for
+Views of data subjects or their representatives sought: `{yes/no - for
 routine own-hiring at this scale, controllers commonly document "not
 sought; low residual risk, standard recruitment context"; do consult for
 large-scale or unusual deployments}`. DPO advice: `{if applicable}`.
@@ -136,9 +136,9 @@ consultation of the supervisory authority (Art. 36) required."}`
 
 Signed: `{name, role, date}`
 
-**Review triggers** — redo the affected parts before shipping any of:
+**Review triggers** - redo the affected parts before shipping any of:
 adding analytics/cookies to candidate pages; any new telemetry event type
 or non-informational use of flags; ML-based parsing, scoring, ranking, or
 adaptive testing; automated stage changes; a talent-pool feature (adds a
 consent-based activity); new processors or transfers; and in any case
-review every `{12–24}` months.
+review every `{12-24}` months.

@@ -1,7 +1,7 @@
 # AI Act statement
 
 > For vendor-assessment and procurement questionnaires. Describes upstream
-> Ganek as shipped; not legal advice — see the [pack README](README.md).
+> Ganek as shipped; not legal advice - see the [pack README](README.md).
 
 **Ganek does not contain an AI system.** Employment and recruitment tools
 are a headline category of the EU AI Act (Annex III high-risk), so the
@@ -23,13 +23,13 @@ non-binding, which is why ground 2 exists.)
 **2. Even for genuine recruitment AI, the Annex III clock runs to
 2 December 2027.** The AI Omnibus amendments (in force 27 July 2026)
 deferred the high-risk obligations that would cover employment/recruitment
-AI systems to that date. Ganek doesn't rely on this — ground 1 is the
-answer — but it bounds the risk of a definitional dispute today.
+AI systems to that date. Ganek doesn't rely on this - ground 1 is the
+answer - but it bounds the risk of a definitional dispute today.
 
 **GDPR Art. 22 adjacency.** No decision about a candidate is taken by
 Ganek: scores and integrity flags are displayed to reviewers who always see
 the full application, and the product contains **no automated rejection,
-advancement, filtering, or ranking cutoff** — there is nothing to
+advancement, filtering, or ranking cutoff** - there is nothing to
 configure, because the mechanism doesn't exist. Under the SCHUFA line of
 case law the danger zone is a score a decision-maker "draws strongly on"
 without meaningful human involvement; Ganek's design keeps humans doing the
@@ -44,11 +44,11 @@ of the following would create an AI system, likely land it in Annex III
 
 - ML-based CV parsing, scoring, or candidate ranking;
 - adaptive/dynamic testing that models the candidate;
-- automated stage changes, filtering, or rejection — however implemented;
+- automated stage changes, filtering, or rejection - however implemented;
 - any model-derived "fit" or personality inference.
 
 Upstream Ganek's position: **no such feature ships without redoing the AI
-Act and Art. 22 analyses first** — it is a deliberate product boundary,
+Act and Art. 22 analyses first** - it is a deliberate product boundary,
 not an accident of roadmap. If your fork or deployment adds any of the
 above, this statement no longer describes your system, and the compliance
 obligations (provider *and* deployer duties under the AI Act) become

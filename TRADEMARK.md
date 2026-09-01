@@ -2,20 +2,20 @@
 
 <!--
 Drafting record (DIY triple-check protocol):
-- Pass 1 — sources: Linux Foundation model trademark policy, Plausible
+- Pass 1 - sources: Linux Foundation model trademark policy, Plausible
   Analytics trademark guidelines, PostHog brand guidelines.
-- Pass 2 — adversarial review in a fresh context, 2026-08-30: fixes
+- Pass 2 - adversarial review in a fresh context, 2026-08-30: fixes
   applied include "claimed as trademarks" (mark unregistered), the
   logo-copyright vs trademark-use distinction (with the matching
   brand-assets note in the LICENSE preamble), contact address.
-- Pass 3 — real-world diff vs Plausible/PostHog shipped policies,
+- Pass 3 - real-world diff vs Plausible/PostHog shipped policies,
   2026-08-30.
 -->
 
 "Ganek", the Ganek wordmark ("Ganek."), and the Ganek "G" logo are
 claimed as trademarks of Nestor Code Crafters UG (haftungsbeschränkt).
-The core is open source (AGPL-3.0) — including the copyright license on
-the logo files that ship in the repo — but using the name or logo *as a
+The core is open source (AGPL-3.0) - including the copyright license on
+the logo files that ship in the repo - but using the name or logo *as a
 brand* is what this policy covers, and that is not part of the code
 license. This policy explains what you can do without asking.
 
@@ -23,7 +23,7 @@ license. This policy explains what you can do without asking.
 
 - Use "Ganek" to truthfully refer to the software ("built on Ganek",
   "compatible with Ganek", "a fork of Ganek").
-- Self-host Ganek for your own hiring — including commercially — with
+- Self-host Ganek for your own hiring - including commercially - with
   the name and logo intact, including the "Careers powered by Ganek"
   footer.
 - Write about, review, teach, or link to Ganek using the name and
@@ -34,7 +34,7 @@ license. This policy explains what you can do without asking.
 
 - **Offering Ganek as a hosted service to others under the Ganek
   name.** Run-Ganek-for-others is exactly what the AGPL permits with
-  the code — but do it under your own name. A service called "Ganek",
+  the code - but do it under your own name. A service called "Ganek",
   "GanekCloud", "ganek-hosting.com" or similar implies it comes from
   us.
 - Modified versions distributed under the Ganek name. Forks are
