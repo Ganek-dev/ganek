@@ -6,7 +6,7 @@
 
 Ganek gives any company a branded careers page, job posting management, and applicant tracking - plus an optional twist: after a candidate submits their CV, Ganek can serve a short, timed multiple-choice quiz matched to the job's skill tags (Python job → python/asyncio/fastapi questions, ~15 seconds each). Recruiters see applications ranked with real signal instead of just a pile of PDFs.
 
-> ⚠️ **Status: pre-alpha.** Under active development, not yet usable. Watch/star to follow along.
+> **Status: v0.1.0 released.** Self-hostable today (see the quickstart below). Early release under active development - expect rough edges. A hosted version is planned; join the waitlist at [ganek.io](https://ganek.io).
 
 ## Why
 
@@ -14,7 +14,7 @@ Ganek gives any company a branded careers page, job posting management, and appl
 - Engineering roles drown in low-signal applications; a 2-minute knowledge screen is a fair, fast first filter.
 - Your hiring data should be able to live on your infrastructure.
 
-## Features (v1 target)
+## Features
 
 - 🏢 Branded careers page (theme tokens, logo, custom slug) with SEO-friendly SSR and Google Jobs structured data
 - 📋 Job posting management with markdown descriptions and tags
@@ -22,7 +22,7 @@ Ganek gives any company a branded careers page, job posting management, and appl
 - ⏱️ Tag-matched screening quizzes: open question bank + your own private questions, per-job configuration, server-side timing and scoring, cheat-resistant by design
 - 📊 ATS-lite: pipeline stages, quiz scores with per-tag breakdown, integrity flags, notes
 - 🛡️ GDPR-ready: per-company privacy notices, retention automation, erasure & DSAR tooling, no cookies or trackers on candidate pages - plus a [compliance pack](docs/compliance/README.md) with DPIA and records templates
-- 🐳 Self-host with one `docker compose up` - or use the hosted version at ganek.io (coming later)
+- 🐳 Self-host with one `docker compose up` - or join the waitlist for the hosted version at [ganek.io](https://ganek.io)
 - 🧩 Domain-agnostic engine: engineering first, any field via community question packs
 
 ## Quiz integrity, in short
