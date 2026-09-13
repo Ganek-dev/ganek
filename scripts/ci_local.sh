@@ -103,7 +103,7 @@ start_backend_services() {
     -p "127.0.0.1:$PG_PORT:5432" postgres:16-alpine >/dev/null
   docker run -d --rm --name "$MINIO_CTR" \
     -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-    -p "127.0.0.1:$MINIO_PORT:9000" minio/minio:latest server /data >/dev/null
+    -p "127.0.0.1:$MINIO_PORT:9000" quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data >/dev/null
   local i
   for i in $(seq 1 30); do
     if docker exec "$PG_CTR" pg_isready -U ganek >/dev/null 2>&1; then return 0; fi
