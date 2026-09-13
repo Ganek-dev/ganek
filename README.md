@@ -63,4 +63,5 @@ no-clawbacks promise in [CONTRIBUTING](CONTRIBUTING.md)); the empty
 [`ee/`](ee/README.md) directory reserves the future SaaS-operator plane
 under a [commercial license](ee/LICENSE). Contributions are covered by a
 [CLA](CLA.md) - you keep your copyright. The name and logo are covered
-by the [trademark policy](TRADEMARK.md).
+by the [trademark policy](TRADEMARK.md). The per-directory licensing
+statement lives in [NOTICE](NOTICE).
