@@ -110,13 +110,17 @@ describe("AdminLayout", () => {
   });
 
   it("shows no banner when SMTP is configured or for members", async () => {
-    render(
+    const admin = render(
       <AdminLayout>
         <p>page content</p>
       </AdminLayout>,
     );
     await screen.findByText("page content");
+    // the admin company fetch runs in a later effect - let it land and
+    // unmount before clearing, or it can count against the member render
+    await waitFor(() => expect(mockedCompany.get).toHaveBeenCalled());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    admin.unmount();
 
     // members never even fetch the admin-only company payload
     mockedCompany.get.mockClear();
