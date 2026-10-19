@@ -88,8 +88,9 @@ services:
 
   minio:
     logging: *default-logging
-    # minio/minio vanished from Docker Hub (2026-09); quay.io is MinIO's own mirror
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # MinIO pulled its free images from Docker Hub (2026-09-11) and gated
+    # quay.io (2026-09-24); pgsty/minio is Pigsty's maintained community fork
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
