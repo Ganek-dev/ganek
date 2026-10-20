@@ -79,6 +79,9 @@ Work through this once, before the careers page goes public.
       ports, keep the backend behind your reverse proxy, Redis AUTH outside
       the bundled compose network, and consider a separate
       `GANEK_ENCRYPTION_KEY` for stored Google credentials.
+- [ ] Set up **SPF, DKIM and DMARC** on the sending domain and, with
+      Mailjet, the bounce/complaint webhook (see "Email deliverability"
+      in §3). A quiz invite in spam is a candidate you never hear from.
 - [ ] Enable **encryption at rest on your storage layer**. The app sets no
       S3 server-side-encryption headers by design - use MinIO KMS/SSE, disk
       encryption, or a provider that encrypts by default, for both the CV
@@ -199,6 +202,46 @@ unaffected. In plain words:
 - Never restore by hand with `pg_restore` alone. Use `restore.sh`, or at
   least run `python -m app.services.tombstones` in the backend container
   afterwards.
+
+**Email deliverability.** Every candidate email (quiz invite, status
+update, interview link) is a transactional message from the address in
+`GANEK_EMAIL_FROM`, and a quiz invite that lands in spam is a candidate
+you never hear from. Three DNS records on the sending domain decide most
+of that, whichever transport you use:
+
+- **SPF**: a TXT record on the domain listing who may send for it. For a
+  relay you run yourself: `v=spf1 ip4:<relay-ip> -all`; for Mailjet:
+  `v=spf1 include:spf.mailjet.com -all`. One SPF record per domain, so
+  merge Ganek's sender into the record you already have.
+- **DKIM**: the relay or provider signs each message with a key whose
+  public half lives in DNS (`<selector>._domainkey.<domain>`). Mailjet
+  shows the record to add under the sender domain's settings; for a
+  self-run relay, OpenDKIM or Rspamd generate it. Without DKIM, Gmail and
+  Outlook now rate-limit or reject bulk senders outright.
+- **DMARC**: `_dmarc.<domain>` TXT, start with
+  `v=DMARC1; p=none; rua=mailto:dmarc@<domain>` to see reports, then move
+  to `p=quarantine` once SPF and DKIM both pass for every sender you own.
+
+Transport is `GANEK_EMAIL_PROVIDER`: `smtp` (any TLS relay, the default)
+or `mailjet` (HTTPS API, EU data centres in Paris; needs
+`GANEK_MAILJET_API_KEY` and `GANEK_MAILJET_SECRET_KEY`). Mailjet is a
+processor under Art. 28 like your SMTP relay is: list it in your records
+of processing and sign its DPA. Prove the pipe with the test send on
+**Settings → Privacy** after any change.
+
+Bounces and complaints come back only over the provider webhook. Set
+`GANEK_EMAIL_WEBHOOK_SECRET` to a long random string, then register
+`https://ganek:<secret>@<your-host>/api/v1/email/webhooks/mailjet` in
+Mailjet's Event API for the `bounce`, `spam`, `blocked` and `unsub`
+events. From then on a hard-bounced, complaining or blocked address goes
+onto the suppression list and gets no further mail; the applicant panel's
+email trail shows "bounced", "marked as spam" or "skipped: address
+suppressed" so the recruiter knows to reach the candidate another way.
+The list stores only a one-way hash of the address (the same pattern as
+erasure tombstones), so it holds no personal data, needs no erasure hook
+and is safe inside every backup. With a plain SMTP relay there is no
+feedback loop: watch the relay's own bounce mailbox and expect retries to
+exhaust on their own (three attempts, then "failed" on the trail).
 
 ## 4. What runs automatically
 
