@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Check } from "lucide-react";
 
 import { AuthShell } from "@/components/AuthShell";
+import { Captcha, isCaptchaError } from "@/components/Captcha";
 import { GoogleButton } from "@/components/GoogleButton";
 import { ApiError, api } from "@/lib/api";
 import { careersSlugPreview } from "@/lib/careers";
@@ -49,6 +50,8 @@ function SetupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  const [altcha, setAltcha] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState<ReturnType<typeof isCaptchaError>>(null);
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
@@ -104,6 +107,7 @@ function SetupForm() {
           company_name,
           email,
           password: String(data.get("password") ?? ""),
+          altcha,
         });
         if (created.pending_verification) {
           // multi-mode instances verify the inbox before the workspace goes live
@@ -114,7 +118,11 @@ function SetupForm() {
       router.push("/admin");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Signup failed";
-      if (googlePending && /expired/i.test(message)) {
+      const captcha = isCaptchaError(message);
+      setCaptchaError(captcha);
+      if (captcha) {
+        // the widget shows the hint; nothing else went wrong
+      } else if (googlePending && /expired/i.test(message)) {
         setExpired(true);
       } else {
         setError(message);
@@ -242,6 +250,7 @@ function SetupForm() {
           />
           <SlugPreview slug={slug} />
         </div>
+        {googlePending ? null : <Captcha onChange={setAltcha} error={captchaError} />}
         {error ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {error}

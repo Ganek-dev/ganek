@@ -44,6 +44,8 @@ export interface PublicCompanyPage {
 /** Per-company variables for the privacy notice page (M5.6 G1).
  * Fallbacks (legal name, retention default) are applied server-side. */
 export interface PublicPrivacyNotice {
+  /** a self-hosted proof-of-work check runs before public forms submit */
+  captcha_enabled?: boolean;
   company_name: string;
   legal_name: string;
   privacy_contact_email: string | null;

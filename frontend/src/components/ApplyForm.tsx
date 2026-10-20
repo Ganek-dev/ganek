@@ -7,6 +7,8 @@ import { Check, FileText } from "lucide-react";
 
 import { ApiError, publicApply } from "@/lib/api";
 
+import { Captcha, isCaptchaError } from "./Captcha";
+
 /** Apply flow, screens 03 (form + CV upload states) and 04 (assessment
  * invite). The CV uploads as soon as it is picked; submit stays disabled
  * until the upload finishes. All numbers shown are platform truths (24h
@@ -43,6 +45,8 @@ export function ApplyForm({
   privacyHref?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [altcha, setAltcha] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState<ReturnType<typeof isCaptchaError>>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{
     firstName: string;
@@ -122,6 +126,7 @@ export function ApplyForm({
         portfolio: opt("portfolio"),
         cv_object_key: cv.objectKey,
         cv_filename: cv.file.name,
+        altcha,
       });
       setDone({
         firstName: str("name").split(/\s+/)[0] ?? "",
@@ -129,7 +134,10 @@ export function ApplyForm({
         statusToken: received.status_token,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong — please try again");
+      const message = err instanceof Error ? err.message : "Something went wrong — please try again";
+      const captcha = isCaptchaError(message);
+      setCaptchaError(captcha);
+      if (!captcha) setError(message);
       setBusy(false);
     }
   }
@@ -318,6 +326,8 @@ export function ApplyForm({
           </span>
         </label>
       </div>
+
+      <Captcha onChange={setAltcha} error={captchaError} />
 
       {error ? (
         <p role="alert" className="mt-4 text-sm" style={{ color: "var(--danger)" }}>
