@@ -109,7 +109,7 @@ async def deep_status(db: AsyncSession) -> tuple[bool, dict[str, Any]]:
         "status": "ok" if not failing else "unhealthy",
         "failing": failing,
         "checks": {name: result.as_dict() for name, result in checks.items()},
-        "smtp_configured": email_service.smtp_configured(),
+        "smtp_configured": email_service.configured(),
         "worker": worker,
         "checked_at": datetime.now(UTC).isoformat(),
     }

@@ -181,10 +181,10 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
         ).scalar_one_or_none()
         if row is None or row.status is not EmailStatus.QUEUED:
             return
-        if not email_service.smtp_configured():
-            # not retryable by waiting — an operator has to set GANEK_SMTP_*
+        if not email_service.configured():
+            # not retryable by waiting: an operator has to configure a provider
             row.status = EmailStatus.FAILED
-            row.last_error = "SMTP not configured"
+            row.last_error = "Email not configured"
             await db.commit()
             return
         row.attempts += 1

@@ -190,7 +190,7 @@ async def test_deliver_fails_immediately_without_smtp(
         await db_session.execute(select(EmailOutbox).where(EmailOutbox.id == row_id))
     ).scalar_one()
     assert fresh.status is EmailStatus.FAILED
-    assert fresh.last_error == "SMTP not configured"
+    assert fresh.last_error == "Email not configured"
 
 
 @pytest.mark.usefixtures("migrated_db", "real_outbox")
@@ -402,4 +402,4 @@ async def test_test_email_endpoint(client: AsyncClient, monkeypatch: pytest.Monk
     monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
     resp = await client.post("/api/v1/company/test-email")
     assert resp.status_code == 502
-    assert "SMTP send failed" in resp.json()["detail"]
+    assert "Email send failed" in resp.json()["detail"]

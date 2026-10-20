@@ -58,12 +58,12 @@ describe("EmailTrailCard", () => {
     ]);
     render(<EmailTrailCard applicationId="a1" />);
     expect(await screen.findByText("1 failed")).toBeInTheDocument();
-    expect(screen.getByText(/check your SMTP settings/)).toBeInTheDocument();
+    expect(screen.getByText(/check your email settings/)).toBeInTheDocument();
   });
 
   it("names the unconfigured-SMTP case explicitly", async () => {
     mocked.emails.mockResolvedValue([
-      row({ status: "failed", sent_at: null, last_error: "SMTP not configured" }),
+      row({ status: "failed", sent_at: null, last_error: "Email not configured" }),
     ]);
     render(<EmailTrailCard applicationId="a1" />);
     expect(
