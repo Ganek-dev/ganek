@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
-from app.core import urls
+from app.core import challenge, urls
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
@@ -50,6 +50,7 @@ def _set_session_cookie(response: Response, user: User) -> None:
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
 async def register(payload: RegisterRequest, response: Response, db: DbSession) -> UserOut:
+    await challenge.require(payload.altcha)
     try:
         user = await auth_service.register_company_admin(
             db,

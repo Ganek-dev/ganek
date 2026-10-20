@@ -9,6 +9,7 @@ class RegisterRequest(BaseModel):
     company_name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
+    altcha: str | None = Field(default=None, max_length=2000)  # core/challenge.py
 
 
 class LoginRequest(BaseModel):

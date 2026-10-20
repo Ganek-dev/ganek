@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.api.auth import _set_session_cookie
 from app.api.deps import DbSession, PublicCompany, SingleCompany
-from app.core import urls
+from app.core import challenge, urls
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
@@ -54,6 +54,7 @@ from app.schemas.public import (
     QuizOptionOut,
     QuizQuestionOut,
     QuizStateOut,
+    ReissueRequest,
     StatusQuizOut,
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
@@ -193,6 +194,19 @@ async def company_jobs_feed(company: PublicCompany, db: DbSession, response: Res
 
 
 @router.get(
+    "/challenge",
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def captcha_challenge() -> dict[str, object]:
+    """Fresh proof-of-work challenge for the ALTCHA widget (card A5).
+    404 while the feature is off, which is how the forms learn whether to
+    render the widget at all."""
+    if not challenge.active():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Captcha is off")
+    return challenge.create()
+
+
+@router.get(
     "/companies/{slug}/logo",
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
@@ -269,6 +283,7 @@ async def _apply(
     payload: ApplicationSubmit,
 ) -> ApplicationReceived:
     job = await _published_job_or_404(db, company, job_slug)
+    await challenge.require(payload.altcha)  # before quotas: bots must not burn them
     try:
         # emails are counted where they are queued; applications count per attempt
         await quotas.guard(db, company, quotas.EMAILS, consume=False)
@@ -522,7 +537,9 @@ async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizE
     response_model=dict[str, bool],
     dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
 )
-async def quiz_request_reissue(token: str, db: DbSession) -> dict[str, bool]:
+async def quiz_request_reissue(
+    token: str, db: DbSession, payload: ReissueRequest | None = None
+) -> dict[str, bool]:
     """Expired-link screen (27c): ask for a fresh assessment link.
 
     Company setting ``quiz_expired_reissue`` decides: 'auto' re-issues a
@@ -533,6 +550,7 @@ async def quiz_request_reissue(token: str, db: DbSession) -> dict[str, bool]:
     lands in the expired attempt's integrity.
     """
     attempt = await _attempt_or_404(db, token)
+    await challenge.require(payload.altcha if payload is not None else None)
     now = datetime.now(UTC)
     if attempt.status is AttemptStatus.PENDING and now > attempt.expires_at:
         attempt.status = AttemptStatus.EXPIRED

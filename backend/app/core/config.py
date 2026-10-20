@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # set true behind HTTPS in production
     questions_dir: str | None = None  # explicit question-bank path (auto-detected otherwise)
     cv_max_size_mb: int = 10
+    # Proof-of-work challenge on public forms (core/challenge.py, ALTCHA v1,
+    # self-hosted). Off by default; multi mode only even when enabled.
+    captcha_enabled: bool = False
+    captcha_secret: str | None = None
+    captcha_max_number: int = 100_000  # widget brute-force ceiling (~fast on phones)
+    captcha_ttl_seconds: int = 600
+
     rate_limit_enabled: bool = True
     trust_proxy_headers: bool = True  # browser traffic arrives via the Next proxy
     rate_limit_auth_per_minute: int = 10

@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
+from app.core import challenge
 from app.models import EmploymentType, RemotePolicy, SalaryPeriod
 
 
@@ -46,6 +47,12 @@ class PublicCompanyOut(BaseModel):
     theme: dict[str, Any]
 
 
+class ReissueRequest(BaseModel):
+    """Body of the expired-quiz "request a new link" form (optional)."""
+
+    altcha: str | None = Field(default=None, max_length=2000)
+
+
 class PublicPrivacyNotice(BaseModel):
     """Per-company variables for the candidate privacy notice page (M5.6 G1).
 
@@ -59,6 +66,8 @@ class PublicPrivacyNotice(BaseModel):
     legal_name: str
     privacy_contact_email: str | None
     retention_months: int
+    # a self-hosted proof-of-work check runs before public forms submit
+    captcha_enabled: bool = Field(default_factory=challenge.active)
     privacy_policy_url: str | None
     brand_primary: str | None
     logo_url: str | None
@@ -111,6 +120,9 @@ class ApplicationSubmit(BaseModel):
     portfolio: HttpUrl | None = None
     cv_object_key: str = Field(min_length=1, max_length=500)
     cv_filename: str = Field(min_length=1, max_length=255, pattern=r"(?i)\.pdf$")
+    # solved proof-of-work payload (core/challenge.py); required only in
+    # multi mode with GANEK_CAPTCHA_ENABLED
+    altcha: str | None = Field(default=None, max_length=2000)
 
     def links(self) -> dict[str, str]:
         return {

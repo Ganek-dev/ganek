@@ -22,6 +22,7 @@ NOTICE_FIELDS = {
     "privacy_policy_url",
     "brand_primary",
     "logo_url",
+    "captcha_enabled",
 }
 
 
