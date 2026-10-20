@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     google_client_secret: str | None = None
     google_redirect_url: str | None = None
 
+    # Outbound transport (services/email_providers.py): smtp (default) or
+    # mailjet (HTTPS API, EU-hosted; its events feed the suppression list)
+    email_provider: Literal["smtp", "mailjet"] = "smtp"
+    mailjet_api_key: str | None = None
+    mailjet_secret_key: str | None = None
+
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

@@ -1,4 +1,5 @@
-"""Outbound email. SMTP when configured, logged no-op otherwise.
+"""Outbound email: rendering lives here, transport in email_providers.
+Logged no-op while no provider is configured.
 
 Senders RAISE on transport errors since M5.7 H4: every send goes through
 the email outbox (services/outbox.py), whose worker job owns retry with
@@ -7,12 +8,10 @@ from a request path — queue it.
 """
 
 import logging
-import smtplib
 from datetime import datetime
-from email.message import EmailMessage
 from html import escape
 
-from app.core.config import settings
+from app.services import email_providers as providers
 
 logger = logging.getLogger(__name__)
 
@@ -35,31 +34,26 @@ def _brand_foreground(color: str) -> str:
     return "#18181b" if luminance > 0.45 else "#ffffff"
 
 
-def smtp_configured() -> bool:
-    return settings.smtp_host is not None
+def configured() -> bool:
+    """Whether the selected provider can deliver (GANEK_EMAIL_PROVIDER)."""
+    return providers.configured()
 
 
 def send_email(
-    *, to: str, subject: str, body: str, html: str | None = None, ref: str | None = None
+    *,
+    to: str,
+    subject: str,
+    body: str,
+    html: str | None = None,
+    ref: str | None = None,
+    outbox_id: str | None = None,
 ) -> None:
-    if not smtp_configured():
-        logger.info("SMTP not configured; skipping email %r (ref=%s)", subject, ref)
+    if not configured():
+        logger.info("email not configured; skipping email %r (ref=%s)", subject, ref)
         return
-    message = EmailMessage()
-    message["From"] = settings.email_from
-    message["To"] = to
-    message["Subject"] = subject
-    message.set_content(body)
-    if html is not None:
-        message.add_alternative(html, subtype="html")
-
-    assert settings.smtp_host is not None
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
-        if settings.smtp_starttls:
-            smtp.starttls()
-        if settings.smtp_user and settings.smtp_password:
-            smtp.login(settings.smtp_user, settings.smtp_password)
-        smtp.send_message(message)
+    providers.current().send(
+        providers.OutboundMessage(to=to, subject=subject, text=body, html=html, outbox_id=outbox_id)
+    )
 
 
 def send_application_received(

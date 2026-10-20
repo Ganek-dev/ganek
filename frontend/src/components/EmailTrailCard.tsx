@@ -82,9 +82,9 @@ export function EmailTrailCard({ applicationId }: { applicationId: string }) {
       </ul>
       {failed > 0 ? (
         <p className="mt-2 text-[11.5px] text-red-600 dark:text-red-400">
-          {rows.find((row) => row.status === "failed")?.last_error === "SMTP not configured"
+          {rows.find((row) => row.status === "failed")?.last_error === "Email not configured"
             ? "Email is not configured on this instance — nothing is being delivered."
-            : "Delivery failed after retries — check your SMTP settings and use the test send on Settings → Privacy."}
+            : "Delivery failed after retries — check your email settings and use the test send on Settings → Privacy."}
         </p>
       ) : null}
     </div>

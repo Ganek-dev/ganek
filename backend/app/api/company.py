@@ -59,13 +59,14 @@ async def remove_logo(db: DbSession, company: CurrentCompany, _admin: AdminUser)
 
 @router.post("/test-email", response_model=dict[str, bool])
 async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str, bool]:
-    """Prove the SMTP pipe end to end (M5.7 H4). Synchronous ON PURPOSE —
+    """Prove the email pipe end to end (M5.7 H4). Synchronous ON PURPOSE —
     the admin clicked a button and wants the transport error, not a row
     parked in the outbox."""
-    if not email_service.smtp_configured():
+    if not email_service.configured():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="SMTP is not configured — set the GANEK_SMTP_* variables first",
+            detail="Email is not configured - set the GANEK_SMTP_* variables "
+            "(or GANEK_EMAIL_PROVIDER=mailjet with its keys) first",
         )
     try:
         email_service.send_email(
@@ -79,6 +80,6 @@ async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str
         )
     except Exception as exc:  # noqa: BLE001 - the whole point is surfacing it
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"SMTP send failed: {exc}"
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Email send failed: {exc}"
         ) from exc
     return {"sent": True}
