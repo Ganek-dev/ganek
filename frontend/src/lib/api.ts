@@ -962,6 +962,22 @@ export const companyApi = {
     request<{ sent: boolean }>("/api/v1/company/test-email", { method: "POST" }),
 };
 
+/** /api/health/deep: per-dependency status plus the arq worker's heartbeat
+ * and last nightly purge (board card A2). Admin-only via the session cookie;
+ * the request helper throws on 503, so callers treat a failure as "unknown". */
+export interface DeepHealth {
+  status: "ok" | "unhealthy";
+  failing: string[];
+  checks: Record<string, { ok: boolean; latency_ms: number; error?: string }>;
+  smtp_configured: boolean;
+  worker: { seen_at: string | null; last_purge_at: string | null };
+  checked_at: string;
+}
+
+export const healthApi = {
+  deep: () => request<DeepHealth>("/api/health/deep"),
+};
+
 export interface TeamInvite {
   id: string;
   email: string;

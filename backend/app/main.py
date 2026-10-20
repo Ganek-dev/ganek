@@ -17,6 +17,9 @@ from app.api import (
     stats,
     users,
 )
+from app.api import (
+    health as health_api,
+)
 from app.core.config import settings
 from app.core.logcfg import install_access_log_scrubber
 from app.services.storage import ensure_bucket_async
@@ -76,6 +79,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(company.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(google_auth.router, prefix="/api/v1")
+app.include_router(health_api.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
 app.include_router(questionnaires.router, prefix="/api/v1")

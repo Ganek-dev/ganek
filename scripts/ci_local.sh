@@ -187,7 +187,7 @@ stage_e2e() {
   {
     $E2E_COMPOSE up -d --build \
       && wait_stack \
-      && bash scripts/e2e_smoke.sh http://localhost:3000
+      && COMPOSE_CMD="$E2E_COMPOSE" bash scripts/e2e_smoke.sh http://localhost:3000
   } || rc=1
   if [ "$rc" = 0 ]; then
     # browser job runs on its own fresh stack in CI — recreate (images cached)

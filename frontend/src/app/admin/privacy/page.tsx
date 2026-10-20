@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 
 import { SettingsTabs } from "@/components/SettingsTabs";
-import { companyApi, type CompanyAdmin } from "@/lib/api";
+import { companyApi, healthApi, type CompanyAdmin } from "@/lib/api";
+import { relativeTime } from "@/lib/time";
 
 /** Privacy settings (M5.6 G1): the per-company variables the candidate
  * privacy notice renders — controller identity, rights contact, retention
@@ -30,6 +31,9 @@ export default function PrivacySettingsPage() {
   const [busy, setBusy] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // undefined = still loading, null = never ran or unknown (deep health failed)
+  const [lastPurgeAt, setLastPurgeAt] = useState<string | null | undefined>(undefined);
+  const [purgeKnown, setPurgeKnown] = useState(true);
 
   async function sendTest() {
     setTestResult(null);
@@ -60,6 +64,15 @@ export default function PrivacySettingsPage() {
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load settings"),
       );
+    healthApi
+      .deep()
+      .then((health) => setLastPurgeAt(health.worker.last_purge_at))
+      .catch(() => {
+        // a 503 (some dependency down) or a network error: the answer to
+        // "did last night's purge run?" is simply not available right now
+        setPurgeKnown(false);
+        setLastPurgeAt(null);
+      });
   }, []);
 
   async function save() {
@@ -193,6 +206,16 @@ export default function PrivacySettingsPage() {
           <p className={`mt-1.5 ${hintCls}`}>
             {`Applications are deleted automatically ${retention === "" ? RETENTION_DEFAULT : retention} months after a decision (hired candidates excluded). The purge runs nightly.`}
           </p>
+          {lastPurgeAt !== undefined ? (
+            <p className={`mt-1 ${hintCls}`} data-testid="last-purge">
+              Last purge:{" "}
+              {!purgeKnown
+                ? "unknown (health check unavailable)"
+                : lastPurgeAt === null
+                  ? "not yet run"
+                  : relativeTime(lastPurgeAt)}
+            </p>
+          ) : null}
         </div>
       </div>
 
