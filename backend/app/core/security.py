@@ -45,6 +45,27 @@ def read_password_reset_token(token: str) -> tuple[uuid.UUID, int] | None:
         return None
 
 
+_mfa_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-mfa-step")
+# the window between a correct password and the authenticator code
+MFA_TOKEN_MAX_AGE_SECONDS = 60 * 5
+
+
+def create_mfa_token(user_id: uuid.UUID, token_version: int) -> str:
+    """Proof that the first factor passed moments ago (card A6). Carries
+    token_version so a sign-out-everywhere in between retires it."""
+    return _mfa_serializer.dumps({"uid": str(user_id), "v": token_version})
+
+
+def read_mfa_token(token: str) -> tuple[uuid.UUID, int] | None:
+    try:
+        raw = _mfa_serializer.loads(token, max_age=MFA_TOKEN_MAX_AGE_SECONDS)
+        if not isinstance(raw, dict):
+            return None
+        return uuid.UUID(str(raw["uid"])), int(raw["v"])
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+        return None
+
+
 _email_verify_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-email-verify")
 # generous: signup + inbox + coming back later; the 7-day unverified-company
 # sweep is the real deadline

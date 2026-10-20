@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +39,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # bumped on password change / forced logout — embedded in the session
     # token; a mismatch invalidates every session issued before the bump
     token_version: Mapped[int] = mapped_column(Integer, default=0)
+    # second factor (card A6): Fernet-encrypted base32 secret, enabled only
+    # once confirmed; last accepted step blocks replays; sha256 of unused
+    # recovery codes
+    totp_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    recovery_codes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     # saved weekly interview availability; NULL = default Mon-Fri 09:00-17:00
     interview_availability: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
@@ -47,3 +54,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     @property
     def has_password(self) -> bool:
         return self.password_hash is not None
+
+    @property
+    def mfa_enabled(self) -> bool:
+        return self.totp_enabled_at is not None and self.totp_secret is not None
+
+    @property
+    def recovery_codes_left(self) -> int:
+        return len(self.recovery_codes or [])
