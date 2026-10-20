@@ -1,12 +1,12 @@
 from uuid import uuid4
 
-import httpx
 import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
 from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
+from tests.helpers import upload_pdf
 
 pytestmark = pytest.mark.skipif(
     not (database_reachable() and s3_reachable()),
@@ -50,13 +50,7 @@ async def _uploaded_cv(client: AsyncClient, company_slug: str, job_slug: str) ->
     assert resp.status_code == 200, resp.text
     ticket = resp.json()
     assert ticket["object_key"].startswith("cvs/")
-    async with httpx.AsyncClient() as raw:
-        put = await raw.put(
-            ticket["upload_url"],
-            content=PDF_BYTES,
-            headers={"Content-Type": ticket["content_type"]},
-        )
-        assert put.status_code == 200, put.text
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     return str(ticket["object_key"])
 
 
@@ -116,6 +110,30 @@ async def test_apply_rejects_oversized_cv(
     )
     assert resp.status_code == 422
     assert "limit" in resp.json()["detail"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_bucket_itself_rejects_uploads_above_the_cap(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The presigned POST policy carries content-length-range, so an
+    oversized body never lands in the bucket (no 24h orphan window)."""
+    monkeypatch.setattr(settings, "cv_max_size_mb", 1)
+    company_slug, job_slug = await _publishing_company(client)
+    resp = await client.post(
+        f"/api/v1/public/companies/{company_slug}/jobs/{job_slug}/apply/upload-url"
+    )
+    ticket = resp.json()
+    assert ticket["max_size_mb"] == 1
+    assert {"policy", "Content-Type", "key"} <= set(ticket["upload_fields"])
+
+    too_big = b"%PDF-1.4 " + b"0" * (1024 * 1024)
+    rejected = await upload_pdf(ticket, too_big)
+    assert rejected.status_code == 400, rejected.text
+    assert "EntityTooLarge" in rejected.text
+
+    fits = await upload_pdf(ticket, PDF_BYTES)
+    assert fits.is_success, fits.text
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.models import Company, EmailOutbox, EmailStatus
 from app.services import outbox as outbox_service
 from tests.db import database_reachable
+from tests.helpers import upload_pdf
 
 pytestmark = pytest.mark.skipif(
     not database_reachable(), reason="database not reachable (start postgres or use CI)"
@@ -285,7 +286,6 @@ PDF_BYTES = b"%PDF-1.4 outbox flow"
 async def _apply_flow(client: AsyncClient) -> tuple[str, str]:
     """Register + publish + apply (no assessment). Ends logged in as admin;
     returns (application_id, candidate_email)."""
-    import httpx
 
     creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
     name = f"Outbox Api Co {uuid4().hex[:6]}"
@@ -299,13 +299,7 @@ async def _apply_flow(client: AsyncClient) -> tuple[str, str]:
 
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    async with httpx.AsyncClient() as raw:
-        put = await raw.put(
-            ticket["upload_url"],
-            content=PDF_BYTES,
-            headers={"Content-Type": ticket["content_type"]},
-        )
-        assert put.status_code == 200
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"{base}/apply",

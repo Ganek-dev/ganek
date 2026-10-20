@@ -90,16 +90,29 @@ def build_cv_key(company_id: UUID) -> str:
     return f"cvs/{company_id}/{uuid4().hex}.pdf"
 
 
-def presign_cv_upload(object_key: str) -> str:
-    return _public_client().generate_presigned_url(
-        "put_object",
-        Params={
-            "Bucket": settings.s3_bucket,
-            "Key": object_key,
-            "ContentType": CV_CONTENT_TYPE,
-        },
+def cv_max_bytes() -> int:
+    return settings.cv_max_size_mb * 1024 * 1024
+
+
+def presign_cv_upload(object_key: str) -> tuple[str, dict[str, str]]:
+    """Presigned POST rather than PUT: a POST policy carries a
+    content-length-range condition, so the bucket itself refuses anything
+    over the cap instead of leaving it to the 24h orphan sweep
+    (STRATEGY_REVIEW §8 "Abuse & quotas"). Returns (url, fields); the
+    browser sends the fields plus the file as multipart/form-data, file
+    last. The server-side size/type check on submit stays as the second
+    line of defence."""
+    post = _public_client().generate_presigned_post(
+        Bucket=settings.s3_bucket,
+        Key=object_key,
+        Fields={"Content-Type": CV_CONTENT_TYPE},
+        Conditions=[
+            {"Content-Type": CV_CONTENT_TYPE},
+            ["content-length-range", 1, cv_max_bytes()],
+        ],
         ExpiresIn=UPLOAD_URL_TTL_SECONDS,
     )
+    return post["url"], {str(k): str(v) for k, v in post["fields"].items()}
 
 
 def sanitize_disposition_filename(filename: str) -> str:
