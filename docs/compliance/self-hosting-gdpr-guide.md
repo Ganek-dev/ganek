@@ -79,6 +79,10 @@ Work through this once, before the careers page goes public.
       ports, keep the backend behind your reverse proxy, Redis AUTH outside
       the bundled compose network, and consider a separate
       `GANEK_ENCRYPTION_KEY` for stored Google credentials.
+- [ ] Turn on **two-factor authentication** for every admin account
+      (**Settings → Account**, any TOTP authenticator app; keep the recovery
+      codes offline). The same card signs out every other session if a
+      laptop goes missing. Enforcing it per workspace is a later ee/ policy.
 - [ ] Set up **SPF, DKIM and DMARC** on the sending domain and, with
       Mailjet, the bounce/complaint webhook (see "Email deliverability"
       in §3). A quiz invite in spam is a candidate you never hear from.

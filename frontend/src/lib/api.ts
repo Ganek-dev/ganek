@@ -9,6 +9,12 @@ export interface UserOut {
   has_password: boolean;
   /** Only in the register response: multi-mode signup awaiting the inbox click. */
   pending_verification?: boolean;
+  /** Second factor (card A6): on, and how many recovery codes are unused. */
+  mfa_enabled?: boolean;
+  recovery_codes_left?: number;
+  /** Login response only: the password passed, a code is needed next. */
+  mfa_required?: boolean;
+  mfa_token?: string | null;
 }
 
 export type RemotePolicy = "onsite" | "hybrid" | "remote";
@@ -149,6 +155,27 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
+  /** Login step two: the authenticator code or a recovery code. */
+  mfaVerify: (payload: { mfa_token: string; code: string }) =>
+    request<UserOut>("/api/v1/auth/mfa", { method: "POST", body: JSON.stringify(payload) }),
+  mfa: {
+    enrol: () =>
+      request<{ secret: string; otpauth_uri: string }>("/api/v1/auth/mfa/enrol", {
+        method: "POST",
+      }),
+    confirm: (code: string) =>
+      request<{ recovery_codes: string[] }>("/api/v1/auth/mfa/confirm", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      }),
+    disable: (payload: { password?: string; code?: string }) =>
+      request<void>("/api/v1/auth/mfa/disable", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+  },
+  signOutEverywhere: () =>
+    request<void>("/api/v1/auth/sign-out-everywhere", { method: "POST" }),
   verifyEmail: (payload: { token: string }) =>
     request<UserOut>("/api/v1/auth/verify-email", {
       method: "POST",

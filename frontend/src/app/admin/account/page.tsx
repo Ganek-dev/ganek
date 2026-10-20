@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { AvailabilityCard } from "@/components/AvailabilityCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
+import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { api, type UserOut } from "@/lib/api";
 
 /** Account settings, handoff screen 15 — restyled Profile + Password cards
@@ -158,7 +159,7 @@ function AccountContent() {
             <p className="mt-0.5 text-[12.5px] text-g500">
               {user && !user.has_password
                 ? "How you access this workspace."
-                : "Changing your password signs out every other session."}
+                : "Changing your password signs out every other session; so does the button under Sessions below."}
             </p>
           </div>
         </div>
@@ -202,6 +203,8 @@ function AccountContent() {
         </form>
         )}
       </div>
+
+      {user ? <TwoFactorCard user={user} onUserChange={setUser} /> : null}
 
       {googleEnabled ? (
         <div className="card p-5">

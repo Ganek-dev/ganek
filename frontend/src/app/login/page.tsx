@@ -28,6 +28,9 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [google, setGoogle] = useState(false);
+  // card A6: the password (or Google) passed; a code is needed. Google
+  // sign-ins with 2FA land here as /login?mfa=<token>.
+  const [mfaToken, setMfaToken] = useState<string | null>(searchParams.get("mfa"));
 
   const oauthError = OAUTH_ERRORS[searchParams.get("error") ?? ""] ?? null;
 
@@ -52,15 +55,86 @@ function LoginForm() {
     setBusy(true);
     const data = new FormData(event.currentTarget);
     try {
-      await api.login({
+      const user = await api.login({
         email: String(data.get("email") ?? "").trim(),
         password: String(data.get("password") ?? ""),
       });
+      if (user.mfa_required && user.mfa_token) {
+        setMfaToken(user.mfa_token);
+        setBusy(false);
+        return;
+      }
       router.push("/admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setBusy(false);
     }
+  }
+
+  async function handleCode(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!mfaToken) return;
+    setError(null);
+    setBusy(true);
+    const code = String(new FormData(event.currentTarget).get("code") ?? "");
+    try {
+      await api.mfaVerify({ mfa_token: mfaToken, code });
+      router.push("/admin");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Wrong code";
+      if (/sign in again/i.test(message)) setMfaToken(null); // token expired
+      setError(message);
+      setBusy(false);
+    }
+  }
+
+  if (mfaToken) {
+    return (
+      <AuthShell
+        title="Enter your code"
+        footer={
+          <button
+            type="button"
+            onClick={() => setMfaToken(null)}
+            className="font-medium text-accent hover:underline"
+          >
+            Back to login
+          </button>
+        }
+      >
+        {/* keyed: without it React reuses the email input's DOM node for the
+            code field and the typed email bleeds into it */}
+        <form key="mfa-step" onSubmit={handleCode} className="flex flex-col gap-3.5">
+          <label className="flex flex-col gap-2">
+            <span className="text-[13.5px] font-medium">Authenticator code</span>
+            <input
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              placeholder="123 456"
+              className={inputCls}
+            />
+          </label>
+          <span className="text-[12.5px] text-g500">
+            Lost the app? A recovery code works here too.
+          </span>
+          {error ? (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-1 inline-flex h-[42px] w-full items-center justify-center rounded-md bg-inverse text-[14.5px] font-semibold text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
+          >
+            {busy ? "…" : "Continue"}
+          </button>
+        </form>
+      </AuthShell>
+    );
   }
 
   return (
@@ -94,7 +168,7 @@ function LoginForm() {
         </>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+      <form key="password-step" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <label className="flex flex-col gap-2">
           <span className="text-[13.5px] font-medium">Email</span>
           <input
