@@ -5,6 +5,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.email_outbox import EmailOutbox, EmailStatus
+from app.models.erasure_tombstone import ErasureTombstone
 from app.models.google_credential import UserGoogleCredential
 from app.models.interview import Interview, InterviewStatus
 from app.models.job import EmploymentType, Job, JobStatus, RemotePolicy, SalaryPeriod
@@ -33,6 +34,7 @@ __all__ = [
     "Company",
     "EmailOutbox",
     "EmailStatus",
+    "ErasureTombstone",
     "Interview",
     "InterviewStatus",
     "MAX_DIFFICULTY",
