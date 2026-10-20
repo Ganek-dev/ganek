@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core import urls
 from app.core.config import settings
 from app.models import User
 
@@ -50,9 +51,7 @@ def configured() -> bool:
 
 
 def redirect_uri() -> str:
-    if settings.google_redirect_url:
-        return settings.google_redirect_url
-    return f"{settings.public_base_url}/api/v1/auth/google/callback"
+    return urls.google_oauth_redirect_uri()
 
 
 # events CRUD alone does NOT cover freebusy.query — that needs its own

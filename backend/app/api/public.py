@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.api.auth import _set_session_cookie
 from app.api.deps import DbSession, PublicCompany, SingleCompany
+from app.core import urls
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
@@ -160,8 +161,6 @@ async def _jobs_feed(db: DbSession, company: Company, response: Response) -> Job
     TTL (the security middleware's no-store applies to everything else on
     /api/v1 via setdefault, so these explicit headers win).
     """
-    base = settings.public_base_url.rstrip("/")
-    prefix = f"{base}/jobs" if settings.mode == "single" else f"{base}/c/{company.slug}/jobs"
     jobs = await jobs_service.list_published_jobs(db, company)
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Cache-Control"] = "public, max-age=60"
@@ -176,7 +175,7 @@ async def _jobs_feed(db: DbSession, company: Company, response: Response) -> Job
                 remote_policy=job.remote_policy,
                 employment_type=job.employment_type,
                 tags=job.tags,
-                apply_url=f"{prefix}/{job.slug}",
+                apply_url=urls.job_url(company, job.slug),
                 posted_at=job.published_at,
             )
             for job in jobs
@@ -278,12 +277,12 @@ async def _apply(
             job_title=job.title,
             company_name=company.name,
             brand_primary=(company.theme or {}).get("primary_color"),
-            quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{quiz_token}",
+            quiz_url=urls.quiz_url(company, quiz_token),
             question_count=len(attempt.question_ids),
             seconds_per_question=attempt.time_limit_seconds,
             expires_at=attempt.expires_at,
             controller_name=company_service.controller_name(company),
-            privacy_url=company_service.privacy_notice_url(company),
+            privacy_url=urls.privacy_notice_url(company),
         )
     else:
         await outbox_service.queue_email(
@@ -296,7 +295,7 @@ async def _apply(
             candidate_name=payload.name,
             job_title=job.title,
             company_name=company.name,
-            privacy_url=company_service.privacy_notice_url(company),
+            privacy_url=urls.privacy_notice_url(company),
         )
     return ApplicationReceived(
         quiz_token=quiz_token, status_token=create_status_token(application.id)
@@ -394,7 +393,7 @@ async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
         expires_at=attempt.expires_at,
         practice_available=practice_available,
         status_token=create_status_token(attempt.application_id),
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
 
 
@@ -557,13 +556,12 @@ async def quiz_request_reissue(token: str, db: DbSession) -> dict[str, bool]:
                 job_title=job.title,
                 company_name=company.name,
                 brand_primary=(company.theme or {}).get("primary_color"),
-                quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/"
-                f"{create_quiz_token(fresh.id)}",
+                quiz_url=urls.quiz_url(company, create_quiz_token(fresh.id)),
                 question_count=len(fresh.question_ids),
                 seconds_per_question=fresh.time_limit_seconds,
                 expires_at=fresh.expires_at,
                 controller_name=company_service.controller_name(company),
-                privacy_url=company_service.privacy_notice_url(company),
+                privacy_url=urls.privacy_notice_url(company),
             )
             return {"reissued": True}
 
@@ -619,7 +617,7 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         quiz=quiz,
         decision_expected_by=application.created_at + DECISION_WINDOW,
         retention_months=company_service.privacy_notice(company).retention_months,
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
 
 

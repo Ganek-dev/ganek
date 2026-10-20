@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.core import urls
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
@@ -91,7 +92,7 @@ async def _queue_verification_email(db: DbSession, user: User) -> None:
         to=user.email,
         ref=str(user.id),
         company_name=company.name,
-        verify_url=f"{settings.public_base_url.rstrip('/')}/verify?token={token}",
+        verify_url=urls.email_verify_url(company, token),
         expires_days=EMAIL_VERIFY_MAX_AGE_SECONDS // 86400,
     )
 
@@ -202,7 +203,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DbSession) -> None
         to=user.email,
         ref=str(user.id),
         company_name=company.name,
-        reset_url=f"{settings.public_base_url.rstrip('/')}/reset?token={token}",
+        reset_url=urls.password_reset_url(company, token),
         brand_primary=(company.theme or {}).get("primary_color"),
         expires_minutes=PASSWORD_RESET_MAX_AGE_SECONDS // 60,
     )

@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core import urls
 from app.models import (
     ActivityLog,
     Application,
@@ -144,7 +145,7 @@ async def export_candidate(
         generated_at=datetime.now(UTC),
         controller={
             "name": company_service.controller_name(company),
-            "privacy_notice_url": company_service.privacy_notice_url(company),
+            "privacy_notice_url": urls.privacy_notice_url(company),
         },
         candidate={
             "name": candidate.name,

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import selectinload
 from sqlalchemy.pool import NullPool
 
+from app.core import urls
 from app.core.config import settings
 from app.core.logcfg import configure_logging
 from app.core.observability import init_sentry
@@ -114,7 +115,7 @@ async def send_interview_reminder(
             meet_url=interview.meet_url,
             brand_primary=(company.theme or {}).get("primary_color"),
             controller_name=company_service.controller_name(company),
-            privacy_url=company_service.privacy_notice_url(company),
+            privacy_url=urls.privacy_notice_url(company),
         )
 
 
@@ -148,11 +149,11 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
             job_title=attempt.application.job.title,
             company_name=company.name,
             brand_primary=(company.theme or {}).get("primary_color"),
-            quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
+            quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
             expires_at=attempt.expires_at,
             days_left=days_left,
             controller_name=company_service.controller_name(company),
-            privacy_url=company_service.privacy_notice_url(company),
+            privacy_url=urls.privacy_notice_url(company),
         )
 
 
