@@ -56,3 +56,37 @@ class UserOut(BaseModel):
     # true only in the register response of a multi-mode signup awaiting
     # email verification (M5.7 H4); never set from ORM attributes
     pending_verification: bool = False
+    # card A6: whether a second factor is on, and how many recovery codes
+    # are unused (the account page nudges below three)
+    mfa_enabled: bool = False
+    recovery_codes_left: int = 0
+    # login response only: the password passed, a code is needed next;
+    # mfa_token proves that to POST /auth/mfa. No session cookie yet.
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+class MfaVerifyRequest(BaseModel):
+    mfa_token: str = Field(min_length=1, max_length=512)
+    code: str = Field(min_length=6, max_length=20)  # 6 digits or xxxxx-xxxxx
+
+
+class MfaCodeRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=20)
+
+
+class MfaDisableRequest(BaseModel):
+    """Re-authentication: the password, or a current code for Google-only
+    accounts that have none."""
+
+    password: str | None = Field(default=None, min_length=1, max_length=128)
+    code: str | None = Field(default=None, min_length=6, max_length=20)
+
+
+class MfaEnrolOut(BaseModel):
+    secret: str
+    otpauth_uri: str
+
+
+class MfaRecoveryCodesOut(BaseModel):
+    recovery_codes: list[str]

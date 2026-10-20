@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
@@ -11,22 +13,31 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
     create_email_verify_token,
+    create_mfa_token,
     create_password_reset_token,
     create_session_token,
     read_email_verify_token,
+    read_mfa_token,
     read_password_reset_token,
+    verify_password,
 )
 from app.models import User
 from app.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    MfaCodeRequest,
+    MfaDisableRequest,
+    MfaEnrolOut,
+    MfaRecoveryCodesOut,
+    MfaVerifyRequest,
     RegisterRequest,
     ResetPasswordRequest,
     UserOut,
     VerifyEmailRequest,
 )
 from app.services import auth as auth_service
+from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -103,7 +114,7 @@ async def _queue_verification_email(db: DbSession, user: User) -> None:
     response_model=UserOut,
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
-async def login(payload: LoginRequest, response: Response, db: DbSession) -> User:
+async def login(payload: LoginRequest, response: Response, db: DbSession) -> UserOut:
     try:
         user = await auth_service.authenticate(db, email=payload.email, password=payload.password)
     except auth_service.AccountLockedError:
@@ -120,8 +131,108 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Use
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
+    if mfa_service.enabled(user):
+        # first factor passed; no cookie until the code is right
+        return _mfa_challenge(user)
+    _set_session_cookie(response, user)
+    return UserOut.model_validate(user)
+
+
+def _mfa_challenge(user: User) -> UserOut:
+    out = UserOut.model_validate(user)
+    out.mfa_required = True
+    out.mfa_token = create_mfa_token(user.id, user.token_version)
+    return out
+
+
+@router.post(
+    "/mfa",
+    response_model=UserOut,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def mfa_verify(payload: MfaVerifyRequest, response: Response, db: DbSession) -> User:
+    """Login step two (card A6): the authenticator code or a recovery code."""
+    parsed = read_mfa_token(payload.mfa_token)
+    user = await db.get(User, parsed[0]) if parsed is not None else None
+    if user is None or not user.is_active or parsed is None or user.token_version != parsed[1]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in again to continue"
+        )
+    try:
+        await mfa_service.verify(db, user, payload.code)
+    except mfa_service.MfaLockedError:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="Too many wrong codes; try again in a few minutes",
+        ) from None
+    except mfa_service.MfaError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong code") from None
+    user.last_login_at = datetime.now(UTC)
+    await db.commit()
     _set_session_cookie(response, user)
     return user
+
+
+@router.post("/mfa/enrol", response_model=MfaEnrolOut)
+async def mfa_enrol(db: DbSession, user: CurrentUser) -> MfaEnrolOut:
+    """Start enrolment: a pending secret for the authenticator app."""
+    try:
+        secret, uri = await mfa_service.begin(db, user)
+    except mfa_service.MfaError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Two-factor authentication is already on"
+        ) from None
+    return MfaEnrolOut(secret=secret, otpauth_uri=uri)
+
+
+@router.post("/mfa/confirm", response_model=MfaRecoveryCodesOut)
+async def mfa_confirm(
+    payload: MfaCodeRequest, db: DbSession, user: CurrentUser
+) -> MfaRecoveryCodesOut:
+    """Turn it on once the app shows a valid code; the recovery codes come
+    back exactly once."""
+    try:
+        codes = await mfa_service.confirm(db, user, payload.code)
+    except mfa_service.WrongCodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That code is not right; try the next one",
+        ) from None
+    except mfa_service.MfaError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Start enrolment first"
+        ) from None
+    return MfaRecoveryCodesOut(recovery_codes=codes)
+
+
+@router.post("/mfa/disable", status_code=status.HTTP_204_NO_CONTENT)
+async def mfa_disable(payload: MfaDisableRequest, db: DbSession, user: CurrentUser) -> None:
+    """Re-authenticate with the password (or a code, for Google-only
+    accounts), then drop the factor."""
+    if not mfa_service.enabled(user):
+        return
+    ok = False
+    if payload.password is not None and user.password_hash is not None:
+        ok = verify_password(payload.password, user.password_hash)
+    elif payload.code is not None:
+        try:
+            await mfa_service.verify(db, user, payload.code)
+            ok = True
+        except mfa_service.MfaError:
+            ok = False
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Re-authentication failed"
+        )
+    await mfa_service.disable(db, user)
+
+
+@router.post("/sign-out-everywhere", status_code=status.HTTP_204_NO_CONTENT)
+async def sign_out_everywhere(response: Response, db: DbSession, user: CurrentUser) -> None:
+    """Retire every session for this account; the caller keeps this one
+    (re-issued with the new version)."""
+    await mfa_service.sign_out_everywhere(db, user)
+    _set_session_cookie(response, user)
 
 
 @router.get("/providers")

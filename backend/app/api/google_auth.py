@@ -21,6 +21,7 @@ from app.core.security import (
     GOOGLE_SIGNUP_MAX_AGE_SECONDS,
     create_google_flow_token,
     create_google_signup_token,
+    create_mfa_token,
     read_google_flow_token,
     read_google_signup_token,
 )
@@ -29,6 +30,7 @@ from app.schemas.auth import GoogleSignupPending, GoogleSignupRequest, UserOut
 from app.services import auth as auth_service
 from app.services import google_calendar, oauth_google
 from app.services import invites as invites_service
+from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
 
 logger = logging.getLogger(__name__)
@@ -207,6 +209,9 @@ async def google_callback(request: Request, db: DbSession) -> RedirectResponse:
             ref=str(user.id),
             company_name=user.company.name,
         )
+    if mfa_service.enabled(user):
+        # card A6: the password step was Google's; the code step is ours
+        return _redirect(f"/login?mfa={create_mfa_token(user.id, user.token_version)}")
     response = _redirect("/admin")
     _set_session_cookie(response, user)
     return response
