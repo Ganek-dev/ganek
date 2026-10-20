@@ -17,7 +17,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    api: { ...original.api, login: vi.fn(), providers: vi.fn() },
+    api: { ...original.api, login: vi.fn(), mfaVerify: vi.fn(), providers: vi.fn() },
   };
 });
 
@@ -96,5 +96,49 @@ describe("LoginPage", () => {
     await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
     await userEvent.click(screen.getByRole("button", { name: "Log in" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid credentials");
+  });
+
+  it("asks for the authenticator code when the password step says so", async () => {
+    mocked.login.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "you@company.com",
+      has_password: true,
+      role: "admin",
+      mfa_required: true,
+      mfa_token: "step-token",
+    });
+    mocked.mfaVerify.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "you@company.com",
+      has_password: true,
+      role: "admin",
+    });
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText("Email"), "you@company.com");
+    await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+    expect(await screen.findByRole("heading", { name: /Enter your code/ })).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText("Authenticator code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() =>
+      expect(mocked.mfaVerify).toHaveBeenCalledWith({ mfa_token: "step-token", code: "123456" }),
+    );
+    expect(push).toHaveBeenCalledWith("/admin");
+  });
+
+  it("starts at the code step after a Google sign-in with 2FA (?mfa=)", async () => {
+    search = new URLSearchParams("mfa=google-step");
+    mocked.mfaVerify.mockRejectedValue(new Error("Wrong code"));
+    render(<LoginPage />);
+    expect(await screen.findByRole("heading", { name: /Enter your code/ })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Authenticator code"), "000000");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Wrong code");
+    await userEvent.click(screen.getByRole("button", { name: "Back to login" }));
+    expect(screen.getByRole("heading", { name: /Log in to your workspace/ })).toBeInTheDocument();
   });
 });
