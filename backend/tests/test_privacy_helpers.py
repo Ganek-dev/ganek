@@ -3,8 +3,9 @@
 import pytest
 
 from app.core.config import settings
+from app.core.urls import privacy_notice_url
 from app.models import Company
-from app.services.company import controller_name, privacy_notice_url
+from app.services.company import controller_name
 
 
 def _company(**overrides: object) -> Company:

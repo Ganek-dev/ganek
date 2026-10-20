@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
-from app.core.config import settings
+from app.core import urls
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
 from app.models import Application, ApplicationNote, ApplicationStage, EmailOutbox, User, UserRole
 from app.models.quiz import AttemptStatus, QuizAttempt
@@ -201,11 +201,11 @@ async def remind_candidate(
         job_title=application.job.title,
         company_name=company.name,
         brand_primary=(company.theme or {}).get("primary_color"),
-        quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
+        quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
         expires_at=attempt.expires_at,
         days_left=days_left,
         controller_name=company_service.controller_name(company),
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
     return {"sent": True}
 
@@ -329,12 +329,12 @@ async def reissue_quiz(
         job_title=application.job.title,
         company_name=company.name,
         brand_primary=(company.theme or {}).get("primary_color"),
-        quiz_url=f"{settings.public_base_url.rstrip('/')}/quiz/{create_quiz_token(attempt.id)}",
+        quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
         question_count=len(attempt.question_ids),
         seconds_per_question=attempt.time_limit_seconds,
         expires_at=attempt.expires_at,
         controller_name=company_service.controller_name(company),
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
     return attempt
 
@@ -450,9 +450,7 @@ async def create_interview(
             status_code=status.HTTP_409_CONFLICT,
             detail="This application already has an interview in progress",
         ) from None
-    booking_url = (
-        f"{settings.public_base_url.rstrip('/')}/interview/{create_interview_token(interview.id)}"
-    )
+    booking_url = urls.interview_url(company, create_interview_token(interview.id))
     await outbox_service.queue_email(
         db,
         kind="interview_invite",
@@ -467,7 +465,7 @@ async def create_interview(
         booking_url=booking_url,
         brand_primary=(company.theme or {}).get("primary_color"),
         controller_name=company_service.controller_name(company),
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
     return interview
 
@@ -513,7 +511,7 @@ async def cancel_interview(
         job_title=application.job.title,
         company_name=company.name,
         controller_name=company_service.controller_name(company),
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
     return interview
 
@@ -524,8 +522,6 @@ async def _queue_rejection_email(
     """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
     candidate = application.candidate
     job = application.job
-    base = settings.public_base_url.rstrip("/")
-    careers_url = base if settings.mode == "single" else f"{base}/c/{company.slug}"
     attempt = application.quiz_attempt
     await outbox_service.queue_email(
         db,
@@ -537,10 +533,10 @@ async def _queue_rejection_email(
         candidate_name=candidate.name,
         job_title=job.title,
         company_name=company.name,
-        careers_url=careers_url,
+        careers_url=urls.careers_url(company),
         completed_assessment=attempt is not None and attempt.completed_at is not None,
         controller_name=company_service.controller_name(company),
-        privacy_url=company_service.privacy_notice_url(company),
+        privacy_url=urls.privacy_notice_url(company),
     )
 
 
@@ -554,7 +550,6 @@ async def _queue_stage_email(
     if stage is ApplicationStage.INTERVIEW:
         candidate = application.candidate
         job = application.job
-        base = settings.public_base_url.rstrip("/")
         await outbox_service.queue_email(
             db,
             kind="stage_advance",
@@ -566,9 +561,9 @@ async def _queue_stage_email(
             job_title=job.title,
             company_name=company.name,
             brand_primary=(company.theme or {}).get("primary_color"),
-            status_url=f"{base}/application/{create_status_token(application.id)}",
+            status_url=urls.status_url(company, create_status_token(application.id)),
             controller_name=company_service.controller_name(company),
-            privacy_url=company_service.privacy_notice_url(company),
+            privacy_url=urls.privacy_notice_url(company),
         )
     elif stage is ApplicationStage.REJECTED:
         await _queue_rejection_email(db, company, application)

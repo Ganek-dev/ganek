@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
-from app.core.config import settings
+from app.core import urls
 from app.core.security import create_invite_token
 from app.models import Company, User, UserInvite
 from app.schemas.users import (
@@ -86,7 +86,6 @@ async def create_user(
 async def _queue_invite_email(
     db: DbSession, company: Company, inviter: User, invite: UserInvite
 ) -> None:
-    base = settings.public_base_url.rstrip("/")
     await outbox_service.queue_email(
         db,
         kind="team_invite",
@@ -96,7 +95,7 @@ async def _queue_invite_email(
         company_name=company.name,
         inviter_email=inviter.email,
         role=invite.role.value,
-        invite_url=f"{base}/invite/{create_invite_token(invite.id)}",
+        invite_url=urls.invite_url(company, create_invite_token(invite.id)),
         expires_at=invite.expires_at,
         brand_primary=(company.theme or {}).get("primary_color"),
     )

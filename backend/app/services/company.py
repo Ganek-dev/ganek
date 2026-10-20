@@ -2,7 +2,7 @@ import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core import urls
 from app.models import Company
 from app.schemas.company import BrandingUpdate, CompanySettingsUpdate
 from app.schemas.public import PublicPrivacyNotice
@@ -68,14 +68,6 @@ def controller_name(company: Company) -> str:
     return (company.settings or {}).get("legal_name") or company.name
 
 
-def privacy_notice_url(company: Company) -> str:
-    """Absolute candidate-facing privacy-notice URL (mode-aware, for emails)."""
-    base = settings.public_base_url.rstrip("/")
-    if settings.mode == "single":
-        return f"{base}/privacy"
-    return f"{base}/c/{company.slug}/privacy"
-
-
 def privacy_notice(company: Company) -> PublicPrivacyNotice:
     """Per-company variables for the candidate privacy notice page.
 
@@ -127,8 +119,7 @@ async def set_logo(db: AsyncSession, company: Company, data: bytes, declared_typ
     """
     content_type = sniff_logo(data, declared_type)
     await storage.put_object(storage.build_logo_key(company.id), data, content_type)
-    base = settings.public_base_url.rstrip("/")
-    company.logo_url = f"{base}/api/v1/public/companies/{company.slug}/logo?v={int(time.time())}"
+    company.logo_url = urls.logo_url(company, int(time.time()))
     await db.commit()
     await db.refresh(company)
     return company
