@@ -23,6 +23,14 @@ Concretely, being the controller means:
 - If you engage others to process the data (hosting provider, email relay,
   Google for interviews), they are **your** processors/recipients and
   belong in your records.
+- Error reporting is off by default. If you set `GANEK_SENTRY_DSN`, the
+  Sentry host you point it at (Sentry's cloud, or a self-hosted
+  Sentry/GlitchTip) becomes a processor of error reports. Ganek scrubs
+  emails, capability tokens, CV file names and cookies from every event
+  before it leaves the box and never enables Sentry's default PII
+  collection, but stack traces can still carry fragments of candidate
+  data. Prefer an EU region or your own instance, sign its DPA, and add
+  it to your records.
 
 **Not established in the EU but hiring EU candidates?** You are likely in
 territorial scope via Art. 3(2) and may need an EU representative

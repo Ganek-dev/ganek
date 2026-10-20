@@ -22,6 +22,7 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.logcfg import configure_logging
+from app.core.observability import init_sentry
 from app.core.security import create_quiz_token
 from app.models import (
     Application,
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 async def startup(ctx: dict[str, Any]) -> None:
     # after arq applied its own logging config: same format and handler as the API
     configure_logging(json_logs=settings.log_format == "json", level=settings.log_level)
+    init_sentry(dsn=settings.sentry_dsn, component="worker")
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     ctx["engine"] = engine
     ctx["session_factory"] = async_sessionmaker(engine, expire_on_commit=False)

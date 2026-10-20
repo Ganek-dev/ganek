@@ -22,6 +22,7 @@ from app.api import (
 )
 from app.core.config import settings
 from app.core.logcfg import configure_logging
+from app.core.observability import init_sentry
 from app.core.requestid import RequestIdMiddleware
 from app.services.storage import ensure_bucket_async
 
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 # Before uvicorn logs a single request: one handler, request ids on every
 # line, capability tokens scrubbed from access lines (GDPR G4).
 configure_logging(json_logs=settings.log_format == "json", level=settings.log_level)
+init_sentry(dsn=settings.sentry_dsn, component="backend")
 
 
 @asynccontextmanager
@@ -52,7 +54,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Ganek",
-    version="0.1.0",
+    version=settings.version,
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
