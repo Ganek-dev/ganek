@@ -213,6 +213,10 @@ unaffected. In plain words:
   next night. There is deliberately **no off switch** (Art. 25 privacy by
   default) - if you need longer, raise the months and let the notice say
   so.
+- You can run as many `worker` containers as you like. Queued jobs are
+  taken by one worker each, the nightly purge claims a once-per-day lock
+  in Redis so it runs exactly once however many workers are up, and the
+  outbox sweep and heartbeat are idempotent.
 - Abandoned CV uploads (file picked, form never submitted) are swept after
   24 hours; expired team invites are swept nightly.
 - **Status links expire after 30 days**, interview booking links after
