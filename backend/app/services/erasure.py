@@ -27,7 +27,7 @@ from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Application, Candidate, Company, Interview, Task
-from app.services import activity, google_calendar, storage
+from app.services import activity, google_calendar, storage, tombstones
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,13 @@ async def erase_application(db: AsyncSession, application: Application) -> tuple
             logger.warning("erasure: could not delete google event for interview %s", interview.id)
             failures += 1
 
+    # blind marker so a restored backup cannot bring this application back
+    await tombstones.record(
+        db,
+        company_id=application.company_id,
+        kind=tombstones.APPLICATION,
+        subject_id=application.id,
+    )
     await db.execute(delete(Application).where(Application.id == application.id))
     return len(interviews), failures
 
@@ -145,6 +152,9 @@ async def erase_candidate(
         failed += failures
 
     scrubbed_tasks = await scrub_privacy_request_tasks(db, company.id, candidate.email)
+    await tombstones.record(
+        db, company_id=company.id, kind=tombstones.CANDIDATE, subject_id=candidate.id
+    )
     await db.execute(delete(Candidate).where(Candidate.id == candidate.id))
     activity.record(
         db,
