@@ -34,6 +34,7 @@ from app.models import (
 from app.models.quiz import AttemptStatus
 from app.services import company as company_service
 from app.services import email as email_service
+from app.services import health as health_service
 from app.services import outbox as outbox_service
 from app.services import retention as retention_service
 
@@ -44,6 +45,26 @@ async def startup(ctx: dict[str, Any]) -> None:
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     ctx["engine"] = engine
     ctx["session_factory"] = async_sessionmaker(engine, expire_on_commit=False)
+    await heartbeat(ctx)  # visible to /api/health/deep before the first cron tick
+
+
+async def _mark(ctx: dict[str, Any], key: str, *, ttl_seconds: int | None = None) -> None:
+    """Best-effort liveness bookkeeping for /api/health/deep. Never lets a
+    Redis hiccup fail the job that called it."""
+    redis = ctx.get("redis")
+    if redis is None:
+        return
+    try:
+        await redis.set(key, datetime.now(UTC).isoformat(), ex=ttl_seconds)
+    except Exception:  # noqa: BLE001 - bookkeeping only
+        logger.warning("could not write %s", key, exc_info=True)
+
+
+async def heartbeat(ctx: dict[str, Any]) -> None:
+    """Minute cron: proves the worker process is alive and can reach Redis."""
+    await _mark(
+        ctx, health_service.WORKER_SEEN_KEY, ttl_seconds=health_service.WORKER_SEEN_TTL_SECONDS
+    )
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
@@ -136,6 +157,7 @@ async def purge_retention(ctx: dict[str, Any]) -> None:
     async with ctx["session_factory"]() as db:
         summary = await retention_service.run_purge(db, now=datetime.now(UTC))
     logger.info("retention purge: %s", summary)
+    await _mark(ctx, health_service.LAST_PURGE_KEY)
 
 
 async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
@@ -202,12 +224,17 @@ class WorkerSettings:
         purge_retention,
         deliver_email,
         sweep_outbox,
+        heartbeat,
     ]
     cron_jobs = [
         cron(purge_retention, hour=3, minute=17),
         cron(sweep_outbox, minute={7, 17, 27, 37, 47, 57}),
+        cron(heartbeat),  # every minute
     ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_tries = 3
+    # arq refreshes its own health key at this interval; the compose
+    # healthcheck runs `arq --check` against it
+    health_check_interval = 60

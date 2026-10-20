@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { companyApi, type CompanyAdmin } from "@/lib/api";
+import { companyApi, healthApi, type CompanyAdmin, type DeepHealth } from "@/lib/api";
 
 import PrivacySettingsPage from "./page";
 
@@ -15,10 +15,27 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     companyApi: { get: vi.fn(), updateSettings: vi.fn(), testEmail: vi.fn() },
+    healthApi: { deep: vi.fn() },
   };
 });
 
 const mocked = vi.mocked(companyApi);
+const mockedHealth = vi.mocked(healthApi);
+
+function makeHealth(lastPurgeAt: string | null): DeepHealth {
+  return {
+    status: "ok",
+    failing: [],
+    checks: {
+      postgres: { ok: true, latency_ms: 2 },
+      redis: { ok: true, latency_ms: 1 },
+      s3: { ok: true, latency_ms: 4 },
+    },
+    smtp_configured: true,
+    worker: { seen_at: "2026-10-20T08:00:00+00:00", last_purge_at: lastPurgeAt },
+    checked_at: "2026-10-20T08:00:30+00:00",
+  };
+}
 
 function makeCompany(settings: CompanyAdmin["settings"] = {}): CompanyAdmin {
   return {
@@ -40,6 +57,7 @@ describe("PrivacySettingsPage", () => {
     vi.clearAllMocks();
     mocked.get.mockResolvedValue(makeCompany());
     mocked.updateSettings.mockResolvedValue(makeCompany());
+    mockedHealth.deep.mockResolvedValue(makeHealth(null));
   });
 
   it("shows empty fields with the display-name fallback hint", async () => {
@@ -122,6 +140,29 @@ describe("nightly purge note (G3)", () => {
     vi.clearAllMocks();
     mocked.get.mockResolvedValue(makeCompany({ retention_months: 12 }));
     mocked.updateSettings.mockResolvedValue(makeCompany({}));
+    mockedHealth.deep.mockResolvedValue(makeHealth(null));
+  });
+
+  it("shows when the last purge ran, from deep health", async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+    mockedHealth.deep.mockResolvedValue(makeHealth(twoHoursAgo));
+    render(<PrivacySettingsPage />);
+    expect(await screen.findByTestId("last-purge")).toHaveTextContent("Last purge: 2h ago");
+  });
+
+  it("says the purge has not run yet when the worker never recorded one", async () => {
+    render(<PrivacySettingsPage />);
+    expect(await screen.findByTestId("last-purge")).toHaveTextContent("Last purge: not yet run");
+  });
+
+  it("degrades to unknown when deep health is unavailable", async () => {
+    mockedHealth.deep.mockRejectedValue(new Error("Service Unavailable"));
+    render(<PrivacySettingsPage />);
+    expect(await screen.findByTestId("last-purge")).toHaveTextContent(
+      "Last purge: unknown (health check unavailable)",
+    );
+    // the settings form itself is unaffected
+    expect(screen.getByLabelText("Keep applications for")).toHaveValue("12");
   });
 
   it("states the automatic deletion window from the current selection", async () => {

@@ -61,6 +61,31 @@ def ensure_bucket() -> None:
         client.create_bucket(Bucket=settings.s3_bucket)
 
 
+@lru_cache(maxsize=1)
+def _probe_client() -> "S3Client":
+    # the regular client keeps boto's 60s connect timeout and retries; a
+    # health probe must fail in seconds, not minutes
+    return boto3.client(
+        "s3",
+        endpoint_url=settings.s3_endpoint_url,
+        aws_access_key_id=settings.s3_access_key,
+        aws_secret_access_key=settings.s3_secret_key,
+        region_name="us-east-1",
+        config=BotoConfig(
+            signature_version="s3v4",
+            s3={"addressing_style": "path"},
+            connect_timeout=2,
+            read_timeout=2,
+            retries={"max_attempts": 1},
+        ),
+    )
+
+
+def probe_bucket() -> None:
+    """Raise unless the CV bucket answers HEAD (deep health)."""
+    _probe_client().head_bucket(Bucket=settings.s3_bucket)
+
+
 def build_cv_key(company_id: UUID) -> str:
     return f"cvs/{company_id}/{uuid4().hex}.pdf"
 

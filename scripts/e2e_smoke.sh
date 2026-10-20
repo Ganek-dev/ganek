@@ -67,6 +67,24 @@ expect 200 -X POST -H 'Content-Type: application/json' \
   "$BASE/api/v1/auth/login"
 expect 200 "$BASE/api/v1/auth/me"
 
+step "deep health needs a session (the proxy is not loopback to the backend)"
+DEEP_ANON=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/health/deep")
+if [ "$DEEP_ANON" != "401" ]; then
+  echo "FAIL: anonymous deep health returned $DEEP_ANON, expected 401"; exit 1
+fi
+
+step "deep health is all green (postgres, redis, s3) and the worker is alive"
+expect 200 "$BASE/api/health/deep"
+python3 - "$BODY" <<'PY'
+import json, sys
+body = json.load(open(sys.argv[1]))
+assert body["status"] == "ok", body
+assert body["failing"] == [], body
+assert all(c["ok"] for c in body["checks"].values()), body
+assert set(body["checks"]) == {"postgres", "redis", "s3"}, body
+assert body["worker"]["seen_at"], "worker heartbeat missing: %r" % body["worker"]
+PY
+
 step "admin creates and publishes a job"
 expect 201 -X POST -H 'Content-Type: application/json' \
   -d '{"title":"Smoke Test Engineer","location":"Remote","remote_policy":"remote","tags":["python","smoke"],"description_md":"You will **test** things."}' \
@@ -131,6 +149,42 @@ for i in $(seq 1 12); do
 done
 if [ "$RL_CODE" != "429" ]; then
   echo "FAIL: 12 bad logins never hit the rate limit (last: $RL_CODE)"; exit 1
+fi
+
+step "deep health names redis when it is down (503)"
+# COMPOSE_CMD lets ci_local point at its -p ganek-e2e project; CI and the
+# release smoke run against the default project from the repo root.
+COMPOSE="${COMPOSE_CMD:-docker compose}"
+if $COMPOSE ps -q redis >/dev/null 2>&1 && [ -n "$($COMPOSE ps -q redis 2>/dev/null)" ]; then
+  $COMPOSE stop redis >/dev/null
+  expect 503 "$BASE/api/health/deep"
+  if ! python3 -c "import json,sys; b=json.load(open(sys.argv[1])); assert b['failing']==['redis'], b" "$BODY"; then
+    echo "FAIL: deep health did not single out redis"; cat "$BODY"; $COMPOSE start redis >/dev/null; exit 1
+  fi
+  $COMPOSE start redis >/dev/null
+  for _ in $(seq 1 20); do
+    DEEP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -b "$JAR" "$BASE/api/health/deep")
+    [ "$DEEP_CODE" = "200" ] && break
+    sleep 2
+  done
+  if [ "$DEEP_CODE" != "200" ]; then
+    echo "FAIL: deep health did not recover after redis restart (last: $DEEP_CODE)"; exit 1
+  fi
+
+  step "every long-running service reports healthy (compose healthchecks)"
+  # six services carry a healthcheck; migrate is a one-shot and has none
+  for _ in $(seq 1 40); do
+    PS=$($COMPOSE ps --format '{{.Service}} {{.Health}}' 2>/dev/null)
+    NOT_YET=$(printf '%s\n' "$PS" | grep -c -E "unhealthy|starting" || true)
+    HEALTHY=$(printf '%s\n' "$PS" | grep -c " healthy" || true)
+    if [ "$NOT_YET" = 0 ] && [ "$HEALTHY" -ge 6 ]; then break; fi
+    sleep 3
+  done
+  if [ "${NOT_YET:-1}" != 0 ] || [ "${HEALTHY:-0}" -lt 6 ]; then
+    echo "FAIL: not every service is healthy:"; printf '%s\n' "$PS"; exit 1
+  fi
+else
+  echo "(skipped: no compose project with a redis service reachable from here)"
 fi
 
 echo "e2e smoke: OK"

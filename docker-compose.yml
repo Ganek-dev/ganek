@@ -22,8 +22,19 @@ services:
       GANEK_S3_PUBLIC_ENDPOINT_URL: ${GANEK_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
-      minio: { condition: service_started }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    # the image has no curl; the venv's python is always there
+    healthcheck:
+      test:
+        - CMD
+        - /srv/.venv/bin/python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     # loopback-only by default: a host-published backend + XFF trust would let
     # remote clients spoof their IP past the rate limits (SECURITY_REVIEW #1)
     ports: ["127.0.0.1:8000:8000"]
@@ -32,13 +43,23 @@ services:
     logging: *default-logging
     build: ./backend
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
+    # arq exits (code 1) when redis goes away; without this a redis blip
+    # silently ends nightly purges and queued email until someone notices
+    restart: unless-stopped
     env_file: .env
     environment:
       GANEK_DATABASE_URL: postgresql+asyncpg://ganek:${POSTGRES_PASSWORD:-ganek}@postgres:5432/ganek
       GANEK_REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
+      redis: { condition: service_healthy }
+    # arq writes a health key to redis every 60s; --check reads it back
+    healthcheck:
+      test: ["CMD", "/srv/.venv/bin/arq", "--check", "app.worker.WorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   frontend:
     logging: *default-logging
@@ -53,7 +74,19 @@ services:
       BACKEND_URL: http://backend:8000
       # absolute URLs in sitemap.xml / robots.txt / OG metadata
       GANEK_PUBLIC_BASE_URL: ${GANEK_PUBLIC_BASE_URL:-http://localhost:3000}
-    depends_on: [backend]
+      # Next's standalone server binds to $HOSTNAME, which Docker sets to the
+      # container id, so nothing listens on 127.0.0.1 unless we say so
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      backend: { condition: service_healthy }
+    # alpine's busybox wget; /api/health goes through the proxy rewrite, so a
+    # green frontend also proves the frontend -> backend path
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     ports: ["3000:3000"]
 
   migrate:
@@ -85,6 +118,11 @@ services:
   redis:
     logging: *default-logging
     image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio:
     logging: *default-logging
@@ -96,6 +134,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     # loopback-only: candidates only ever need the presigned-upload host you
     # configured — never the MinIO API/console themselves (.env.example §prod)
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
