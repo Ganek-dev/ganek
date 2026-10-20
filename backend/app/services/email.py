@@ -8,12 +8,17 @@ from a request path — queue it.
 """
 
 import logging
+from contextvars import ContextVar
 from datetime import datetime
 from html import escape
 
 from app.services import email_providers as providers
 
 logger = logging.getLogger(__name__)
+
+# set by outbox.dispatch around a sender call so send_email can hand the
+# row id to the provider (Mailjet CustomID) for bounce/complaint mapping
+current_outbox_id: ContextVar[str | None] = ContextVar("current_outbox_id", default=None)
 
 # Mirrors frontend lib/brand.ts: per-company brand color with a
 # luminance-computed foreground; near-black default.
@@ -52,7 +57,13 @@ def send_email(
         logger.info("email not configured; skipping email %r (ref=%s)", subject, ref)
         return
     providers.current().send(
-        providers.OutboundMessage(to=to, subject=subject, text=body, html=html, outbox_id=outbox_id)
+        providers.OutboundMessage(
+            to=to,
+            subject=subject,
+            text=body,
+            html=html,
+            outbox_id=outbox_id or current_outbox_id.get(),
+        )
     )
 
 

@@ -394,7 +394,7 @@ export interface ApplicationOut {
 export interface EmailDelivery {
   id: string;
   kind: string;
-  status: "queued" | "sent" | "failed";
+  status: "queued" | "sent" | "failed" | "suppressed" | "bounced" | "complained";
   attempts: number;
   last_error: string | null;
   created_at: string;

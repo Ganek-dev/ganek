@@ -61,6 +61,20 @@ describe("EmailTrailCard", () => {
     expect(screen.getByText(/check your email settings/)).toBeInTheDocument();
   });
 
+  it("shows provider feedback states and counts them as not delivered", async () => {
+    mocked.emails.mockResolvedValue([
+      row({ kind: "quiz_invite", status: "bounced", last_error: "user unknown" }),
+      row({ kind: "quiz_reminder", status: "complained" }),
+      row({ kind: "stage_advance", status: "suppressed", sent_at: null, attempts: 0 }),
+    ]);
+    render(<EmailTrailCard applicationId="a1" />);
+    expect(await screen.findByText("2 failed")).toBeInTheDocument();
+    expect(screen.getByText("bounced")).toBeInTheDocument();
+    expect(screen.getByText("marked as spam")).toBeInTheDocument();
+    expect(screen.getByText("skipped: address suppressed")).toBeInTheDocument();
+    expect(screen.getByText(/that address is now skipped/)).toBeInTheDocument();
+  });
+
   it("names the unconfigured-SMTP case explicitly", async () => {
     mocked.emails.mockResolvedValue([
       row({ status: "failed", sent_at: null, last_error: "Email not configured" }),
