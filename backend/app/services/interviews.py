@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 SLOT_GRID_MINUTES = 30
 HORIZON_DAYS = 14  # slots offered over the next two weeks, starting tomorrow
+MAX_INTERVIEW_MINUTES = 60  # schemas.interviews.InterviewCreate caps duration here
 WEEKDAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 DAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 DEFAULT_AVAILABILITY = {
@@ -285,9 +286,10 @@ async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Intervi
 async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
     """Serialize bookings per interviewer for the rest of the transaction.
 
-    The lock is held across the Google HTTP call (scheduling-v2 parked
-    item), so a hung request could park every waiter indefinitely —
-    lock_timeout turns that into a fast, retryable failure instead.
+    Taken AFTER the Google free/busy call (card A8), so the hold time is
+    the DB re-check plus the Meet event write, not Google's latency on
+    free/busy as well. lock_timeout still turns a hung holder into a fast,
+    retryable failure for the waiters.
     """
     key = int.from_bytes(hashlib.sha256(interviewer_id.bytes).digest()[:8], "big", signed=True)
     await db.execute(text(f"SET LOCAL lock_timeout = '{int(LOCK_TIMEOUT_MS)}ms'"))
@@ -297,8 +299,25 @@ async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None
         raise LockBusyError from exc
 
 
+async def _require_unbooked(db: AsyncSession, interview: Interview, start: datetime) -> None:
+    """DB-side conflict check for under the lock: no BOOKED ganek interview
+    of this interviewer overlaps the chosen window. Google was consulted
+    before the lock; what can change between that call and the lock being
+    granted is only what other bookers commit here."""
+    duration = timedelta(minutes=interview.duration_minutes)
+    busy = await _booked_windows(
+        db,
+        interview.interviewer_user_id,
+        start - timedelta(minutes=MAX_INTERVIEW_MINUTES),
+        start + duration,
+    )
+    if any(start < b_end and start + duration > b_start for b_start, b_end in busy):
+        raise SlotUnavailableError
+
+
 async def _require_available(db: AsyncSession, interview: Interview, start: datetime) -> None:
-    """The chosen instant must be in the freshly-computed live slot set."""
+    """The chosen instant must be in the freshly-computed live slot set
+    (Google free/busy plus ganek's own bookings). Called BEFORE the lock."""
     slots = await generate_slots(
         db,
         interview.interviewer,
@@ -334,6 +353,10 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     if interview.status is InterviewStatus.BOOKED:
         raise AlreadyBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
+    # Google first, lock second (card A8): free/busy is the slow call and
+    # needs no serialization; only the DB-side conflicts get re-checked
+    # once the lock is ours.
+    await _require_available(db, interview, start)
     await _lock_interviewer(db, interview.interviewer_user_id)
     # authoritative re-check: another request may have booked this same
     # interview between our load and acquiring the lock (double-submit /
@@ -342,7 +365,7 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     status_after_lock: InterviewStatus = interview.status
     if status_after_lock is InterviewStatus.BOOKED:
         raise AlreadyBookedError
-    await _require_available(db, interview, start)
+    await _require_unbooked(db, interview, start)
     candidate = interview.application.candidate
     event_id, meet_url = await google_calendar.create_meet_event(
         db,
@@ -388,6 +411,7 @@ async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime)
     if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
         raise NotBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
+    await _require_available(db, interview, start)  # Google before the lock, as in book()
     await _lock_interviewer(db, interview.interviewer_user_id)
     # authoritative re-check under lock, same reasoning as book(); also
     # refreshes google_event_id so a concurrently-changed event id (e.g.
@@ -395,7 +419,7 @@ async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime)
     await db.refresh(interview, attribute_names=["status", "google_event_id"])
     if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
         raise NotBookedError
-    await _require_available(db, interview, start)
+    await _require_unbooked(db, interview, start)
     await google_calendar.patch_event_time(
         db,
         interview.interviewer,

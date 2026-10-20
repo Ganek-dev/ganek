@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+from app.core.security import read_interview_token
 from app.models import Application, Company, Interview, InterviewStatus, User
 from app.services import google_calendar
 from app.services import interviews as interviews_service
@@ -291,15 +292,14 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
     above, both of which drive their two `book()` calls sequentially and so
     never actually contend on the lock).
 
-    `google_calendar.freebusy` sleeps on every call. That sleep is what
-    makes the outcome prove the lock rather than luck of scheduling: with
-    the lock, the loser is genuinely blocked inside Postgres for the whole
-    sleep (it can't even start its own freebusy call until the winner
-    commits and releases the lock), and only sees the slot gone once it
-    resumes. Delete `_lock_interviewer` and the same sleep instead lets
-    BOTH callers' busy-window queries land while neither has committed yet
-    — the exact double-booking this test would then catch (two successes,
-    two Meet events) instead of passing by accident of execution order.
+    `google_calendar.freebusy` sleeps on every call, and since card A8 it
+    runs BEFORE the lock: both callers see the slot free at the same time,
+    then contend on `pg_advisory_xact_lock`. The winner books and commits;
+    the loser gets the lock afterwards and `_require_unbooked` finds the
+    winner's row. Delete `_lock_interviewer` (or the under-lock DB
+    re-check) and both commits land - two successes, two Meet events -
+    which is what this test would then catch instead of passing by
+    accident of execution order.
     """
     interviewer, company, application_one, application_two = await _two_applications(
         client, db_session
@@ -424,6 +424,44 @@ async def test_book_happy_path(
     again = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
     assert again.status_code == 409
     assert again.json()["detail"] == "already-booked"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+async def test_book_calls_google_before_taking_the_lock(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Card A8: the advisory lock's hold time must not include Google's
+    free/busy latency. Mock ordering proves it: free/busy is recorded
+    before the lock, and nothing asks Google for free/busy once the lock
+    is held (the under-lock re-check is DB-only)."""
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    order: list[str] = []
+    real_lock = interviews_service._lock_interviewer
+
+    async def freebusy(
+        db: AsyncSession, user: User, start: datetime, end: datetime
+    ) -> list[tuple[datetime, datetime]]:
+        order.append("freebusy")
+        return []
+
+    async def lock(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
+        order.append("lock")
+        await real_lock(db, interviewer_id)
+
+    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", freebusy)
+    monkeypatch.setattr(interviews_service, "_lock_interviewer", lock)
+
+    # the service directly: the public route recomputes live slots for its
+    # response after the commit, which is a legitimate post-lock Google call
+    interview_id = read_interview_token(token)
+    assert interview_id is not None
+    interview = await interviews_service.get_by_id_public(db_session, interview_id)
+    assert interview is not None
+    booked = await interviews_service.book(
+        db_session, interview, start=datetime.fromisoformat(slots[1])
+    )
+    assert booked.status is InterviewStatus.BOOKED
+    assert order == ["freebusy", "lock"]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
