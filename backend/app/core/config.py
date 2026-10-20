@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     lockout_window_seconds: int = 900  # 15 min
     quiz_network_grace_seconds: int = 2
     quiz_start_ttl_hours: int = 24
+    # Logging: "text" keeps the human-readable default; "json" emits one
+    # object per line for log shippers. Every line carries the request id.
+    log_format: Literal["text", "json"] = "text"
+    log_level: str = "INFO"
 
 
 settings = Settings()

@@ -21,14 +21,15 @@ from app.api import (
     health as health_api,
 )
 from app.core.config import settings
-from app.core.logcfg import install_access_log_scrubber
+from app.core.logcfg import configure_logging
+from app.core.requestid import RequestIdMiddleware
 from app.services.storage import ensure_bucket_async
 
 logger = logging.getLogger(__name__)
 
-# Before uvicorn logs a single request: capability tokens must not land
-# in access logs next to client IPs (GDPR G4).
-install_access_log_scrubber()
+# Before uvicorn logs a single request: one handler, request ids on every
+# line, capability tokens scrubbed from access lines (GDPR G4).
+configure_logging(json_logs=settings.log_format == "json", level=settings.log_level)
 
 
 @asynccontextmanager
@@ -86,6 +87,10 @@ app.include_router(questionnaires.router, prefix="/api/v1")
 app.include_router(questions.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+
+# added last = outermost, so the id covers every other middleware and the
+# access line uvicorn writes from inside send()
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.get("/api/health")

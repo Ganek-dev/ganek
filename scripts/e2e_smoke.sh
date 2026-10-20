@@ -67,6 +67,24 @@ expect 200 -X POST -H 'Content-Type: application/json' \
   "$BASE/api/v1/auth/login"
 expect 200 "$BASE/api/v1/auth/me"
 
+step "every response carries X-Request-ID and an inbound one is honoured"
+RID=$(curl -s -o /dev/null -D - "$BASE/api/health" | tr -d '\r' | awk 'tolower($1)=="x-request-id:" {print $2}')
+if [ -z "$RID" ]; then
+  echo "FAIL: no X-Request-ID response header"; exit 1
+fi
+ECHOED=$(curl -s -o /dev/null -D - -H 'X-Request-ID: smoke-trace-1' "$BASE/api/health" | tr -d '\r' | awk 'tolower($1)=="x-request-id:" {print $2}')
+if [ "$ECHOED" != "smoke-trace-1" ]; then
+  echo "FAIL: inbound X-Request-ID not echoed (got '$ECHOED')"; exit 1
+fi
+COMPOSE="${COMPOSE_CMD:-docker compose}"
+if [ -n "$($COMPOSE ps -q backend 2>/dev/null)" ]; then
+  sleep 1
+  if ! $COMPOSE logs backend --tail 200 2>/dev/null | grep -q "\[smoke-trace-1\] uvicorn.access"; then
+    echo "FAIL: backend access log line does not carry the request id"
+    $COMPOSE logs backend --tail 20; exit 1
+  fi
+fi
+
 step "deep health needs a session (the proxy is not loopback to the backend)"
 DEEP_ANON=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/health/deep")
 if [ "$DEEP_ANON" != "401" ]; then
