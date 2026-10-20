@@ -44,6 +44,11 @@ docker compose up
 # open http://localhost:3000 and follow the setup wizard
 ```
 
+The compose stack builds the images from source, which works on both x86-64
+and arm64 hosts (Apple Silicon, Graviton, Raspberry Pi 5). Pre-built images
+for `linux/amd64` and `linux/arm64` are also published on every release as
+`ghcr.io/ganek-dev/ganek-backend` and `ghcr.io/ganek-dev/ganek-frontend`.
+
 Ganek expects a **database of its own**. The bundled compose stack provides one
 (isolated volume, port not published). If you point Ganek at an existing
 postgres server instead, create a dedicated database for it and set
