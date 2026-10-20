@@ -81,9 +81,11 @@ def password_reset_url(company: Company, token: str) -> str:
     return f"{_base(company)}/reset?token={token}"
 
 
-def logo_url(company: Company, version: int) -> str:
-    """Absolute logo URL (Google Jobs JSON-LD needs one); ``version`` cache-busts."""
-    return f"{_base(company)}{API_PREFIX}/public/companies/{company.slug}/logo?v={version}"
+def logo_url(company: Company, digest: str) -> str:
+    """Absolute, immutable logo URL (Google Jobs JSON-LD needs an absolute
+    one): the content digest is in the path, so a replaced logo gets a new
+    URL and the old one can be cached for a year by any CDN or proxy."""
+    return f"{_base(company)}{API_PREFIX}/public/companies/{company.slug}/logo/{digest}"
 
 
 def google_oauth_redirect_uri() -> str:

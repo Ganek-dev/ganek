@@ -45,9 +45,9 @@ CASES: list[tuple[str, Builder, str, str]] = [
     ("reset", lambda c: urls.password_reset_url(c, "tok"), "/reset?token=tok", "/reset?token=tok"),
     (
         "logo",
-        lambda c: urls.logo_url(c, 42),
-        "/api/v1/public/companies/acme/logo?v=42",
-        "/api/v1/public/companies/acme/logo?v=42",
+        lambda c: urls.logo_url(c, "0123456789abcdef"),
+        "/api/v1/public/companies/acme/logo/0123456789abcdef",
+        "/api/v1/public/companies/acme/logo/0123456789abcdef",
     ),
 ]
 
