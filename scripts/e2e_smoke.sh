@@ -170,6 +170,19 @@ if $COMPOSE ps -q redis >/dev/null 2>&1 && [ -n "$($COMPOSE ps -q redis 2>/dev/n
   if [ "$DEEP_CODE" != "200" ]; then
     echo "FAIL: deep health did not recover after redis restart (last: $DEEP_CODE)"; exit 1
   fi
+
+  step "every long-running service reports healthy (compose healthchecks)"
+  # six services carry a healthcheck; migrate is a one-shot and has none
+  for _ in $(seq 1 40); do
+    PS=$($COMPOSE ps --format '{{.Service}} {{.Health}}' 2>/dev/null)
+    NOT_YET=$(printf '%s\n' "$PS" | grep -c -E "unhealthy|starting" || true)
+    HEALTHY=$(printf '%s\n' "$PS" | grep -c " healthy" || true)
+    if [ "$NOT_YET" = 0 ] && [ "$HEALTHY" -ge 6 ]; then break; fi
+    sleep 3
+  done
+  if [ "${NOT_YET:-1}" != 0 ] || [ "${HEALTHY:-0}" -lt 6 ]; then
+    echo "FAIL: not every service is healthy:"; printf '%s\n' "$PS"; exit 1
+  fi
 else
   echo "(skipped: no compose project with a redis service reachable from here)"
 fi

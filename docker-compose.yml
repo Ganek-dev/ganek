@@ -43,6 +43,9 @@ services:
     logging: *default-logging
     build: ./backend
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
+    # arq exits (code 1) when redis goes away; without this a redis blip
+    # silently ends nightly purges and queued email until someone notices
+    restart: unless-stopped
     env_file: .env
     environment:
       GANEK_DATABASE_URL: postgresql+asyncpg://ganek:${POSTGRES_PASSWORD:-ganek}@postgres:5432/ganek
@@ -71,6 +74,9 @@ services:
       BACKEND_URL: http://backend:8000
       # absolute URLs in sitemap.xml / robots.txt / OG metadata
       GANEK_PUBLIC_BASE_URL: ${GANEK_PUBLIC_BASE_URL:-http://localhost:3000}
+      # Next's standalone server binds to $HOSTNAME, which Docker sets to the
+      # container id, so nothing listens on 127.0.0.1 unless we say so
+      HOSTNAME: 0.0.0.0
     depends_on:
       backend: { condition: service_healthy }
     # alpine's busybox wget; /api/health goes through the proxy rewrite, so a
