@@ -6,6 +6,7 @@ from httpx import AsyncClient
 
 from app.core.config import settings
 from tests.db import database_reachable, s3_reachable
+from tests.helpers import upload_pdf
 
 pytestmark = pytest.mark.skipif(
     not (database_reachable() and s3_reachable()),
@@ -46,13 +47,7 @@ async def _company_with_applicant(
 
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    async with httpx.AsyncClient() as raw:
-        put = await raw.put(
-            ticket["upload_url"],
-            content=PDF_BYTES,
-            headers={"Content-Type": ticket["content_type"]},
-        )
-        assert put.status_code == 200
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
     resp = await client.post(
         f"{base}/apply",
@@ -162,14 +157,7 @@ async def test_admin_sees_quiz_results(client: AsyncClient) -> None:
 
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    async with httpx.AsyncClient() as raw:
-        assert (
-            await raw.put(
-                ticket["upload_url"],
-                content=PDF_BYTES,
-                headers={"Content-Type": ticket["content_type"]},
-            )
-        ).status_code == 200
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     resp = await client.post(
         f"{base}/apply",
         json={
@@ -236,14 +224,7 @@ async def test_admin_reviews_quiz_answers_with_integrity(client: AsyncClient) ->
 
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    async with httpx.AsyncClient() as raw:
-        assert (
-            await raw.put(
-                ticket["upload_url"],
-                content=PDF_BYTES,
-                headers={"Content-Type": ticket["content_type"]},
-            )
-        ).status_code == 200
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     resp = await client.post(
         f"{base}/apply",
         json={
@@ -428,13 +409,7 @@ async def test_list_paginates_and_counts_stages(client: AsyncClient) -> None:
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     for i in range(3):
         ticket = (await client.post(f"{base}/apply/upload-url")).json()
-        async with httpx.AsyncClient() as raw:
-            put = await raw.put(
-                ticket["upload_url"],
-                content=PDF_BYTES,
-                headers={"Content-Type": ticket["content_type"]},
-            )
-            assert put.status_code == 200
+        assert (await upload_pdf(ticket, PDF_BYTES)).is_success
         resp = await client.post(
             f"{base}/apply",
             json={

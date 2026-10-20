@@ -3,7 +3,6 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-import httpx
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
@@ -13,6 +12,7 @@ from app.core.config import settings
 from app.models import QuizAttempt
 from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
+from tests.helpers import upload_pdf
 
 pytestmark = pytest.mark.skipif(
     not (database_reachable() and s3_reachable()),
@@ -50,13 +50,7 @@ async def _publish_job_and_apply(
 
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    async with httpx.AsyncClient() as raw:
-        put = await raw.put(
-            ticket["upload_url"],
-            content=PDF_BYTES,
-            headers={"Content-Type": ticket["content_type"]},
-        )
-        assert put.status_code == 200
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     resp = await client.post(
         f"{base}/apply",
         json={

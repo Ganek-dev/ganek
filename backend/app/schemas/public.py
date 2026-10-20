@@ -91,7 +91,12 @@ class PublicCompanyPage(BaseModel):
 
 
 class CvUploadTicket(BaseModel):
+    """Presigned POST: send ``upload_fields`` plus the file (last) as
+    multipart/form-data to ``upload_url``. The signed policy caps the
+    size at ``max_size_mb``; the bucket rejects anything larger."""
+
     upload_url: str
+    upload_fields: dict[str, str]
     object_key: str
     content_type: str
     max_size_mb: int

@@ -237,6 +237,8 @@ export interface QuizPreview {
 
 export interface CvUploadTicket {
   upload_url: string;
+  /** Presigned POST policy fields; sent before the file as multipart/form-data. */
+  upload_fields: Record<string, string>;
   object_key: string;
   content_type: string;
   max_size_mb: number;
@@ -264,17 +266,23 @@ export const publicApply = {
         body: JSON.stringify(payload),
       },
     ),
-  /** PUT the CV to the presigned URL. Uses XHR so callers can observe upload
-   * progress (screen 03's mono % + progress bar); fetch has no upload events. */
+  /** POST the CV to the presigned URL as multipart/form-data (policy fields
+   * first, file last; the signed policy caps the size). Uses XHR so callers
+   * can observe upload progress (screen 03's mono % + progress bar); fetch
+   * has no upload events. */
   uploadCv: (
     ticket: CvUploadTicket,
     file: File,
     onProgress?: (fraction: number) => void,
   ): Promise<void> =>
     new Promise((resolve, reject) => {
+      const form = new FormData();
+      for (const [name, value] of Object.entries(ticket.upload_fields)) {
+        form.append(name, value);
+      }
+      form.append("file", file, file.name);
       const xhr = new XMLHttpRequest();
-      xhr.open("PUT", ticket.upload_url);
-      xhr.setRequestHeader("Content-Type", ticket.content_type);
+      xhr.open("POST", ticket.upload_url);
       if (onProgress) {
         xhr.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable && event.total > 0) {
@@ -284,12 +292,15 @@ export const publicApply = {
       }
       xhr.addEventListener("load", () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new ApiError(xhr.status, "CV upload failed — please try again"));
+        else if (xhr.status === 400 && /EntityTooLarge/.test(xhr.responseText)) {
+          // the bucket enforced the policy cap (client pre-check was bypassed)
+          reject(new ApiError(413, `Your CV exceeds the ${ticket.max_size_mb} MB limit.`));
+        } else reject(new ApiError(xhr.status, "CV upload failed - please try again"));
       });
       xhr.addEventListener("error", () =>
-        reject(new ApiError(0, "CV upload failed — please try again")),
+        reject(new ApiError(0, "CV upload failed - please try again")),
       );
-      xhr.send(file);
+      xhr.send(form);
     }),
 };
 

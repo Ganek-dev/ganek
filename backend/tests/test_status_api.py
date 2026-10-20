@@ -2,12 +2,12 @@
 
 from uuid import uuid4
 
-import httpx
 import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
 from tests.db import database_reachable, s3_reachable
+from tests.helpers import upload_pdf
 
 pytestmark = pytest.mark.skipif(
     not (database_reachable() and s3_reachable()),
@@ -44,13 +44,7 @@ async def _apply(
 
     base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
     ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    async with httpx.AsyncClient() as raw:
-        put = await raw.put(
-            ticket["upload_url"],
-            content=PDF_BYTES,
-            headers={"Content-Type": ticket["content_type"]},
-        )
-        assert put.status_code == 200
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
     resp = await client.post(
         f"{base}/apply",
         json={

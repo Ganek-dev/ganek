@@ -127,8 +127,22 @@ expect 200 -X POST "$BASE/api/v1/public/company/jobs/smoke-test-engineer/apply/u
 UPLOAD_URL=$(python3 -c "import json; print(json.load(open('$BODY'))['upload_url'])")
 OBJECT_KEY=$(python3 -c "import json; print(json.load(open('$BODY'))['object_key'])")
 printf '%%PDF-1.4 smoke cv' > /tmp/smoke-cv.pdf
-if ! curl -fsS -X PUT -H 'Content-Type: application/pdf' --data-binary @/tmp/smoke-cv.pdf "$UPLOAD_URL" -o /dev/null; then
+# presigned POST: policy fields first, the file last (S3 ignores fields after
+# it). One "--form-string" + "k=v" pair per line into an array: no eval, so
+# base64 policy values and the ";type=" file hint stay literal (bash 3.2 ok).
+FORM_ARGS=()
+while IFS= read -r line; do FORM_ARGS+=("$line"); done < <(
+  python3 -c "import json; t=json.load(open('$BODY')); [print('--form-string') or print(k + '=' + v) for k, v in t['upload_fields'].items()]"
+)
+if ! curl -fsS "${FORM_ARGS[@]}" -F 'file=@/tmp/smoke-cv.pdf;type=application/pdf' "$UPLOAD_URL" -o /dev/null; then
   echo "FAIL: presigned CV upload failed (is minio's public endpoint reachable?)"; exit 1
+fi
+
+step "the bucket refuses a CV above the size cap (policy, not the app)"
+head -c 11000000 /dev/zero > /tmp/smoke-huge.pdf
+HUGE_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${FORM_ARGS[@]}" -F 'file=@/tmp/smoke-huge.pdf;type=application/pdf' "$UPLOAD_URL")
+if [ "$HUGE_CODE" != "400" ]; then
+  echo "FAIL: 11 MB upload returned $HUGE_CODE, expected 400 (EntityTooLarge)"; exit 1
 fi
 expect 201 -X POST -H 'Content-Type: application/json' \
   -d "{\"name\":\"Smoke Candidate\",\"email\":\"candidate@smoke-e2e.dev\",\"cv_object_key\":\"$OBJECT_KEY\",\"cv_filename\":\"cv.pdf\"}" \
