@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     quota_emails_per_day: int = 500
     quota_applications_per_hour: int = 100
     quota_active_jobs: int = 50
+    # Logging: "text" keeps the human-readable default; "json" emits one
+    # object per line for log shippers. Every line carries the request id.
+    log_format: Literal["text", "json"] = "text"
+    log_level: str = "INFO"
 
 
 settings = Settings()
