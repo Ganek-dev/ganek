@@ -11,6 +11,13 @@
   diff touches - runtime-dependency changes warrant the full run.
 - `e2e_smoke.sh` - curl smoke suite against a running stack (used by
   CI and by `ci_local.sh`'s e2e stage).
+- `backup.sh [dir]` - Postgres custom-format dump + a tarball of the CV
+  bucket volume into one directory.
+- `restore.sh <db.dump> [cvs.tgz]` - erasure-aware restore: keeps the live
+  erasure tombstones, restores, migrates, merges the tombstones back and
+  replays them (`python -m app.services.tombstones`) so candidates erased
+  after the backup stay erased. Policy: docs/compliance
+  self-hosting guide, "Backups and erasure".
 - `migrate_dev_data_ganek.sh` - one-time migration of a pre-rename dev
   environment (vetd-* volumes, postgres role/db, minio bucket) to the
   ganek names. Copies volumes; the old ones stay behind as backups.

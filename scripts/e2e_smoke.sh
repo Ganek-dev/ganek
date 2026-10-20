@@ -165,6 +165,29 @@ if [ "$RL_CODE" != "429" ]; then
   echo "FAIL: 12 bad logins never hit the rate limit (last: $RL_CODE)"; exit 1
 fi
 
+step "backup, erase, restore: the erased candidate stays erased (tombstones)"
+# COMPOSE_CMD as below; CI and the release smoke use the default project
+COMPOSE="${COMPOSE_CMD:-docker compose}"
+if [ -n "$($COMPOSE ps -q postgres 2>/dev/null)" ]; then
+  BK_DIR="$(mktemp -d)"
+  COMPOSE_CMD="$COMPOSE" bash scripts/backup.sh "$BK_DIR" >/dev/null
+  expect 200 "$BASE/api/v1/applications"
+  APP_ID=$(python3 -c "import json,sys; d=json.load(open('$BODY')); items=d if isinstance(d, list) else d['items']; print(items[0]['id'])")
+  expect 200 -X POST "$BASE/api/v1/applications/$APP_ID/erase-candidate"
+  COMPOSE_CMD="$COMPOSE" bash scripts/restore.sh "$BK_DIR"/ganek-db-*.dump "$BK_DIR"/ganek-cvs-*.tgz >/dev/null
+  for _ in $(seq 1 30); do
+    curl -fsS -o /dev/null "$BASE/api/health" 2>/dev/null && curl -fsS -o /dev/null -b "$JAR" "$BASE/api/v1/auth/me" 2>/dev/null && break
+    sleep 2
+  done
+  expect 200 "$BASE/api/v1/applications"
+  if python3 -c "import json,sys; d=json.load(open('$BODY')); items=d if isinstance(d, list) else d['items']; sys.exit(0 if any(i['id']=='$APP_ID' for i in items) else 1)"; then
+    echo "FAIL: the erased application came back after restore"; cat "$BODY"; exit 1
+  fi
+  rm -rf "$BK_DIR"
+else
+  echo "(skipped: no compose project reachable from here)"
+fi
+
 step "deep health names redis when it is down (503)"
 # COMPOSE_CMD lets ci_local point at its -p ganek-e2e project; CI and the
 # release smoke run against the default project from the repo root.
