@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="GANEK_", env_file=".env", extra="ignore")
 
+    version: str = "0.1.0"  # the Sentry release tag; keep in step with the FastAPI title
     mode: Literal["single", "multi"] = "single"
     secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
     # Separate key for encrypting stored third-party secrets (Google refresh
@@ -67,6 +68,12 @@ class Settings(BaseSettings):
     # object per line for log shippers. Every line carries the request id.
     log_format: Literal["text", "json"] = "text"
     log_level: str = "INFO"
+    # Optional error reporting. Unset = nothing is initialised and nothing
+    # leaves the box. Events are scrubbed (emails, tokens, CV names, cookies)
+    # before they are sent; see app/core/observability.py.
+    sentry_dsn: str | None = None
+    sentry_environment: str | None = None
+    sentry_traces_sample_rate: float = 0.0
 
 
 settings = Settings()

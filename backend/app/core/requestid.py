@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from starlette.datastructures import Headers, MutableHeaders
 
+from app.core import observability
 from app.core.logcfg import request_id_var
 
 HEADER = "x-request-id"
@@ -49,6 +50,7 @@ class RequestIdMiddleware:
             await send(message)
 
         token = request_id_var.set(request_id)
+        observability.tag_request(request_id)
         try:
             await self.app(scope, receive, send_with_id)
         finally:
