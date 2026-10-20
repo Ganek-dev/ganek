@@ -138,6 +138,7 @@ async def anonymize_user(
     # so it runs before the tombstone transaction)
     await google_calendar.remove_credentials(db, user)
     user.email = f"deleted-{uuid.uuid4().hex}@invalid"  # emails are globally unique
+    user.display_name = None
     user.password_hash = None
     user.google_sub = None
     user.interview_availability = None  # creds are gone; no slot generation either way

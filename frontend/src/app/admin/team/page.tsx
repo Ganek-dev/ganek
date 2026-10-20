@@ -26,19 +26,21 @@ const AVATAR_PALETTE = [
 
 const ROLE_LABELS: Record<UserRole, string> = { admin: "Admin", member: "Member" };
 
-function displayName(email: string): string {
-  const local = email.split("@")[0];
+function displayName(user: { email: string; display_name?: string | null; display_label?: string }): string {
+  if (user.display_name) return user.display_name;
+  if (user.display_label) return user.display_label;
+  const local = user.email.split("@")[0];
   return (
     local
       .split(/[._-]+/)
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ") || email
+      .join(" ") || user.email
   );
 }
 
-function initials(email: string): string {
-  const name = displayName(email);
+function initials(user: { email: string; display_name?: string | null; display_label?: string }): string {
+  const name = displayName(user);
   const parts = name.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
@@ -267,12 +269,12 @@ export default function TeamPage() {
                     aria-hidden
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${tone.bg} ${tone.text}`}
                   >
-                    {initials(user.email)}
+                    {initials(user)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-semibold">
-                        {displayName(user.email)}
+                        {displayName(user)}
                       </span>
                       {!user.is_active ? (
                         <span className="inline-flex h-5 items-center rounded-full border border-edge bg-muted-fill px-2 text-[11px] font-medium text-g500">

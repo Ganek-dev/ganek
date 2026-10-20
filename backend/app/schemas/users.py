@@ -19,12 +19,20 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class ProfileUpdate(BaseModel):
+    """The signed-in user's own editable profile (card D14)."""
+
+    display_name: str | None = Field(default=None, max_length=100)
+
+
 class TeamUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     email: EmailStr
     role: UserRole
+    display_name: str | None = None
+    display_label: str = ""
     is_active: bool
     last_login_at: datetime | None
     created_at: datetime

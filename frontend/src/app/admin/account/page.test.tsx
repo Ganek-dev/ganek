@@ -19,6 +19,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: {
       ...original.api,
       changePassword: vi.fn(),
+      updateProfile: vi.fn(),
       me: vi.fn(),
       providers: vi.fn(),
       googleCalendar: { status: vi.fn(), disconnect: vi.fn() },
@@ -150,5 +151,34 @@ describe("AccountPage", () => {
     expect(await screen.findByText(/You sign in with Google/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Update password" })).not.toBeInTheDocument();
+  });
+
+  it("saves the display name and shows the server's label as the placeholder", async () => {
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: true,
+      role: "admin",
+      display_name: null,
+      display_label: "Grumpy Miner",
+    });
+    mocked.updateProfile.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: true,
+      role: "admin",
+      display_name: "The Miner",
+      display_label: "The Miner",
+    });
+    render(<AccountPage />);
+    // the placeholder is the server's label, so it appears once api.me() resolved
+    const field = await screen.findByPlaceholderText("Grumpy Miner");
+    expect(field).toBe(screen.getByLabelText("Display name"));
+    await userEvent.type(field, "The Miner");
+    await userEvent.click(screen.getByRole("button", { name: "Save name" }));
+    await waitFor(() => expect(mocked.updateProfile).toHaveBeenCalledWith("The Miner"));
+    expect(await screen.findByRole("button", { name: "Saved" })).toBeInTheDocument();
   });
 });

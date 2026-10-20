@@ -17,7 +17,11 @@ const inputCls =
   "h-9 w-full rounded-md border border-edge bg-transparent px-3 text-sm outline-none focus:border-g400";
 const labelCls = "text-[13px] font-medium";
 
-function initials(email: string): string {
+function initials(email: string, displayName?: string | null): string {
+  if (displayName?.trim()) {
+    const parts = displayName.trim().split(/\s+/);
+    return (parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2)).toUpperCase();
+  }
   const local = email.split("@")[0];
   const parts = local.split(/[._-]+/).filter(Boolean);
   const source = parts.length >= 2 ? parts[0][0] + parts[1][0] : local.slice(0, 2);
@@ -45,6 +49,8 @@ function AccountContent() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameSaved, setNameSaved] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
 
@@ -71,6 +77,21 @@ function AccountContent() {
         /* card renders the disconnected state */
       });
   }, []);
+
+  async function saveName(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = String(new FormData(event.currentTarget).get("display_name") ?? "").trim();
+    setNameBusy(true);
+    setNameSaved(false);
+    try {
+      setUser(await api.updateProfile(value || null));
+      setNameSaved(true);
+    } catch {
+      /* the field keeps the typed value; a retry re-submits */
+    } finally {
+      setNameBusy(false);
+    }
+  }
 
   async function disconnectCalendar() {
     try {
@@ -118,7 +139,7 @@ function AccountContent() {
             className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full text-lg font-bold text-accent"
             style={{ background: "color-mix(in oklab, var(--accent) 15%, var(--surface))" }}
           >
-            {user ? initials(user.email) : "· ·"}
+            {user ? initials(user.email, user.display_name) : "· ·"}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Profile</p>
@@ -132,6 +153,27 @@ function AccountContent() {
             </span>
           ) : null}
         </div>
+        <form onSubmit={saveName} className="flex flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3">
+          <label className="flex flex-1 flex-col gap-1.5">
+            <span className={labelCls}>Display name</span>
+            <input
+              key={user?.id ?? "anon"}
+              name="display_name"
+              type="text"
+              maxLength={100}
+              defaultValue={user?.display_name ?? ""}
+              placeholder={user?.display_label ?? ""}
+              className={inputCls}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={nameBusy || !user}
+            className="inline-flex h-9 items-center rounded-md border border-edge px-3.5 text-[13px] font-medium hover:bg-muted-fill/50 disabled:opacity-50"
+          >
+            {nameBusy ? "…" : nameSaved ? "Saved" : "Save name"}
+          </button>
+        </form>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Email</span>

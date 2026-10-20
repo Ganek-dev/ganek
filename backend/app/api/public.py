@@ -819,8 +819,7 @@ async def _interview_public(
     db: DbSession, interview: Interview, company: Company
 ) -> InterviewPublicOut:
     candidate = interview.application.candidate
-    # users carry no display name yet — the email local part is the best we have
-    display = interview.interviewer.email.split("@")[0].replace(".", " ").replace("_", " ").title()
+    display = interview.interviewer.display_label  # display name, else email local part
     booked = interview.status is InterviewStatus.BOOKED
     return InterviewPublicOut(
         company_name=company.name,
