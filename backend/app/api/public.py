@@ -220,8 +220,10 @@ async def single_jobs_feed(company: SingleCompany, db: DbSession, response: Resp
 
 def _upload_ticket(company: Company) -> CvUploadTicket:
     object_key = storage.build_cv_key(company.id)
+    upload_url, upload_fields = storage.presign_cv_upload(object_key)
     return CvUploadTicket(
-        upload_url=storage.presign_cv_upload(object_key),
+        upload_url=upload_url,
+        upload_fields=upload_fields,
         object_key=object_key,
         content_type=storage.CV_CONTENT_TYPE,
         max_size_mb=settings.cv_max_size_mb,

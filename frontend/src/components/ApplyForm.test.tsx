@@ -34,7 +34,8 @@ describe("ApplyForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.uploadTicket.mockResolvedValue({
-      upload_url: "http://minio.test/put",
+      upload_url: "http://minio.test/ganek-cvs",
+      upload_fields: { key: "cvs/co/abc.pdf", policy: "p", "Content-Type": "application/pdf" },
       object_key: "cvs/co/abc.pdf",
       content_type: "application/pdf",
       max_size_mb: 10,
