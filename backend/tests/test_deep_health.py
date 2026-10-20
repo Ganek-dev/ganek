@@ -143,8 +143,13 @@ class FakeRedis:
     def __init__(self) -> None:
         self.store: dict[str, tuple[str, int | None]] = {}
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> None:
+    async def set(
+        self, key: str, value: str, ex: int | None = None, nx: bool = False
+    ) -> bool | None:
+        if nx and key in self.store:
+            return None  # redis-py: SET NX on an existing key answers nil
         self.store[key] = (value, ex)
+        return True
 
 
 async def test_worker_heartbeat_writes_expiring_key() -> None:

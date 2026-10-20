@@ -43,6 +43,9 @@ from app.services import retention as retention_service
 
 logger = logging.getLogger(__name__)
 
+# a purge claim outlives the longest plausible run but not the next night's tick
+PURGE_CLAIM_TTL_SECONDS = 20 * 3600
+
 
 async def startup(ctx: dict[str, Any]) -> None:
     # after arq applied its own logging config: same format and handler as the API
@@ -64,6 +67,31 @@ async def _mark(ctx: dict[str, Any], key: str, *, ttl_seconds: int | None = None
         await redis.set(key, datetime.now(UTC).isoformat(), ex=ttl_seconds)
     except Exception:  # noqa: BLE001 - bookkeeping only
         logger.warning("could not write %s", key, exc_info=True)
+
+
+async def _claim_run(ctx: dict[str, Any], name: str, *, now: datetime, ttl_seconds: int) -> bool:
+    """Cross-worker cron dedupe (card A8): the first worker to claim ``name``
+    for today's run wins, the others skip.
+
+    arq already dedupes a cron tick through its unique job id when every
+    worker agrees on the minute; this covers skewed clocks, restarts that
+    replay a missed tick, and operators who scale ``worker`` freely. No
+    Redis in ctx (direct job calls in tests) or a Redis error means run
+    anyway: a double purge is idempotent and merely wasteful, a skipped
+    purge breaks the notice's retention promise.
+    """
+    redis = ctx.get("redis")
+    if redis is None:
+        return True
+    key = f"ganek:cron:{name}:{now.date().isoformat()}"
+    try:
+        claimed = await redis.set(key, now.isoformat(), nx=True, ex=ttl_seconds)
+    except Exception:  # noqa: BLE001 - bookkeeping only
+        logger.warning("could not claim %s; running anyway", key, exc_info=True)
+        return True
+    if not claimed:
+        logger.info("%s already ran today on another worker; skipping", name)
+    return bool(claimed)
 
 
 async def heartbeat(ctx: dict[str, Any]) -> None:
@@ -159,9 +187,13 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
 
 async def purge_retention(ctx: dict[str, Any]) -> None:
     """Nightly Art. 5(1)(e) enforcement — the notice's retention promise,
-    kept. Per-company windows, hired excluded, failures retried next night."""
+    kept. Per-company windows, hired excluded, failures retried next night.
+    Runs once per day across however many workers are up."""
+    now = datetime.now(UTC)
+    if not await _claim_run(ctx, "purge_retention", now=now, ttl_seconds=PURGE_CLAIM_TTL_SECONDS):
+        return
     async with ctx["session_factory"]() as db:
-        summary = await retention_service.run_purge(db, now=datetime.now(UTC))
+        summary = await retention_service.run_purge(db, now=now)
     logger.info("retention purge: %s", summary)
     await _mark(ctx, health_service.LAST_PURGE_KEY)
 
