@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     mailjet_api_key: str | None = None
     mailjet_secret_key: str | None = None
 
+    # Basic-auth password for the provider's bounce/complaint webhook
+    # (api/email_webhooks.py); unset = webhooks off (401)
+    email_webhook_secret: str | None = None
+
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

@@ -30,7 +30,13 @@ const STATUS_META: Record<
     label: (row) => (row.attempts > 0 ? `retrying (attempt ${row.attempts})` : "queued"),
   },
   failed: { dot: "bg-red-500", label: () => "failed" },
+  // card A7: provider feedback after the send, and the skip it causes
+  bounced: { dot: "bg-red-500", label: () => "bounced" },
+  complained: { dot: "bg-red-500", label: () => "marked as spam" },
+  suppressed: { dot: "bg-amber-500", label: () => "skipped: address suppressed" },
 };
+
+const NOT_DELIVERED = new Set<EmailDelivery["status"]>(["failed", "bounced", "complained"]);
 
 export function EmailTrailCard({ applicationId }: { applicationId: string }) {
   const [rows, setRows] = useState<EmailDelivery[] | null>(null);
@@ -51,7 +57,7 @@ export function EmailTrailCard({ applicationId }: { applicationId: string }) {
   }, [applicationId]);
 
   if (rows === null || rows.length === 0) return null;
-  const failed = rows.filter((row) => row.status === "failed").length;
+  const failed = rows.filter((row) => NOT_DELIVERED.has(row.status)).length;
 
   return (
     <div className="card mt-5 p-4">
@@ -82,7 +88,9 @@ export function EmailTrailCard({ applicationId }: { applicationId: string }) {
       </ul>
       {failed > 0 ? (
         <p className="mt-2 text-[11.5px] text-red-600 dark:text-red-400">
-          {rows.find((row) => row.status === "failed")?.last_error === "Email not configured"
+          {rows.some((row) => row.status === "bounced" || row.status === "complained")
+            ? "The provider reported a bounce or a spam complaint - that address is now skipped. Reach the candidate another way."
+            : rows.find((row) => row.status === "failed")?.last_error === "Email not configured"
             ? "Email is not configured on this instance — nothing is being delivered."
             : "Delivery failed after retries — check your email settings and use the test send on Settings → Privacy."}
         </p>

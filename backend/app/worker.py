@@ -187,6 +187,13 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
             row.last_error = "Email not configured"
             await db.commit()
             return
+        skip = await outbox_service.suppressed_for(db, row)
+        if skip is not None:
+            # card A7: the address bounced or complained; no provider call
+            row.status = EmailStatus.SUPPRESSED
+            row.last_error = skip
+            await db.commit()
+            return
         row.attempts += 1
         try:
             outbox_service.dispatch(row)

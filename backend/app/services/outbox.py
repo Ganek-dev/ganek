@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import queue
 from app.models import Company, EmailOutbox, EmailStatus
 from app.services import email as email_service
-from app.services import quotas
+from app.services import quotas, suppression
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,12 @@ async def queue_email(
     # reissue endpoints pre-check it and answer 429 at the limit
     await quotas.count(Company(id=company_id), quotas.EMAILS)
     if EAGER_DELIVERY_FOR_TESTS:
+        skip = await suppressed_for(db, row)
+        if skip is not None:
+            row.status = EmailStatus.SUPPRESSED
+            row.last_error = skip
+            await db.commit()
+            return row
         try:
             dispatch(row)
         except Exception:  # noqa: BLE001 - mirrors the old BackgroundTasks swallow
@@ -105,10 +111,24 @@ async def queue_email(
     return row
 
 
+async def suppressed_for(db: AsyncSession, row: EmailOutbox) -> str | None:
+    """The skip reason when the row's recipient is on the suppression list
+    (card A7): bounced or complaining addresses get no further mail."""
+    to = row.payload.get("to")
+    if not isinstance(to, str) or not to:
+        return None
+    entry = await suppression.lookup(db, to)
+    return suppression.skip_message(entry) if entry is not None else None
+
+
 def dispatch(row: EmailOutbox) -> None:
-    """Actually send one outbox row (sync SMTP). Raises on transport errors."""
+    """Actually send one outbox row (sync transport). Raises on transport errors."""
     sender: Callable[..., None] = getattr(email_service, SENDER_NAMES[row.kind])
-    sender(**_deserialize(row.payload))
+    token = email_service.current_outbox_id.set(str(row.id))
+    try:
+        sender(**_deserialize(row.payload))
+    finally:
+        email_service.current_outbox_id.reset(token)
 
 
 async def stuck_rows(

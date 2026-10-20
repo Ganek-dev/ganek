@@ -14,6 +14,11 @@ class EmailStatus(enum.StrEnum):
     QUEUED = "queued"
     SENT = "sent"
     FAILED = "failed"
+    # card A7: skipped because the address is on the suppression list
+    SUPPRESSED = "suppressed"
+    # card A7: the provider reported a hard bounce / block, or a complaint
+    BOUNCED = "bounced"
+    COMPLAINED = "complained"
 
 
 class EmailOutbox(UUIDPrimaryKeyMixin, TimestampMixin, Base):
