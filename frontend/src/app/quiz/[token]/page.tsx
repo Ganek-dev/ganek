@@ -15,6 +15,8 @@ import {
 } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
 
+import { Captcha, isCaptchaError } from "@/components/Captcha";
+
 /** Quiz exam surface (screens 05 / 26b): countdown ring above the stem,
  * A–D option cards, explicit lock step, keyboard controls. Layout is fixed
  * per question — integrity telemetry records resize, so nothing may shift
@@ -178,6 +180,8 @@ export default function QuizPage() {
   const [reissueState, setReissueState] = useState<
     "idle" | "busy" | "emailed" | "notified" | "already"
   >("idle");
+  const [altcha, setAltcha] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState<ReturnType<typeof isCaptchaError>>(null);
   const advancedFor = useRef<string | null>(null);
 
   const remainingMs = useCountdownMs(question?.deadline_at ?? null);
@@ -355,11 +359,14 @@ export default function QuizPage() {
     const requestLink = async () => {
       setReissueState("busy");
       try {
-        const result = await publicQuiz.requestReissue(token);
+        const result = await publicQuiz.requestReissue(token, altcha);
         setReissueState(result.reissued ? "emailed" : "notified");
       } catch (err) {
         if (err instanceof ApiError && err.status === 409) setReissueState("already");
-        else setReissueState("idle");
+        else {
+          setCaptchaError(err instanceof Error ? isCaptchaError(err.message) : null);
+          setReissueState("idle");
+        }
       }
     };
     return (
@@ -397,14 +404,19 @@ export default function QuizPage() {
               A new link was already issued — check your inbox.
             </p>
           ) : (
-            <button
-              type="button"
-              disabled={reissueState === "busy"}
-              onClick={requestLink}
+            <>
+              <div className="mx-auto max-w-[420px] text-left">
+                <Captcha onChange={setAltcha} error={captchaError} />
+              </div>
+              <button
+                type="button"
+                disabled={reissueState === "busy"}
+                onClick={requestLink}
               className="mt-6 inline-flex h-10 items-center rounded-lg border-[1.5px] border-edge bg-surface px-5 text-[14px] font-semibold text-foreground hover:bg-muted-fill disabled:opacity-50"
             >
-              {reissueState === "busy" ? "…" : "Request a new link"}
-            </button>
+                {reissueState === "busy" ? "…" : "Request a new link"}
+              </button>
+            </>
           )}
         </div>
       </main>

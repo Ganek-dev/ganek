@@ -276,7 +276,7 @@ describe("QuizPage", () => {
     mocked.requestReissue.mockResolvedValue({ reissued: true });
     render(<QuizPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Request a new link" }));
-    await waitFor(() => expect(mocked.requestReissue).toHaveBeenCalledWith("tok-123"));
+    await waitFor(() => expect(mocked.requestReissue).toHaveBeenCalledWith("tok-123", null));
     expect(await screen.findByRole("status")).toHaveTextContent(
       "A fresh link is on its way — check your inbox.",
     );

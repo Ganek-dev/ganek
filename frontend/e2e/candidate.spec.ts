@@ -14,6 +14,22 @@ const CANDIDATE_NAME = "Goldie Path";
 const candidateEmail = `e2e-candidate-${Date.now()}@e2e.ganek.dev`;
 
 test("candidate applies, takes the quiz, and lands on the status page", async ({ page }) => {
+  // Candidate pages are tracker-free by rule: every request this journey
+  // makes must go to the app itself or to the presigned CV upload host.
+  const allowedHosts = new Set(
+    [
+      process.env.E2E_BASE_URL ?? "http://localhost:3000",
+      process.env.GANEK_S3_PUBLIC_ENDPOINT_URL ?? "http://localhost:9000",
+    ].map((url) => new URL(url).host),
+  );
+  const foreignRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.protocol.startsWith("http") && !allowedHosts.has(url.host)) {
+      foreignRequests.push(request.url());
+    }
+  });
+
   await test.step("careers page lists the job (SSR, single mode)", async () => {
     await page.goto("/");
     await expect(page.getByText(COMPANY_NAME).first()).toBeVisible();
@@ -71,5 +87,9 @@ test("candidate applies, takes the quiz, and lands on the status page", async ({
     await expect(page.getByText("Assessment completed")).toBeVisible();
     await expect(page.getByText("Under review")).toBeVisible();
     await expect(page.getByText("Your data", { exact: true })).toBeVisible();
+  });
+
+  await test.step("no third-party requests on candidate pages", async () => {
+    expect(foreignRequests, "candidate pages must not talk to third parties").toEqual([]);
   });
 });

@@ -76,6 +76,7 @@ describe("SetupPage", () => {
         company_name: "Acme Labs",
         email: "grumpy@acmelabs.io",
         password: "correct-horse-battery",
+        altcha: null,
       }),
     );
     expect(push).toHaveBeenCalledWith("/admin");

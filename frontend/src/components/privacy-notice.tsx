@@ -193,6 +193,9 @@ export function PrivacyNotice({
             <li className={liCls}>
               <span className={termCls}>No trackers</span> — this careers site sets no
               cookies and runs no analytics.
+              {notice.captcha_enabled
+                ? " Before a form submits, a short automated check (ALTCHA proof-of-work) runs in your browser to keep bots out; it is self-hosted, uses no cookies and sends nothing to a third party."
+                : null}
             </li>
             <li className={liCls}>
               <span className={termCls}>No silent deletion of your say</span> — withdrawing

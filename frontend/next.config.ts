@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       `connect-src 'self' ${cvUploadOrigin}`,
+      // the bundled ALTCHA widget runs its proof-of-work in a blob: worker
+      "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

@@ -133,7 +133,12 @@ export interface AvailabilityIn {
 }
 
 export const api = {
-  register: (payload: { company_name: string; email: string; password: string }) =>
+  register: (payload: {
+    company_name: string;
+    email: string;
+    password: string;
+    altcha?: string | null;
+  }) =>
     request<UserOut>("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -253,6 +258,8 @@ export interface ApplicationPayload {
   portfolio: string | null;
   cv_object_key: string;
   cv_filename: string;
+  /** solved proof-of-work payload; only when the instance renders the widget */
+  altcha?: string | null;
 }
 
 export const publicApply = {
@@ -691,9 +698,10 @@ export const publicQuiz = {
     }),
   /** Expired-link screen (27c): ask for a fresh link. reissued=true means a
    * new link was auto-emailed; false means the team was notified. */
-  requestReissue: (token: string) =>
+  requestReissue: (token: string, altcha?: string | null) =>
     request<{ reissued: boolean }>(`/api/v1/public/quiz/${token}/request-reissue`, {
       method: "POST",
+      body: JSON.stringify({ altcha: altcha ?? null }),
     }),
 };
 
