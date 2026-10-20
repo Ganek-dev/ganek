@@ -89,7 +89,14 @@ async def test_applications_per_hour_429_and_one_activity_entry(
     slug, job_slug, company_id, _ = await _company_with_job(client)
     await client.post("/api/v1/auth/logout")
     apply_url = f"/api/v1/public/companies/{slug}/jobs/{job_slug}/apply"
-    bogus = {"name": "x", "email": "x@ganek-ci.dev", "cv_object_key": "nope", "cv_filename": "a"}
+    # passes schema validation, fails the CV check inside the route (422), so
+    # the guard runs on every attempt without uploading anything
+    bogus = {
+        "name": "Quota Probe",
+        "email": "probe@ganek-ci.dev",
+        "cv_object_key": f"cvs/{uuid4()}/missing.pdf",
+        "cv_filename": "cv.pdf",
+    }
 
     # every attempt counts, successful or not
     statuses = [(await client.post(apply_url, json=bogus)).status_code for _ in range(5)]
