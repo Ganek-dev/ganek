@@ -14,6 +14,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       activity: vi.fn(),
       today: vi.fn(),
       tasks: { list: vi.fn(), create: vi.fn(), toggle: vi.fn(), remove: vi.fn() },
+      queue: { list: vi.fn(), dismiss: vi.fn() },
     },
   };
 });
@@ -61,10 +62,86 @@ describe("TodayPanel", () => {
   });
 });
 
+const QUEUE_ITEMS = [
+  {
+    key: "job-quiz:j2",
+    kind: "job-quiz" as const,
+    title: "Add a quiz to SRE",
+    hint: "Published without screening",
+    href: "/admin/jobs/j2",
+    since: null,
+  },
+  {
+    key: "integrity:a1",
+    kind: "integrity" as const,
+    title: "Review quiz flags: Marta Vidal",
+    hint: "SRE · left the tab 3x (~40s)",
+    href: "/admin/applicants/app1",
+    since: "2026-10-21T08:00:00Z",
+  },
+  {
+    key: "unbooked:i1",
+    kind: "unbooked" as const,
+    title: "Awaiting booking: Tomas Hruby",
+    hint: "SRE · Hiring manager interview",
+    href: "/admin/applicants/app2",
+    since: "2026-10-20T08:00:00Z",
+  },
+];
+
 describe("QueuePanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.tasks.list.mockResolvedValue([]);
+    mocked.queue.list.mockResolvedValue({ items: [] });
+  });
+
+  it("lists the backend's derived items with links into the admin screens", async () => {
+    mocked.queue.list.mockResolvedValue({ items: QUEUE_ITEMS });
+    render(<QueuePanel overview={OVERVIEW} />);
+    expect(await screen.findByText("Add a quiz to SRE")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Add a quiz to SRE/ })).toHaveAttribute(
+      "href",
+      "/admin/jobs/j2",
+    );
+    expect(screen.getByRole("link", { name: /Review quiz flags: Marta Vidal/ })).toHaveAttribute(
+      "href",
+      "/admin/applicants/app1",
+    );
+    expect(screen.getByRole("link", { name: /Awaiting booking: Tomas Hruby/ })).toHaveAttribute(
+      "href",
+      "/admin/applicants/app2",
+    );
+    // 1 new-applicants item + 3 derived
+    expect(screen.getByText("4 open")).toBeInTheDocument();
+  });
+
+  it("dismisses a derived item optimistically and tells the backend", async () => {
+    mocked.queue.list.mockResolvedValue({ items: QUEUE_ITEMS });
+    mocked.queue.dismiss.mockResolvedValue(undefined);
+    render(<QueuePanel overview={OVERVIEW} />);
+    await screen.findByText("Add a quiz to SRE");
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss: Add a quiz to SRE" }));
+    expect(screen.queryByText("Add a quiz to SRE")).not.toBeInTheDocument();
+    expect(mocked.queue.dismiss).toHaveBeenCalledWith("job-quiz:j2");
+    expect(screen.getByText("3 open")).toBeInTheDocument();
+  });
+
+  it("reloads the queue when a dismissal fails", async () => {
+    mocked.queue.list.mockResolvedValue({ items: [QUEUE_ITEMS[0]] });
+    mocked.queue.dismiss.mockRejectedValue(new Error("boom"));
+    render(<QueuePanel overview={OVERVIEW} />);
+    await screen.findByText("Add a quiz to SRE");
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss: Add a quiz to SRE" }));
+    await waitFor(() => expect(mocked.queue.list).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Add a quiz to SRE")).toBeInTheDocument();
+  });
+
+  it("keeps the panel usable when the queue request fails", async () => {
+    mocked.queue.list.mockRejectedValue(new Error("offline"));
+    render(<QueuePanel overview={OVERVIEW} />);
+    expect(await screen.findByText("Review 7 new applicants")).toBeInTheDocument();
+    expect(screen.getByText("1 open")).toBeInTheDocument();
   });
 
   it("derives review items from per-job new counts", async () => {

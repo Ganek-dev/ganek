@@ -5,11 +5,19 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Interview, InterviewStatus, User
+from app.models import (
+    Application,
+    AttemptStatus,
+    Interview,
+    InterviewStatus,
+    Job,
+    QuizAttempt,
+    User,
+)
 from app.services import google_calendar
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
@@ -189,3 +197,200 @@ async def test_today_empty_without_anything(client: AsyncClient) -> None:
     await _company_with_applicant(client)
     body = (await client.get("/api/v1/stats/today")).json()
     assert body == {"source": "ganek", "events": []}
+
+
+async def _queue_keys(client: AsyncClient) -> list[str]:
+    resp = await client.get("/api/v1/stats/queue")
+    assert resp.status_code == 200, resp.text
+    return [item["key"] for item in resp.json()["items"]]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_queue_published_job_without_quiz(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, _, _ = await _company_with_applicant(client)
+    job_id = (
+        await db_session.execute(select(Application.job_id).where(Application.id == application_id))
+    ).scalar_one()
+
+    items = (await client.get("/api/v1/stats/queue")).json()["items"]
+    assert [item["key"] for item in items] == [f"job-quiz:{job_id}"]
+    assert items[0]["kind"] == "job-quiz"
+    assert items[0]["title"] == "Add a quiz to Backend Engineer"
+    assert items[0]["href"] == f"/admin/jobs/{job_id}"
+
+    # a draft never nags; neither does a job once its quiz is on
+    await db_session.execute(
+        update(Job)
+        .where(Job.id == job_id)
+        .values(quiz_config={"enabled": True, "tags": ["python"], "question_count": 2})
+    )
+    await db_session.commit()
+    assert await _queue_keys(client) == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_queue_integrity_flags_until_reviewed(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, _, _ = await _company_with_applicant(client)
+    application = (
+        await db_session.execute(select(Application).where(Application.id == application_id))
+    ).scalar_one()
+    await db_session.execute(
+        update(Job)
+        .where(Job.id == application.job_id)
+        .values(quiz_config={"enabled": True, "tags": ["python"], "question_count": 2})
+    )
+    now = datetime.now(UTC)
+    attempt = QuizAttempt(
+        company_id=application.company_id,
+        application_id=application.id,
+        status=AttemptStatus.COMPLETED,
+        question_ids=["q1", "q2"],
+        started_at=now - timedelta(minutes=3),
+        completed_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        score=0.5,
+        integrity={
+            "flags": [
+                {"code": "tab_hidden", "summary": "left the tab 3x (~40s)"},
+                {"code": "paste", "summary": "paste detected x1"},
+            ]
+        },
+    )
+    db_session.add(attempt)
+    await db_session.commit()
+
+    items = (await client.get("/api/v1/stats/queue")).json()["items"]
+    assert [item["key"] for item in items] == [f"integrity:{attempt.id}"]
+    assert items[0]["title"] == "Review quiz flags: Marta Vidal"
+    assert items[0]["hint"] == "Backend Engineer · left the tab 3x (~40s) · paste detected x1"
+    assert items[0]["href"] == f"/admin/applicants/{application_id}"
+
+    # "looks fine" on the applicant screen resolves it
+    resp = await client.post(f"/api/v1/applications/{application_id}/quiz/dismiss-flags")
+    assert resp.status_code == 200, resp.text
+    assert await _queue_keys(client) == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_queue_flags_ignored_once_application_closed(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, _, _ = await _company_with_applicant(client)
+    application = (
+        await db_session.execute(select(Application).where(Application.id == application_id))
+    ).scalar_one()
+    await db_session.execute(
+        update(Job).where(Job.id == application.job_id).values(quiz_config={"enabled": True})
+    )
+    now = datetime.now(UTC)
+    db_session.add(
+        QuizAttempt(
+            company_id=application.company_id,
+            application_id=application.id,
+            status=AttemptStatus.COMPLETED,
+            question_ids=["q1"],
+            completed_at=now,
+            expires_at=now + timedelta(days=1),
+            integrity={"flags": [{"code": "very_fast", "summary": "answered very fast"}]},
+        )
+    )
+    await db_session.commit()
+    assert len(await _queue_keys(client)) == 1
+
+    resp = await client.patch(
+        f"/api/v1/applications/{application_id}/stage",
+        json={"stage": "rejected", "notify_candidate": False},
+    )
+    assert resp.status_code == 200, resp.text
+    assert await _queue_keys(client) == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_queue_unbooked_interview_until_booked(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, admin_id, _ = await _company_with_applicant(client)
+    application = (
+        await db_session.execute(select(Application).where(Application.id == application_id))
+    ).scalar_one()
+    await db_session.execute(
+        update(Job).where(Job.id == application.job_id).values(quiz_config={"enabled": True})
+    )
+    interview = Interview(
+        company_id=application.company_id,
+        application_id=application.id,
+        interviewer_user_id=admin_id,
+        duration_minutes=30,
+        timezone="UTC",
+        status=InterviewStatus.PENDING,
+    )
+    db_session.add(interview)
+    await db_session.commit()
+
+    items = (await client.get("/api/v1/stats/queue")).json()["items"]
+    assert [item["key"] for item in items] == [f"unbooked:{interview.id}"]
+    assert items[0]["title"] == "Awaiting booking: Marta Vidal"
+    assert items[0]["hint"] == "Backend Engineer · Hiring manager interview"
+    assert items[0]["href"] == f"/admin/applicants/{application_id}"
+
+    interview.status = InterviewStatus.BOOKED
+    interview.scheduled_start = datetime.now(UTC) + timedelta(days=1)
+    await db_session.commit()
+    assert await _queue_keys(client) == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_queue_dismiss_is_per_user_and_pruned(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, admin_id, _ = await _company_with_applicant(client)
+    job_id = (
+        await db_session.execute(select(Application.job_id).where(Application.id == application_id))
+    ).scalar_one()
+    key = f"job-quiz:{job_id}"
+    assert await _queue_keys(client) == [key]
+
+    resp = await client.post("/api/v1/stats/queue/dismiss", json={"key": key})
+    assert resp.status_code == 204, resp.text
+    assert await _queue_keys(client) == []
+    # idempotent; a key the server never produced is refused
+    assert (await client.post("/api/v1/stats/queue/dismiss", json={"key": key})).status_code == 204
+    resp = await client.post("/api/v1/stats/queue/dismiss", json={"key": "job-quiz:nope"})
+    assert resp.status_code == 404
+    stored = (
+        await db_session.execute(select(User.queue_dismissed).where(User.id == admin_id))
+    ).scalar_one()
+    assert stored == [key]
+
+    # the item resolves (quiz enabled): the stale key leaves the user row,
+    # so switching the quiz off again surfaces the item once more
+    await db_session.execute(
+        update(Job).where(Job.id == job_id).values(quiz_config={"enabled": True})
+    )
+    await db_session.commit()
+    assert await _queue_keys(client) == []
+    stored = (
+        await db_session.execute(select(User.queue_dismissed).where(User.id == admin_id))
+    ).scalar_one()
+    assert stored is None
+    await db_session.execute(
+        update(Job).where(Job.id == job_id).values(quiz_config={"enabled": False})
+    )
+    await db_session.commit()
+    assert await _queue_keys(client) == [key]
+
+    # another company sees nothing of this one, and cannot dismiss its keys
+    await client.post("/api/v1/auth/logout")
+    other_application_id, _, _ = await _company_with_applicant(client)
+    other_job_id = (
+        await db_session.execute(
+            select(Application.job_id).where(Application.id == other_application_id)
+        )
+    ).scalar_one()
+    assert await _queue_keys(client) == [f"job-quiz:{other_job_id}"]
+    resp = await client.post("/api/v1/stats/queue/dismiss", json={"key": key})
+    assert resp.status_code == 404

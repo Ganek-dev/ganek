@@ -924,10 +924,30 @@ export interface TodayPanelData {
   events: { start: string | null; summary: string; hangout_link: string | null }[];
 }
 
+export type QueueItemKind = "job-quiz" | "integrity" | "unbooked";
+
+/** A derived "Your queue" entry computed live by the backend (card D13). */
+export interface QueueItem {
+  key: string;
+  kind: QueueItemKind;
+  title: string;
+  hint: string;
+  href: string;
+  since: string | null;
+}
+
 export const dashboard = {
   activity: (limit = 15) => request<ActivityItem[]>(`/api/v1/activity?limit=${limit}`),
   today: (tz: string) =>
     request<TodayPanelData>(`/api/v1/stats/today?tz=${encodeURIComponent(tz)}`),
+  queue: {
+    list: () => request<{ items: QueueItem[] }>("/api/v1/stats/queue"),
+    dismiss: (key: string) =>
+      request<void>("/api/v1/stats/queue/dismiss", {
+        method: "POST",
+        body: JSON.stringify({ key }),
+      }),
+  },
   tasks: {
     list: () => request<TaskItem[]>("/api/v1/tasks"),
     create: (title: string, note = "") =>

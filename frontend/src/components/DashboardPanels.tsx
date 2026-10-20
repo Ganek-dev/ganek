@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { Activity, CalendarDays, ListTodo, Plus, Video } from "lucide-react";
+import { Activity, CalendarDays, ListTodo, Plus, Video, X } from "lucide-react";
 
 import {
   dashboard,
   type ActivityItem,
+  type QueueItem,
   type StatsOverview,
   type TaskItem,
   type TodayPanelData,
@@ -93,6 +94,7 @@ export function TodayPanel() {
 
 export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
   const [tasks, setTasks] = useState<TaskItem[] | null>(null);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [title, setTitle] = useState("");
 
   const load = useCallback(() => {
@@ -102,7 +104,24 @@ export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
       .catch(() => setTasks([]));
   }, []);
 
+  const loadQueue = useCallback(() => {
+    dashboard.queue
+      .list()
+      .then((data) => setQueue(data.items))
+      .catch(() => setQueue([]));
+  }, []);
+
   useEffect(load, [load]);
+  useEffect(loadQueue, [loadQueue]);
+
+  async function dismiss(item: QueueItem) {
+    setQueue((current) => current.filter((q) => q.key !== item.key));
+    try {
+      await dashboard.queue.dismiss(item.key);
+    } catch {
+      loadQueue();
+    }
+  }
 
   async function add(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -134,7 +153,7 @@ export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
       hint: job.title,
       href: "/admin/applicants",
     }));
-  const openCount = derived.length + (tasks?.length ?? 0);
+  const openCount = derived.length + queue.length + (tasks?.length ?? 0);
 
   return (
     <section className={panelCls}>
@@ -150,6 +169,32 @@ export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
               <p className="text-[13px] font-medium group-hover:underline">{item.title}</p>
               <p className="text-[11.5px] text-g500">{item.hint}</p>
             </Link>
+          </li>
+        ))}
+        {queue.map((item) => (
+          <li key={item.key} className="flex items-start gap-2">
+            <Link href={item.href} className="group min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium group-hover:underline">
+                {item.title}
+              </p>
+              <p className="truncate text-[11.5px] text-g500">
+                {item.hint}
+                {item.since ? (
+                  <span className="font-mono text-[10.5px] text-g400">
+                    {" · "}
+                    {relativeTime(item.since)}
+                  </span>
+                ) : null}
+              </p>
+            </Link>
+            <button
+              type="button"
+              aria-label={`Dismiss: ${item.title}`}
+              onClick={() => dismiss(item)}
+              className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-g400 hover:bg-muted-fill/50 hover:text-strong"
+            >
+              <X aria-hidden className="h-3.5 w-3.5" />
+            </button>
           </li>
         ))}
         {(tasks ?? []).map((task) => (

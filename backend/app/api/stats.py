@@ -1,15 +1,16 @@
 from datetime import datetime, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentCompany, CurrentUser, DbSession
 from app.models import Application, Interview, InterviewStatus
-from app.schemas.dashboard import TodayEvent, TodayOut
+from app.schemas.dashboard import QueueDismiss, QueueOut, TodayEvent, TodayOut
 from app.schemas.stats import StatsOverview
 from app.services import google_calendar
+from app.services import queue as queue_service
 from app.services import stats as stats_service
 
 router = APIRouter(prefix="/stats", tags=["stats"])
@@ -80,3 +81,20 @@ async def today(
             for iv in interviews
         ],
     )
+
+
+@router.get("/queue", response_model=QueueOut)
+async def queue(db: DbSession, company: CurrentCompany, user: CurrentUser) -> QueueOut:
+    """Dashboard "Your queue" derived items (card D13): published jobs
+    without a quiz, completed quizzes with unreviewed integrity flags,
+    interview invites the candidate has not booked. Minus what this user
+    dismissed."""
+    return QueueOut(items=await queue_service.visible_items(db, company, user))
+
+
+@router.post("/queue/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_queue_item(
+    payload: QueueDismiss, db: DbSession, company: CurrentCompany, user: CurrentUser
+) -> None:
+    if not await queue_service.dismiss(db, company, user, payload.key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Queue item not found")
