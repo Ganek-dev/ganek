@@ -56,7 +56,7 @@ from app.schemas.public import (
     StatusQuizOut,
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
-from app.services import activity, google_calendar, storage
+from app.services import activity, google_calendar, quotas, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import interviews as interviews_service
@@ -66,6 +66,15 @@ from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
 
 router = APIRouter(prefix="/public", tags=["public"])
+
+
+def _quota_429(exc: quotas.QuotaExceeded) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="This employer has reached its limit for now - please try again later",
+        headers={"Retry-After": str(exc.retry_after)},
+    )
+
 
 # practice options reshuffle per serve, same anti-cheat CSPRNG stance as the engine
 _practice_rng = random.SystemRandom()
@@ -235,6 +244,12 @@ async def _apply(
     payload: ApplicationSubmit,
 ) -> ApplicationReceived:
     job = await _published_job_or_404(db, company, job_slug)
+    try:
+        # emails are counted where they are queued; applications count per attempt
+        await quotas.guard(db, company, quotas.EMAILS, consume=False)
+        await quotas.guard(db, company, quotas.APPLICATIONS, consume=True)
+    except quotas.QuotaExceeded as exc:
+        raise _quota_429(exc) from None
     try:
         application = await applications_service.submit_application(db, company, job, payload)
     except applications_service.InvalidCvError as exc:
@@ -521,6 +536,10 @@ async def quiz_request_reissue(token: str, db: DbSession) -> dict[str, bool]:
         for prior in application.quiz_attempts
     )
     if mode == "auto" and not auto_used:
+        try:
+            await quotas.guard(db, company, quotas.EMAILS, consume=False)
+        except quotas.QuotaExceeded as exc:
+            raise _quota_429(exc) from None
         fresh = await quiz_service.reissue_attempt(
             db, company, application, job, reason="expired", mode="auto", by_user_id=None
         )

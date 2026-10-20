@@ -42,6 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [user, setUser] = useState<UserOut | null>(null);
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [smtpMissing, setSmtpMissing] = useState(false);
+  const [usageWarnings, setUsageWarnings] = useState<string[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
@@ -63,6 +64,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .get()
       .then((company) => setSmtpMissing(!company.smtp_configured))
       .catch(() => setSmtpMissing(false)); // the banner is advisory; never block the shell
+    companyApi
+      .usage()
+      .then((usage) => setUsageWarnings(usage.warnings))
+      .catch(() => setUsageWarnings([])); // soft banner only
   }, [user]);
   useEffect(() => {
     stats
@@ -178,6 +183,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               Settings → Privacy
             </Link>
             .
+          </div>
+        ) : null}
+        {usageWarnings.length > 0 ? (
+          <div
+            role="status"
+            className="mb-5 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+          >
+            Close to a usage limit: {usageWarnings.join(", ")}. Past a limit, candidates see
+            a &quot;try again later&quot; message on apply. Limits are set with the{" "}
+            <code className="font-mono">GANEK_QUOTA_*</code> variables.
           </div>
         ) : null}
         {children}

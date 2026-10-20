@@ -939,8 +939,21 @@ export interface BrandingUpdate {
   radius?: "sharp" | "default" | "round" | null;
 }
 
+/** GET /company/usage: abuse-guard counters. A limit of 0 means off;
+ * `warnings` lists counters at 80% or more, ready for the admin banner. */
+export interface UsageOut {
+  emails_today: number;
+  emails_per_day_limit: number;
+  applications_this_hour: number;
+  applications_per_hour_limit: number;
+  active_jobs: number;
+  active_jobs_limit: number;
+  warnings: string[];
+}
+
 export const companyApi = {
   get: () => request<CompanyAdmin>("/api/v1/company"),
+  usage: () => request<UsageOut>("/api/v1/company/usage"),
   updateBranding: (patch: BrandingUpdate) =>
     request<CompanyAdmin>("/api/v1/company/branding", {
       method: "PATCH",

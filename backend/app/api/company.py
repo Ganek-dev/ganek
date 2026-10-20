@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from app.api.deps import AdminUser, CurrentCompany, DbSession
 from app.models import Company
-from app.schemas.company import BrandingUpdate, CompanyOut, CompanySettingsUpdate
+from app.schemas.company import BrandingUpdate, CompanyOut, CompanySettingsUpdate, UsageOut
 from app.services import company as company_service
 from app.services import email as email_service
-from app.services import storage
+from app.services import quotas, storage
 
 # branding is admin territory (role legend, screen 12)
 router = APIRouter(prefix="/company", tags=["company"])
@@ -14,6 +14,12 @@ router = APIRouter(prefix="/company", tags=["company"])
 @router.get("", response_model=CompanyOut)
 async def get_company(company: CurrentCompany, _admin: AdminUser) -> Company:
     return company
+
+
+@router.get("/usage", response_model=UsageOut)
+async def get_usage(db: DbSession, company: CurrentCompany, _admin: AdminUser) -> UsageOut:
+    """Abuse-guard counters for the admin banner (STRATEGY §8)."""
+    return UsageOut(**await quotas.usage(db, company))
 
 
 @router.patch("/branding", response_model=CompanyOut)
