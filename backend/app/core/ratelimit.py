@@ -69,6 +69,25 @@ def _peek_memory(key: str, window: int) -> int:
     return count if stored_window == window else 0
 
 
+async def hit_window(key: str, seconds: int, window: int) -> int:
+    """Increment a fixed-window counter: Redis when reachable, else memory.
+    Shared by the per-IP limiter and the per-tenant quotas."""
+    count = await _hit_redis(key, seconds)
+    return count if count is not None else _hit_memory(key, window)
+
+
+async def peek_window(key: str, window: int) -> int:
+    """Read a fixed-window counter without incrementing it."""
+    client = _get_redis()
+    if client is not None:
+        try:
+            value = await client.get(key)
+            return int(value) if value else 0
+        except Exception:  # noqa: BLE001 - same degradation as _hit_redis
+            logger.warning("redis unreachable; reading quota from per-process memory")
+    return _peek_memory(key, window)
+
+
 def client_ip(request: Request) -> str:
     """Client address; honors X-Forwarded-For when configured.
 
