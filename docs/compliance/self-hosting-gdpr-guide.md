@@ -79,10 +79,10 @@ Work through this once, before the careers page goes public.
       is Google Calendar (§6); don't add more by picking US hosting for the
       database and CV bucket.
 - [ ] Decide your **backup policy before you hold candidate data**:
-      encrypted backups, rotation window at or below your retention
-      period, and a rule that you never restore erased candidates -
-      completing the rotation is what completes an erasure. (Ganek doesn't
-      ship backups; whatever you add must honor this.)
+      encrypted backups, a rotation window at or below your retention
+      period, and restores only through `scripts/restore.sh`, which
+      re-applies erasures (see "Backups and erasure" in §3). Completing the
+      rotation is what completes an erasure inside the backups themselves.
 - [ ] Your reverse proxy and host keep their own logs. Ganek's bundled
       compose scrubs capability tokens from access logs and rotates them -
       apply the same discipline (don't log the full URLs of quiz, status,
@@ -161,6 +161,36 @@ that into what you promise departing staff.
 
 **Breach.** Read the [breach runbook](breach-runbook.md) once now, not
 during the incident.
+
+**Backups and erasure.** `scripts/backup.sh` writes a database dump and a
+tarball of the CV bucket; `scripts/restore.sh` puts them back. The catch
+with any backup is Art. 17: a dump taken on Monday still contains the
+candidate you erased on Tuesday, and a naive restore on Wednesday would
+resurrect them. Ganek handles this with *erasure tombstones*: every
+erasure (an admin's "Erase candidate", the nightly retention purge, a
+restore replay) leaves a row holding only a one-way hash of the erased
+record's random id - no name, no email, nothing that identifies anyone,
+so the table is safe to keep in every backup. `restore.sh` saves the live
+tombstones before it restores, merges them back afterwards, and then
+replays them: any restored application or candidate whose id matches a
+tombstone is erased again, CV file first, exactly as the original erasure
+ran. The count-only `candidate.erased` receipts in the activity log are
+unaffected. In plain words:
+
+- Erase someone, restore an older backup, and they are gone again by the
+  time the restore script finishes; you do not have to remember whom you
+  erased.
+- Retention still interplays: a restore brings back applications whose
+  retention clock had already expired, and the next nightly purge removes
+  them again (their tombstones from that earlier purge replay immediately
+  anyway).
+- The backups themselves still hold the erased data until they rotate
+  out. Keep the rotation window at or below your retention period and
+  encrypt the files; that rule is yours to run, the scripts cannot do it
+  for you.
+- Never restore by hand with `pg_restore` alone. Use `restore.sh`, or at
+  least run `python -m app.services.tombstones` in the backend container
+  afterwards.
 
 ## 4. What runs automatically
 
