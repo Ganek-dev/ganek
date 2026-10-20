@@ -6,12 +6,14 @@ from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
 from app.core import urls
 from app.core.security import create_invite_token
 from app.models import Company, User, UserInvite
+from app.schemas.auth import UserOut
 from app.schemas.users import (
     AvailabilityIn,
     AvailabilityOut,
     DayWindow,
     InviteCreate,
     InviteOut,
+    ProfileUpdate,
     TeamUserOut,
     UserCreate,
     UserUpdate,
@@ -154,6 +156,16 @@ async def revoke_invite(
     if invite is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
     await invites_service.revoke_invite(db, invite)
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_profile(payload: ProfileUpdate, db: DbSession, user: CurrentUser) -> User:
+    """Own display name (card D14); an empty value returns to the email fallback."""
+    cleaned = (payload.display_name or "").strip()
+    user.display_name = cleaned or None
+    await db.commit()
+    await db.refresh(user)
+    return user
 
 
 @router.patch("/{user_id}", response_model=TeamUserOut)

@@ -53,6 +53,8 @@ class UserOut(BaseModel):
     email: EmailStr
     role: UserRole
     has_password: bool
+    display_name: str | None = None
+    display_label: str = ""
     # true only in the register response of a multi-mode signup awaiting
     # email verification (M5.7 H4); never set from ORM attributes
     pending_verification: bool = False

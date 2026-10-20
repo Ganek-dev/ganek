@@ -39,6 +39,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # bumped on password change / forced logout — embedded in the session
     # token; a mismatch invalidates every session issued before the bump
     token_version: Mapped[int] = mapped_column(Integer, default=0)
+    # what teammates and candidates see (card D14); NULL falls back to the
+    # email local part via display_label
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # second factor (card A6): Fernet-encrypted base32 secret, enabled only
     # once confirmed; last accepted step blocks replays; sha256 of unused
     # recovery codes
@@ -54,6 +57,15 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     @property
     def has_password(self) -> bool:
         return self.password_hash is not None
+
+    @property
+    def display_label(self) -> str:
+        """Display name when set, else the email local part made readable
+        (jane.doe -> Jane Doe): the one fallback every surface shares."""
+        if self.display_name:
+            return self.display_name
+        local = self.email.split("@")[0]
+        return local.replace(".", " ").replace("_", " ").replace("-", " ").title() or self.email
 
     @property
     def mfa_enabled(self) -> bool:

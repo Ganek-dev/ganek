@@ -176,4 +176,13 @@ describe("TeamPage", () => {
     await userEvent.click(within(menu).getByRole("menuitem", { name: "Deactivate" }));
     await waitFor(() => expect(mocked.update).toHaveBeenCalledWith("u2", { is_active: false }));
   });
+
+  it("prefers a member's own display name over the email-derived one", async () => {
+    mocked.list.mockResolvedValue([
+      { ...member, display_name: "Dana K.", display_label: "Dana K." },
+    ]);
+    render(<TeamPage />);
+    expect(await screen.findByText("Dana K.")).toBeInTheDocument();
+    expect(screen.queryByText("Dana Kowalska")).not.toBeInTheDocument();
+  });
 });

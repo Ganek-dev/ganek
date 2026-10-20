@@ -7,6 +7,9 @@ export interface UserOut {
   role: "admin" | "member";
   /** false = Google-only account (signed up via Google, no password set). */
   has_password: boolean;
+  /** Own display name (card D14); display_label is the server's fallback-applied label. */
+  display_name?: string | null;
+  display_label?: string;
   /** Only in the register response: multi-mode signup awaiting the inbox click. */
   pending_verification?: boolean;
   /** Second factor (card A6): on, and how many recovery codes are unused. */
@@ -223,6 +226,11 @@ export const api = {
     }),
   googleSignupPending: () =>
     request<{ email: string }>("/api/v1/auth/google/signup/pending"),
+  updateProfile: (displayName: string | null) =>
+    request<UserOut>("/api/v1/users/me", {
+      method: "PATCH",
+      body: JSON.stringify({ display_name: displayName }),
+    }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("/api/v1/auth/change-password", {
       method: "POST",
@@ -945,6 +953,8 @@ export type UserRole = "admin" | "member";
 export interface TeamUser {
   id: string;
   email: string;
+  display_name?: string | null;
+  display_label?: string;
   role: UserRole;
   is_active: boolean;
   last_login_at: string | null;
