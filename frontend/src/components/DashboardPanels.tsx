@@ -211,6 +211,8 @@ function activityCopy(item: ActivityItem): string {
       return "Interview booked by the candidate";
     case "interview.cancelled":
       return "Interview cancelled";
+    case "quota.exceeded":
+      return `Usage limit reached: ${String(p.scope ?? "")} (limit ${String(p.limit ?? "")})`;
     case "candidate.erased":
       return `Candidate data erased (${Number(p.applications) || 0} application(s))`;
     case "candidate.email_updated":

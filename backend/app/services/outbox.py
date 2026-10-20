@@ -20,8 +20,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import queue
-from app.models import EmailOutbox, EmailStatus
+from app.models import Company, EmailOutbox, EmailStatus
 from app.services import email as email_service
+from app.services import quotas
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,9 @@ async def queue_email(
     )
     db.add(row)
     await db.commit()
+    # per-tenant daily counter (GET /company/usage); the public apply and
+    # reissue endpoints pre-check it and answer 429 at the limit
+    await quotas.count(Company(id=company_id), quotas.EMAILS)
     if EAGER_DELIVERY_FOR_TESTS:
         try:
             dispatch(row)

@@ -3,10 +3,12 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, CurrentCompany, DbSession
+from app.core.config import settings
 from app.models import Job, JobStatus
 from app.schemas.jobs import JobCreate, JobOut, JobUpdate, QuizPreviewOut, QuizPreviewQuestion
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
+from app.services import quotas
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -92,6 +94,15 @@ async def quiz_preview(job_id: uuid.UUID, db: DbSession, company: CurrentCompany
 @router.post("/{job_id}/publish", response_model=JobOut)
 async def publish_job(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -> Job:
     job = await _get_or_404(db, company, job_id)
+    limit = settings.quota_active_jobs
+    if limit > 0 and job.status is not JobStatus.PUBLISHED:
+        if await quotas.active_jobs(db, company) >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Active job limit reached ({limit}). Close a job before publishing another."
+                ),
+            )
     try:
         return await jobs_service.publish_job(db, job)
     except jobs_service.InvalidTransitionError as exc:

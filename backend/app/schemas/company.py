@@ -5,6 +5,19 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 from app.core.config import settings as app_settings
 
 
+class UsageOut(BaseModel):
+    """Per-tenant abuse-guard counters (GET /company/usage). A limit of 0
+    means that guard is off; ``warnings`` lists counters at 80% or more."""
+
+    emails_today: int
+    emails_per_day_limit: int
+    applications_this_hour: int
+    applications_per_hour_limit: int
+    active_jobs: int
+    active_jobs_limit: int
+    warnings: list[str]
+
+
 class CompanyOut(BaseModel):
     """Admin view of the company (branding settings, screen 10)."""
 

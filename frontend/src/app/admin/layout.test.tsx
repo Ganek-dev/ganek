@@ -17,7 +17,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     api: { ...original.api, me: vi.fn(), logout: vi.fn() },
-    companyApi: { ...original.companyApi, get: vi.fn() },
+    companyApi: { ...original.companyApi, get: vi.fn(), usage: vi.fn() },
     stats: { overview: vi.fn() },
   };
 });
@@ -37,6 +37,15 @@ describe("AdminLayout", () => {
       role: "admin",
     });
     mockedApi.logout.mockResolvedValue(undefined);
+    mockedCompany.usage.mockResolvedValue({
+      emails_today: 0,
+      emails_per_day_limit: 500,
+      applications_this_hour: 0,
+      applications_per_hour_limit: 100,
+      active_jobs: 1,
+      active_jobs_limit: 50,
+      warnings: [],
+    });
     mockedCompany.get.mockResolvedValue({
       slug: "acme",
       name: "Acme",
@@ -107,6 +116,26 @@ describe("AdminLayout", () => {
     const banner = await screen.findByRole("alert");
     expect(banner).toHaveTextContent(/candidates are/i);
     expect(banner).toHaveTextContent(/not receiving/i);
+  });
+
+  it("shows a soft usage banner when a quota warning is reported", async () => {
+    mockedCompany.usage.mockResolvedValue({
+      emails_today: 420,
+      emails_per_day_limit: 500,
+      applications_this_hour: 3,
+      applications_per_hour_limit: 100,
+      active_jobs: 2,
+      active_jobs_limit: 50,
+      warnings: ["420 of 500 emails today"],
+    });
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    const banner = await screen.findByRole("status");
+    expect(banner).toHaveTextContent("420 of 500 emails today");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows no banner when SMTP is configured or for members", async () => {
