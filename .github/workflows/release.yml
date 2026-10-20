@@ -2,11 +2,18 @@ name: Release images
 
 # Build, boot-smoke, scan, and (on version tags) publish the GHCR images
 # for the compose quickstart. The frontend image bakes its CSP upload
-# origin and backend URL at build time — published defaults match the
+# origin and backend URL at build time - published defaults match the
 # bundled compose topology; custom upload domains still rebuild locally
 # (documented in .env.example). workflow_dispatch runs everything except
 # the push as a dry run, so the workflow itself is testable before the
 # first tag exists.
+#
+# Images are published for linux/amd64 and linux/arm64 (Apple Silicon and
+# most new self-host boxes). buildx cannot `load` a multi-arch manifest
+# into the runner's docker, so the job builds twice: an amd64-only build
+# that is loaded and boot-smoked, then a multi-arch build that reuses the
+# amd64 layers from the GHA cache and adds the arm64 leg under QEMU. Only
+# the second build pushes, and only on tags.
 #
 # The boot-smoke exists because of PR #147: next's standalone tracer once
 # shipped an image that built green everywhere and crashed only at
@@ -30,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - name: Image tags
         id: meta
@@ -39,19 +47,25 @@ jobs:
           else
             echo "version=0.0.0-dry-run" >> "$GITHUB_OUTPUT"
           fi
-      - name: Backend image
+      - name: Backend image (amd64, loaded for the boot smoke)
         uses: docker/build-push-action@v7
         with:
           context: backend
+          platforms: linux/amd64
           load: true
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
           tags: |
             ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
             ghcr.io/ganek-dev/ganek-backend:latest
-      - name: Frontend image (compose-default build args)
+      - name: Frontend image (amd64, compose-default build args)
         uses: docker/build-push-action@v7
         with:
           context: frontend
+          platforms: linux/amd64
           load: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
           build-args: |
             BACKEND_URL=http://backend:8000
             GANEK_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
@@ -107,10 +121,34 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish (tags only)
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          docker push ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
-          docker push ghcr.io/ganek-dev/ganek-backend:latest
-          docker push ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}
-          docker push ghcr.io/ganek-dev/ganek-frontend:latest
+      # Multi-arch manifests. The amd64 leg is a cache hit from the builds
+      # above (same context and args); only the arm64 leg is new work. On
+      # workflow_dispatch this still builds both legs (push: false) so an
+      # arm64 regression shows up before the next tag.
+      - name: Backend image (amd64 + arm64, pushed on tags)
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          platforms: linux/amd64,linux/arm64
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          provenance: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          tags: |
+            ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
+            ghcr.io/ganek-dev/ganek-backend:latest
+      - name: Frontend image (amd64 + arm64, pushed on tags)
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          platforms: linux/amd64,linux/arm64
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          provenance: false
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          build-args: |
+            BACKEND_URL=http://backend:8000
+            GANEK_S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
+          tags: |
+            ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}
+            ghcr.io/ganek-dev/ganek-frontend:latest
