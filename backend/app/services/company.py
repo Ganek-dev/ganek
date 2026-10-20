@@ -1,4 +1,4 @@
-import time
+import hashlib
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,6 +86,11 @@ def privacy_notice(company: Company) -> PublicPrivacyNotice:
     )
 
 
+def logo_digest(data: bytes) -> str:
+    """Short content hash that versions the logo URL (16 hex chars)."""
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
 def sniff_logo(data: bytes, declared_type: str) -> str:
     """Validate a logo upload by content, not extension. Returns the canonical
     content type or raises. SVGs additionally reject embedded scripting —
@@ -114,12 +119,14 @@ def sniff_logo(data: bytes, declared_type: str) -> str:
 async def set_logo(db: AsyncSession, company: Company, data: bytes, declared_type: str) -> Company:
     """Store the logo and point ``logo_url`` at the public serving endpoint.
 
-    The URL is absolute (Google Jobs JSON-LD needs one) and carries a
-    version param so the stable object key still cache-busts on replace.
+    The URL is absolute (Google Jobs JSON-LD needs one) and carries the
+    content digest in its path (card A8): the object key stays stable, the
+    URL changes with the bytes, and the serving route answers an
+    immutable year-long Cache-Control only when the digest matches.
     """
     content_type = sniff_logo(data, declared_type)
     await storage.put_object(storage.build_logo_key(company.id), data, content_type)
-    company.logo_url = urls.logo_url(company, int(time.time()))
+    company.logo_url = urls.logo_url(company, logo_digest(data))
     await db.commit()
     await db.refresh(company)
     return company

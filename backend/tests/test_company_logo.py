@@ -50,21 +50,33 @@ async def test_upload_serve_replace_and_remove(client: AsyncClient) -> None:
     assert resp.status_code == 200, resp.text
     logo_url = resp.json()["logo_url"]
     assert logo_url is not None
-    assert f"/api/v1/public/companies/{slug}/logo?v=" in logo_url
+    assert f"/api/v1/public/companies/{slug}/logo/" in logo_url
+    png_path = logo_url.split("/api/v1", 1)[1]
 
-    served = await client.get(f"/api/v1/public/companies/{slug}/logo")
+    # content-addressed path: immutable for a year (card A8)
+    served = await client.get(f"/api/v1{png_path}")
     assert served.status_code == 200
     assert served.content == PNG_BYTES
     assert served.headers["content-type"] == "image/png"
-    assert served.headers["cache-control"] == "public, max-age=3600"
+    assert served.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert "default-src 'none'" in served.headers["content-security-policy"]
 
-    # replace with an SVG — same key, new version param
+    # the pre-A8 mutable path still serves, with the short cache
+    served = await client.get(f"/api/v1/public/companies/{slug}/logo")
+    assert served.status_code == 200
+    assert served.content == PNG_BYTES
+    assert served.headers["cache-control"] == "public, max-age=3600"
+
+    # replace with an SVG: same key, new URL; the old digest 404s instead of
+    # serving a stale image under an immutable header
     resp = await _upload(client, SVG_BYTES, "image/svg+xml", "logo.svg")
     assert resp.status_code == 200
-    served = await client.get(f"/api/v1/public/companies/{slug}/logo")
+    svg_url = resp.json()["logo_url"]
+    assert svg_url != logo_url
+    served = await client.get(f"/api/v1{svg_url.split('/api/v1', 1)[1]}")
     assert served.content == SVG_BYTES
     assert served.headers["content-type"] == "image/svg+xml"
+    assert (await client.get(f"/api/v1{png_path}")).status_code == 404
 
     # remove → cleared and public 404
     resp = await client.delete("/api/v1/company/logo")

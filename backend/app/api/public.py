@@ -197,21 +197,45 @@ async def company_jobs_feed(company: PublicCompany, db: DbSession, response: Res
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
 async def company_logo(company: PublicCompany) -> Response:
-    """Serve the branding logo from the app bucket (option B: same-origin,
-    no public bucket). Long shared cache — the stored logo_url carries a
-    version param that busts it on replace. The CSP neuters scriptable
-    SVGs even when the file is opened directly."""
+    """Serve the branding logo at its mutable path (option B: same-origin,
+    no public bucket). Short shared cache: logo_url values stored before
+    card A8 point here with a ``?v=`` param. New uploads get the digest
+    route below. The CSP neuters scriptable SVGs even when the file is
+    opened directly."""
+    data, content_type = await _logo_bytes(company)
+    return _logo_response(data, content_type, cache_control="public, max-age=3600")
+
+
+@router.get(
+    "/companies/{slug}/logo/{digest}",
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def company_logo_immutable(company: PublicCompany, digest: str) -> Response:
+    """Content-addressed logo (card A8): the digest in the path changes
+    with every upload, so the answer is immutable for a year and any CDN
+    or reverse proxy may cache it. A digest that no longer matches is a
+    404 rather than a stale image cached forever."""
+    data, content_type = await _logo_bytes(company)
+    if digest != company_service.logo_digest(data):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo")
+    return _logo_response(data, content_type, cache_control="public, max-age=31536000, immutable")
+
+
+async def _logo_bytes(company: Company) -> tuple[bytes, str]:
     if company.logo_url is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo")
     stored = await storage.get_object(storage.build_logo_key(company.id))
     if stored is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo")
-    data, content_type = stored
+    return stored
+
+
+def _logo_response(data: bytes, content_type: str, *, cache_control: str) -> Response:
     return Response(
         content=data,
         media_type=content_type,
         headers={
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": cache_control,
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
         },
     )
