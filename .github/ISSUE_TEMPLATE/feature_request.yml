@@ -1,0 +1,54 @@
+name: Feature request
+description: A concrete change with a scope. Loose ideas go to Discussions Ideas first.
+title: "feat: "
+labels: ["community"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Not sure yet? Post in [Discussions Ideas](https://github.com/Ganek-dev/ganek/discussions/categories/ideas) where others can vote. Read the open-core litmus test in [CONTRIBUTING.md](https://github.com/Ganek-dev/ganek/blob/main/CONTRIBUTING.md) first: what a single self-hosting company needs to hire is AGPL core; multi-tenant operations and enterprise IT integration live in `ee/`.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do today and where does Ganek get in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should happen instead. Screens, endpoints or config you expect to touch.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Admin (recruiter UI)
+        - Careers page / apply form
+        - Quiz engine
+        - Scheduling
+        - Email
+        - API / embed widget
+        - Docker / deployment
+        - Question bank
+        - Compliance / privacy
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use now, or why they fail.
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Product rules
+      description: Ganek never auto-rejects candidates, never scores with ML and never escalates quiz telemetry beyond focus, paste and resize.
+      options:
+        - label: This request does not ask Ganek to auto-reject, rank with ML or record candidates.
+          required: true

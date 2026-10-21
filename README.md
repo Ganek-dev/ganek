@@ -57,7 +57,7 @@ application.
 
 ## Contributing
 
-Code and question-pack contributions welcome - see [CONTRIBUTING.md](CONTRIBUTING.md). The question bank especially benefits from many eyes: [questions/README.md](questions/README.md).
+Code and question-pack contributions welcome - see [CONTRIBUTING.md](CONTRIBUTING.md). The question bank especially benefits from many eyes: [questions/README.md](questions/README.md). Bugs and feature requests: [open an issue](https://github.com/Ganek-dev/ganek/issues/new/choose). Questions and ideas: [Discussions](https://github.com/Ganek-dev/ganek/discussions).
 
 ## License
 

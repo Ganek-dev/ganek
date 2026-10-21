@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or self-hosting help
+    url: https://github.com/Ganek-dev/ganek/discussions/categories/q-a
+    about: Ask in Discussions Q&A. Issues are for bugs, feature requests and question packs.
+  - name: Idea or feature you want to see voted on
+    url: https://github.com/Ganek-dev/ganek/discussions/categories/ideas
+    about: Post it in Ideas so others can upvote it. Open a feature request issue once it has a concrete scope.
+  - name: Security vulnerability
+    url: https://github.com/Ganek-dev/ganek/security/advisories/new
+    about: Report privately through a security advisory, never in a public issue.

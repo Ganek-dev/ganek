@@ -2,6 +2,16 @@
 
 Two ways to contribute: **code** and **questions**. Question contributions need zero backend knowledge.
 
+Where things go: bugs, feature requests and question-pack proposals are
+[issues](https://github.com/Ganek-dev/ganek/issues/new/choose) (forms, no
+blank issues); self-hosting questions go to
+[Discussions Q&A](https://github.com/Ganek-dev/ganek/discussions/categories/q-a);
+loose ideas go to
+[Discussions Ideas](https://github.com/Ganek-dev/ganek/discussions/categories/ideas)
+where they collect votes; releases are announced in
+[Announcements](https://github.com/Ganek-dev/ganek/discussions/categories/announcements).
+Security reports: a [private advisory](https://github.com/Ganek-dev/ganek/security/advisories/new), never a public issue.
+
 ## What's open vs. commercial (the litmus test)
 
 Ganek is open core. The boundary is a published promise, not a vibe:
