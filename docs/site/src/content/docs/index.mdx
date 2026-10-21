@@ -1,0 +1,32 @@
+---
+title: Ganek docs
+description: Self-host Ganek, an open-source careers page with built-in skill screening quizzes and an ATS-lite.
+template: splash
+hero:
+  tagline: An open-source careers page with skill screening quizzes and an ATS-lite. One docker compose up, your data on your infrastructure, GDPR-ready.
+  actions:
+    - text: Quickstart
+      link: /quickstart/
+      icon: right-arrow
+    - text: Source on GitHub
+      link: https://github.com/Ganek-dev/ganek
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid stagger>
+  <Card title="Run it" icon="rocket">
+    [Quickstart](/quickstart/) gets a stack up in five minutes. [Configuration](/configuration/) lists every setting. [Self-hosting](/self-hosting/) covers production hardening, upgrades and backups.
+  </Card>
+  <Card title="Extend it" icon="puzzle">
+    [Question packs](/question-packs/) explains the open question bank and how to add a domain. [API and embed](/api-embed/) covers the public jobs feed and the widget for your own site.
+  </Card>
+  <Card title="Compliance pack" icon="approve-check">
+    The [compliance pack](/compliance/) makes your controller duties practical: a self-hosting GDPR guide, a pre-filled DPIA, an Art. 30 records template and a breach runbook.
+  </Card>
+  <Card title="The quiz decides who you talk to" icon="list-format">
+    Questions are served one at a time, timing and scoring are server-side, correct answers never reach the browser. Focus-loss and paste telemetry becomes flags for a human. Ganek never auto-rejects anyone.
+  </Card>
+</CardGrid>

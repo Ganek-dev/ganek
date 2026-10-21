@@ -6,6 +6,7 @@
 #   questions — question-bank validation
 #   audit     — pip-audit + pnpm audit (advisory, like CI's continue-on-error)
 #   frontend  — pnpm lint / typecheck / test / build under Node 22 (via nvm)
+#   docs      - Starlight build of docs/site under Node 22 (via nvm)
 #   backend   — ruff check/format + mypy + pytest on py3.12 AND py3.14,
 #               each leg against fresh throwaway postgres+minio containers
 #               (CI-faithful; never touches the dev stack or its data)
@@ -36,11 +37,11 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --python) PYTHONS="$2"; shift 2 ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    questions|audit|frontend|backend|e2e) STAGES="$STAGES $1"; shift ;;
+    questions|audit|frontend|docs|backend|e2e) STAGES="$STAGES $1"; shift ;;
     *) echo "unknown argument: $1 (see --help)"; exit 2 ;;
   esac
 done
-[ -n "$STAGES" ] || STAGES="questions audit frontend backend e2e"
+[ -n "$STAGES" ] || STAGES="questions audit frontend docs backend e2e"
 
 RESULTS=""
 banner() { printf -- "\n=== %s ===\n" "$1"; }
@@ -144,6 +145,15 @@ stage_frontend() {
       && pnpm lint \
       && pnpm typecheck \
       && pnpm test \
+      && pnpm build
+  )
+}
+
+stage_docs() {
+  (
+    node22_path
+    cd docs/site \
+      && pnpm install --frozen-lockfile \
       && pnpm build
   )
 }

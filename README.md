@@ -44,6 +44,8 @@ docker compose up
 # open http://localhost:3000 and follow the setup wizard
 ```
 
+Every setting is documented on the [Configuration page](https://ganek.dev/configuration/) of the docs; the docs also cover [self-hosting in production](https://ganek.dev/self-hosting/).
+
 The compose stack builds the images from source, which works on both x86-64
 and arm64 hosts (Apple Silicon, Graviton, Raspberry Pi 5). Pre-built images
 for `linux/amd64` and `linux/arm64` are also published on every release as
