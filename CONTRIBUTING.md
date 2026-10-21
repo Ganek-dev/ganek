@@ -67,6 +67,7 @@ pip install pre-commit && pre-commit install   # lint/format gate on every commi
 - API: REST under `/api/v1`. Breaking changes to public endpoints need a deprecation note.
 - Tests: service-layer functions get unit tests; quiz selection/scoring/deadline logic has the highest coverage bar in the repo. Bug fix = regression test first.
 - Commits: [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`, `questions:`, `chore:`). Small, focused PRs from feature branches.
+- Docs: user-facing documentation lives in `docs/site/src/content/docs/` (Astro Starlight, published at [ganek.dev](https://ganek.dev)) and the compliance pack in `docs/compliance/` (synced into the site at build time). A PR that changes behaviour updates the page that describes it. Markdown in the repo is user-facing only; planning notes do not belong here.
 
 ### Before pushing
 

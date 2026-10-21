@@ -1,0 +1,17 @@
+# Static docs behind Coolify's proxy (TLS terminates there).
+:8080 {
+	root * /srv
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	handle_errors {
+		@notfound expression {http.error.status_code} == 404
+		rewrite @notfound /404.html
+		file_server
+	}
+	file_server
+}
