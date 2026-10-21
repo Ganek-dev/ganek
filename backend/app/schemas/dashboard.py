@@ -51,3 +51,24 @@ class TodayEvent(BaseModel):
 class TodayOut(BaseModel):
     source: str  # "google" | "ganek"
     events: list[TodayEvent]
+
+
+class QueueItem(BaseModel):
+    """A derived "Your queue" entry computed live from company data (card
+    D13). ``key`` is stable while the condition holds and is what a
+    dismissal stores."""
+
+    key: str
+    kind: str  # "job-quiz" | "integrity" | "unbooked"
+    title: str
+    hint: str
+    href: str
+    since: datetime | None
+
+
+class QueueOut(BaseModel):
+    items: list[QueueItem]
+
+
+class QueueDismiss(BaseModel):
+    key: str = Field(min_length=1, max_length=120)

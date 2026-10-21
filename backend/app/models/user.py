@@ -51,6 +51,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     recovery_codes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     # saved weekly interview availability; NULL = default Mon-Fri 09:00-17:00
     interview_availability: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # derived dashboard queue items this user hid (card D13): item keys such
+    # as "job-quiz:<job_id>"; services/queue.py prunes keys whose item resolved
+    queue_dismissed: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
 
     company: Mapped["Company"] = relationship(back_populates="users")
 
