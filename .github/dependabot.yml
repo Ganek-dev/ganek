@@ -16,8 +16,6 @@ updates:
       # once the blocker upstream ships.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
-      - dependency-name: eslint
-        update-types: ["version-update:semver-major"]
       - dependency-name: jsdom
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
