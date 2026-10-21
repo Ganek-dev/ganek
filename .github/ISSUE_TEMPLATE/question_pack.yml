@@ -1,0 +1,80 @@
+name: Question pack proposal
+description: Propose a new domain or tag for the open question bank, or a batch of questions for an existing one.
+title: "questions: "
+labels: ["community", "area:questions"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions live in `questions/{domain}/{tag}.yaml`. Read the authoring rules and the 1-5 difficulty ladder in [questions/README.md](https://github.com/Ganek-dev/ganek/blob/main/questions/README.md) first. If you already have the YAML, a pull request is faster than an issue; this form is for proposing a pack before writing fifteen questions.
+  - type: input
+    id: domain
+    attributes:
+      label: Domain
+      description: Existing directory under `questions/` or the new one you propose.
+      placeholder: software-engineering
+    validations:
+      required: true
+  - type: input
+    id: tag
+    attributes:
+      label: Tag
+      description: The primary tag, one file per tag, with the permanent ID prefix you intend to use.
+      placeholder: "kubernetes (prefix k8s-)"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Proposal
+      options:
+        - New domain
+        - New tag in an existing domain
+        - More questions for an existing tag
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: What the tag covers
+      description: The knowledge it probes, who it screens for, and which existing tags it must not overlap with.
+    validations:
+      required: true
+  - type: textarea
+    id: samples
+    attributes:
+      label: Sample questions
+      description: At least three, in the bank's YAML format, with difficulty 1-5 and exactly one correct option. Each must pass the 15-second rule.
+      render: yaml
+      placeholder: |
+        - id: k8s-pods-1
+          tags: [kubernetes]
+          difficulty: 2
+          prompt: "Which object owns the Pods created by a Deployment?"
+          options:
+            a: "ReplicaSet"
+            b: "DaemonSet"
+            c: "StatefulSet"
+            d: "Job"
+          correct: a
+          explanation: >
+            A Deployment manages ReplicaSets; the ReplicaSet owns the Pods.
+    validations:
+      required: true
+  - type: input
+    id: size
+    attributes:
+      label: Planned pack size
+      description: A new tag needs about fifteen active questions spread over levels 1-4 before it is announced.
+      placeholder: "20"
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Authoring rules
+      options:
+        - label: The questions are my own work or compatible with AGPL-3.0, and I will sign the CLA on the pull request.
+          required: true
+        - label: No "all of the above", no negatively worded tricks, difficulty rated down when unsure.
+          required: true

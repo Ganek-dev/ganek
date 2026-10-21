@@ -1,0 +1,80 @@
+name: Bug report
+description: Something is broken in Ganek.
+title: "bug: "
+labels: ["community"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Self-hosting questions belong in [Discussions Q&A](https://github.com/Ganek-dev/ganek/discussions/categories/q-a); security issues go through a [private advisory](https://github.com/Ganek-dev/ganek/security/advisories/new).
+  - type: input
+    id: version
+    attributes:
+      label: Ganek version
+      description: The release tag or commit you run (`git describe --tags` or the image tag from your compose file).
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      description: The `GANEK_MODE` value in your `.env`.
+      options:
+        - single (self-host)
+        - multi (hosted)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - Admin (recruiter UI)
+        - Careers page / apply form
+        - Quiz (candidate side)
+        - Scheduling / Google Calendar
+        - Email
+        - API / embed widget
+        - Docker / deployment
+        - Question bank
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps from a fresh state. Include the exact request or click that fails.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happens instead
+      description: Error messages, status codes, screenshots. Redact candidate data.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from `docker compose logs backend worker frontend`, with secrets and candidate data removed.
+      render: shell
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, Docker version, anything unusual (reverse proxy, custom domain, external Postgres).
+      placeholder: Ubuntu 24.04, Docker 27, Caddy in front, Firefox 140
