@@ -23,8 +23,7 @@ export const CHALLENGE_PATH = "/api/v1/public/challenge";
 
 /** Passed as the widget's `configuration` attribute. No footer link or logo
  * on candidate forms; HIS (pointer and scroll event collection) off, the
- * server never asks for it and the privacy copy below promises no
- * tracking. */
+ * server never asks for it and the privacy notice promises no tracking. */
 export const WIDGET_CONFIGURATION = JSON.stringify({
   hideFooter: true,
   hideLogo: true,
@@ -121,12 +120,7 @@ export function Captcha({ onChange, error }: Props) {
             ? "Please wait for the verification to finish, then submit again."
             : "The verification expired - it restarted, please submit again."}
         </p>
-      ) : (
-        <p className="mt-2 text-[12.5px] leading-[18px] text-g500">
-          A quick automated check runs in your browser before sending. It uses no cookies
-          and talks to no third party.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
