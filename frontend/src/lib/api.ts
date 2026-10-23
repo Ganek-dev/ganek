@@ -1085,6 +1085,48 @@ export const apiKeys = {
   revoke: (id: string) => request<void>(`/api/v1/api-keys/${id}`, { method: "DELETE" }),
 };
 
+/** Outbound webhooks (card D4 part B): endpoints with their last delivery;
+ * the signing secret exists only in the create response. */
+export type WebhookEvent = "application.created" | "stage.changed" | "quiz.completed";
+export type DeliveryStatus = "queued" | "delivered" | "failed";
+
+export interface WebhookDelivery {
+  id: string;
+  event: string;
+  status: DeliveryStatus;
+  attempts: number;
+  last_error: string | null;
+  response_status: number | null;
+  created_at: string;
+  delivered_at: string | null;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  name: string;
+  url: string;
+  events: string[];
+  is_active: boolean;
+  created_at: string;
+  last_delivery: WebhookDelivery | null;
+}
+
+export interface WebhookEndpointCreated extends WebhookEndpoint {
+  secret: string;
+}
+
+export const webhooks = {
+  list: () => request<WebhookEndpoint[]>("/api/v1/webhooks"),
+  create: (payload: { name: string; url: string; events: WebhookEvent[] }) =>
+    request<WebhookEndpointCreated>("/api/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  remove: (id: string) => request<void>(`/api/v1/webhooks/${id}`, { method: "DELETE" }),
+  test: (id: string) => request<WebhookDelivery>(`/api/v1/webhooks/${id}/test`, { method: "POST" }),
+  deliveries: (id: string) => request<WebhookDelivery[]>(`/api/v1/webhooks/${id}/deliveries`),
+};
+
 export const companyApi = {
   get: () => request<CompanyAdmin>("/api/v1/company"),
   usage: () => request<UsageOut>("/api/v1/company/usage"),

@@ -2,7 +2,14 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiKeys, companyApi, publicJobsFeed, type ApiKey, type JobsFeed } from "@/lib/api";
+import {
+  apiKeys,
+  companyApi,
+  publicJobsFeed,
+  webhooks,
+  type ApiKey,
+  type JobsFeed,
+} from "@/lib/api";
 
 import DevelopersPage from "./page";
 
@@ -17,12 +24,14 @@ vi.mock("@/lib/api", async (importOriginal) => {
     companyApi: { get: vi.fn(), updateBranding: vi.fn(), updateSettings: vi.fn() },
     publicJobsFeed: vi.fn(),
     apiKeys: { list: vi.fn(), create: vi.fn(), revoke: vi.fn() },
+    webhooks: { list: vi.fn(), create: vi.fn(), remove: vi.fn(), test: vi.fn() },
   };
 });
 
 const mockedCompany = vi.mocked(companyApi);
 const mockedFeed = vi.mocked(publicJobsFeed);
 const mockedKeys = vi.mocked(apiKeys);
+const mockedHooks = vi.mocked(webhooks);
 
 const feed: JobsFeed = {
   company: "Acme Labs",
@@ -58,6 +67,7 @@ describe("DevelopersPage", () => {
     });
     mockedFeed.mockResolvedValue(feed);
     mockedKeys.list.mockResolvedValue([]);
+    mockedHooks.list.mockResolvedValue([]);
   });
 
   it("shows the feed URL, sample JSON, and live preview", async () => {
