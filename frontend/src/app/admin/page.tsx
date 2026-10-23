@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 
 import { ActivityPanel, QueuePanel, TodayPanel } from "@/components/DashboardPanels";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { UsageCard } from "@/components/UsageCard";
 import { stats, type StatsOverview } from "@/lib/api";
 
 /** Recruiter dashboard, screen 06 (D3 scope): greeting, stat cards, score
@@ -255,6 +256,7 @@ export default function AdminDashboard() {
       </div>
 
       <OnboardingChecklist />
+      <UsageCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <TodayPanel />
