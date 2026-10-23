@@ -76,7 +76,7 @@ const QUEUE_ITEMS = [
     kind: "integrity" as const,
     title: "Review quiz flags: Marta Vidal",
     hint: "SRE · left the tab 3x (~40s)",
-    href: "/admin/applicants/app1",
+    href: "/admin/applicants?selected=app1",
     since: "2026-10-21T08:00:00Z",
   },
   {
@@ -84,7 +84,7 @@ const QUEUE_ITEMS = [
     kind: "unbooked" as const,
     title: "Awaiting booking: Tomas Hruby",
     hint: "SRE · Hiring manager interview",
-    href: "/admin/applicants/app2",
+    href: "/admin/applicants?selected=app2",
     since: "2026-10-20T08:00:00Z",
   },
 ];
@@ -106,11 +106,11 @@ describe("QueuePanel", () => {
     );
     expect(screen.getByRole("link", { name: /Review quiz flags: Marta Vidal/ })).toHaveAttribute(
       "href",
-      "/admin/applicants/app1",
+      "/admin/applicants?selected=app1",
     );
     expect(screen.getByRole("link", { name: /Awaiting booking: Tomas Hruby/ })).toHaveAttribute(
       "href",
-      "/admin/applicants/app2",
+      "/admin/applicants?selected=app2",
     );
     // 1 new-applicants item + 3 derived
     expect(screen.getByText("4 open")).toBeInTheDocument();

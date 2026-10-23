@@ -267,7 +267,7 @@ async def test_queue_integrity_flags_until_reviewed(
     assert [item["key"] for item in items] == [f"integrity:{attempt.id}"]
     assert items[0]["title"] == "Review quiz flags: Marta Vidal"
     assert items[0]["hint"] == "Backend Engineer · left the tab 3x (~40s) · paste detected x1"
-    assert items[0]["href"] == f"/admin/applicants/{application_id}"
+    assert items[0]["href"] == f"/admin/applicants?selected={application_id}"
 
     # "looks fine" on the applicant screen resolves it
     resp = await client.post(f"/api/v1/applications/{application_id}/quiz/dismiss-flags")
@@ -335,7 +335,7 @@ async def test_queue_unbooked_interview_until_booked(
     assert [item["key"] for item in items] == [f"unbooked:{interview.id}"]
     assert items[0]["title"] == "Awaiting booking: Marta Vidal"
     assert items[0]["hint"] == "Backend Engineer · Hiring manager interview"
-    assert items[0]["href"] == f"/admin/applicants/{application_id}"
+    assert items[0]["href"] == f"/admin/applicants?selected={application_id}"
 
     interview.status = InterviewStatus.BOOKED
     interview.scheduled_start = datetime.now(UTC) + timedelta(days=1)

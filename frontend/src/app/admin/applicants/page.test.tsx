@@ -14,6 +14,13 @@ import {
 
 import ApplicantsPage from "./page";
 
+let search = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/applicants",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => search,
+}));
+
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
@@ -21,6 +28,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: { ...original.api, jobs: { ...original.api.jobs, list: vi.fn() }, me: vi.fn() },
     applications: {
       list: vi.fn(),
+      get: vi.fn(),
       setStage: vi.fn(),
       cvUrl: vi.fn(),
       quizAnswers: vi.fn(),
@@ -142,6 +150,7 @@ function pageOf(items: ApplicationOut[]) {
 describe("ApplicantsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    search = new URLSearchParams();
     mockedApps.list.mockResolvedValue(pageOf([
       makeApp({ id: "app-1", stage: "new" }),
       makeApp({
@@ -207,6 +216,37 @@ describe("ApplicantsPage", () => {
     expect(screen.getByRole("button", { name: /^All · 2/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^New · 1/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Screening · 1/ })).toBeInTheDocument();
+  });
+
+  it("preselects the applicant named by ?selected= when it is in the list", async () => {
+    search = new URLSearchParams("selected=app-2");
+    render(<ApplicantsPage />);
+    const kenjiButton = await screen.findByRole("button", { name: /Kenji Sato/ });
+    expect(kenjiButton).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /Jane Applicant/ })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(mockedApps.get).not.toHaveBeenCalled();
+  });
+
+  it("fetches and pins an applicant named by ?selected= that is outside the first page", async () => {
+    search = new URLSearchParams("selected=app-9");
+    mockedApps.get.mockResolvedValue(
+      makeApp({
+        id: "app-9",
+        stage: "screening",
+        candidate: { id: "cand-9", name: "Far Away", email: "far@example.com", links: {} },
+      }),
+    );
+    render(<ApplicantsPage />);
+    const farButton = await screen.findByRole("button", { name: /Far Away/ });
+    expect(farButton).toHaveAttribute("aria-current", "true");
+    expect(mockedApps.get).toHaveBeenCalledWith("app-9");
+    // the pinned row sits above the page so the reviewer sees why they landed here
+    const names = screen
+      .getAllByRole("button", { name: /Far Away|Jane Applicant|Kenji Sato/ })
+      .map((button) => button.textContent ?? "");
+    expect(names[0]).toMatch(/Far Away/);
   });
 
   it("loads more pages and keeps whole-set pill counts", async () => {
