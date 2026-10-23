@@ -34,7 +34,7 @@ Postgres and Redis are not published on the host.
 
 ## Pre-built images
 
-Every release publishes `ghcr.io/ganek-dev/ganek-backend` and `ghcr.io/ganek-dev/ganek-frontend` tagged with the version (`v0.1.0`) and `latest`. Pin a version tag in production and read the [upgrade notes](/self-hosting/#upgrades) before moving.
+Every release publishes `ghcr.io/ganek-dev/ganek-backend` and `ghcr.io/ganek-dev/ganek-frontend` tagged with the version (`0.2.0`) and `latest`. Pin a version tag in production and read the [upgrade notes](/self-hosting/#upgrades) before moving.
 
 ## Your own database
 
