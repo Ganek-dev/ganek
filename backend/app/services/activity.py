@@ -30,6 +30,8 @@ QUOTA_EXCEEDED = "quota.exceeded"
 APPLICATIONS_EXPORTED = "applications.exported"
 API_KEY_CREATED = "api_key.created"
 API_KEY_REVOKED = "api_key.revoked"
+WEBHOOK_CREATED = "webhook.created"
+WEBHOOK_DELETED = "webhook.deleted"
 
 
 def record(

@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.schemas.public import ApplicationSubmit
-from app.services import activity, storage
+from app.services import activity, storage, webhooks
 
 TERMINAL_STAGES = frozenset(
     {ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED}
@@ -92,6 +92,7 @@ async def submit_application(
     except IntegrityError:
         await db.rollback()
         raise AlreadyAppliedError from None
+    await webhooks.emit_application_event(db, application.id, "application.created")
     return application
 
 
@@ -270,6 +271,10 @@ async def set_stage(
         )
     await db.commit()
     await db.refresh(application)
+    if previous is not stage:
+        await webhooks.emit_application_event(
+            db, application.id, "stage.changed", {"previous_stage": previous.value}
+        )
     return application
 
 

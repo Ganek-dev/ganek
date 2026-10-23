@@ -32,7 +32,7 @@ from app.models import (
     QuestionStatus,
     QuizAttempt,
 )
-from app.services import activity
+from app.services import activity, webhooks
 
 # Selection/shuffle order is an anti-cheat surface: use a CSPRNG by default.
 _default_rng: random.Random = random.SystemRandom()
@@ -552,6 +552,7 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
         payload={"score": attempt.score},
     )
     await db.commit()
+    await webhooks.emit_application_event(db, attempt.application_id, "quiz.completed")
 
 
 def effective_time_limit(attempt: QuizAttempt, question: Question) -> int:

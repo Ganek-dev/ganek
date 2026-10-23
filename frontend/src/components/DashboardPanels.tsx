@@ -272,6 +272,10 @@ function activityCopy(item: ActivityItem): string {
       return `${item.actor_email ?? "Someone"} created API key ${String(p.name ?? "")} (${String(p.scope ?? "")})`;
     case "api_key.revoked":
       return `${item.actor_email ?? "Someone"} revoked API key ${String(p.name ?? "")}`;
+    case "webhook.created":
+      return `${item.actor_email ?? "Someone"} added webhook ${String(p.name ?? "")}`;
+    case "webhook.deleted":
+      return `${item.actor_email ?? "Someone"} removed webhook ${String(p.name ?? "")}`;
     case "applications.exported":
       return `${item.actor_email ?? "Someone"} exported ${Number(p.rows) || 0} applicant(s) as ${String(p.format ?? "").toUpperCase()}`;
     case "retention.purged":

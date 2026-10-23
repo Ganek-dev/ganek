@@ -18,6 +18,7 @@ from app.api import (
     questions,
     stats,
     users,
+    webhooks,
 )
 from app.api import (
     health as health_api,
@@ -93,6 +94,7 @@ app.include_router(questionnaires.router, prefix="/api/v1")
 app.include_router(questions.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(webhooks.router, prefix="/api/v1")
 
 # added last = outermost, so the id covers every other middleware and the
 # access line uvicorn writes from inside send()

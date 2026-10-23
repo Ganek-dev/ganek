@@ -23,6 +23,7 @@ from app.models.quiz import AttemptAnswer, AttemptStatus, QuizAttempt
 from app.models.task import Task
 from app.models.user import User, UserRole
 from app.models.user_invite import UserInvite
+from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 
 __all__ = [
     "ActivityLog",
@@ -36,6 +37,7 @@ __all__ = [
     "Base",
     "Candidate",
     "Company",
+    "DeliveryStatus",
     "EmailOutbox",
     "EmailStatus",
     "EmailSuppression",
@@ -58,5 +60,7 @@ __all__ = [
     "User",
     "UserGoogleCredential",
     "UserInvite",
+    "WebhookDelivery",
+    "WebhookEndpoint",
     "UserRole",
 ]
