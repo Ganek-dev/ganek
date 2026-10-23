@@ -1057,6 +1057,34 @@ export interface UsageOut {
   warnings: string[];
 }
 
+/** Per-company API keys (card D4 part A): the secret exists only in the
+ * create response; the list carries the prefix. */
+export type ApiKeyScope = "read" | "write";
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  prefix: string;
+  scope: ApiKeyScope;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  secret: string;
+}
+
+export const apiKeys = {
+  list: () => request<ApiKey[]>("/api/v1/api-keys"),
+  create: (payload: { name: string; scope: ApiKeyScope }) =>
+    request<ApiKeyCreated>("/api/v1/api-keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  revoke: (id: string) => request<void>(`/api/v1/api-keys/${id}`, { method: "DELETE" }),
+};
+
 export const companyApi = {
   get: () => request<CompanyAdmin>("/api/v1/company"),
   usage: () => request<UsageOut>("/api/v1/company/usage"),

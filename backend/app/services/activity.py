@@ -28,6 +28,8 @@ USER_ANONYMIZED = "user.anonymized"
 RETENTION_PURGED = "retention.purged"
 QUOTA_EXCEEDED = "quota.exceeded"
 APPLICATIONS_EXPORTED = "applications.exported"
+API_KEY_CREATED = "api_key.created"
+API_KEY_REVOKED = "api_key.revoked"
 
 
 def record(

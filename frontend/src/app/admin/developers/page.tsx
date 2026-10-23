@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ArrowUpRight } from "lucide-react";
 
+import { ApiKeysCard } from "@/components/ApiKeysCard";
 import { CopyButton } from "@/components/CopyButton";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
@@ -177,6 +178,8 @@ export default function DevelopersPage() {
               for your marketing site.
             </p>
           </div>
+
+          <ApiKeysCard />
         </div>
 
         <aside aria-label="Widget preview" className="space-y-2">

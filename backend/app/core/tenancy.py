@@ -63,6 +63,57 @@ async def get_current_company(user: CurrentUser, db: DbSession) -> Company:
 CurrentCompany = Annotated[Company, Depends(get_current_company)]
 
 
+def _bearer(request: Request) -> str | None:
+    header = request.headers.get("authorization", "")
+    scheme, _, token = header.partition(" ")
+    return token.strip() if scheme.lower() == "bearer" and token else None
+
+
+async def _company_for_key(db: AsyncSession, token: str, *, write: bool) -> Company:
+    from app.services import api_keys  # local: services import tenancy types
+
+    try:
+        return await api_keys.authenticate(db, token, write=write)
+    except api_keys.KeyRejected:
+        raise _UNAUTHENTICATED from None
+    except api_keys.ScopeTooLow:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This API key is read-only"
+        ) from None
+
+
+async def get_api_company(request: Request, db: DbSession) -> Company:
+    """Read access for integrations (card D4): a bearer API key OR the
+    session cookie. Routers use this only on read endpoints."""
+    token = _bearer(request)
+    if token is not None:
+        return await _company_for_key(db, token, write=False)
+    return await get_current_company(await get_current_user(request, db), db)
+
+
+ApiCompany = Annotated[Company, Depends(get_api_company)]
+
+
+class WritePrincipal:
+    """Who is acting on a write route a key may use: the company always,
+    the user only for sessions (keys leave the activity actor empty)."""
+
+    def __init__(self, company: Company, user: User | None) -> None:
+        self.company = company
+        self.user = user
+
+
+async def get_write_principal(request: Request, db: DbSession) -> WritePrincipal:
+    token = _bearer(request)
+    if token is not None:
+        return WritePrincipal(await _company_for_key(db, token, write=True), None)
+    user = await get_current_user(request, db)
+    return WritePrincipal(await get_current_company(user, db), user)
+
+
+WriteActor = Annotated[WritePrincipal, Depends(get_write_principal)]
+
+
 async def get_company_by_slug(slug: str, db: DbSession) -> Company:
     """Public context (multi mode): company from the URL slug."""
     company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one_or_none()
