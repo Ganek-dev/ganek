@@ -92,7 +92,7 @@ async def _open_integrity_flags(db: AsyncSession, company: Company) -> list[Queu
                 kind="integrity",
                 title=f"Review quiz flags: {candidate_name}",
                 hint=" · ".join([job_title, *[s for s in summaries if s]]),
-                href=f"/admin/applicants/{application_id}",
+                href=f"/admin/applicants?selected={application_id}",
                 since=attempt.completed_at,
             )
         )
@@ -127,7 +127,7 @@ async def _unbooked_interviews(db: AsyncSession, company: Company) -> list[Queue
             kind="unbooked",
             title=f"Awaiting booking: {iv.application.candidate.name}",
             hint=f"{iv.application.job.title} · {iv.title}",
-            href=f"/admin/applicants/{iv.application_id}",
+            href=f"/admin/applicants?selected={iv.application_id}",
             since=iv.created_at,
         )
         for iv in interviews

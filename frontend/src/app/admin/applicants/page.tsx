@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AlertTriangle,
@@ -801,7 +802,12 @@ function DetailPanel({
   );
 }
 
-export default function ApplicantsPage() {
+function ApplicantsContent() {
+  // Deep links (dashboard queue, emails) name the applicant to open as
+  // ?selected=<id>; the list is paginated, so one outside the first page is
+  // fetched on its own and pinned to the top.
+  const requestedId = useSearchParams().get("selected");
+  const requestHandled = useRef(false);
   const [items, setItems] = useState<ApplicationOut[] | null>(null);
   const [total, setTotal] = useState(0);
   const [stageCounts, setStageCounts] = useState<Partial<Record<ApplicationStage, number>>>({});
@@ -809,7 +815,7 @@ export default function ApplicantsPage() {
   const [jobs, setJobs] = useState<JobOut[]>([]);
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "all">("all");
   const [jobFilter, setJobFilter] = useState<string>("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(requestedId);
   const [checked, setChecked] = useState<Map<string, string>>(new Map());
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});
   const loadingAnswersFor = useRef<string | null>(null);
@@ -835,19 +841,26 @@ export default function ApplicantsPage() {
         job_id: jobFilter === "" ? undefined : jobFilter,
         limit: LIST_PAGE_SIZE,
       })
-      .then((page) => {
-        setItems(page.items);
+      .then(async (page) => {
+        let rows = page.items;
+        const firstLoad = !requestHandled.current;
+        requestHandled.current = true;
+        if (firstLoad && requestedId !== null && !rows.some((row) => row.id === requestedId)) {
+          const pinned = await applications.get(requestedId).catch(() => null);
+          if (pinned !== null) rows = [pinned, ...rows];
+        }
+        setItems(rows);
         setTotal(page.total);
         setStageCounts(page.stage_counts);
         setSelectedId((current) => {
-          if (current && page.items.some((row) => row.id === current)) return current;
-          return page.items[0]?.id ?? null;
+          if (current && rows.some((row) => row.id === current)) return current;
+          return rows[0]?.id ?? null;
         });
       })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load applications"),
       );
-  }, [stageFilter, jobFilter]);
+  }, [stageFilter, jobFilter, requestedId]);
 
   const loadMore = useCallback(() => {
     if (items === null) return;
@@ -1185,5 +1198,13 @@ export default function ApplicantsPage() {
         )}
       </div>
     </section>
+  );
+}
+
+export default function ApplicantsPage() {
+  return (
+    <Suspense>
+      <ApplicantsContent />
+    </Suspense>
   );
 }
