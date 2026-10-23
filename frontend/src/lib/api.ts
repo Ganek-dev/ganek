@@ -20,6 +20,21 @@ export interface UserOut {
   mfa_token?: string | null;
 }
 
+/** Per-tenant guards this instance enforces (GANEK_QUOTA_*); 0 = off. */
+export interface InstanceLimits {
+  active_jobs: number;
+  applications_per_hour: number;
+  emails_per_day: number;
+}
+
+/** GET /auth/providers: optional sign-in methods, deployment mode and the
+ * limits the signup page lists under "what you get" (card B3). */
+export interface Providers {
+  google: boolean;
+  mode: "single" | "multi";
+  limits?: InstanceLimits;
+}
+
 export type RemotePolicy = "onsite" | "hybrid" | "remote";
 export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
 export type SalaryPeriod = "hour" | "day" | "week" | "month" | "year";
@@ -200,8 +215,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   me: () => request<UserOut>("/api/v1/auth/me"),
-  providers: () =>
-    request<{ google: boolean; mode: "single" | "multi" }>("/api/v1/auth/providers"),
+  providers: () => request<Providers>("/api/v1/auth/providers"),
   googleCalendar: {
     status: () =>
       request<{ connected: boolean; google_email: string | null; needs_reconnect: boolean }>(
