@@ -6,6 +6,7 @@ import { ArrowUpRight } from "lucide-react";
 
 import { ApiKeysCard } from "@/components/ApiKeysCard";
 import { CopyButton } from "@/components/CopyButton";
+import { WebhooksCard } from "@/components/WebhooksCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
 
@@ -180,6 +181,7 @@ export default function DevelopersPage() {
           </div>
 
           <ApiKeysCard />
+          <WebhooksCard />
         </div>
 
         <aside aria-label="Widget preview" className="space-y-2">
