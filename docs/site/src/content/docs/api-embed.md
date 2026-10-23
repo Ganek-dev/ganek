@@ -83,7 +83,55 @@ curl -H "Authorization: Bearer gk_..." https://your-instance/api/v1/applications
 
 Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}` and the export above. Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
 
-Outbound webhooks (new application to Slack) are on the roadmap.
+### Webhooks
+
+Admins register HTTPS endpoints under Settings, Developers and pick events: `application.created`, `stage.changed`, `quiz.completed`. Each event becomes one delivery per subscribed endpoint, posted by the worker as JSON:
+
+```json
+{
+  "id": "6d1e...",
+  "event": "stage.changed",
+  "created_at": "2026-10-23T18:04:11+00:00",
+  "data": {
+    "id": "c17a...",
+    "stage": "screening",
+    "previous_stage": "new",
+    "source": null,
+    "created_at": "2026-10-23T17:58:02+00:00",
+    "candidate": { "name": "Jane Applicant", "email": "jane@example.com" },
+    "job": { "id": "9b2f...", "title": "Backend Engineer", "slug": "backend-engineer" },
+    "quiz": { "status": "completed", "score_percent": 83, "completed_at": "...", "flags": ["left the tab 2x (~5s)"] }
+  }
+}
+```
+
+`quiz` is `null` until an assessment exists and only ever carries the summary: no answers, no keys, no raw integrity events. Failed deliveries retry with backoff (1 min, 5 min, 15 min, 1 h) and park as `failed` after five attempts; the Developers page shows the last delivery per endpoint and "Send test" posts a `ping`.
+
+**Verify the signature.** Every request carries `X-Ganek-Timestamp` (unix seconds), `X-Ganek-Delivery` (the id, for de-duplication) and `X-Ganek-Signature: sha256=<hex>`, an HMAC-SHA256 of `"<timestamp>.<raw body>"` with the endpoint secret shown once at creation. Reject stale timestamps to block replays:
+
+```python
+import hmac, hashlib, time
+
+def verify(secret: str, headers: dict[str, str], raw_body: bytes) -> bool:
+    ts = headers["X-Ganek-Timestamp"]
+    if abs(time.time() - int(ts)) > 300:
+        return False
+    expected = "sha256=" + hmac.new(secret.encode(), f"{ts}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, headers["X-Ganek-Signature"])
+```
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+export function verify(secret, headers, rawBody) {
+  const ts = headers["x-ganek-timestamp"];
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
+  const expected = "sha256=" + createHmac("sha256", secret).update(`${ts}.`).update(rawBody).digest("hex");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(headers["x-ganek-signature"]));
+}
+```
+
+Endpoint URLs must be public `https://` addresses; localhost and private ranges are refused.
 
 ### Applicant export
 

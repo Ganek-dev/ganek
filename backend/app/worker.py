@@ -35,11 +35,13 @@ from app.models import (
     QuizAttempt,
 )
 from app.models.quiz import AttemptStatus
+from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import outbox as outbox_service
 from app.services import retention as retention_service
+from app.services import webhooks as webhooks_service
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +264,46 @@ async def sweep_outbox(ctx: dict[str, Any]) -> None:
         logger.info("outbox sweep: re-enqueued %d emails", len(stuck))
 
 
+async def deliver_webhook(ctx: dict[str, Any], delivery_id: str) -> None:
+    """POST one webhook delivery (card D4 part B). Mirrors deliver_email:
+    only `queued` rows are touched, the attempt counter and the parked
+    `failed` state live on the row, retries go through arq's Retry."""
+    async with ctx["session_factory"]() as db:
+        row = (
+            await db.execute(select(WebhookDelivery).where(WebhookDelivery.id == delivery_id))
+        ).scalar_one_or_none()
+        if row is None or row.status is not DeliveryStatus.QUEUED:
+            return
+        row.attempts += 1
+        try:
+            await webhooks_service.deliver(db, row)
+        except Exception as exc:  # noqa: BLE001 - every failure drives the retry loop
+            row.last_error = str(exc)[: webhooks_service.MAX_ERROR_LENGTH] or exc.__class__.__name__
+            if row.attempts >= webhooks_service.MAX_ATTEMPTS:
+                row.status = DeliveryStatus.FAILED
+                await db.commit()
+                logger.warning("webhook %s failed after %d attempts", delivery_id, row.attempts)
+                return
+            delay = webhooks_service.RETRY_DELAYS_SECONDS[
+                min(row.attempts - 1, len(webhooks_service.RETRY_DELAYS_SECONDS) - 1)
+            ]
+            await db.commit()
+            raise Retry(defer=delay) from exc
+        await db.commit()
+
+
+async def sweep_webhooks(ctx: dict[str, Any]) -> None:
+    """Re-enqueue queued deliveries whose enqueue was lost (redis down)."""
+    async with ctx["session_factory"]() as db:
+        stuck = await webhooks_service.stuck_deliveries(
+            db, older_than=datetime.now(UTC) - timedelta(minutes=5)
+        )
+    for row_id in stuck:
+        await ctx["redis"].enqueue_job("deliver_webhook", str(row_id))
+    if stuck:
+        logger.info("webhook sweep: re-enqueued %d deliveries", len(stuck))
+
+
 class WorkerSettings:
     functions = [
         send_interview_reminder,
@@ -269,11 +311,14 @@ class WorkerSettings:
         purge_retention,
         deliver_email,
         sweep_outbox,
+        deliver_webhook,
+        sweep_webhooks,
         heartbeat,
     ]
     cron_jobs = [
         cron(purge_retention, hour=3, minute=17),
         cron(sweep_outbox, minute={7, 17, 27, 37, 47, 57}),
+        cron(sweep_webhooks, minute={3, 13, 23, 33, 43, 53}),
         cron(heartbeat),  # every minute
     ]
     on_startup = startup
