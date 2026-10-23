@@ -71,7 +71,8 @@ describe("Captcha", () => {
     });
     expect(widget.getAttribute("configuration")).toBe(WIDGET_CONFIGURATION);
     expect(widget.getAttribute("name")).toBe("altcha");
-    expect(screen.getByText(/talks to no third party/)).toBeInTheDocument();
+    // the widget speaks for itself; no explanatory copy under it (owner, 2026-10-23)
+    expect(screen.queryByText(/automated check/)).toBeNull();
 
     // what the widget does once solved: fills its hidden input, fires events
     const input = document.createElement("input");
