@@ -84,11 +84,18 @@ function mockState({
   jobs = [] as JobOut[],
   users = soloTeam,
   invites = [] as { id: string }[],
+  mode = "single" as const satisfies "single" | "multi",
+}: {
+  theme?: { primary_color?: string };
+  jobs?: JobOut[];
+  users?: TeamUser[];
+  invites?: { id: string }[];
+  mode?: "single" | "multi";
 } = {}) {
   mockedApi.me.mockResolvedValue(admin);
   mockedCompany.get.mockResolvedValue({
     slug: "acmelabs",
-    mode: "single" as const,
+    mode,
     smtp_configured: true,
     name: "Acme Labs",
     description: "",
@@ -160,6 +167,22 @@ describe("OnboardingChecklist", () => {
     // job exists without an assessment: step 4 still offers its CTA
     expect(screen.getByRole("link", { name: "Browse questions" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Create job" })).not.toBeInTheDocument();
+  });
+
+  it("adds a done verify-email step in multi mode", async () => {
+    mockState({ mode: "multi" });
+    render(<OnboardingChecklist />);
+    // the admin can only reach the dashboard after the inbox click, so the
+    // step always lands ticked: it is the post-verify acknowledgement
+    expect(await screen.findByText("2 of 6 done")).toBeInTheDocument();
+    expect(screen.getByText("Verify your email")).toHaveClass("line-through");
+  });
+
+  it("has no verify-email step in single mode", async () => {
+    mockState();
+    render(<OnboardingChecklist />);
+    expect(await screen.findByText("1 of 5 done")).toBeInTheDocument();
+    expect(screen.queryByText("Verify your email")).not.toBeInTheDocument();
   });
 
   it("renders nothing for members", async () => {
