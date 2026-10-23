@@ -37,13 +37,14 @@ def google_configured(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_providers_google_off_by_default(client: AsyncClient) -> None:
     resp = await client.get("/api/v1/auth/providers")
     assert resp.status_code == 200
-    assert resp.json() == {"google": False, "mode": "single"}
+    body = resp.json()
+    assert (body["google"], body["mode"]) == (False, "single")
 
 
 @pytest.mark.usefixtures("google_configured")
 async def test_providers_google_on_when_configured(client: AsyncClient) -> None:
     resp = await client.get("/api/v1/auth/providers")
-    assert resp.json() == {"google": True, "mode": "single"}
+    assert resp.json()["google"] is True
 
 
 def _claims(

@@ -111,6 +111,55 @@ describe("SetupPage", () => {
     expect(screen.getByRole("button", { name: "Link resent" })).toBeDisabled();
   });
 
+  describe("what you get (multi mode)", () => {
+    const limits = { active_jobs: 50, applications_per_hour: 100, emails_per_day: 500 };
+
+    it("lists the instance limits and the activation step", async () => {
+      mocked.providers.mockResolvedValue({ google: false, mode: "multi", limits });
+      render(<SetupPage />);
+      expect(await screen.findByRole("heading", { name: "What you get" })).toBeInTheDocument();
+      expect(
+        screen.getByText(/up to 50 open jobs, 100 applications an hour and 500 candidate emails a day/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/we email you a link to activate it/i)).toBeInTheDocument();
+    });
+
+    it("drops limits that are off and says so when none apply", async () => {
+      mocked.providers.mockResolvedValue({
+        google: false,
+        mode: "multi",
+        limits: { active_jobs: 0, applications_per_hour: 100, emails_per_day: 0 },
+      });
+      render(<SetupPage />);
+      expect(await screen.findByText(/up to 100 applications an hour/i)).toBeInTheDocument();
+      expect(screen.queryByText(/open jobs/)).not.toBeInTheDocument();
+    });
+
+    it("says there are no limits when every guard is off", async () => {
+      mocked.providers.mockResolvedValue({
+        google: false,
+        mode: "multi",
+        limits: { active_jobs: 0, applications_per_hour: 0, emails_per_day: 0 },
+      });
+      render(<SetupPage />);
+      expect(await screen.findByText(/no usage limits on this instance/i)).toBeInTheDocument();
+    });
+
+    it("shows the panel on the Google onboarding step too", async () => {
+      search = new URLSearchParams({ google: "pending" });
+      mocked.providers.mockResolvedValue({ google: true, mode: "multi", limits });
+      render(<SetupPage />);
+      expect(await screen.findByRole("heading", { name: "What you get" })).toBeInTheDocument();
+      expect(await screen.findByText("grumpy@gmail.com")).toBeInTheDocument();
+    });
+
+    it("stays hidden on a single-company instance", async () => {
+      render(<SetupPage />);
+      await waitFor(() => expect(mocked.providers).toHaveBeenCalled());
+      expect(screen.queryByRole("heading", { name: "What you get" })).not.toBeInTheDocument();
+    });
+  });
+
   it("links back to login", () => {
     render(<SetupPage />);
     expect(screen.getByRole("link", { name: "Log in" })).toHaveAttribute("href", "/login");

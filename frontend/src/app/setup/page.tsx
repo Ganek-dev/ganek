@@ -9,7 +9,7 @@ import { Check } from "lucide-react";
 import { AuthShell } from "@/components/AuthShell";
 import { Captcha, isCaptchaError } from "@/components/Captcha";
 import { GoogleButton } from "@/components/GoogleButton";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, type InstanceLimits } from "@/lib/api";
 import { careersSlugPreview } from "@/lib/careers";
 
 /** Signup / first-run setup, handoff screen 13b. Company name gets a live
@@ -28,6 +28,54 @@ function toSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
+}
+
+/** "Up to 50 open jobs, 100 applications an hour and 500 candidate emails a
+ * day" from the instance limits; guards that are off (0) drop out. */
+function limitsSentence(limits: InstanceLimits): string {
+  const parts = [
+    limits.active_jobs > 0 ? `${limits.active_jobs} open jobs` : null,
+    limits.applications_per_hour > 0 ? `${limits.applications_per_hour} applications an hour` : null,
+    limits.emails_per_day > 0 ? `${limits.emails_per_day} candidate emails a day` : null,
+  ].filter((part): part is string => part !== null);
+  if (parts.length === 0) return "No usage limits on this instance";
+  const last = parts.pop();
+  return `Up to ${parts.length > 0 ? `${parts.join(", ")} and ${last}` : last}`;
+}
+
+/** Multi-mode only: what a stranger is signing up for (card B3). Single
+ * mode is the operator's own instance; they set these limits themselves. */
+function WhatYouGet({ limits }: { limits: InstanceLimits }) {
+  const items = [
+    "A branded careers page and apply flow, server-rendered for search engines",
+    "Skill quizzes from the curated question bank, timed and scored on the server",
+    limitsSentence(limits),
+    "No candidate accounts and no trackers on candidate pages",
+  ];
+  return (
+    <section
+      aria-labelledby="what-you-get"
+      className="rounded-md border border-edge bg-muted-fill/40 px-3.5 py-3"
+    >
+      <h2
+        id="what-you-get"
+        className="font-mono text-[10.5px] font-medium tracking-wide text-g500 uppercase"
+      >
+        What you get
+      </h2>
+      <ul className="mt-2 space-y-1.5">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2 text-[12.5px] leading-[18px] text-g600">
+            <Check
+              aria-hidden
+              className="mt-[3px] h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+            />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function SlugPreview({ slug }: { slug: string }) {
@@ -59,12 +107,24 @@ function SetupForm() {
   const [companyName, setCompanyName] = useState("");
   const [google, setGoogle] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [limits, setLimits] = useState<InstanceLimits | null>(null);
 
   const googlePending = searchParams.get("google") === "pending";
   const slug = toSlug(companyName);
 
   useEffect(() => {
     let cancelled = false;
+    api
+      .providers()
+      .then((p) => {
+        if (cancelled) return;
+        setGoogle(p.google);
+        // the panel is for strangers on a multi-company instance only
+        if (p.mode === "multi" && p.limits) setLimits(p.limits);
+      })
+      .catch(() => {
+        /* flag stays false and the panel stays hidden; password signup is unaffected */
+      });
     if (googlePending) {
       // the account token sits in an httponly cookie; the server tells us
       // which email it vouched for (or 410 when the session expired)
@@ -76,15 +136,6 @@ function SetupForm() {
         .catch((err: unknown) => {
           if (!cancelled && err instanceof ApiError && err.status === 410) setExpired(true);
           /* other failures: the banner falls back to "your Google account" */
-        });
-    } else {
-      api
-        .providers()
-        .then((p) => {
-          if (!cancelled) setGoogle(p.google);
-        })
-        .catch(() => {
-          /* flag stays false — password signup is unaffected */
         });
     }
     return () => {
@@ -166,6 +217,9 @@ function SetupForm() {
   return (
     <AuthShell
       title="Create your workspace"
+      subtitle={
+        limits ? "Name your company and we email you a link to activate it." : undefined
+      }
       footer={
         <>
           Already have one?{" "}
@@ -264,6 +318,7 @@ function SetupForm() {
           {busy ? "…" : "Create workspace"}
         </button>
       </form>
+      {limits ? <WhatYouGet limits={limits} /> : null}
       <p className="text-center font-mono text-[10.5px] leading-4 text-g400">
         Open source · self-hostable · no candidate accounts, ever
       </p>

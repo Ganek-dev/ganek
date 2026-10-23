@@ -236,12 +236,20 @@ async def sign_out_everywhere(response: Response, db: DbSession, user: CurrentUs
 
 
 @router.get("/providers")
-async def providers() -> dict[str, bool | str]:
-    """Which optional sign-in methods this instance has configured, and its
-    deployment mode (single = careers at the instance root)."""
+async def providers() -> dict[str, bool | str | dict[str, int]]:
+    """Which optional sign-in methods this instance has configured, its
+    deployment mode (single = careers at the instance root) and the
+    per-tenant limits the signup page lists under "what you get" (card B3;
+    0 = that guard is off). Public on purpose: the same numbers already
+    leak through the 429/409 responses on apply and publish."""
     return {
         "google": bool(settings.google_client_id and settings.google_client_secret),
         "mode": settings.mode,
+        "limits": {
+            "active_jobs": settings.quota_active_jobs,
+            "applications_per_hour": settings.quota_applications_per_hour,
+            "emails_per_day": settings.quota_emails_per_day,
+        },
     }
 
 
