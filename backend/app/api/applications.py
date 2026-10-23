@@ -6,11 +6,19 @@ from datetime import UTC, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
-from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
+from app.api.deps import (
+    AdminUser,
+    ApiCompany,
+    CurrentCompany,
+    CurrentUser,
+    DbSession,
+    WriteActor,
+    get_current_user,
+)
 from app.core import urls
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
 from app.models import Application, ApplicationNote, ApplicationStage, EmailOutbox, User, UserRole
@@ -45,6 +53,15 @@ from app.services import quiz as quiz_service
 router = APIRouter(prefix="/applications", tags=["applications"])
 
 
+async def _session_user_or_none(request: Request, db: DbSession) -> User | None:
+    """Export is open to read keys too; a session caller still gets named
+    in the activity entry (admin check happens in get_api_company's
+    session branch via the company dependency, members included)."""
+    if request.headers.get("authorization"):
+        return None
+    return await get_current_user(request, db)
+
+
 async def _get_or_404(
     db: DbSession, company: CurrentCompany, application_id: uuid.UUID
 ) -> Application:
@@ -57,7 +74,7 @@ async def _get_or_404(
 @router.get("", response_model=ApplicationPage)
 async def list_applications(
     db: DbSession,
-    company: CurrentCompany,
+    company: ApiCompany,
     job_id: uuid.UUID | None = None,
     stage: ApplicationStage | None = None,
     limit: int = Query(default=100, ge=1, le=200),
@@ -76,8 +93,8 @@ async def list_applications(
 @router.get("/export")
 async def export_applications(
     db: DbSession,
-    company: CurrentCompany,
-    admin: AdminUser,
+    company: ApiCompany,
+    request: Request,
     format: Literal["csv", "json"] = "csv",
     job_id: uuid.UUID | None = None,
     stage: ApplicationStage | None = None,
@@ -87,11 +104,12 @@ async def export_applications(
     export names who pulled how many rows. Declared before the
     /{application_id} routes so "export" is never parsed as an id."""
     rows = await applications_service.export_applications(db, company, job_id=job_id, stage=stage)
+    actor = await _session_user_or_none(request, db)
     activity.record(
         db,
         company_id=company.id,
         type=activity.APPLICATIONS_EXPORTED,
-        actor_user_id=admin.id,
+        actor_user_id=actor.id if actor is not None else None,
         payload={
             "format": format,
             "rows": len(rows),
@@ -137,7 +155,7 @@ async def bulk_reject_applications(
 
 @router.get("/{application_id}", response_model=ApplicationOut)
 async def get_application(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID, db: DbSession, company: ApiCompany
 ) -> Application:
     return await _get_or_404(db, company, application_id)
 
@@ -147,15 +165,18 @@ async def set_stage(
     application_id: uuid.UUID,
     payload: StageUpdate,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    actor: WriteActor,
 ) -> Application:
+    company = actor.company
     application = await _get_or_404(db, company, application_id)
     # bulk-reject silently skips already-rejected rows; the single route must
     # not re-send the stage email either when nothing actually changed
     stage_changed = application.stage is not payload.stage
     updated = await applications_service.set_stage(
-        db, application, payload.stage, actor_user_id=user.id
+        db,
+        application,
+        payload.stage,
+        actor_user_id=actor.user.id if actor.user is not None else None,
     )
     if payload.notify_candidate and stage_changed:
         await _queue_stage_email(db, company, application, payload.stage)

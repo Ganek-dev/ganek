@@ -2,22 +2,26 @@
 
 from app.core.tenancy import (
     AdminUser,
+    ApiCompany,
     CurrentCompany,
     CurrentUser,
     DbSession,
     PublicCompany,
     SingleCompany,
+    WriteActor,
     get_current_user,
     require_admin,
 )
 
 __all__ = [
     "AdminUser",
+    "ApiCompany",
     "CurrentCompany",
     "CurrentUser",
     "DbSession",
     "PublicCompany",
     "SingleCompany",
+    "WriteActor",
     "get_current_user",
     "require_admin",
 ]

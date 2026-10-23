@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 
 from app.api import (
+    api_keys,
     applications,
     auth,
     company,
@@ -61,6 +62,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(api_keys.router, prefix="/api/v1")
 app.include_router(applications.router, prefix="/api/v1")
 
 

@@ -73,7 +73,17 @@ Tokens in these paths are capability links sent by email. Treat them as secrets.
 
 ## Admin API
 
-The admin UI talks to the same backend under `/api/v1/` with a session cookie and the tenancy of the signed-in user. The interactive OpenAPI reference is served by your own instance at `/api/docs` (schema at `/api/openapi.json`). API keys and outbound webhooks (new application to Slack) are on the roadmap; until then the session cookie is the only credential.
+The admin UI talks to the same backend under `/api/v1/` with a session cookie and the tenancy of the signed-in user. The interactive OpenAPI reference is served by your own instance at `/api/docs` (schema at `/api/openapi.json`). ### API keys
+
+Admins create keys under Settings, Developers. The secret (`gk_...`) is shown once; the list keeps only a prefix. Send it as a bearer token:
+
+```
+curl -H "Authorization: Bearer gk_..." https://your-instance/api/v1/applications
+```
+
+Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}` and the export above. Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
+
+Outbound webhooks (new application to Slack) are on the roadmap.
 
 ### Applicant export
 

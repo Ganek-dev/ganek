@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
+import { apiKeys, companyApi, publicJobsFeed, type ApiKey, type JobsFeed } from "@/lib/api";
 
 import DevelopersPage from "./page";
 
@@ -16,11 +16,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     companyApi: { get: vi.fn(), updateBranding: vi.fn(), updateSettings: vi.fn() },
     publicJobsFeed: vi.fn(),
+    apiKeys: { list: vi.fn(), create: vi.fn(), revoke: vi.fn() },
   };
 });
 
 const mockedCompany = vi.mocked(companyApi);
 const mockedFeed = vi.mocked(publicJobsFeed);
+const mockedKeys = vi.mocked(apiKeys);
 
 const feed: JobsFeed = {
   company: "Acme Labs",
@@ -55,6 +57,7 @@ describe("DevelopersPage", () => {
       settings: {},
     });
     mockedFeed.mockResolvedValue(feed);
+    mockedKeys.list.mockResolvedValue([]);
   });
 
   it("shows the feed URL, sample JSON, and live preview", async () => {
@@ -92,5 +95,55 @@ describe("DevelopersPage", () => {
     render(<DevelopersPage />);
     expect(await screen.findByText("No open positions right now.")).toBeInTheDocument();
     expect(screen.getByTestId("widget-preview")).toHaveTextContent("0 roles");
+  });
+});
+
+describe("API keys card", () => {
+  const key: ApiKey = {
+    id: "k1",
+    name: "Zapier",
+    prefix: "gk_abcdefghi",
+    scope: "read",
+    created_at: "2026-10-20T10:00:00Z",
+    last_used_at: null,
+    revoked_at: null,
+  };
+
+  beforeEach(() => {
+    mockedKeys.list.mockResolvedValue([key]);
+  });
+
+  it("lists keys by prefix and scope and revokes with confirmation", async () => {
+    mockedKeys.revoke.mockResolvedValue(undefined);
+    render(<DevelopersPage />);
+    const row = (await screen.findByText("Zapier")).closest("li");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("gk_abcdefghi")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("read")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Revoke Zapier" }));
+    await userEvent.click(screen.getByRole("button", { name: "Revoke key" }));
+    expect(mockedKeys.revoke).toHaveBeenCalledWith("k1");
+  });
+
+  it("creates a key and shows the secret exactly once", async () => {
+    mockedKeys.create.mockResolvedValue({
+      ...key,
+      id: "k2",
+      name: "ATS sync",
+      prefix: "gk_zzzzzzzzz",
+      scope: "write",
+      secret: "gk_zzzzzzzzzSECRETSECRETSECRET",
+    });
+    render(<DevelopersPage />);
+    await screen.findByText("Zapier");
+    await userEvent.type(screen.getByLabelText("Key name"), "ATS sync");
+    await userEvent.selectOptions(screen.getByLabelText("Scope"), "write");
+    await userEvent.click(screen.getByRole("button", { name: "Create key" }));
+
+    expect(mockedKeys.create).toHaveBeenCalledWith({ name: "ATS sync", scope: "write" });
+    expect(await screen.findByText("gk_zzzzzzzzzSECRETSECRETSECRET")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy API key" })).toBeInTheDocument();
+    expect(screen.getByText(/won't be shown again/i)).toBeInTheDocument();
   });
 });
