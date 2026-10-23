@@ -131,7 +131,7 @@ export function verify(secret, headers, rawBody) {
 }
 ```
 
-Endpoint URLs must be public `https://` addresses; localhost and private ranges are refused.
+Endpoint URLs must be public `https://` addresses; localhost and private ranges are refused. Deliveries carry the candidate's name and email, so the service behind an endpoint is a processor you list in your own records of processing.
 
 ### Applicant export
 
