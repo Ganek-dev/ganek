@@ -117,3 +117,11 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm audit --audit-level high
+      # docs/site is a build-time-only tree (static output behind Caddy), so
+      # holding it at moderate costs nothing; alert #75 sat unseen for lack
+      # of this step.
+      - name: pnpm audit (docs site)
+        working-directory: docs/site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level moderate
