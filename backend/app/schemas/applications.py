@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import ApplicationStage, AttemptStatus
 
@@ -26,7 +26,21 @@ class QuizResultOut(BaseModel):
     per_tag_scores: dict[str, Any]
     completed_at: datetime | None
     question_ids: list[str]
+    time_multiplier: float
     integrity: dict[str, Any]
+
+
+class ExtraTimeIn(BaseModel):
+    """Recruiter-side accommodation: 1 removes it, 1.5 and 2 are the grants."""
+
+    time_multiplier: float
+
+    @field_validator("time_multiplier")
+    @classmethod
+    def _known_multiplier(cls, value: float) -> float:
+        if value not in (1.0, 1.5, 2.0):
+            raise ValueError("time_multiplier must be 1, 1.5 or 2")
+        return float(value)
 
 
 class ApplicationOut(BaseModel):

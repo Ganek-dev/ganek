@@ -144,6 +144,7 @@ EXPORT_COLUMNS = (
     "quiz_score_percent",
     "quiz_completed_at",
     "integrity_flags",
+    "quiz_time_multiplier",
     "cv_filename",
     "message",
 )
@@ -173,6 +174,11 @@ def export_row(application: Application) -> dict[str, str | int]:
         ),
         "quiz_completed_at": _iso(attempt.completed_at) if attempt is not None else "",
         "integrity_flags": "; ".join(str(flag.get("summary", "")) for flag in flags),
+        "quiz_time_multiplier": (
+            f"{attempt.time_multiplier:g}x"
+            if attempt is not None and (attempt.time_multiplier or 1.0) > 1.0
+            else ""
+        ),
         "cv_filename": application.cv_filename,
         "message": application.message or "",
     }

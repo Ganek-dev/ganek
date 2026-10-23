@@ -56,3 +56,25 @@ def test_row_uses_latest_attempt_score_and_flag_summaries() -> None:
     assert row["integrity_flags"] == "left the tab 2x (~5s); pasted into 1 answer"
     # only summaries travel, never the raw event stream or anything per-question
     assert "blur" not in str(row) and "detail" not in str(row)
+
+
+def test_row_carries_the_extra_time_multiplier() -> None:
+    plain = export_row(
+        _application(quiz_attempts=[QuizAttempt(status=AttemptStatus.PENDING, integrity={})])
+    )
+    assert plain["quiz_time_multiplier"] == ""
+    granted = export_row(
+        _application(
+            quiz_attempts=[
+                QuizAttempt(
+                    status=AttemptStatus.COMPLETED,
+                    score=0.5,
+                    time_multiplier=2.0,
+                    integrity={"accommodation": {"time_multiplier": 2.0, "by_user_id": "u1"}},
+                )
+            ]
+        )
+    )
+    assert granted["quiz_time_multiplier"] == "2x"
+    # who granted it stays inside the app, like every other internal id
+    assert "u1" not in str(granted)

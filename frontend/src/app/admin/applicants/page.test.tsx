@@ -73,6 +73,7 @@ function makeApp(overrides: Partial<ApplicationOut>): ApplicationOut {
       per_tag_scores: { python: { correct: 3, total: 4 } },
       completed_at: "2026-07-22T10:05:00Z",
       question_ids: ["q1", "q2", "q3", "q4"],
+      time_multiplier: 1,
       integrity: {
         blur_count: 2,
         flags: [
@@ -170,6 +171,7 @@ describe("ApplicantsPage", () => {
           per_tag_scores: {},
           completed_at: null,
           question_ids: ["q1", "q2", "q3", "q4"],
+          time_multiplier: 1,
           integrity: { flags: [] },
         },
       }),
@@ -301,6 +303,30 @@ describe("ApplicantsPage", () => {
     expect(screen.getByText("1 flag")).toBeInTheDocument();
   });
 
+  it("notes a granted extra-time accommodation on the integrity card", async () => {
+    const base = makeApp({});
+    mockedApps.list.mockResolvedValue(
+      pageOf([
+        {
+          ...base,
+          quiz_attempt: {
+            ...base.quiz_attempt!,
+            time_multiplier: 2,
+            integrity: {
+              ...base.quiz_attempt!.integrity,
+              accommodation: { time_multiplier: 2, by_user_id: "u1", at: RECENT },
+            },
+          },
+        },
+      ]),
+    );
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(
+      await screen.findByText("Extra time granted: 2x the usual limit per question."),
+    ).toBeInTheDocument();
+  });
+
   it("Advance advances to the next stage, Reject sets rejected", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
@@ -325,6 +351,7 @@ describe("ApplicantsPage", () => {
           per_tag_scores: {},
           completed_at: null,
           question_ids: ["q1", "q2"],
+          time_multiplier: 1,
           integrity: { blur_count: 0, flags: [] },
         },
       }),

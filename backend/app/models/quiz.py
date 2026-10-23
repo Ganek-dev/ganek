@@ -51,6 +51,9 @@ class QuizAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # per-question seconds, frozen from the job's quiz_config at creation;
     # NULL = fall back to each question's own time_limit_seconds
     time_limit_seconds: Mapped[int | None] = mapped_column(Integer)
+    # extra-time accommodation granted by a recruiter (1 = none, 1.5, 2);
+    # frozen per attempt like the limit it scales, carried over on re-issue
+    time_multiplier: Mapped[float] = mapped_column(Float, default=1.0, server_default="1")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

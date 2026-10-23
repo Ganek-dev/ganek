@@ -414,11 +414,13 @@ export interface QuizIntegrity {
   /** Set on a RE-ISSUED attempt: where it came from and why (D6). */
   reissue?: {
     from_attempt_id: string;
-    reason: "expired" | "integrity";
+    reason: "expired" | "integrity" | "accommodation";
     mode: "auto" | "manual";
     by_user_id: string | null;
     at: string;
   };
+  /** Extra-time accommodation a recruiter granted (1.5 or 2); carried over on re-issue. */
+  accommodation?: { time_multiplier: number; by_user_id: string | null; at: string };
   /** Human review of the flags (screen 24 "looks fine"). */
   review?: { decision: string; by_user_id: string; at: string };
   /** Candidate asked for a new link from the expired screen (27c). */
@@ -431,6 +433,8 @@ export interface QuizResult {
   per_tag_scores: Record<string, { correct: number; total: number }>;
   completed_at: string | null;
   question_ids: string[];
+  /** Frozen extra-time multiplier for this attempt: 1 (none), 1.5 or 2. */
+  time_multiplier: number;
   integrity: QuizIntegrity;
 }
 
@@ -509,6 +513,13 @@ export const applications = {
   get: (id: string) => request<ApplicationOut>(`/api/v1/applications/${id}`),
   reissueQuiz: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/reissue`, { method: "POST" }),
+  /** Extra-time accommodation: 1 removes it, 1.5 and 2 grant it. A pending
+   * attempt keeps its link; anything started is re-issued with the multiplier. */
+  grantExtraTime: (id: string, timeMultiplier: number) =>
+    request<QuizResult>(`/api/v1/applications/${id}/quiz/extra-time`, {
+      method: "POST",
+      body: JSON.stringify({ time_multiplier: timeMultiplier }),
+    }),
   dismissFlags: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/dismiss-flags`, { method: "POST" }),
   bulkReject: (applicationIds: string[], notifyCandidates: boolean) =>

@@ -21,7 +21,15 @@ from app.api.deps import (
 )
 from app.core import urls
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
-from app.models import Application, ApplicationNote, ApplicationStage, EmailOutbox, User, UserRole
+from app.models import (
+    Application,
+    ApplicationNote,
+    ApplicationStage,
+    Company,
+    EmailOutbox,
+    User,
+    UserRole,
+)
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
     ApplicationOut,
@@ -32,6 +40,7 @@ from app.schemas.applications import (
     CvDownload,
     EmailDeliveryOut,
     EraseCandidateOut,
+    ExtraTimeIn,
     NoteCreate,
     NoteOut,
     QuizAnswerReview,
@@ -385,6 +394,14 @@ async def reissue_quiz(
             status_code=status.HTTP_409_CONFLICT,
             detail="This job's assessment is disabled or has no questions to serve",
         )
+    await _queue_quiz_invite(db, company, application, attempt)
+    return attempt
+
+
+async def _queue_quiz_invite(
+    db: DbSession, company: Company, application: Application, attempt: QuizAttempt
+) -> None:
+    """Branded quiz invite (17a) for the attempt's current link and timing."""
     await outbox_service.queue_email(
         db,
         kind="quiz_invite",
@@ -398,11 +415,44 @@ async def reissue_quiz(
         brand_primary=(company.theme or {}).get("primary_color"),
         quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
         question_count=len(attempt.question_ids),
-        seconds_per_question=attempt.time_limit_seconds,
+        seconds_per_question=quiz_service.seconds_per_question(attempt),
         expires_at=attempt.expires_at,
         controller_name=company_service.controller_name(company),
         privacy_url=urls.privacy_notice_url(company),
     )
+
+
+@router.post("/{application_id}/quiz/extra-time", response_model=QuizResultOut)
+async def grant_extra_time(
+    application_id: uuid.UUID,
+    payload: ExtraTimeIn,
+    db: DbSession,
+    company: CurrentCompany,
+    admin: AdminUser,
+) -> QuizAttempt:
+    """Extra-time accommodation (1.5x or 2x per question; 1 removes it).
+    A pending attempt keeps its questions and link and gets the invite
+    again with the new timing; a started, finished or expired one is
+    re-issued fresh with the multiplier. Recorded in the attempt's
+    integrity data; scoring is untouched."""
+    application = await _get_or_404(db, company, application_id)
+    if application.quiz_attempt is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No assessment to adjust")
+    granted = await quiz_service.grant_extra_time(
+        db,
+        company,
+        application,
+        application.job,
+        multiplier=payload.time_multiplier,
+        by_user_id=admin.id,
+    )
+    if granted is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This job's assessment is disabled or has no questions to serve",
+        )
+    attempt, _reissued = granted
+    await _queue_quiz_invite(db, company, application, attempt)
     return attempt
 
 
