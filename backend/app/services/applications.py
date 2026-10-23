@@ -131,6 +131,78 @@ async def list_applications(
     return list((await db.execute(query)).scalars().all()), total
 
 
+EXPORT_COLUMNS = (
+    "candidate_name",
+    "candidate_email",
+    "job",
+    "stage",
+    "applied_at",
+    "decided_at",
+    "source",
+    "quiz_status",
+    "quiz_score_percent",
+    "quiz_completed_at",
+    "integrity_flags",
+    "cv_filename",
+    "message",
+)
+
+
+def _iso(value: datetime | None) -> str:
+    return value.isoformat() if value is not None else ""
+
+
+def export_row(application: Application) -> dict[str, str | int]:
+    """One flat, spreadsheet-shaped row (card D9). No internal ids: the
+    candidate email is the join key an ATS needs, and the quiz columns stay
+    at the summary level the list view shows (never answers or keys)."""
+    attempt = application.quiz_attempt
+    flags = attempt.integrity.get("flags", []) if attempt is not None else []
+    return {
+        "candidate_name": application.candidate.name,
+        "candidate_email": application.candidate.email,
+        "job": application.job.title,
+        "stage": application.stage.value,
+        "applied_at": _iso(application.created_at),
+        "decided_at": _iso(application.decided_at),
+        "source": application.source or "",
+        "quiz_status": attempt.status.value if attempt is not None else "",
+        "quiz_score_percent": (
+            round(attempt.score * 100) if attempt is not None and attempt.score is not None else ""
+        ),
+        "quiz_completed_at": _iso(attempt.completed_at) if attempt is not None else "",
+        "integrity_flags": "; ".join(str(flag.get("summary", "")) for flag in flags),
+        "cv_filename": application.cv_filename,
+        "message": application.message or "",
+    }
+
+
+async def export_applications(
+    db: AsyncSession,
+    company: Company,
+    *,
+    job_id: uuid.UUID | None = None,
+    stage: ApplicationStage | None = None,
+) -> list[dict[str, str | int]]:
+    """Every application the filters match, oldest first, as export rows."""
+    conditions = [Application.company_id == company.id]
+    if job_id is not None:
+        conditions.append(Application.job_id == job_id)
+    if stage is not None:
+        conditions.append(Application.stage == stage)
+    query = (
+        select(Application)
+        .where(*conditions)
+        .options(
+            selectinload(Application.candidate),
+            selectinload(Application.job),
+            selectinload(Application.quiz_attempts),
+        )
+        .order_by(Application.created_at, Application.id)
+    )
+    return [export_row(app) for app in (await db.execute(query)).scalars().all()]
+
+
 async def count_by_stage(
     db: AsyncSession, company: Company, *, job_id: uuid.UUID | None = None
 ) -> dict[str, int]:

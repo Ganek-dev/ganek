@@ -27,6 +27,7 @@ DELETION_REQUESTED = "candidate.deletion_requested"
 USER_ANONYMIZED = "user.anonymized"
 RETENTION_PURGED = "retention.purged"
 QUOTA_EXCEEDED = "quota.exceeded"
+APPLICATIONS_EXPORTED = "applications.exported"
 
 
 def record(

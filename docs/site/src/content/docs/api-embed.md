@@ -73,6 +73,17 @@ Tokens in these paths are capability links sent by email. Treat them as secrets.
 
 ## Admin API
 
-The admin UI talks to the same backend under `/api/v1/` with a session cookie and the tenancy of the signed-in user. The interactive OpenAPI reference is served by your own instance at `/api/docs` (schema at `/api/openapi.json`). API keys and outbound webhooks (new application to Slack, exports into an ATS) are on the roadmap; until then the session cookie is the only credential.
+The admin UI talks to the same backend under `/api/v1/` with a session cookie and the tenancy of the signed-in user. The interactive OpenAPI reference is served by your own instance at `/api/docs` (schema at `/api/openapi.json`). API keys and outbound webhooks (new application to Slack) are on the roadmap; until then the session cookie is the only credential.
+
+### Applicant export
+
+Admins can pull the current applicant list as a file from the Applicants page (Export CSV / Export JSON), or directly:
+
+```
+GET /api/v1/applications/export?format=csv        # or format=json
+GET /api/v1/applications/export?format=csv&job_id=<uuid>&stage=screening
+```
+
+Rows are flat and spreadsheet-shaped: candidate name and email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, CV filename and the candidate's message. No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
 
 Breaking changes to public endpoints carry a deprecation note in the release notes.
