@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CHALLENGE_PATH, Captcha, isCaptchaError } from "./Captcha";
+import { CHALLENGE_PATH, Captcha, WIDGET_CONFIGURATION, isCaptchaError } from "./Captcha";
 
 // the widget package registers a custom element on import; jsdom renders
 // the <altcha-widget> tag as an unknown element, which is all we need
@@ -58,7 +58,18 @@ describe("Captcha", () => {
       expect(el).not.toBeNull();
       return el as HTMLElement;
     });
-    expect(widget.getAttribute("challengejson")).toBe(CHALLENGE);
+    // 3.x reads `challenge` + `configuration`; the 2.x attributes
+    // (challengejson, hidefooter, hidelogo) are ignored, so a widget that
+    // only got those would never solve anything: guard against a regression
+    expect(widget.getAttribute("challenge")).toBe(CHALLENGE);
+    expect(widget.getAttribute("challengejson")).toBeNull();
+    expect(widget.getAttribute("hidefooter")).toBeNull();
+    expect(JSON.parse(widget.getAttribute("configuration") ?? "{}")).toEqual({
+      hideFooter: true,
+      hideLogo: true,
+      humanInteractionSignature: false,
+    });
+    expect(widget.getAttribute("configuration")).toBe(WIDGET_CONFIGURATION);
     expect(widget.getAttribute("name")).toBe("altcha");
     expect(screen.getByText(/talks to no third party/)).toBeInTheDocument();
 

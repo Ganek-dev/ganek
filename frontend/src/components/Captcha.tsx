@@ -10,9 +10,26 @@ import { useEffect, useRef, useState } from "react";
  * were. On 200 the ALTCHA widget (bundled, no third-party request, no
  * cookies) solves the challenge in a Web Worker and hands the payload back
  * through `onChange`; the form sends it as `altcha` with its JSON body.
+ *
+ * Widget 3.x: the challenge JSON goes in the `challenge` attribute and
+ * everything else in `configuration` (the 2.x `challengejson`, `hidefooter`
+ * and `hidelogo` attributes are silently ignored by 3.x). The server still
+ * speaks the v1 protocol; the widget detects the `challenge` key, solves it
+ * on its v1 path and answers with the v1 payload `app/core/challenge.py`
+ * verifies (3.4.1+; 3.4.0 shipped a broken v1 check).
  */
 
 export const CHALLENGE_PATH = "/api/v1/public/challenge";
+
+/** Passed as the widget's `configuration` attribute. No footer link or logo
+ * on candidate forms; HIS (pointer and scroll event collection) off, the
+ * server never asks for it and the privacy copy below promises no
+ * tracking. */
+export const WIDGET_CONFIGURATION = JSON.stringify({
+  hideFooter: true,
+  hideLogo: true,
+  humanInteractionSignature: false,
+});
 
 type Props = {
   onChange: (payload: string | null) => void;
@@ -92,11 +109,10 @@ export function Captcha({ onChange, error }: Props) {
     <div ref={hostRef} className="mt-5" data-testid="captcha">
       <altcha-widget
         key={challenge}
-        challengejson={challenge}
+        challenge={challenge}
+        configuration={WIDGET_CONFIGURATION}
         name="altcha"
         auto="onload"
-        hidefooter=""
-        hidelogo=""
         style={{ "--altcha-border-radius": "6px" } as React.CSSProperties}
       />
       {error ? (
