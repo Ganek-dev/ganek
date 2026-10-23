@@ -13,5 +13,12 @@
     "astro": "7.4.1"
   },
   "packageManager": "pnpm@9.15.9",
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss-selector-parser@<7.1.6": "^7.1.7"
+    }
+  }
 }

@@ -131,6 +131,10 @@ stage_audit() {
     node22_path
     cd frontend && pnpm audit --audit-level high
   ) || rc=1
+  (
+    node22_path
+    cd docs/site && pnpm audit --audit-level moderate
+  ) || rc=1
   if [ "$rc" = 1 ]; then
     echo "AUDIT: findings above (advisory — CI does not gate on this either)"
     return 42 # distinct code: recorded as ADVISORY, not FAIL
