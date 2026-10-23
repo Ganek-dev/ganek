@@ -1,9 +1,13 @@
+import csv
+import io
 import math
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
@@ -66,6 +70,48 @@ async def list_applications(
         items=[ApplicationOut.model_validate(item) for item in items],
         total=total,
         stage_counts=await applications_service.count_by_stage(db, company, job_id=job_id),
+    )
+
+
+@router.get("/export")
+async def export_applications(
+    db: DbSession,
+    company: CurrentCompany,
+    admin: AdminUser,
+    format: Literal["csv", "json"] = "csv",
+    job_id: uuid.UUID | None = None,
+    stage: ApplicationStage | None = None,
+) -> Response:
+    """The current filter as a file (card D9): flat rows, no internal ids,
+    quiz columns at summary level. Admin only; one activity entry per
+    export names who pulled how many rows. Declared before the
+    /{application_id} routes so "export" is never parsed as an id."""
+    rows = await applications_service.export_applications(db, company, job_id=job_id, stage=stage)
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.APPLICATIONS_EXPORTED,
+        actor_user_id=admin.id,
+        payload={
+            "format": format,
+            "rows": len(rows),
+            "stage": stage.value if stage is not None else None,
+            "job_id": str(job_id) if job_id is not None else None,
+        },
+    )
+    await db.commit()
+    stamp = datetime.now(UTC).date().isoformat()
+    disposition = f'attachment; filename="applicants-{company.slug}-{stamp}.{format}"'
+    if format == "json":
+        return JSONResponse(rows, headers={"Content-Disposition": disposition})
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=applications_service.EXPORT_COLUMNS)
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(
+        buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": disposition},
     )
 
 

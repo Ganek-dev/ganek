@@ -268,6 +268,8 @@ function activityCopy(item: ActivityItem): string {
       return "A candidate asked for their data to be deleted";
     case "user.anonymized":
       return `${item.actor_email ?? "Someone"} removed a teammate's account`;
+    case "applications.exported":
+      return `${item.actor_email ?? "Someone"} exported ${Number(p.rows) || 0} applicant(s) as ${String(p.format ?? "").toUpperCase()}`;
     case "retention.purged":
       return `Retention purge removed ${Number(p.applications) || 0} application(s)`;
     default:

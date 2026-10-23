@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  Download,
   FileText,
   X,
 } from "lucide-react";
@@ -1030,6 +1031,21 @@ function ApplicantsContent() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Applicants</h1>
+        <div className="flex items-center gap-2">
+          {(["csv", "json"] as const).map((format) => (
+            <a
+              key={format}
+              href={applications.exportUrl(format, {
+                job_id: jobFilter === "" ? undefined : jobFilter,
+                stage: stageFilter === "all" ? undefined : stageFilter,
+              })}
+              download
+              className="inline-flex h-[34px] items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill"
+            >
+              <Download aria-hidden className="h-3.5 w-3.5" />
+              Export {format.toUpperCase()}
+            </a>
+          ))}
         <div className="relative">
           <select
             aria-label="Filter by job"
@@ -1051,6 +1067,7 @@ function ApplicantsContent() {
             aria-hidden
             className="pointer-events-none absolute top-1/2 right-2.5 h-3.5 w-3.5 -translate-y-1/2 text-g500"
           />
+        </div>
         </div>
       </div>
 

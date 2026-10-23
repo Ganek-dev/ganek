@@ -1,0 +1,58 @@
+"""export_row: the flat shape of one applicant line (card D9), DB-free."""
+
+from datetime import UTC, datetime
+
+from app.models import Application, ApplicationStage, Candidate, Job
+from app.models.quiz import AttemptStatus, QuizAttempt
+from app.services.applications import EXPORT_COLUMNS, export_row
+
+
+def _application(**overrides: object) -> Application:
+    application = Application(
+        candidate=Candidate(name="Jane Applicant", email="jane@example.com"),
+        job=Job(title="Backend Engineer"),
+        stage=ApplicationStage.SCREENING,
+        created_at=datetime(2026, 10, 1, 9, 30, tzinfo=UTC),
+        decided_at=None,
+        source="linkedin",
+        cv_filename="jane.pdf",
+        message="Hi there",
+    )
+    for key, value in overrides.items():
+        setattr(application, key, value)
+    return application
+
+
+def test_row_without_quiz_has_empty_quiz_columns() -> None:
+    row = export_row(_application(quiz_attempts=[]))
+    assert tuple(row) == EXPORT_COLUMNS
+    assert row["candidate_email"] == "jane@example.com"
+    assert row["job"] == "Backend Engineer"
+    assert row["stage"] == "screening"
+    assert row["applied_at"] == "2026-10-01T09:30:00+00:00"
+    assert row["decided_at"] == ""
+    assert row["source"] == "linkedin"
+    assert (row["quiz_status"], row["quiz_score_percent"], row["integrity_flags"]) == ("", "", "")
+
+
+def test_row_uses_latest_attempt_score_and_flag_summaries() -> None:
+    older = QuizAttempt(status=AttemptStatus.EXPIRED, score=None, integrity={})
+    latest = QuizAttempt(
+        status=AttemptStatus.COMPLETED,
+        score=0.834,
+        completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC),
+        integrity={
+            "flags": [
+                {"code": "tab_hidden", "summary": "left the tab 2x (~5s)", "detail": "..."},
+                {"code": "paste", "summary": "pasted into 1 answer", "detail": "..."},
+            ],
+            "events": [{"type": "blur", "duration_ms": 5000}],
+        },
+    )
+    row = export_row(_application(quiz_attempts=[older, latest]))
+    assert row["quiz_status"] == "completed"
+    assert row["quiz_score_percent"] == 83
+    assert row["quiz_completed_at"] == "2026-10-02T10:00:00+00:00"
+    assert row["integrity_flags"] == "left the tab 2x (~5s); pasted into 1 answer"
+    # only summaries travel, never the raw event stream or anything per-question
+    assert "blur" not in str(row) and "detail" not in str(row)

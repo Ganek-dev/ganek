@@ -464,7 +464,21 @@ export interface ApplicationPage {
   stage_counts: Partial<Record<ApplicationStage, number>>;
 }
 
+/** Filters the applicants list and its export share. */
+export interface ApplicationFilters {
+  job_id?: string;
+  stage?: ApplicationStage;
+}
+
 export const applications = {
+  /** GET /applications/export as a plain download URL (card D9): a link
+   * with the session cookie is enough, so no fetch and no blob juggling. */
+  exportUrl: (format: "csv" | "json", filters?: ApplicationFilters) => {
+    const params = new URLSearchParams({ format });
+    if (filters?.job_id) params.set("job_id", filters.job_id);
+    if (filters?.stage) params.set("stage", filters.stage);
+    return `/api/v1/applications/export?${params.toString()}`;
+  },
   list: (filters?: {
     job_id?: string;
     stage?: ApplicationStage;

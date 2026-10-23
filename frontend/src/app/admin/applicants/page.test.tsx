@@ -27,6 +27,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     api: { ...original.api, jobs: { ...original.api.jobs, list: vi.fn() }, me: vi.fn() },
     applications: {
+      ...original.applications, // exportUrl stays real: it only builds a href
       list: vi.fn(),
       get: vi.fn(),
       setStage: vi.fn(),
@@ -596,5 +597,49 @@ describe("ApplicantsPage", () => {
     expect(
       await screen.findByText("Another candidate already uses this email"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("export", () => {
+  beforeEach(() => {
+    search = new URLSearchParams();
+    mockedApi.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "admin@acme.dev",
+      role: "admin",
+      has_password: true,
+    });
+    mockedJobs.list.mockResolvedValue([
+      { id: "job-1", title: "Backend Engineer" } as never,
+      { id: "job-2", title: "Designer" } as never,
+    ]);
+    mockedApps.list.mockResolvedValue({
+      items: [makeApp({})],
+      total: 1,
+      stage_counts: { new: 1 },
+    });
+  });
+
+  it("offers CSV and JSON downloads of the current filter", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    const csv = screen.getByRole("link", { name: "Export CSV" });
+    const json = screen.getByRole("link", { name: "Export JSON" });
+    expect(csv).toHaveAttribute("href", "/api/v1/applications/export?format=csv");
+    expect(json).toHaveAttribute("href", "/api/v1/applications/export?format=json");
+    expect(csv).toHaveAttribute("download");
+
+    await userEvent.selectOptions(screen.getByLabelText("Filter by job"), "job-2");
+    expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
+      "href",
+      "/api/v1/applications/export?format=csv&job_id=job-2",
+    );
+
+    const pill = screen.getAllByRole("button", { pressed: false })[0];
+    await userEvent.click(pill);
+    expect(screen.getByRole("link", { name: "Export JSON" }).getAttribute("href")).toMatch(
+      /format=json&job_id=job-2&stage=[a-z_]+$/,
+    );
   });
 });
