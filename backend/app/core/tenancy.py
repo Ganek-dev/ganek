@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.security import SESSION_COOKIE_NAME, read_session_token
-from app.models import Company, User, UserRole
+from app.models import ApiKey, Company, User, UserRole
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
@@ -70,10 +70,15 @@ def _bearer(request: Request) -> str | None:
 
 
 async def _company_for_key(db: AsyncSession, token: str, *, write: bool) -> Company:
+    _, company = await _key_and_company(db, token, write=write)
+    return company
+
+
+async def _key_and_company(db: AsyncSession, token: str, *, write: bool) -> tuple[ApiKey, Company]:
     from app.services import api_keys  # local: services import tenancy types
 
     try:
-        return await api_keys.authenticate(db, token, write=write)
+        return await api_keys.authenticate_key(db, token, write=write)
     except api_keys.KeyRejected:
         raise _UNAUTHENTICATED from None
     except api_keys.ScopeTooLow:
@@ -92,6 +97,28 @@ async def get_api_company(request: Request, db: DbSession) -> Company:
 
 
 ApiCompany = Annotated[Company, Depends(get_api_company)]
+
+
+class ReadPrincipal:
+    """Who is reading a candidate on a route a key may use: the company
+    always, plus the user (session) or the key (bearer) for the access log."""
+
+    def __init__(self, company: Company, user: User | None, api_key: ApiKey | None) -> None:
+        self.company = company
+        self.user = user
+        self.api_key = api_key
+
+
+async def get_read_principal(request: Request, db: DbSession) -> ReadPrincipal:
+    token = _bearer(request)
+    if token is not None:
+        key, company = await _key_and_company(db, token, write=False)
+        return ReadPrincipal(company, None, key)
+    user = await get_current_user(request, db)
+    return ReadPrincipal(await get_current_company(user, db), user, None)
+
+
+ReadActor = Annotated[ReadPrincipal, Depends(get_read_principal)]
 
 
 class WritePrincipal:

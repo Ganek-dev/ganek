@@ -16,12 +16,14 @@ from app.api.deps import (
     CurrentCompany,
     CurrentUser,
     DbSession,
+    ReadActor,
     WriteActor,
     get_current_user,
 )
 from app.core import urls
 from app.core.security import create_interview_token, create_quiz_token, create_status_token
 from app.models import (
+    AccessLog,
     Application,
     ApplicationNote,
     ApplicationStage,
@@ -32,6 +34,7 @@ from app.models import (
 )
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.applications import (
+    AccessEntryOut,
     ApplicationOut,
     ApplicationPage,
     BulkRejectIn,
@@ -50,7 +53,7 @@ from app.schemas.applications import (
 )
 from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
-from app.services import activity, google_calendar, storage
+from app.services import access_log, activity, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
@@ -164,9 +167,31 @@ async def bulk_reject_applications(
 
 @router.get("/{application_id}", response_model=ApplicationOut)
 async def get_application(
-    application_id: uuid.UUID, db: DbSession, company: ApiCompany
+    application_id: uuid.UUID, db: DbSession, reader: ReadActor
 ) -> Application:
-    return await _get_or_404(db, company, application_id)
+    application = await _get_or_404(db, reader.company, application_id)
+    await access_log.record(
+        db,
+        company=reader.company,
+        application_id=application.id,
+        action=access_log.VIEW,
+        user=reader.user,
+        api_key=reader.api_key,
+    )
+    return application
+
+
+@router.get("/{application_id}/access-log", response_model=list[AccessEntryOut])
+async def application_access_log(
+    application_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    _admin: AdminUser,
+) -> list[AccessLog]:
+    """Who looked at this candidate, newest first (admins only). Reading
+    the trail is not itself a read of the candidate."""
+    application = await _get_or_404(db, company, application_id)
+    return await access_log.list_for_application(db, company, application.id)
 
 
 @router.patch("/{application_id}/stage", response_model=ApplicationOut)
@@ -218,11 +243,18 @@ async def dsar_export(
     application_id: uuid.UUID,
     db: DbSession,
     company: CurrentCompany,
-    _admin: AdminUser,
+    admin: AdminUser,
 ) -> DsarBundle:
     """Art. 15/20: the full bundle for the CANDIDATE behind this application —
     all their applications with this company, admin-mediated by design."""
     application = await _get_or_404(db, company, application_id)
+    await access_log.record(
+        db,
+        company=company,
+        application_id=application.id,
+        action=access_log.DSAR_EXPORT,
+        user=admin,
+    )
     bundle = await dsar_service.export_candidate(db, company, application.candidate_id)
     assert bundle is not None  # the application existed, so its candidate does
     return bundle
@@ -688,9 +720,16 @@ async def _queue_stage_email(
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)
 async def cv_download_url(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
 ) -> CvDownload:
     application = await _get_or_404(db, company, application_id)
+    await access_log.record(
+        db,
+        company=company,
+        application_id=application.id,
+        action=access_log.CV_DOWNLOAD,
+        user=user,
+    )
     return CvDownload(
         download_url=storage.presign_cv_download(application.cv_object_key, application.cv_filename)
     )
@@ -721,9 +760,16 @@ async def email_deliveries(
 
 @router.get("/{application_id}/quiz-answers", response_model=list[QuizAnswerReview])
 async def quiz_answers(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
 ) -> list[QuizAnswerReview]:
     application = await _get_or_404(db, company, application_id)
+    await access_log.record(
+        db,
+        company=company,
+        application_id=application.id,
+        action=access_log.QUIZ_ANSWERS,
+        user=user,
+    )
     attempt = await quiz_service.get_attempt_by_application(db, application.id)
     if attempt is None:
         raise HTTPException(

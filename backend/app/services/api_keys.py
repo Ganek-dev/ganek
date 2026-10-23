@@ -94,6 +94,15 @@ async def revoke(db: AsyncSession, company: Company, key_id: uuid.UUID, *, actor
 async def authenticate(db: AsyncSession, token: str, *, write: bool = False) -> Company:
     """Resolve a bearer token to its company, or raise. ``write`` demands
     the write scope."""
+    _, company = await authenticate_key(db, token, write=write)
+    return company
+
+
+async def authenticate_key(
+    db: AsyncSession, token: str, *, write: bool = False
+) -> tuple[ApiKey, Company]:
+    """Like ``authenticate`` but also hands back the key, for routes that
+    name the key in an audit row."""
     if not looks_like_key(token):
         raise KeyRejected
     key = (
@@ -110,4 +119,4 @@ async def authenticate(db: AsyncSession, token: str, *, write: bool = False) -> 
     if key.last_used_at is None or now - key.last_used_at > _TOUCH_INTERVAL:
         key.last_used_at = now
         await db.commit()
-    return company
+    return key, company

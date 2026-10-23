@@ -30,6 +30,19 @@ class QuizResultOut(BaseModel):
     integrity: dict[str, Any]
 
 
+class AccessEntryOut(BaseModel):
+    """One read of this candidate: a person (session) or an API key."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    action: str
+    actor_email: str | None
+    actor_label: str | None
+    api_key_name: str | None
+    created_at: datetime
+
+
 class ExtraTimeIn(BaseModel):
     """Recruiter-side accommodation: 1 removes it, 1.5 and 2 are the grants."""
 
