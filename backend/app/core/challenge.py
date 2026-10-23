@@ -8,7 +8,9 @@ the solution with the form. We recompute the hash and the HMAC, so
 nothing has to be stored per challenge; a Redis mark makes a solved
 challenge single-use when Redis is around.
 
-Protocol (compatible with the ``altcha`` widget 2.x):
+Protocol (ALTCHA v1; the ``altcha`` widget 2.x speaks it natively and 3.x
+via its v1 path, which it takes whenever the challenge JSON has a
+``challenge`` key):
 
     salt      = <random hex>?expires=<unix ts>&
     challenge = sha256(salt + str(number))          # hex
