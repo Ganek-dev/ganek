@@ -11,6 +11,7 @@ import {
   type BankPage,
   type Difficulty,
   type QuestionOut,
+  type QuestionStats,
   type QuestionnaireOut,
 } from "@/lib/api";
 
@@ -212,6 +213,69 @@ function useUsageCounts(ids: string[]): Record<string, number> {
   return cache[key] ?? {};
 }
 
+function useAnswerStats(ids: string[]): Record<string, QuestionStats> {
+  const [cache, setCache] = useState<Record<string, Record<string, QuestionStats>>>({});
+  const key = ids.join(",");
+  useEffect(() => {
+    if (ids.length === 0 || cache[key] !== undefined) return;
+    let cancelled = false;
+    questions
+      .stats(ids)
+      .then((result) => {
+        if (!cancelled) setCache((current) => ({ ...current, [key]: result }));
+      })
+      .catch(() => {
+        if (!cancelled) setCache((current) => ({ ...current, [key]: {} }));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return cache[key] ?? {};
+}
+
+/** What a rating usually scores, in whole percent, mirrored from the backend rule. */
+const CALIBRATION_BANDS: Record<number, [number, number]> = {
+  1: [85, 100],
+  2: [70, 85],
+  3: [50, 70],
+  4: [30, 50],
+  5: [0, 30],
+};
+
+function CalibrationNote({ stats, difficulty }: { stats?: QuestionStats; difficulty: number }) {
+  if (!stats) return null;
+  const pct = Math.round(stats.correct_rate * 100);
+  const timeout = Math.round(stats.timeout_rate * 100);
+  const seconds = stats.avg_response_ms === null ? null : Math.round(stats.avg_response_ms / 1000);
+  const [low, high] = CALIBRATION_BANDS[difficulty] ?? [0, 100];
+  const title =
+    `${pct}% of ${stats.served} candidates answered correctly, ${timeout}% timed out` +
+    (seconds === null ? "" : `, ${seconds}s on average`) +
+    `. Rated ${difficulty}; a ${difficulty} usually lands between ${low}% and ${high}%.` +
+    (stats.hint === "easier"
+      ? " Consider a lower rating in a questions: PR."
+      : stats.hint === "harder"
+        ? " Consider a higher rating in a questions: PR."
+        : "");
+  return (
+    <span className="mt-1 flex items-center gap-1.5 font-mono text-[10.5px] text-g400">
+      <span title={title}>
+        {pct}% of {stats.served}
+      </span>
+      {stats.hint ? (
+        <span
+          title={title}
+          className="inline-flex h-4 items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 font-sans text-[10.5px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+        >
+          looks {stats.hint}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function BankBrowser() {
   const [page, setPage] = useState<BankPage | null>(null);
   const [tag, setTag] = useState("");
@@ -222,6 +286,7 @@ function BankBrowser() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const usage = useUsageCounts(page?.items.map((q) => q.id) ?? []);
+  const stats = useAnswerStats(page?.items.map((q) => q.id) ?? []);
 
   const reload = useCallback(() => {
     questions
@@ -404,6 +469,7 @@ function BankBrowser() {
                           d{question.difficulty}
                         </span>
                       </span>
+                      <CalibrationNote stats={stats[question.id]} difficulty={question.difficulty} />
                     </td>
                     <td className="px-3 py-3 align-middle whitespace-nowrap">
                       <SourcePill label="open bank" />
@@ -464,6 +530,7 @@ function CompanyQuestions() {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const usage = useUsageCounts(items?.map((q) => q.id) ?? []);
+  const stats = useAnswerStats(items?.map((q) => q.id) ?? []);
 
   const reload = useCallback(() => {
     questions
@@ -674,6 +741,7 @@ function CompanyQuestions() {
                         d{question.difficulty}
                       </span>
                     </span>
+                    <CalibrationNote stats={stats[question.id]} difficulty={question.difficulty} />
                   </td>
                   <td className="px-3 py-3 align-middle whitespace-nowrap">
                     <SourcePill label={question.status === "retired" ? "retired" : "company"} />
