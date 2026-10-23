@@ -477,8 +477,16 @@ function IntegrityCard({ result, applicationId }: { result: QuizResult; applicat
           Fresh quiz — re-issued after{" "}
           {result.integrity.reissue.reason === "expired"
             ? "the previous link expired"
-            : "an integrity review"}
+            : result.integrity.reissue.reason === "accommodation"
+              ? "extra time was granted"
+              : "an integrity review"}
           {result.integrity.reissue.mode === "auto" ? " (automatic)" : ""}.
+        </p>
+      ) : null}
+      {result.integrity.accommodation ? (
+        <p className="mt-2.5 text-[12px] text-g500">
+          Extra time granted: {result.integrity.accommodation.time_multiplier}x the usual limit
+          per question.
         </p>
       ) : null}
       {flags.length === 0 ? (

@@ -7,6 +7,7 @@ Non-negotiables implemented server-side:
 - options are shuffled per serve; scoring only ever happens here
 """
 
+import math
 import random
 import uuid
 from dataclasses import dataclass, field
@@ -274,6 +275,8 @@ async def reissue_attempt(
     mode: str,
     by_user_id: uuid.UUID | None,
     rng: random.Random | None = None,
+    time_multiplier: float | None = None,
+    accommodation: dict[str, Any] | None = None,
 ) -> QuizAttempt | None:
     """Invalidate the current attempt and issue a fresh one (screen 24 / 27c).
 
@@ -319,21 +322,30 @@ async def reissue_attempt(
     latest = prior[-1]
     if latest.status is not AttemptStatus.EXPIRED:
         latest.status = AttemptStatus.INVALIDATED
+    # an extra-time grant belongs to the candidate, not the link: it rides
+    # along on every re-issue unless this call sets a new one
+    if time_multiplier is None:
+        time_multiplier = latest.time_multiplier or 1.0
+        accommodation = latest.integrity.get("accommodation")
+    integrity: dict[str, Any] = {
+        "reissue": {
+            "from_attempt_id": str(latest.id),
+            "reason": reason,
+            "mode": mode,
+            "by_user_id": str(by_user_id) if by_user_id is not None else None,
+            "at": _now().isoformat(),
+        }
+    }
+    if accommodation is not None and time_multiplier > 1.0:
+        integrity["accommodation"] = accommodation
     attempt = QuizAttempt(
         company_id=company.id,
         application_id=application.id,
         question_ids=question_ids,
         time_limit_seconds=config.time_limit_seconds,
+        time_multiplier=time_multiplier,
         expires_at=_now() + timedelta(hours=settings.quiz_start_ttl_hours),
-        integrity={
-            "reissue": {
-                "from_attempt_id": str(latest.id),
-                "reason": reason,
-                "mode": mode,
-                "by_user_id": str(by_user_id) if by_user_id is not None else None,
-                "at": _now().isoformat(),
-            }
-        },
+        integrity=integrity,
     )
     db.add(attempt)
     activity.record(
@@ -556,8 +568,92 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
 
 
 def effective_time_limit(attempt: QuizAttempt, question: Question) -> int:
-    """Seconds the candidate gets: the attempt's frozen per-job limit, else the question's own."""
-    return attempt.time_limit_seconds or question.time_limit_seconds
+    """Seconds the candidate gets: the attempt's frozen per-job limit, else the
+    question's own, scaled by the frozen extra-time multiplier (rounded up)."""
+    base = attempt.time_limit_seconds or question.time_limit_seconds
+    return math.ceil(base * (attempt.time_multiplier or 1.0))
+
+
+def seconds_per_question(attempt: QuizAttempt) -> int | None:
+    """What the intro screen and the invite print: the per-job limit after the
+    extra-time multiplier, None when each question keeps its own limit."""
+    if attempt.time_limit_seconds is None:
+        return None
+    return math.ceil(attempt.time_limit_seconds * (attempt.time_multiplier or 1.0))
+
+
+EXTRA_TIME_MULTIPLIERS = (1.0, 1.5, 2.0)
+
+
+async def grant_extra_time(
+    db: AsyncSession,
+    company: Company,
+    application: Application,
+    job: Job,
+    *,
+    multiplier: float,
+    by_user_id: uuid.UUID | None,
+) -> tuple[QuizAttempt, bool] | None:
+    """Recruiter grants (or removes, multiplier 1) an extra-time accommodation.
+
+    A pending attempt takes it in place: same questions, same link, only the
+    deadlines change. Anything already started, finished or expired is
+    re-issued fresh with the multiplier, like the integrity re-invite.
+    Returns (attempt, reissued); None when the job has no quiz to serve.
+    The grant lives in ``integrity.accommodation`` so the review page and
+    the export show it; scoring never looks at it.
+    """
+    latest = application.quiz_attempt
+    if latest is None:
+        return None
+    stamp = {
+        "time_multiplier": multiplier,
+        "by_user_id": str(by_user_id) if by_user_id is not None else None,
+        "at": _now().isoformat(),
+    }
+    if latest.status is AttemptStatus.PENDING:
+        latest.time_multiplier = multiplier
+        integrity = dict(latest.integrity)
+        if multiplier > 1.0:
+            integrity["accommodation"] = stamp
+        else:
+            integrity.pop("accommodation", None)
+        latest.integrity = integrity
+        activity.record(
+            db,
+            company_id=company.id,
+            type=activity.QUIZ_EXTRA_TIME,
+            actor_user_id=by_user_id,
+            application_id=application.id,
+            payload={"time_multiplier": multiplier, "reissued": False},
+        )
+        await db.commit()
+        await db.refresh(latest)
+        return latest, False
+    fresh = await reissue_attempt(
+        db,
+        company,
+        application,
+        job,
+        reason="accommodation",
+        mode="manual",
+        by_user_id=by_user_id,
+        time_multiplier=multiplier,
+        accommodation=stamp if multiplier > 1.0 else None,
+    )
+    if fresh is None:
+        return None
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.QUIZ_EXTRA_TIME,
+        actor_user_id=by_user_id,
+        application_id=application.id,
+        payload={"time_multiplier": multiplier, "reissued": True},
+    )
+    await db.commit()
+    await db.refresh(fresh)
+    return fresh, True
 
 
 async def build_quiz_preview(

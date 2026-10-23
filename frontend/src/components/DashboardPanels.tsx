@@ -250,6 +250,10 @@ function activityCopy(item: ActivityItem): string {
     }
     case "quiz.reissued":
       return `${item.actor_email ?? "Someone"} re-issued an assessment`;
+    case "quiz.extra_time":
+      return Number(p.time_multiplier) > 1
+        ? `${item.actor_email ?? "Someone"} granted ${String(p.time_multiplier)}x quiz time`
+        : `${item.actor_email ?? "Someone"} removed a quiz extra-time grant`;
     case "interview.requested":
       return `Interview invite sent (${String(p.interviewer ?? "")})`.replace(" ()", "");
     case "interview.booked":

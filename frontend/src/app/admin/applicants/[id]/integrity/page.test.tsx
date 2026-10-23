@@ -25,6 +25,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       get: vi.fn(),
       quizAnswers: vi.fn(),
       reissueQuiz: vi.fn(),
+      grantExtraTime: vi.fn(),
       dismissFlags: vi.fn(),
       setStage: vi.fn(),
       list: vi.fn(),
@@ -44,6 +45,7 @@ function makeAttempt(overrides: Partial<QuizResult> = {}): QuizResult {
     per_tag_scores: {},
     completed_at: "2026-08-05T19:40:00Z",
     question_ids: ["q1", "q2", "q3"],
+    time_multiplier: 1,
     integrity: {
       blur_count: 6,
       blur_total_ms: 41_000,
@@ -125,6 +127,7 @@ describe("IntegrityReviewPage", () => {
     mocked.quizAnswers.mockResolvedValue(answers);
     mocked.dismissFlags.mockResolvedValue(makeAttempt());
     mocked.reissueQuiz.mockResolvedValue(makeAttempt({ status: "pending" }));
+    mocked.grantExtraTime.mockResolvedValue(makeAttempt({ status: "pending", time_multiplier: 2 }));
     mocked.setStage.mockResolvedValue(makeApp({ stage: "rejected" }));
     mockedJobs.get.mockResolvedValue({ title: "Backend Engineer (Python)" } as never);
   });
@@ -192,6 +195,36 @@ describe("IntegrityReviewPage", () => {
     expect(mocked.setStage).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Confirm reject" }));
     await waitFor(() => expect(mocked.setStage).toHaveBeenCalledWith("a1", "rejected"));
+  });
+
+  it("grants extra time only after an explicit confirm", async () => {
+    render(<IntegrityReviewPage />);
+    await userEvent.selectOptions(await screen.findByLabelText("Extra time"), "2");
+    await userEvent.click(screen.getByRole("button", { name: "Grant extra time" }));
+    expect(mocked.grantExtraTime).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Confirm — give 2x time and email the candidate" }),
+    );
+    await waitFor(() => expect(mocked.grantExtraTime).toHaveBeenCalledWith("a1", 2));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Extra time set to 2x, invite sent to tomas@x.dev",
+    );
+  });
+
+  it("shows the granted extra time as a chip and preselects it", async () => {
+    mocked.get.mockResolvedValue(
+      makeApp({
+        quiz_attempt: makeAttempt({
+          time_multiplier: 1.5,
+          integrity: {
+            accommodation: { time_multiplier: 1.5, by_user_id: "u1", at: "2026-08-06T10:00:00Z" },
+          },
+        }),
+      }),
+    );
+    render(<IntegrityReviewPage />);
+    expect(await screen.findByText("extra time 1.5x")).toBeInTheDocument();
+    expect(screen.getByLabelText("Extra time")).toHaveValue("1.5");
   });
 
   it("shows re-issue provenance chips on a re-issued attempt", async () => {

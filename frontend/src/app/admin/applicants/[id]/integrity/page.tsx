@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { ArrowLeft, Check, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Clock, RotateCcw } from "lucide-react";
 
 import {
   api,
@@ -43,8 +43,12 @@ export default function IntegrityReviewPage() {
   const [answers, setAnswers] = useState<QuizAnswerReview[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<"reissue" | "reject" | null>(null);
+  const [confirming, setConfirming] = useState<"reissue" | "reject" | "extra-time" | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
+  // "" = follow the attempt; the select shows the current grant until changed
+  const [extraTime, setExtraTime] = useState<string>("");
 
   const reload = useCallback(() => {
     applications
@@ -114,6 +118,9 @@ export default function IntegrityReviewPage() {
       ? null
       : Math.round(attempt.score * 100);
   const taken = formatTaken(attempt?.completed_at ?? null);
+  const currentMultiplier = String(attempt?.time_multiplier ?? 1);
+  const chosenMultiplier = extraTime === "" ? currentMultiplier : extraTime;
+  const multiplierChanged = chosenMultiplier !== currentMultiplier;
   const blurredQuestions = new Set(
     (answers ?? [])
       .filter((answer) => answer.integrity_events.some((event) => event.type === "blur"))
@@ -152,8 +159,19 @@ export default function IntegrityReviewPage() {
           {integrity.reissue ? (
             <span className="inline-flex h-6 items-center gap-1 rounded-full border border-edge bg-muted-fill px-2.5 text-[11.5px] font-medium text-g600">
               <RotateCcw aria-hidden className="h-3 w-3" />
-              re-issued ({integrity.reissue.reason === "expired" ? "link expired" : "integrity"}
+              re-issued (
+              {integrity.reissue.reason === "expired"
+                ? "link expired"
+                : integrity.reissue.reason === "accommodation"
+                  ? "extra time"
+                  : "integrity"}
               {integrity.reissue.mode === "auto" ? ", auto" : ""})
+            </span>
+          ) : null}
+          {integrity.accommodation ? (
+            <span className="inline-flex h-6 items-center gap-1 rounded-full border border-edge bg-muted-fill px-2.5 text-[11.5px] font-medium text-g600">
+              <Clock aria-hidden className="h-3 w-3" />
+              extra time {integrity.accommodation.time_multiplier}x
             </span>
           ) : null}
           {integrity.reissue_requested ? (
@@ -293,6 +311,58 @@ export default function IntegrityReviewPage() {
           </li>
         </ul>
       </div>
+
+      {attempt !== null ? (
+        <div className="card flex flex-wrap items-center gap-2.5 p-4">
+          <div className="mr-auto">
+            <p className="text-[13.5px] font-semibold">Extra time</p>
+            <p className="mt-0.5 text-[12.5px] leading-[18px] text-g500">
+              An accommodation the candidate asked for. Recorded on the attempt; scoring is
+              unchanged. A quiz that already started is re-issued with the new timing.
+            </p>
+          </div>
+          <select
+            aria-label="Extra time"
+            value={chosenMultiplier}
+            disabled={busy}
+            onChange={(event) => {
+              setExtraTime(event.target.value);
+              setConfirming(null);
+            }}
+            className="h-8 rounded-md border border-edge bg-surface px-2 text-[13px] text-g700"
+          >
+            <option value="1">None (1x)</option>
+            <option value="1.5">1.5x per question</option>
+            <option value="2">2x per question</option>
+          </select>
+          {confirming === "extra-time" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                act(
+                  () => applications.grantExtraTime(app.id, Number(chosenMultiplier)),
+                  `Extra time set to ${chosenMultiplier}x, invite sent to ${app.candidate.email}`,
+                ).then(() => setExtraTime(""))
+              }
+              className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-[13px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
+            >
+              {Number(chosenMultiplier) > 1
+                ? `Confirm — give ${chosenMultiplier}x time and email the candidate`
+                : "Confirm — remove extra time and email the candidate"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy || !multiplierChanged}
+              onClick={() => setConfirming("extra-time")}
+              className="inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
+            >
+              {Number(chosenMultiplier) > 1 ? "Grant extra time" : "Remove extra time"}
+            </button>
+          )}
+        </div>
+      ) : null}
 
       {attempt !== null ? (
         <div className="card flex flex-wrap items-center gap-2.5 p-4">

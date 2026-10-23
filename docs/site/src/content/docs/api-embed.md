@@ -142,6 +142,17 @@ GET /api/v1/applications/export?format=csv        # or format=json
 GET /api/v1/applications/export?format=csv&job_id=<uuid>&stage=screening
 ```
 
-Rows are flat and spreadsheet-shaped: candidate name and email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, CV filename and the candidate's message. No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
+Rows are flat and spreadsheet-shaped: candidate name and email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename and the candidate's message. No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
+
+### Extra time on the quiz
+
+A timed quiz measures reading speed as well as knowledge. When a candidate asks for extended time as an accommodation (a screen reader, dyslexia, a motor impairment), an admin opens the applicant's integrity review page and sets Extra time to 1.5x or 2x per question. If the candidate has not started yet, the same quiz and link stay valid and the invite is sent again with the new timing. If they already started, finished or let the link expire, a fresh quiz is issued with the multiplier and the previous attempt is kept as history, exactly like the integrity re-invite. Later re-issues keep the grant.
+
+The grant is recorded on the attempt with who set it and when, shows as a chip on the review page and as a column in the export, and never changes scoring or integrity flags. The candidate simply sees the longer limit on the intro screen and in the email. Setting Extra time back to None removes it.
+
+```
+POST /api/v1/applications/{id}/quiz/extra-time
+{"time_multiplier": 2}        # 1, 1.5 or 2; admins only
+```
 
 Breaking changes to public endpoints carry a deprecation note in the release notes.
