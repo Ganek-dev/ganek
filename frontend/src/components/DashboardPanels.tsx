@@ -282,6 +282,8 @@ function activityCopy(item: ActivityItem): string {
       return `${item.actor_email ?? "Someone"} removed webhook ${String(p.name ?? "")}`;
     case "applications.exported":
       return `${item.actor_email ?? "Someone"} exported ${Number(p.rows) || 0} applicant(s) as ${String(p.format ?? "").toUpperCase()}`;
+    case "access_log.exported":
+      return `${item.actor_email ?? "Someone"} exported the access log (${Number(p.rows) || 0} row(s))`;
     case "retention.purged":
       return `Retention purge removed ${Number(p.applications) || 0} application(s)`;
     default:

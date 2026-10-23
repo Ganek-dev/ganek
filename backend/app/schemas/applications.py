@@ -43,6 +43,19 @@ class AccessEntryOut(BaseModel):
     created_at: datetime
 
 
+class AccessLogRowOut(AccessEntryOut):
+    """Company-wide row: the entry plus who the candidate was."""
+
+    application_id: uuid.UUID
+    candidate_name: str
+    job_title: str
+
+
+class AccessLogPage(BaseModel):
+    items: list[AccessLogRowOut]
+    total: int
+
+
 class ExtraTimeIn(BaseModel):
     """Recruiter-side accommodation: 1 removes it, 1.5 and 2 are the grants."""
 

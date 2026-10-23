@@ -471,6 +471,41 @@ export interface AccessEntry {
   created_at: string;
 }
 
+/** Company-wide access log row: the entry plus who the candidate was. */
+export interface AccessLogRow extends AccessEntry {
+  application_id: string;
+  candidate_name: string;
+  job_title: string;
+}
+
+export interface AccessLogFilters {
+  actor_user_id?: string;
+  api_key_id?: string;
+  application_id?: string;
+  action?: string;
+}
+
+export const accessLogApi = {
+  /** Admins only (403 for members); newest first. */
+  list: (params: AccessLogFilters & { limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    }
+    const suffix = query.toString();
+    return request<{ items: AccessLogRow[]; total: number }>(
+      `/api/v1/access-log${suffix ? `?${suffix}` : ""}`,
+    );
+  },
+  exportUrl: (filters: AccessLogFilters = {}) => {
+    const params = new URLSearchParams({ format: "csv" });
+    for (const [key, value] of Object.entries(filters)) {
+      if (value) params.set(key, value);
+    }
+    return `/api/v1/access-log/export?${params.toString()}`;
+  },
+};
+
 export interface ApplicationPage {
   items: ApplicationOut[];
   total: number;
