@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ExternalLink } from "lucide-react";
 
+import { AccessLogSection } from "@/components/AccessLogSection";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, healthApi, type CompanyAdmin } from "@/lib/api";
 import { relativeTime } from "@/lib/time";
@@ -295,6 +296,7 @@ export default function PrivacySettingsPage() {
           View public notice
         </a>
       </div>
+      <AccessLogSection now={new Date()} />
     </section>
   );
 }

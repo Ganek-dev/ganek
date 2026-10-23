@@ -162,6 +162,18 @@ request was received).
 data is kept for your retention window unless they request deletion. The
 purge clock starts at the withdrawal.
 
+**Who looked at a candidate.** Ganek keeps a read-access trail: opening
+the profile, the CV download link, the quiz answers and the data bundle
+each record who did it (a teammate or an API key) and when; repeats
+inside ten minutes count once. Admins see it as the "Access" card on the
+applicant and company-wide under **Settings -> Privacy -> Access log**,
+filtered by teammate or action, with a CSV download that is itself
+written to the activity log. Members are recorded but do not see either.
+The applicant list is not logged. Use it for Art. 5(2) accountability and
+for answering "who had access" after an incident. It is not part of the
+candidate's bundle (Art. 15 covers recipients as categories, not
+colleague names) and it goes with the application on erasure.
+
 **Offboarding recruiters.** You are also the controller for your own
 staff's accounts. **Team → ⋯ → Remove & anonymize…** tombstones the user:
 email replaced with a random placeholder, password and Google sign-in

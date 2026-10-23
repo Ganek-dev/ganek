@@ -8,6 +8,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.api_key import ApiKey
+    from app.models.application import Application
     from app.models.user import User
 
 
@@ -41,6 +42,8 @@ class AccessLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     actor: Mapped["User | None"] = relationship(lazy="selectin")
     api_key: Mapped["ApiKey | None"] = relationship(lazy="selectin")
+    # loaded explicitly by the company-wide listing (candidate name, job title)
+    application: Mapped["Application"] = relationship()
 
     @property
     def actor_email(self) -> str | None:

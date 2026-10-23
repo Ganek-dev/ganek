@@ -21,7 +21,9 @@ every activity below:** TLS everywhere (`{confirm}`); tenant isolation
 enforced at query level; role-based admin access; argon2 password hashing;
 signed, purpose-bound, expiring candidate links (status 30 days); Google
 refresh tokens stored encrypted; per-IP rate limiting; access logs
-token-scrubbed and rotation-capped; application logs carry internal IDs,
+token-scrubbed and rotation-capped; per-candidate read-access trail (who
+opened a profile, CV, answers or data bundle, and when); application logs
+carry internal IDs,
 not emails; encryption at rest on database and CV storage (`{your
 mechanism}`); encrypted backups with rotation ≤ retention window and no
 restore of erased subjects (`{confirm}`); hardening checklist from

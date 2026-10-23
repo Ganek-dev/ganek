@@ -2,7 +2,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { companyApi, healthApi, type CompanyAdmin, type DeepHealth } from "@/lib/api";
+import {
+  accessLogApi,
+  companyApi,
+  healthApi,
+  team,
+  type CompanyAdmin,
+  type DeepHealth,
+} from "@/lib/api";
 
 import PrivacySettingsPage from "./page";
 
@@ -16,6 +23,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     companyApi: { get: vi.fn(), updateSettings: vi.fn(), testEmail: vi.fn() },
     healthApi: { deep: vi.fn() },
+    accessLogApi: { ...original.accessLogApi, list: vi.fn() },
+    team: { ...original.team, list: vi.fn() },
   };
 });
 
@@ -58,6 +67,8 @@ describe("PrivacySettingsPage", () => {
     mocked.get.mockResolvedValue(makeCompany());
     mocked.updateSettings.mockResolvedValue(makeCompany());
     mockedHealth.deep.mockResolvedValue(makeHealth(null));
+    vi.mocked(accessLogApi).list.mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(team).list.mockResolvedValue([]);
   });
 
   it("shows empty fields with the display-name fallback hint", async () => {
