@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api } from "@/lib/api";
+import { api, companyApi, type CompanyAdmin } from "@/lib/api";
 
 import VerifyPage from "./page";
 
@@ -17,10 +17,25 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     api: { ...original.api, verifyEmail: vi.fn() },
+    companyApi: { ...original.companyApi, get: vi.fn() },
   };
 });
 
 const mocked = vi.mocked(api);
+const mockedCompany = vi.mocked(companyApi);
+
+const company: CompanyAdmin = {
+  slug: "acme-labs",
+  name: "Acme Labs",
+  description: "",
+  mode: "multi",
+  smtp_configured: true,
+  logo_url: null,
+  website: null,
+  socials: {},
+  theme: {},
+  settings: {},
+};
 
 describe("VerifyPage", () => {
   beforeEach(() => {
@@ -33,12 +48,36 @@ describe("VerifyPage", () => {
       has_password: true,
       role: "admin",
     });
+    mockedCompany.get.mockResolvedValue(company);
   });
 
-  it("verifies the token and lands in the admin app", async () => {
+  it("verifies the token and lands on the workspace-is-live page", async () => {
     render(<VerifyPage />);
     await waitFor(() => expect(mocked.verifyEmail).toHaveBeenCalledWith({ token: "tok-1" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
+    expect(
+      await screen.findByRole("heading", { name: "Acme Labs is live" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/a@b\.dev is verified/)).toBeInTheDocument();
+    // the careers URL is the share-ready thing a new admin wants first
+    expect(screen.getByText(new RegExp(`${window.location.host}/c/acme-labs`))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy careers URL" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to your dashboard" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("still lands when the company lookup fails", async () => {
+    mockedCompany.get.mockRejectedValueOnce(new Error("boom"));
+    render(<VerifyPage />);
+    expect(
+      await screen.findByRole("heading", { name: "Your workspace is live" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to your dashboard" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
   });
 
   it("shows the expired state on a bad token", async () => {
