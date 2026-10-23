@@ -91,7 +91,7 @@ questions:
       horizontal depends on flex-direction.
 
   - id: fe-rem-1
-    difficulty: 3
+    difficulty: 2
     prompt: "What does the CSS unit `rem` scale with?"
     options:
       a: "The root element's font size"
@@ -117,7 +117,7 @@ questions:
       fetched, order not guaranteed.
 
   - id: fe-debounce-1
-    difficulty: 3
+    difficulty: 2
     prompt: "Debouncing a search input means what?"
     options:
       a: "Waiting until typing pauses (e.g. 300ms) before firing the request"

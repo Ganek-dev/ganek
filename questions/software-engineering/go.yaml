@@ -183,7 +183,7 @@ questions:
 
   - id: go-interface-implicit-1
     tags: [backend]
-    difficulty: 4
+    difficulty: 3
     prompt: "How does a type implement an interface in Go?"
     options:
       a: "Implicitly — by having the right method set; no declaration needed"

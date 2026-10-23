@@ -116,7 +116,7 @@ questions:
       is what makes horizontal scaling straightforward.
 
   - id: be-pagination-1
-    difficulty: 3
+    difficulty: 2
     prompt: "Why paginate list endpoints?"
     options:
       a: "Unbounded responses grow with data: memory, latency and payload blow up"
@@ -129,7 +129,7 @@ questions:
       cursor pagination also survives concurrent inserts.
 
   - id: be-rate-limit-1
-    difficulty: 3
+    difficulty: 2
     prompt: "What is rate limiting for?"
     options:
       a: "Protecting the service from abuse and overload by capping requests per client/time"
@@ -155,7 +155,7 @@ questions:
       content costs a header roundtrip, not a payload.
 
   - id: be-patch-put-1
-    difficulty: 3
+    difficulty: 2
     prompt: "PUT vs PATCH?"
     options:
       a: "PUT replaces the whole resource; PATCH applies a partial modification"

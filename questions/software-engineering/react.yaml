@@ -171,7 +171,7 @@ questions:
 
   - id: react-fragment-1
     tags: [frontend]
-    difficulty: 3
+    difficulty: 2
     prompt: "What does `<>...</>` (a Fragment) let you do?"
     options:
       a: "Return multiple siblings without adding a wrapper DOM node"

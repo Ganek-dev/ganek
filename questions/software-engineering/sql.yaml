@@ -77,7 +77,7 @@ questions:
 
   - id: sql-left-join-1
     tags: [backend]
-    difficulty: 3
+    difficulty: 2
     prompt: "INNER JOIN vs LEFT JOIN — the difference?"
     options:
       a: "LEFT JOIN keeps unmatched left-side rows (with NULLs); INNER keeps only matches"
@@ -175,7 +175,7 @@ questions:
 
   - id: sql-limit-1
     tags: [backend]
-    difficulty: 3
+    difficulty: 2
     prompt: "What does `LIMIT 10 OFFSET 20` do?"
     options:
       a: "Skips the first 20 result rows and returns the next 10"
@@ -203,7 +203,7 @@ questions:
 
   - id: sql-nplus1-1
     tags: [backend]
-    difficulty: 4
+    difficulty: 3
     prompt: "What is the N+1 query problem?"
     options:
       a: "One query for a list, then one more per item for its relations — instead of a single join/batch"
@@ -217,7 +217,7 @@ questions:
 
   - id: sql-explain-1
     tags: [backend]
-    difficulty: 4
+    difficulty: 3
     prompt: "What does EXPLAIN show you?"
     options:
       a: "The planner's execution plan — scans, index usage, join strategy, cost estimates"

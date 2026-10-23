@@ -68,7 +68,7 @@ questions:
 
   - id: ts-union-1
     tags: [frontend]
-    difficulty: 3
+    difficulty: 2
     prompt: "What does the type `string | number` mean?"
     options:
       a: "The value is either a string or a number"
@@ -180,7 +180,7 @@ questions:
 
   - id: ts-never-1
     tags: [frontend]
-    difficulty: 4
+    difficulty: 3
     prompt: "What does the `never` type represent?"
     options:
       a: "A value that cannot exist — functions that always throw, or exhausted unions"
@@ -194,7 +194,7 @@ questions:
 
   - id: ts-keyof-1
     tags: [frontend]
-    difficulty: 4
+    difficulty: 3
     prompt: "For `interface User { id: string; age: number }`, what is `keyof User`?"
     options:
       a: 'The union "id" | "age"'
