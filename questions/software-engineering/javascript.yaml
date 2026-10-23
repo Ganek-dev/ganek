@@ -97,7 +97,7 @@ questions:
 
   - id: js-let-var-1
     tags: [frontend]
-    difficulty: 3
+    difficulty: 2
     prompt: "The key scoping difference between `let` and `var`?"
     options:
       a: "`let` is block-scoped; `var` is function-scoped"
@@ -111,7 +111,7 @@ questions:
 
   - id: js-closure-1
     tags: [frontend]
-    difficulty: 3
+    difficulty: 2
     prompt: "What is a closure?"
     options:
       a: "A function that retains access to variables from the scope where it was created"

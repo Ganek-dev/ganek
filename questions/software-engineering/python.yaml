@@ -193,7 +193,7 @@ questions:
       missing, instead of raising KeyError.
 
   - id: py-args-kwargs-1
-    difficulty: 3
+    difficulty: 2
     prompt: "In `def f(*args, **kwargs)`, what is `args` inside the function?"
     options:
       a: "A tuple of the extra positional arguments"
@@ -245,7 +245,7 @@ questions:
       enclosing scope in Python 3.
 
   - id: py-with-open-1
-    difficulty: 3
+    difficulty: 2
     prompt: "What does `with open(path) as f:` guarantee?"
     options:
       a: "The file is closed when the block exits, even on an exception"

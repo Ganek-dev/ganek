@@ -227,7 +227,7 @@ questions:
 
   - id: fastapi-override-1
     tags: [python, backend]
-    difficulty: 4
+    difficulty: 3
     prompt: "The idiomatic way to swap a real dependency for a fake in tests?"
     options:
       a: "`app.dependency_overrides[get_db] = fake_get_db`"

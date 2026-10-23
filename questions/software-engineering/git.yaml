@@ -117,7 +117,7 @@ questions:
       revert moves history forward instead.
 
   - id: git-stash-1
-    difficulty: 3
+    difficulty: 2
     prompt: "What does `git stash` do?"
     options:
       a: "Shelves your uncommitted changes so you get a clean tree, restorable with stash pop"
@@ -182,7 +182,7 @@ questions:
       branch or reset back to.
 
   - id: git-cherry-pick-1
-    difficulty: 4
+    difficulty: 3
     prompt: "What does `git cherry-pick <hash>` do?"
     options:
       a: "Applies that commit's changes as a NEW commit on your current branch"
@@ -195,7 +195,7 @@ questions:
       original.
 
   - id: git-bisect-1
-    difficulty: 4
+    difficulty: 3
     prompt: "What does `git bisect` automate?"
     options:
       a: "Binary-searching history to find the exact commit that introduced a bug"
