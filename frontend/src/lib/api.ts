@@ -1006,6 +1006,8 @@ export interface CompanyAdmin {
   socials: Record<string, unknown>;
   theme: { primary_color?: string; radius?: "sharp" | "default" | "round" };
   settings: {
+    /** Multi-mode signup marker, cleared by the inbox click (M5.7 H4). */
+    pending_verification?: boolean;
     quiz_expired_reissue?: "manual" | "auto";
     legal_name?: string;
     privacy_contact_email?: string;

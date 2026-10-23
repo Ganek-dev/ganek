@@ -10,7 +10,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { careersDisplay, careersUrl } from "@/lib/careers";
 
 /** First-run checklist, handoff screen 14: lives on the dashboard until all
- * five steps are done, then disappears for good. Completion is derived from
+ * steps are done (five, six in multi mode), then disappears for good. Completion is derived from
  * live data (no stored flags): branding theme, first job, first assessment,
  * team size/invites. Admin-only — the data it needs is admin-scoped, and
  * onboarding is the workspace owner's job. Any load error renders nothing:
@@ -42,12 +42,26 @@ export function OnboardingChecklist() {
         if (cancelled) return;
         const theme = companyData.theme;
         setCompany(companyData);
+        // multi mode gates the dashboard behind the inbox click, so the
+        // step lands ticked: it is the acknowledgement that signup is
+        // complete, and it retires with the checklist (card B3)
+        const verify: Step[] =
+          companyData.mode === "multi"
+            ? [
+                {
+                  title: "Verify your email",
+                  hint: "done",
+                  done: companyData.settings.pending_verification !== true,
+                },
+              ]
+            : [];
         setSteps([
           {
             title: "Create your workspace",
             hint: "done",
             done: true,
           },
+          ...verify,
           {
             title: "Brand your careers page",
             hint: "logo, color, corner radius — ~1 min",
