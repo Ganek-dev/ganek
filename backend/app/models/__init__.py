@@ -1,3 +1,4 @@
+from app.models.access_log import AccessLog
 from app.models.activity import ActivityLog
 from app.models.api_key import ApiKey, ApiKeyScope
 from app.models.application import Application, ApplicationStage
@@ -26,6 +27,7 @@ from app.models.user_invite import UserInvite
 from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 
 __all__ = [
+    "AccessLog",
     "ActivityLog",
     "ApiKey",
     "ApiKeyScope",

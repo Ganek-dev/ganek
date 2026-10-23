@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import { relativeTime } from "@/lib/time";
 import { InterviewCard } from "@/components/InterviewCard";
+import { AccessTrailCard } from "@/components/AccessTrailCard";
 import { EmailTrailCard } from "@/components/EmailTrailCard";
 import { NotesCard } from "@/components/NotesCard";
 import {
@@ -806,6 +807,7 @@ function DetailPanel({
       ) : null}
 
       <EmailTrailCard key={`emails-${app.id}`} applicationId={app.id} />
+      <AccessTrailCard key={`access-${app.id}`} applicationId={app.id} now={now} />
       <NotesCard key={app.id} applicationId={app.id} />
     </div>
   );

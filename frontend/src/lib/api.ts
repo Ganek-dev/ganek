@@ -461,6 +461,16 @@ export interface EmailDelivery {
   sent_at: string | null;
 }
 
+/** One read of a candidate (read-access audit trail), newest first. */
+export interface AccessEntry {
+  id: string;
+  action: "view" | "cv_download" | "quiz_answers" | "dsar_export" | string;
+  actor_email: string | null;
+  actor_label: string | null;
+  api_key_name: string | null;
+  created_at: string;
+}
+
 export interface ApplicationPage {
   items: ApplicationOut[];
   total: number;
@@ -510,6 +520,8 @@ export const applications = {
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
   /** Delivery trail (M5.7 H4): whether this application's emails went out. */
   emails: (id: string) => request<EmailDelivery[]>(`/api/v1/applications/${id}/emails`),
+  /** Who looked at this candidate; admins only (403 for members). */
+  accessLog: (id: string) => request<AccessEntry[]>(`/api/v1/applications/${id}/access-log`),
   get: (id: string) => request<ApplicationOut>(`/api/v1/applications/${id}`),
   reissueQuiz: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/reissue`, { method: "POST" }),

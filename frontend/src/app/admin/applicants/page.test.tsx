@@ -34,6 +34,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       cvUrl: vi.fn(),
       quizAnswers: vi.fn(),
       emails: vi.fn(),
+      accessLog: vi.fn(),
       remind: vi.fn(),
       bulkReject: vi.fn(),
       eraseCandidate: vi.fn(),
@@ -197,6 +198,7 @@ describe("ApplicantsPage", () => {
     });
     mockedNotes.list.mockResolvedValue([]);
     mockedApps.emails.mockResolvedValue([]);
+    mockedApps.accessLog.mockResolvedValue([]);
     mockedNotes.add.mockResolvedValue({
       id: "note-1",
       body: "",
@@ -301,6 +303,12 @@ describe("ApplicantsPage", () => {
     expect(screen.getByLabelText(/2 correct, 1 wrong, 1 timed out/)).toBeInTheDocument();
     // integrity card summary pill
     expect(screen.getByText("1 flag")).toBeInTheDocument();
+  });
+
+  it("asks for the access trail of the selected applicant", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await waitFor(() => expect(mockedApps.accessLog).toHaveBeenCalledWith("app-1"));
   });
 
   it("notes a granted extra-time accommodation on the integrity card", async () => {

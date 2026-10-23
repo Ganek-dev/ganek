@@ -81,7 +81,7 @@ Admins create keys under Settings, Developers. The secret (`gk_...`) is shown on
 curl -H "Authorization: Bearer gk_..." https://your-instance/api/v1/applications
 ```
 
-Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}` and the export above. Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
+Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}` and the export above. Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor, and a `GET /api/v1/applications/{id}` with a key lands in that applicant's read-access trail under the key's name. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
 
 ### Webhooks
 
