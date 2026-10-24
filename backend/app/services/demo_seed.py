@@ -12,7 +12,9 @@ Run inside the backend image, like the question bank seed::
 
     uv run python -m app.services.demo_seed [--reset] [--slug northwind]
 
-The password comes from GANEK_DEMO_PASSWORD (default ``ganek-demo-1``).
+The password comes from GANEK_DEMO_PASSWORD (default ``ganek-demo-1``). A public
+demo instance sets GANEK_DEMO_RESET_SLUG and the worker reruns this with
+``reset=True`` every night (app/worker.py).
 Every person in here is fictional; candidate addresses end in
 ``@example.com`` so no mail can ever reach a real inbox.
 """
@@ -29,6 +31,7 @@ from datetime import timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.db import SessionFactory
 from app.core.security import hash_password
 from app.models import (
@@ -452,7 +455,7 @@ def main() -> None:
     parser.add_argument("--slug", default=os.environ.get("GANEK_DEMO_SLUG") or DEFAULT_SLUG)
     parser.add_argument("--reset", action="store_true", help="delete and rebuild if it exists")
     args = parser.parse_args()
-    password = os.environ.get("GANEK_DEMO_PASSWORD") or DEFAULT_PASSWORD
+    password = settings.demo_password or DEFAULT_PASSWORD
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     asyncio.run(run(slug=args.slug, password=password, reset=args.reset))
 

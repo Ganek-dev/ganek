@@ -92,5 +92,12 @@ class Settings(BaseSettings):
     sentry_environment: str | None = None
     sentry_traces_sample_rate: float = 0.0
 
+    # Demo workspace (app/services/demo_seed.py, scripts/dev_seed.sh). The
+    # password applies to both demo users. A public demo instance sets the
+    # slug: the worker then deletes and rebuilds that company nightly so
+    # visitors always find the same workspace. Unset = no reset job.
+    demo_password: str | None = None
+    demo_reset_slug: str | None = None
+
 
 settings = Settings()

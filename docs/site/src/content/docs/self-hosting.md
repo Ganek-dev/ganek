@@ -32,7 +32,7 @@ scripts/dev_seed.sh --reset    # delete and rebuild
 
 Log in as `erika@northwind.example` with `ganek-demo-1` (set `GANEK_DEMO_PASSWORD` before seeding to choose another); `jonas@northwind.example` is a member with the same password. The careers page is at `/c/northwind`. In single mode `/` serves the oldest company, which is Northwind on a fresh database. The seed is deterministic and idempotent: running it again leaves an existing Northwind alone unless you pass `--reset`.
 
-**Public demo instance.** Run a separate stack with SMTP unset (the demo's candidates cannot receive mail anyway), seed it, and reset it on a schedule so visitors always find the same workspace; a nightly `scripts/dev_seed.sh --reset` from cron is enough. Change the password for anything reachable from the internet.
+**Public demo instance.** Run a separate stack with SMTP unset (the demo's candidates cannot receive mail anyway), seed it, and set `GANEK_DEMO_RESET_SLUG=northwind` in its `.env`: the worker then deletes and rebuilds that company every night at 04:07 UTC, so visitors always find the same workspace whatever yesterday's visitors did to it. Set `GANEK_DEMO_PASSWORD` to something other than the default for anything reachable from the internet; the seed and the nightly reset both read it.
 
 ## Upgrades
 
