@@ -34,6 +34,8 @@ Log in as `erika@acme.example` with `ganek-demo-1` (set `GANEK_DEMO_PASSWORD` be
 
 **Public demo instance.** Run a separate stack with SMTP unset (the demo's candidates cannot receive mail anyway), seed it, and set `GANEK_DEMO_RESET_SLUG=acme` in its `.env`: the worker then deletes and rebuilds that company every night at 04:07 UTC, so visitors always find the same workspace whatever yesterday's visitors did to it. Set `GANEK_DEMO_PASSWORD` to something other than the default for anything reachable from the internet; the seed and the nightly reset both read it.
 
+Set `GANEK_DEMO_MODE=true` on the same stack. Applying still works end to end, but nothing a visitor types or uploads is kept: the name, email and links are replaced with fictional values before they are stored, the message is dropped, CV upload is refused and one sample PDF is attached to every application instead. No email leaves the box. Changing the password, two-factor settings, signing out everywhere, inviting or editing users and connecting Google are refused, so the shared login keeps working for the next visitor; branding, company settings, jobs, quizzes, API keys and webhooks stay open and the nightly reset puts everything back. The sign-in options endpoint reports `demo: true` so the frontend can say so. Never set this on a real workspace.
+
 ## Upgrades
 
 1. Read the release notes on GitHub. A release that adds a migration says so.

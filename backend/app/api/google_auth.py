@@ -28,7 +28,7 @@ from app.core.security import (
 from app.models import User
 from app.schemas.auth import GoogleSignupPending, GoogleSignupRequest, UserOut
 from app.services import auth as auth_service
-from app.services import google_calendar, oauth_google
+from app.services import demo_mode, google_calendar, oauth_google
 from app.services import invites as invites_service
 from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
@@ -55,7 +55,11 @@ def _redirect(path: str) -> RedirectResponse:
 
 
 @router.get(
-    "/start", dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)]
+    "/start",
+    dependencies=[
+        rate_limit("auth", lambda: settings.rate_limit_auth_per_minute),
+        demo_mode.locked,
+    ],
 )
 async def google_start(invite: str | None = None) -> RedirectResponse:
     _require_configured()
@@ -98,7 +102,10 @@ async def _accept_invite_via_google(
 
 @router.get(
     "/calendar/connect",
-    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+    dependencies=[
+        rate_limit("auth", lambda: settings.rate_limit_auth_per_minute),
+        demo_mode.locked,
+    ],
 )
 async def google_calendar_connect(user: CurrentUser) -> RedirectResponse:
     """Incremental-auth consent for Calendar access (offline → refresh token)."""

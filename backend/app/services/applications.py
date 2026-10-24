@@ -32,10 +32,10 @@ class InvalidCvError(Exception):
         self.reason = reason
 
 
-async def _validated_cv(company: Company, payload: ApplicationSubmit) -> storage.ObjectStat:
-    if not payload.cv_object_key.startswith(f"cvs/{company.id}/"):
+async def _validated_cv(company: Company, object_key: str) -> storage.ObjectStat:
+    if not object_key.startswith(f"cvs/{company.id}/"):
         raise InvalidCvError("CV reference does not belong to this company")
-    stat = await storage.stat_object(payload.cv_object_key)
+    stat = await storage.stat_object(object_key)
     if stat is None:
         raise InvalidCvError("CV upload not found — upload the file first")
     if stat.size > settings.cv_max_size_mb * 1024 * 1024:
@@ -67,7 +67,9 @@ async def _get_or_create_candidate(
 async def submit_application(
     db: AsyncSession, company: Company, job: Job, payload: ApplicationSubmit
 ) -> Application:
-    stat = await _validated_cv(company, payload)
+    if payload.cv_object_key is None or payload.cv_filename is None:
+        raise InvalidCvError("CV is required")
+    stat = await _validated_cv(company, payload.cv_object_key)
     candidate = await _get_or_create_candidate(db, company, payload)
     application = Application(
         company_id=company.id,

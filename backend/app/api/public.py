@@ -58,7 +58,7 @@ from app.schemas.public import (
     StatusQuizOut,
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
-from app.services import activity, google_calendar, quotas, storage
+from app.services import activity, demo_mode, google_calendar, quotas, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import interviews as interviews_service
@@ -290,6 +290,9 @@ async def _apply(
         await quotas.guard(db, company, quotas.APPLICATIONS, consume=True)
     except quotas.QuotaExceeded as exc:
         raise _quota_429(exc) from None
+    if demo_mode.enabled():
+        # nothing the visitor typed is stored; see services/demo_mode.py
+        payload = await demo_mode.sanitize(company, payload)
     try:
         application = await applications_service.submit_application(db, company, job, payload)
     except applications_service.InvalidCvError as exc:
@@ -349,6 +352,7 @@ async def _apply(
 async def company_cv_upload_url(
     company: PublicCompany, job_slug: str, db: DbSession
 ) -> CvUploadTicket:
+    demo_mode.forbid_upload()
     await _published_job_or_404(db, company, job_slug)
     return _upload_ticket(company)
 
@@ -376,6 +380,7 @@ async def company_apply(
 async def single_cv_upload_url(
     company: SingleCompany, job_slug: str, db: DbSession
 ) -> CvUploadTicket:
+    demo_mode.forbid_upload()
     await _published_job_or_404(db, company, job_slug)
     return _upload_ticket(company)
 

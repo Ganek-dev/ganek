@@ -18,7 +18,7 @@ from app.schemas.users import (
     UserCreate,
     UserUpdate,
 )
-from app.services import google_calendar
+from app.services import demo_mode, google_calendar
 from app.services import interviews as interviews_service
 from app.services import invites as invites_service
 from app.services import outbox as outbox_service
@@ -72,7 +72,12 @@ async def list_users(db: DbSession, company: CurrentCompany, _admin: AdminUser) 
     return await users_service.list_users(db, company)
 
 
-@router.post("", response_model=TeamUserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=TeamUserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[demo_mode.locked],
+)
 async def create_user(
     payload: UserCreate, db: DbSession, company: CurrentCompany, _admin: AdminUser
 ) -> User:
@@ -110,7 +115,12 @@ async def list_invites(
     return await invites_service.list_invites(db, company)
 
 
-@router.post("/invites", response_model=InviteOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/invites",
+    response_model=InviteOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[demo_mode.locked],
+)
 async def create_invite(
     payload: InviteCreate,
     db: DbSession,
@@ -133,7 +143,9 @@ async def create_invite(
     return invite
 
 
-@router.post("/invites/{invite_id}/resend", response_model=InviteOut)
+@router.post(
+    "/invites/{invite_id}/resend", response_model=InviteOut, dependencies=[demo_mode.locked]
+)
 async def resend_invite(
     invite_id: uuid.UUID,
     db: DbSession,
@@ -168,7 +180,7 @@ async def update_profile(payload: ProfileUpdate, db: DbSession, user: CurrentUse
     return user
 
 
-@router.patch("/{user_id}", response_model=TeamUserOut)
+@router.patch("/{user_id}", response_model=TeamUserOut, dependencies=[demo_mode.locked])
 async def update_user(
     user_id: uuid.UUID,
     payload: UserUpdate,
@@ -188,7 +200,9 @@ async def update_user(
         ) from None
 
 
-@router.post("/{user_id}/anonymize", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{user_id}/anonymize", status_code=status.HTTP_204_NO_CONTENT, dependencies=[demo_mode.locked]
+)
 async def anonymize_user(
     user_id: uuid.UUID,
     db: DbSession,

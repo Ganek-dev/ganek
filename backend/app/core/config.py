@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     # visitors always find the same workspace. Unset = no reset job.
     demo_password: str | None = None
     demo_reset_slug: str | None = None
+    # Public demo workspace (services/demo_mode.py): apply stays on but every
+    # submission is stored pseudonymised with a sample CV, nothing is mailed,
+    # and the endpoints that would lock other visitors out of the shared
+    # account (password, 2FA, invites, user admin, Google) answer 403.
+    demo_mode: bool = False
 
 
 settings = Settings()

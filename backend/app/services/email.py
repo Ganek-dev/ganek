@@ -12,6 +12,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from html import escape
 
+from app.core.config import settings
 from app.services import email_providers as providers
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,9 @@ def send_email(
 ) -> None:
     if not configured():
         logger.info("email not configured; skipping email %r (ref=%s)", subject, ref)
+        return
+    if settings.demo_mode:
+        logger.info("demo mode; skipping email %r (ref=%s)", subject, ref)
         return
     providers.current().send(
         providers.OutboundMessage(
