@@ -1,8 +1,14 @@
 import type { MetadataRoute } from "next";
 
+import { fetchInstanceInfo } from "@/lib/public-api";
 import { publicBaseUrl } from "@/lib/site";
 
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const { demo } = await fetchInstanceInfo();
+  if (demo) {
+    // a demo instance's vacancies are fictional: keep every page out of search
+    return { rules: [{ userAgent: "*", disallow: "/" }] };
+  }
   return {
     rules: [
       {

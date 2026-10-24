@@ -53,6 +53,7 @@ function AccountContent() {
   const [nameSaved, setNameSaved] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [demo, setDemo] = useState(false);
 
   const calendarNotice = CALENDAR_NOTICES[searchParams.get("calendar") ?? ""] ?? null;
 
@@ -65,7 +66,10 @@ function AccountContent() {
       });
     api
       .providers()
-      .then((p) => setGoogleEnabled(p.google))
+      .then((p) => {
+        setGoogleEnabled(p.google);
+        setDemo(p.demo === true);
+      })
       .catch(() => {
         /* card stays hidden */
       });
@@ -209,6 +213,14 @@ function AccountContent() {
           <p className="mt-4 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[12.5px] text-g500">
             You sign in with Google — this account has no password.
           </p>
+        ) : demo ? (
+          <p
+            role="note"
+            className="mt-4 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[12.5px] text-g500"
+          >
+            Password changes are off on the demo workspace: the login is shared with every
+            visitor.
+          </p>
         ) : (
           <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           <label className="flex flex-col gap-1.5">
@@ -246,7 +258,7 @@ function AccountContent() {
         )}
       </div>
 
-      {user ? <TwoFactorCard user={user} onUserChange={setUser} /> : null}
+      {user ? <TwoFactorCard user={user} onUserChange={setUser} locked={demo} /> : null}
 
       {googleEnabled ? (
         <div className="card p-5">
@@ -274,6 +286,14 @@ function AccountContent() {
               >
                 Disconnect
               </button>
+            ) : demo ? (
+              <span
+                aria-disabled="true"
+                title="Off on the demo workspace"
+                className="inline-flex h-8 shrink-0 cursor-not-allowed items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground opacity-50"
+              >
+                Connect Google Calendar
+              </span>
             ) : (
               <a
                 href="/api/v1/auth/google/calendar/connect"

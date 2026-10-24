@@ -19,7 +19,11 @@ const secondaryBtn =
 type Props = {
   user: UserOut;
   onUserChange: (user: UserOut) => void;
+  /** demo instance: the shared login must keep working for the next visitor */
+  locked?: boolean;
 };
+
+const LOCKED_TITLE = "Off on the demo workspace";
 
 type Phase =
   | { kind: "idle" }
@@ -27,7 +31,7 @@ type Phase =
   | { kind: "codes"; codes: string[] }
   | { kind: "disabling" };
 
-export function TwoFactorCard({ user, onUserChange }: Props) {
+export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -95,17 +99,31 @@ export function TwoFactorCard({ user, onUserChange }: Props) {
             <button
               type="button"
               onClick={() => setPhase({ kind: "disabling" })}
+              disabled={locked}
+              title={locked ? LOCKED_TITLE : undefined}
               className={secondaryBtn}
             >
               Turn off
             </button>
           ) : (
-            <button type="button" onClick={start} disabled={busy} className={primaryBtn}>
+            <button
+              type="button"
+              onClick={start}
+              disabled={busy || locked}
+              title={locked ? LOCKED_TITLE : undefined}
+              className={primaryBtn}
+            >
               {busy ? "…" : "Set up"}
             </button>
           )
         ) : null}
       </div>
+      {locked ? (
+        <p role="note" className="mt-3 text-[12.5px] text-g500">
+          Two-factor and session changes are off on the demo workspace: the login is shared
+          with every visitor.
+        </p>
+      ) : null}
 
       {enabled && (user.recovery_codes_left ?? 0) < 3 && phase.kind === "idle" ? (
         <p className="mt-3 rounded-md border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400">
@@ -219,7 +237,8 @@ export function TwoFactorCard({ user, onUserChange }: Props) {
         <button
           type="button"
           onClick={signOutEverywhere}
-          disabled={busy || signedOut}
+          disabled={busy || signedOut || locked}
+          title={locked ? LOCKED_TITLE : undefined}
           className={secondaryBtn}
         >
           Sign out everywhere

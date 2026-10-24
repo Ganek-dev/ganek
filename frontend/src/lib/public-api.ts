@@ -62,6 +62,30 @@ async function get<T>(path: string): Promise<T | null> {
   return (await resp.json()) as T;
 }
 
+export interface InstanceInfo {
+  mode: "single" | "multi";
+  /** public demo instance: banner, no CV field, no indexing (GANEK_DEMO_MODE) */
+  demo: boolean;
+}
+
+/** /auth/providers from the server side; a backend hiccup never takes a
+ * public page down, it just renders as a normal instance. */
+export async function fetchInstanceInfo(): Promise<InstanceInfo> {
+  try {
+    const info = await get<{ mode?: "single" | "multi"; demo?: boolean }>(
+      "/api/v1/auth/providers",
+    );
+    return { mode: info?.mode ?? "single", demo: info?.demo === true };
+  } catch {
+    return { mode: "single", demo: false };
+  }
+}
+
+/** Metadata fragment for a demo instance: fake vacancies must never be indexed. */
+export function demoRobots(demo: boolean): { robots?: { index: false; follow: false } } {
+  return demo ? { robots: { index: false, follow: false } } : {};
+}
+
 export async function fetchInstanceMode(): Promise<"single" | "multi"> {
   const health = await get<{ mode: "single" | "multi" }>("/api/health");
   return health?.mode ?? "single";

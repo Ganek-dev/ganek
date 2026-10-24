@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChevronDown, Mail, Plus } from "lucide-react";
 
-import { team, type TeamInvite, type TeamUser, type UserRole } from "@/lib/api";
+import { api, team, type TeamInvite, type TeamUser, type UserRole } from "@/lib/api";
 import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
 /** Team page, handoff screen 12: invite bar (email + role + Send invite),
@@ -88,6 +88,14 @@ export default function TeamPage() {
   const [confirmAnonymizeId, setConfirmAnonymizeId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const emailRef = useRef<HTMLInputElement>(null);
+  const [demo, setDemo] = useState(false);
+
+  useEffect(() => {
+    api
+      .providers()
+      .then((p) => setDemo(p.demo === true))
+      .catch(() => setDemo(false)); // advisory only
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -197,7 +205,9 @@ export default function TeamPage() {
         <button
           type="button"
           onClick={() => emailRef.current?.focus()}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-inverse pr-3 pl-2 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94]"
+          disabled={demo}
+          title={demo ? "Off on the demo workspace" : undefined}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-inverse pr-3 pl-2 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
         >
           <Plus aria-hidden className="h-[15px] w-[15px]" />
           Invite member
@@ -215,6 +225,12 @@ export default function TeamPage() {
         </p>
       ) : null}
 
+      {demo ? (
+        <p role="note" className="card px-3.5 py-3 text-[13px] text-g600">
+          Inviting teammates is off on the demo workspace: an invite would email a real
+          person and hand them the shared login.
+        </p>
+      ) : (
       <form onSubmit={sendInvite} className="card flex flex-wrap items-center gap-2.5 p-3.5">
         <input
           ref={emailRef}
@@ -248,6 +264,7 @@ export default function TeamPage() {
           {busy ? "…" : "Send invite"}
         </button>
       </form>
+      )}
 
       {users === null ? (
         <div aria-busy="true" className="space-y-2">

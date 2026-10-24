@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ApplyForm } from "@/components/ApplyForm";
 import { HowWeHire, JobGone, JobHero, JobPosting } from "@/components/JobPosting";
 import { themeStyle } from "@/components/careers";
-import { publicApi } from "@/lib/public-api";
+import { DemoBanner } from "@/components/DemoBanner";
+import { demoRobots, fetchInstanceInfo, publicApi } from "@/lib/public-api";
 
 interface Props {
   params: Promise<{ jobSlug: string }>;
@@ -12,19 +13,21 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { jobSlug } = await params;
-  const [page, job] = await Promise.all([
+  const [page, job, { demo }] = await Promise.all([
     publicApi.singleCompanyPage(),
     publicApi.singleCompanyJob(jobSlug),
+    fetchInstanceInfo(),
   ]);
   if (!page || !job) return {};
-  return { title: `${job.title} — ${page.company.name}` };
+  return { title: `${job.title} — ${page.company.name}`, ...demoRobots(demo) };
 }
 
 export default async function SingleModeJobPage({ params }: Props) {
   const { jobSlug } = await params;
-  const [page, job] = await Promise.all([
+  const [page, job, { demo }] = await Promise.all([
     publicApi.singleCompanyPage(),
     publicApi.singleCompanyJob(jobSlug),
+    fetchInstanceInfo(),
   ]);
   if (!page) notFound();
   if (!job) {
@@ -41,9 +44,10 @@ export default async function SingleModeJobPage({ params }: Props) {
       className="min-h-screen bg-surface text-foreground"
       style={themeStyle(page.company)}
     >
+      {demo ? <DemoBanner tone="brand" /> : null}
       <JobHero company={page.company} job={job} backHref="/" />
       <div className="mx-auto max-w-[720px] px-5 pt-7 pb-10 sm:px-6 sm:pt-9 sm:pb-14">
-        <JobPosting company={page.company} job={job} />
+        <JobPosting company={page.company} job={job} jsonLd={!demo} />
         <HowWeHire />
         <a
           href="#apply"
@@ -59,6 +63,7 @@ export default async function SingleModeJobPage({ params }: Props) {
             apiBasePath={`/api/v1/public/company/jobs/${job.slug}`}
             jobTitle={job.title}
             companyName={page.company.name}
+            demo={demo}
             privacyHref="/privacy"
           />
         </section>
