@@ -35,6 +35,8 @@ export interface Providers {
   limits?: InstanceLimits;
   /** public demo instance (GANEK_DEMO_MODE): banner, locked account actions */
   demo?: boolean;
+  /** the shared demo admin login, present only while demo is true */
+  demo_login?: { email: string; password: string };
 }
 
 export type RemotePolicy = "onsite" | "hybrid" | "remote";

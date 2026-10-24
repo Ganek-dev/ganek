@@ -243,13 +243,13 @@ async def sign_out_everywhere(response: Response, db: DbSession, user: CurrentUs
 
 
 @router.get("/providers")
-async def providers() -> dict[str, bool | str | dict[str, int]]:
+async def providers() -> dict[str, bool | str | dict[str, int] | dict[str, str]]:
     """Which optional sign-in methods this instance has configured, its
     deployment mode (single = careers at the instance root) and the
     per-tenant limits the signup page lists under "what you get" (card B3;
     0 = that guard is off). Public on purpose: the same numbers already
     leak through the 429/409 responses on apply and publish."""
-    return {
+    out: dict[str, bool | str | dict[str, int] | dict[str, str]] = {
         "google": bool(settings.google_client_id and settings.google_client_secret),
         "mode": settings.mode,
         "demo": settings.demo_mode,
@@ -259,6 +259,10 @@ async def providers() -> dict[str, bool | str | dict[str, int]]:
             "emails_per_day": settings.quota_emails_per_day,
         },
     }
+    if settings.demo_mode:
+        # the shared demo login is public by design; the login page offers it
+        out["demo_login"] = demo_mode.demo_login()
+    return out
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

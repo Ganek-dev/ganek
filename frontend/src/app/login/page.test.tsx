@@ -141,4 +141,33 @@ describe("LoginPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Back to login" }));
     expect(screen.getByRole("heading", { name: /Log in to your workspace/ })).toBeInTheDocument();
   });
+
+  it("offers one-click sign-in as the demo admin on a demo instance", async () => {
+    mocked.providers.mockResolvedValue({
+      google: false,
+      mode: "single",
+      demo: true,
+      demo_login: { email: "erika@acme.example", password: "published-demo-pw" },
+    });
+    render(<LoginPage />);
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("Demo workspace");
+    expect(note).toHaveTextContent("erika@acme.example");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in to the demo" }));
+    expect(mocked.login).toHaveBeenCalledWith({
+      email: "erika@acme.example",
+      password: "published-demo-pw",
+    });
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/admin"));
+    // the normal form is still there for the member login
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+  });
+
+  it("shows no demo card when the instance only reports demo without a login", async () => {
+    mocked.providers.mockResolvedValue({ google: false, mode: "single", demo: true });
+    render(<LoginPage />);
+    await waitFor(() => expect(mocked.providers).toHaveBeenCalled());
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
 });

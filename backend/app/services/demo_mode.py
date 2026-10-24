@@ -18,7 +18,7 @@ from fastapi import params as fastapi_params
 from app.core.config import settings
 from app.models import Company
 from app.schemas.public import ApplicationSubmit
-from app.services import storage
+from app.services import demo_seed, storage
 
 # every link a demo applicant can carry points at something Ganek owns
 DEMO_LINKS = {
@@ -33,6 +33,17 @@ UPLOAD_DETAIL = "CV upload is off on the demo; a sample CV is attached to every 
 
 def enabled() -> bool:
     return settings.demo_mode
+
+
+def demo_login() -> dict[str, str]:
+    """The shared admin login the login page offers with one click. Public by
+    design on a demo (visitors need it); only ever exposed while demo mode is
+    on, see /auth/providers."""
+    slug = settings.demo_reset_slug or demo_seed.DEFAULT_SLUG
+    return {
+        "email": f"erika@{slug}.example",
+        "password": settings.demo_password or demo_seed.DEFAULT_PASSWORD,
+    }
 
 
 def _pdf(lines: list[str]) -> bytes:
