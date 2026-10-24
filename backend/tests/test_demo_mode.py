@@ -96,12 +96,17 @@ async def test_lock_and_upload_guard_only_bite_in_demo_mode(
     assert upload.value.status_code == 403 and upload.value.detail == demo_mode.UPLOAD_DETAIL
 
 
-async def test_providers_reports_the_flag(
+async def test_providers_reports_the_flag_and_the_demo_login(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert (await client.get("/api/v1/auth/providers")).json()["demo"] is False
+    normal = (await client.get("/api/v1/auth/providers")).json()
+    assert normal["demo"] is False and "demo_login" not in normal
     monkeypatch.setattr(settings, "demo_mode", True)
-    assert (await client.get("/api/v1/auth/providers")).json()["demo"] is True
+    monkeypatch.setattr(settings, "demo_reset_slug", None)
+    monkeypatch.setattr(settings, "demo_password", "published-demo-pw")
+    demo = (await client.get("/api/v1/auth/providers")).json()
+    assert demo["demo"] is True
+    assert demo["demo_login"] == {"email": "erika@acme.example", "password": "published-demo-pw"}
 
 
 # --- API --------------------------------------------------------------------

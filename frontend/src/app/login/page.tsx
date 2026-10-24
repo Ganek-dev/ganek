@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
@@ -28,6 +29,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [google, setGoogle] = useState(false);
+  const [demoLogin, setDemoLogin] = useState<{ email: string; password: string } | null>(null);
   // card A6: the password (or Google) passed; a code is needed. Google
   // sign-ins with 2FA land here as /login?mfa=<token>.
   const [mfaToken, setMfaToken] = useState<string | null>(searchParams.get("mfa"));
@@ -39,7 +41,9 @@ function LoginForm() {
     api
       .providers()
       .then((p) => {
-        if (!cancelled) setGoogle(p.google);
+        if (cancelled) return;
+        setGoogle(p.google);
+        setDemoLogin(p.demo && p.demo_login ? p.demo_login : null);
       })
       .catch(() => {
         /* flag stays false — password login is unaffected */
@@ -51,14 +55,15 @@ function LoginForm() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    await signIn(String(data.get("email") ?? "").trim(), String(data.get("password") ?? ""));
+  }
+
+  async function signIn(email: string, password: string) {
     setError(null);
     setBusy(true);
-    const data = new FormData(event.currentTarget);
     try {
-      const user = await api.login({
-        email: String(data.get("email") ?? "").trim(),
-        password: String(data.get("password") ?? ""),
-      });
+      const user = await api.login({ email, password });
       if (user.mfa_required && user.mfa_token) {
         setMfaToken(user.mfa_token);
         setBusy(false);
@@ -153,6 +158,27 @@ function LoginForm() {
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {oauthError}
         </p>
+      ) : null}
+
+      {demoLogin ? (
+        <div role="note" className="rounded-md border border-edge bg-muted-fill/40 p-3.5">
+          <div className="flex items-center gap-2 text-[13.5px] font-semibold">
+            <FlaskConical aria-hidden className="h-4 w-4 text-g500" />
+            Demo workspace
+          </div>
+          <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
+            Shared login, fictional data, resets nightly. Sign in as the demo admin{" "}
+            <span className="font-mono text-[12px] text-g600">{demoLogin.email}</span>.
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => signIn(demoLogin.email, demoLogin.password)}
+            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-inverse text-[13.5px] font-semibold text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
+          >
+            {busy ? "…" : "Sign in to the demo"}
+          </button>
+        </div>
       ) : null}
 
       {google ? (
