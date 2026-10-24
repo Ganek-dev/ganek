@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -202,7 +203,10 @@ CALIBRATION_BANDS: dict[int, tuple[float, float]] = {
 }
 
 
-def calibration_hint(difficulty: int, *, served: int, correct: int) -> str | None:
+CalibrationHint = Literal["easier", "harder"]
+
+
+def calibration_hint(difficulty: int, *, served: int, correct: int) -> CalibrationHint | None:
     if served < CALIBRATION_MIN_SAMPLE:
         return None
     low, high = CALIBRATION_BANDS.get(difficulty, (0.0, 1.0))
@@ -238,7 +242,7 @@ class AnswerStats:
         return round(self.response_ms_total / self.answered) if self.answered else None
 
     @property
-    def hint(self) -> str | None:
+    def hint(self) -> CalibrationHint | None:
         return calibration_hint(self.difficulty, served=self.served, correct=self.correct)
 
 
@@ -251,8 +255,8 @@ async def answer_stats(
     if not ids:
         return {}
     difficulties: dict[str, int] = {
-        row.id: row.difficulty
-        for row in (
+        question_id: difficulty
+        for question_id, difficulty in (
             await db.execute(select(Question.id, Question.difficulty).where(Question.id.in_(ids)))
         ).all()
     }
@@ -276,6 +280,8 @@ async def answer_stats(
     ).all()
     stats: dict[str, AnswerStats] = {}
     for question_id, is_correct, answer_key, served_at, answered_at in rows:
+        if answered_at is None:  # filtered in SQL; narrows the type for SQLAlchemy 2.1
+            continue
         entry = stats.setdefault(
             question_id, AnswerStats(difficulty=difficulties.get(question_id, 3))
         )
