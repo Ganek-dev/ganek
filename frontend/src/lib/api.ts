@@ -829,6 +829,15 @@ export const publicQuiz = {
 /** Difficulty is a 1-5 scale (5-dot UI); legacy "easy/medium/hard" bands were migrated. */
 export type Difficulty = number;
 
+export interface QuestionStats {
+  served: number;
+  correct_rate: number;
+  timeout_rate: number;
+  avg_response_ms: number | null;
+  /** Fixed rule (20+ answers, more than 10 points outside the rating's band). */
+  hint: "easier" | "harder" | null;
+}
+
 export interface QuestionOut {
   id: string;
   prompt_md: string;
@@ -916,6 +925,13 @@ export const questions = {
     if (ids.length === 0) return Promise.resolve({} as Record<string, number>);
     const qs = new URLSearchParams({ ids: ids.join(",") }).toString();
     return request<Record<string, number>>(`/api/v1/questions/usage?${qs}`);
+  },
+  /** Difficulty calibration from this workspace's completed quizzes; ids
+   * never served here are absent. A report only, nothing in scoring reads it. */
+  stats: (ids: string[]) => {
+    if (ids.length === 0) return Promise.resolve({} as Record<string, QuestionStats>);
+    const qs = new URLSearchParams({ ids: ids.join(",") }).toString();
+    return request<Record<string, QuestionStats>>(`/api/v1/questions/stats?${qs}`);
   },
 };
 

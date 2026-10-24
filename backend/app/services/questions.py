@@ -1,9 +1,20 @@
+from dataclasses import dataclass
+from typing import Literal
 from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Question, Questionnaire, QuestionSource, QuestionStatus
+from app.models import (
+    AttemptAnswer,
+    AttemptStatus,
+    Company,
+    Question,
+    Questionnaire,
+    QuestionSource,
+    QuestionStatus,
+    QuizAttempt,
+)
 from app.schemas.questions import QuestionCreate, QuestionUpdate
 
 COMPANY_QUESTION_DOMAIN = "company"
@@ -170,3 +181,116 @@ async def resolve_questions(db: AsyncSession, company: Company, ids: list[str]) 
     )
     by_id = {q.id: q for q in rows}
     return [by_id[qid] for qid in unique_ids if qid in by_id]
+
+
+# --- difficulty calibration from real answers ----------------------------------
+#
+# A report, never an input to scoring or selection (no-ML rule): per question,
+# over THIS workspace's completed attempts, how candidates actually did. The
+# hint is a fixed rule a human can check: with at least CALIBRATION_MIN_SAMPLE
+# answers, a correct rate more than CALIBRATION_MARGIN outside the band its
+# rating usually lands in says "easier" or "harder". Ratings change only
+# through a questions: PR.
+
+CALIBRATION_MIN_SAMPLE = 20
+CALIBRATION_MARGIN = 0.10
+CALIBRATION_BANDS: dict[int, tuple[float, float]] = {
+    1: (0.85, 1.0),
+    2: (0.70, 0.85),
+    3: (0.50, 0.70),
+    4: (0.30, 0.50),
+    5: (0.0, 0.30),
+}
+
+
+CalibrationHint = Literal["easier", "harder"]
+
+
+def calibration_hint(difficulty: int, *, served: int, correct: int) -> CalibrationHint | None:
+    if served < CALIBRATION_MIN_SAMPLE:
+        return None
+    low, high = CALIBRATION_BANDS.get(difficulty, (0.0, 1.0))
+    # whole percentage points: 80% on a 50-70 band is exactly at the margin, not past it
+    rate_pct = round(100 * correct / served)
+    margin_pct = round(100 * CALIBRATION_MARGIN)
+    if high < 1.0 and rate_pct > round(100 * high) + margin_pct:
+        return "easier"
+    if low > 0.0 and rate_pct < round(100 * low) - margin_pct:
+        return "harder"
+    return None
+
+
+@dataclass
+class AnswerStats:
+    difficulty: int
+    served: int = 0
+    correct: int = 0
+    timed_out: int = 0
+    answered: int = 0
+    response_ms_total: int = 0
+
+    @property
+    def correct_rate(self) -> float:
+        return self.correct / self.served if self.served else 0.0
+
+    @property
+    def timeout_rate(self) -> float:
+        return self.timed_out / self.served if self.served else 0.0
+
+    @property
+    def avg_response_ms(self) -> int | None:
+        return round(self.response_ms_total / self.answered) if self.answered else None
+
+    @property
+    def hint(self) -> CalibrationHint | None:
+        return calibration_hint(self.difficulty, served=self.served, correct=self.correct)
+
+
+async def answer_stats(
+    db: AsyncSession, company: Company, ids: list[str]
+) -> dict[str, AnswerStats]:
+    """Per-question answer stats over this company's COMPLETED attempts.
+    Invalidated and expired runs carry no evidence. Ids never served here
+    are absent from the result."""
+    if not ids:
+        return {}
+    difficulties: dict[str, int] = {
+        question_id: difficulty
+        for question_id, difficulty in (
+            await db.execute(select(Question.id, Question.difficulty).where(Question.id.in_(ids)))
+        ).all()
+    }
+    rows = (
+        await db.execute(
+            select(
+                AttemptAnswer.question_id,
+                AttemptAnswer.is_correct,
+                AttemptAnswer.answer_key,
+                AttemptAnswer.served_at,
+                AttemptAnswer.answered_at,
+            )
+            .join(QuizAttempt, AttemptAnswer.attempt_id == QuizAttempt.id)
+            .where(
+                QuizAttempt.company_id == company.id,
+                QuizAttempt.status == AttemptStatus.COMPLETED,
+                AttemptAnswer.question_id.in_(ids),
+                AttemptAnswer.answered_at.is_not(None),
+            )
+        )
+    ).all()
+    stats: dict[str, AnswerStats] = {}
+    for question_id, is_correct, answer_key, served_at, answered_at in rows:
+        if answered_at is None:  # filtered in SQL; narrows the type for SQLAlchemy 2.1
+            continue
+        entry = stats.setdefault(
+            question_id, AnswerStats(difficulty=difficulties.get(question_id, 3))
+        )
+        entry.served += 1
+        if answer_key is None:
+            entry.timed_out += 1
+            continue
+        entry.answered += 1
+        entry.response_ms_total += int((answered_at - served_at).total_seconds() * 1000)
+        if is_correct:
+            entry.correct += 1
+    return stats

@@ -7,6 +7,7 @@ from app.schemas.questions import (
     BankQuestionPage,
     QuestionCreate,
     QuestionOut,
+    QuestionStatsOut,
     QuestionUpdate,
     ResolvedQuestion,
 )
@@ -77,6 +78,33 @@ async def question_usage(
     reference it. Ids with zero usage are omitted from the response."""
     id_list = [qid.strip() for qid in ids.split(",") if qid.strip()]
     return await questions_service.questionnaire_usage_counts(db, company, id_list)
+
+
+@router.get("/stats", response_model=dict[str, QuestionStatsOut])
+async def question_stats(
+    db: DbSession,
+    company: CurrentCompany,
+    ids: str = Query(
+        default="",
+        max_length=8000,
+        description="Comma-separated question ids to report answer stats for",
+    ),
+) -> dict[str, QuestionStatsOut]:
+    """Difficulty calibration from real answers: per question, over this
+    workspace's completed quizzes only. A report for a questions: PR; ids
+    never served here are omitted."""
+    id_list = [qid.strip() for qid in ids.split(",") if qid.strip()]
+    stats = await questions_service.answer_stats(db, company, id_list)
+    return {
+        qid: QuestionStatsOut(
+            served=entry.served,
+            correct_rate=entry.correct_rate,
+            timeout_rate=entry.timeout_rate,
+            avg_response_ms=entry.avg_response_ms,
+            hint=entry.hint,
+        )
+        for qid, entry in stats.items()
+    }
 
 
 @router.get("/resolve", response_model=list[ResolvedQuestion])

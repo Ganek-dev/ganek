@@ -5,6 +5,7 @@ rule forbids it in candidate-facing schemas only.
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -92,6 +93,18 @@ class BankQuestionPage(BaseModel):
     items: list[BankQuestionOut]
     total: int
     tags: list[str]  # all distinct bank tags, for filter UIs
+
+
+class QuestionStatsOut(BaseModel):
+    """Calibration report for one question over this workspace's completed
+    quizzes. ``hint`` is the fixed rule from the questions service; nothing
+    in scoring or selection reads any of this."""
+
+    served: int
+    correct_rate: float
+    timeout_rate: float
+    avg_response_ms: int | None
+    hint: Literal["easier", "harder"] | None
 
 
 class ResolvedQuestion(BaseModel):

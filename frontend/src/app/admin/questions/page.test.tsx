@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,6 +25,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       unblock: vi.fn(),
       resolve: vi.fn(),
       usage: vi.fn(),
+      stats: vi.fn(),
     },
     questionnaires: {
       list: vi.fn(),
@@ -92,6 +93,7 @@ describe("QuestionsPage", () => {
     mocked.unblock.mockResolvedValue(undefined);
     mockedQnr.list.mockResolvedValue([questionnaire]);
     mocked.usage.mockResolvedValue({});
+    mocked.stats.mockResolvedValue({});
     mockedQnr.update.mockImplementation(async (id, patch) => ({
       ...questionnaire,
       id,
@@ -148,6 +150,42 @@ describe("QuestionsPage", () => {
     await waitFor(() =>
       expect(row).toHaveTextContent("3 questionnaires"),
     );
+  });
+
+  it("shows answer stats under the difficulty and a chip when the hint fires", async () => {
+    mocked.stats.mockResolvedValue({
+      "py-gil-1": {
+        served: 42,
+        correct_rate: 0.88,
+        timeout_rate: 0.05,
+        avg_response_ms: 7000,
+        hint: "easier",
+      },
+    });
+    render(<QuestionsPage />);
+    const row = (await screen.findByText("What does the GIL prevent?")).closest("tr")!;
+    await waitFor(() => expect(row).toHaveTextContent("88% of 42"));
+    expect(within(row).getByText("looks easier")).toBeInTheDocument();
+    expect(within(row).getByText("looks easier")).toHaveAttribute(
+      "title",
+      "88% of 42 candidates answered correctly, 5% timed out, 7s on average. Rated 3; a 3 usually lands between 50% and 70%. Consider a lower rating in a questions: PR.",
+    );
+  });
+
+  it("shows the sample without a chip when the hint is empty", async () => {
+    mocked.stats.mockResolvedValue({
+      "py-gil-1": {
+        served: 7,
+        correct_rate: 0.5,
+        timeout_rate: 0,
+        avg_response_ms: 9000,
+        hint: null,
+      },
+    });
+    render(<QuestionsPage />);
+    const row = (await screen.findByText("What does the GIL prevent?")).closest("tr")!;
+    await waitFor(() => expect(row).toHaveTextContent("50% of 7"));
+    expect(within(row).queryByText(/looks/)).not.toBeInTheDocument();
   });
 
   it("bulk-select bar appends selected refs to a questionnaire", async () => {

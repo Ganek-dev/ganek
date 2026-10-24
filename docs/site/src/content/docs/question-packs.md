@@ -61,6 +61,12 @@ A label for the knowledge depth the question probes, not for how convoluted the 
 
 When unsure, rate down. An inflated 4 wastes a recruiter's "hard" filter; an honest 3 keeps quiz composition predictable.
 
+### Calibration from real answers
+
+The question library shows, under each rating, how candidates in your workspace actually did: the share who answered correctly out of how many were served, with timeouts and the average response time in the tooltip. Only completed quizzes count; re-issued (invalidated) runs carry no evidence. Each rating has a band it usually lands in: 1 at 85% or more correct, 2 between 70% and 85%, 3 between 50% and 70%, 4 between 30% and 50%, 5 below 30%. With at least 20 answers, a correct rate more than 10 points outside the band shows a "looks easier" or "looks harder" chip.
+
+The chip is a prompt for a human, not a verdict: a question nobody misses may be well known in your niche rather than mis-rated. Nothing changes automatically, and neither scoring nor quiz selection reads these numbers. Ratings change the way everything in the bank changes, through a `questions:` pull request with the evidence in the description.
+
 ## A new tag or domain
 
 - New tag: add `{domain}/{tag}.yaml` with a fresh permanent prefix. Seed about fifteen active questions spread over levels 1 to 4 before announcing it; below that, tag-matched quizzes repeat questions too often. Jobs can attach a curated questionnaire meanwhile.
