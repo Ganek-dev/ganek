@@ -5,7 +5,7 @@ beyond published_at. What is not serialized cannot leak.
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
@@ -118,8 +118,12 @@ class ApplicationSubmit(BaseModel):
     github: HttpUrl | None = None
     linkedin: HttpUrl | None = None
     portfolio: HttpUrl | None = None
-    cv_object_key: str = Field(min_length=1, max_length=500)
-    cv_filename: str = Field(min_length=1, max_length=255, pattern=r"(?i)\.pdf$")
+    # both required outside demo mode (the service answers 422 without them);
+    # a demo-mode apply sends neither and gets the sample CV attached
+    cv_object_key: Annotated[str, Field(min_length=1, max_length=500)] | None = None
+    cv_filename: (
+        Annotated[str, Field(min_length=1, max_length=255, pattern=r"(?i)\.pdf$")] | None
+    ) = None
     # solved proof-of-work payload (core/challenge.py); required only in
     # multi mode with GANEK_CAPTCHA_ENABLED
     altcha: str | None = Field(default=None, max_length=2000)

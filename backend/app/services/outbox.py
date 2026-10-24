@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import queue
+from app.core.config import settings
 from app.models import Company, EmailOutbox, EmailStatus
 from app.services import email as email_service
 from app.services import quotas, suppression
@@ -72,14 +73,19 @@ async def queue_email(
     company_id: uuid.UUID,
     application_id: uuid.UUID | None = None,
     **kwargs: Any,
-) -> EmailOutbox:
-    """Persist the email and hand it to the worker. Commits.
+) -> EmailOutbox | None:
+    """Persist the email and hand it to the worker. Commits. Returns None
+    on a demo instance, where nothing is ever mailed.
 
     The commit makes the row durable BEFORE the enqueue attempt: if redis
     is down the sweeper picks it up, so the mail can be late but not lost.
     """
     if kind not in SENDER_NAMES:  # pragma: no cover - programmer error
         raise ValueError(f"unknown email kind {kind!r}")
+    if settings.demo_mode:
+        # demo addresses are fictional; no row, no counter, no job
+        logger.info("demo mode: dropped %s email", kind)
+        return None
     row = EmailOutbox(
         company_id=company_id,
         application_id=application_id,

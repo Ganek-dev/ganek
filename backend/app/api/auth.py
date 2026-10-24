@@ -37,6 +37,7 @@ from app.schemas.auth import (
     VerifyEmailRequest,
 )
 from app.services import auth as auth_service
+from app.services import demo_mode
 from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
 
@@ -173,7 +174,7 @@ async def mfa_verify(payload: MfaVerifyRequest, response: Response, db: DbSessio
     return user
 
 
-@router.post("/mfa/enrol", response_model=MfaEnrolOut)
+@router.post("/mfa/enrol", response_model=MfaEnrolOut, dependencies=[demo_mode.locked])
 async def mfa_enrol(db: DbSession, user: CurrentUser) -> MfaEnrolOut:
     """Start enrolment: a pending secret for the authenticator app."""
     try:
@@ -185,7 +186,7 @@ async def mfa_enrol(db: DbSession, user: CurrentUser) -> MfaEnrolOut:
     return MfaEnrolOut(secret=secret, otpauth_uri=uri)
 
 
-@router.post("/mfa/confirm", response_model=MfaRecoveryCodesOut)
+@router.post("/mfa/confirm", response_model=MfaRecoveryCodesOut, dependencies=[demo_mode.locked])
 async def mfa_confirm(
     payload: MfaCodeRequest, db: DbSession, user: CurrentUser
 ) -> MfaRecoveryCodesOut:
@@ -205,7 +206,9 @@ async def mfa_confirm(
     return MfaRecoveryCodesOut(recovery_codes=codes)
 
 
-@router.post("/mfa/disable", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/mfa/disable", status_code=status.HTTP_204_NO_CONTENT, dependencies=[demo_mode.locked]
+)
 async def mfa_disable(payload: MfaDisableRequest, db: DbSession, user: CurrentUser) -> None:
     """Re-authenticate with the password (or a code, for Google-only
     accounts), then drop the factor."""
@@ -227,7 +230,11 @@ async def mfa_disable(payload: MfaDisableRequest, db: DbSession, user: CurrentUs
     await mfa_service.disable(db, user)
 
 
-@router.post("/sign-out-everywhere", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/sign-out-everywhere",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[demo_mode.locked],
+)
 async def sign_out_everywhere(response: Response, db: DbSession, user: CurrentUser) -> None:
     """Retire every session for this account; the caller keeps this one
     (re-issued with the new version)."""
@@ -245,6 +252,7 @@ async def providers() -> dict[str, bool | str | dict[str, int]]:
     return {
         "google": bool(settings.google_client_id and settings.google_client_secret),
         "mode": settings.mode,
+        "demo": settings.demo_mode,
         "limits": {
             "active_jobs": settings.quota_active_jobs,
             "applications_per_hour": settings.quota_applications_per_hour,
@@ -303,7 +311,10 @@ async def resend_verification(payload: ForgotPasswordRequest, db: DbSession) -> 
 @router.post(
     "/forgot-password",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+    dependencies=[
+        rate_limit("auth", lambda: settings.rate_limit_auth_per_minute),
+        demo_mode.locked,
+    ],
 )
 async def forgot_password(payload: ForgotPasswordRequest, db: DbSession) -> None:
     """Always 204 — the response must not reveal whether an account exists.
@@ -332,7 +343,10 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DbSession) -> None
 @router.post(
     "/reset-password",
     response_model=UserOut,
-    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+    dependencies=[
+        rate_limit("auth", lambda: settings.rate_limit_auth_per_minute),
+        demo_mode.locked,
+    ],
 )
 async def reset_password(payload: ResetPasswordRequest, response: Response, db: DbSession) -> User:
     """Completes a reset and logs the user in. The token embeds the
@@ -353,7 +367,9 @@ async def reset_password(payload: ResetPasswordRequest, response: Response, db: 
     )
 
 
-@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/change-password", status_code=status.HTTP_204_NO_CONTENT, dependencies=[demo_mode.locked]
+)
 async def change_password(
     payload: ChangePasswordRequest, response: Response, db: DbSession, user: CurrentUser
 ) -> None:
