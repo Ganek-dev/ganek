@@ -18,11 +18,16 @@
   replays them (`python -m app.services.tombstones`) so candidates erased
   after the backup stay erased. Policy: docs/compliance
   self-hosting guide, "Backups and erasure".
+- `dev_seed.sh [--reset]` - the Northwind Robotics demo workspace (two
+  users, four jobs, 17 fictional applicants, 11 completed quizzes with
+  realistic timings and two integrity stories) built through the real
+  service layer inside the running backend container. Exists -> no-op;
+  `--reset` deletes and rebuilds. Log in as erika@northwind.example /
+  ganek-demo-1 (GANEK_DEMO_PASSWORD overrides). Docs: self-hosting,
+  "Demo data".
 - `migrate_dev_data_ganek.sh` - one-time migration of a pre-rename dev
   environment (vetd-* volumes, postgres role/db, minio bucket) to the
   ganek names. Copies volumes; the old ones stay behind as backups.
 
-Operational helpers. Planned:
-
-- `delete_candidate.py` - GDPR wipe of a candidate: rows + CV objects + attempts (M2)
-- `dev_seed.py` - demo company + jobs + fake applications for local dev (M1)
+Candidate erasure lives in the product (Applicants, "Erase candidate") and
+the API, not in a script.
