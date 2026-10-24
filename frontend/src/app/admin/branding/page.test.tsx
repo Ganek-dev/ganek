@@ -28,10 +28,10 @@ const mocked = vi.mocked(companyApi);
 
 function makeCompany(overrides: Partial<CompanyAdmin> = {}): CompanyAdmin {
   return {
-    slug: "northwind",
+    slug: "acme",
     mode: "multi" as const,
     smtp_configured: true,
-    name: "Northwind Robotics",
+    name: "ACME Ganek",
     description: "",
     logo_url: null,
     website: null,
@@ -62,9 +62,9 @@ describe("BrandingPage", () => {
     render(<BrandingPage />);
     // multi mode: careers live under /c/{slug} on this host — never ganek.dev
     expect(
-      await screen.findByText(`${window.location.host}/c/northwind`),
+      await screen.findByText(`${window.location.host}/c/acme`),
     ).toBeInTheDocument();
-    expect(screen.getByText("Work at Northwind Robotics")).toBeInTheDocument();
+    expect(screen.getByText("Work at ACME Ganek")).toBeInTheDocument();
     expect(screen.getByText("AA contrast ok")).toBeInTheDocument();
     expect(screen.getByLabelText("Brand color hex")).toHaveValue("#18181b");
     expect(screen.getByRole("radio", { name: "default" })).toHaveAttribute(
@@ -135,7 +135,7 @@ describe("BrandingPage", () => {
 
   it("uploads a logo from the Upload control and shows it", async () => {
     mocked.uploadLogo.mockResolvedValue(
-      makeCompany({ logo_url: "http://localhost/api/v1/public/companies/northwind/logo?v=1" }),
+      makeCompany({ logo_url: "http://localhost/api/v1/public/companies/acme/logo?v=1" }),
     );
     render(<BrandingPage />);
     const input = (await screen.findByText("Upload")).querySelector("input")!;
@@ -145,7 +145,7 @@ describe("BrandingPage", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Logo updated");
     expect(screen.getByAltText("Company logo")).toHaveAttribute(
       "src",
-      "http://localhost/api/v1/public/companies/northwind/logo?v=1",
+      "http://localhost/api/v1/public/companies/acme/logo?v=1",
     );
     // once a logo exists the control reads Replace and Remove appears
     expect(screen.getByText("Replace")).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe("BrandingPage", () => {
 
   it("removes the logo", async () => {
     mocked.get.mockResolvedValue(
-      makeCompany({ logo_url: "http://localhost/api/v1/public/companies/northwind/logo?v=1" }),
+      makeCompany({ logo_url: "http://localhost/api/v1/public/companies/acme/logo?v=1" }),
     );
     mocked.removeLogo.mockResolvedValue(makeCompany());
     render(<BrandingPage />);

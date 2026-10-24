@@ -27,7 +27,7 @@ const mocked = vi.mocked(publicApplications);
 
 function makeStatus(overrides: Partial<ApplicationStatus> = {}): ApplicationStatus {
   return {
-    company_name: "Northwind Robotics",
+    company_name: "ACME Ganek",
     brand_primary: "#3d5afe",
     job_title: "Senior Frontend Engineer",
     candidate_name: "Marta Vidal",
@@ -42,7 +42,7 @@ function makeStatus(overrides: Partial<ApplicationStatus> = {}): ApplicationStat
     },
     decision_expected_by: "2026-08-07T14:58:00Z",
     retention_months: 6,
-    privacy_url: "https://jobs.example/c/northwind/privacy",
+    privacy_url: "https://jobs.example/c/acme/privacy",
     ...overrides,
   };
 }
@@ -126,7 +126,7 @@ describe("StatusPage privacy actions", () => {
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
     expect(screen.getByText(/kept for the period described in the/)).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "privacy notice" });
-    expect(link).toHaveAttribute("href", "https://jobs.example/c/northwind/privacy");
+    expect(link).toHaveAttribute("href", "https://jobs.example/c/acme/privacy");
   });
 
   it("request-a-copy posts and shows the receipt", async () => {
@@ -135,7 +135,7 @@ describe("StatusPage privacy actions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Request a copy of my data" }));
     await waitFor(() => expect(mocked.requestData).toHaveBeenCalledWith("status-tok"));
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "We've sent your request to Northwind Robotics. They'll respond within a month.",
+      "We've sent your request to ACME Ganek. They'll respond within a month.",
     );
   });
 
@@ -147,7 +147,7 @@ describe("StatusPage privacy actions", () => {
     );
     await waitFor(() => expect(mocked.requestDeletion).toHaveBeenCalledWith("status-tok"));
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "We've sent your request to Northwind Robotics.",
+      "We've sent your request to ACME Ganek.",
     );
   });
 
@@ -157,7 +157,7 @@ describe("StatusPage privacy actions", () => {
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
     expect(
       screen.getByText(
-        /Northwind Robotics keeps your data for up to 6 months unless you request deletion/,
+        /ACME Ganek keeps your data for up to 6 months unless you request deletion/,
       ),
     ).toBeInTheDocument();
   });

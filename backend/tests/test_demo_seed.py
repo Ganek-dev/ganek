@@ -1,4 +1,4 @@
-"""Demo seed: the Northwind company for local dev, screenshots and the
+"""Demo seed: the ACME Ganek company for local dev, screenshots and the
 public demo. Built through the real service layer, idempotent, resettable."""
 
 from uuid import uuid4
@@ -37,12 +37,12 @@ async def _count(db: AsyncSession, model: type, company_id: object) -> int:
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
 async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -> None:
-    slug = f"northwind-{uuid4().hex[:6]}"
+    slug = f"acme-{uuid4().hex[:6]}"
     result = await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1")
     assert result.created is True
 
     company = (await db_session.execute(select(Company).where(Company.slug == slug))).scalar_one()
-    assert company.name == "Northwind Robotics"
+    assert company.name == "ACME Ganek"
     assert company.theme["primary_color"] == "#6d28d9"
 
     users = (
@@ -104,7 +104,7 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
 async def test_reset_rebuilds_and_removes_the_old_cvs(db_session: AsyncSession) -> None:
-    slug = f"northwind-{uuid4().hex[:6]}"
+    slug = f"acme-{uuid4().hex[:6]}"
     first = await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1")
     old_company_id = first.company_id
     old_keys = [

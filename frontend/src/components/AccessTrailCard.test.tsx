@@ -20,7 +20,7 @@ function entry(overrides: Partial<AccessEntry>): AccessEntry {
   return {
     id: "e1",
     action: "view",
-    actor_email: "erika@northwind.example",
+    actor_email: "erika@acme.example",
     actor_label: "Erika",
     api_key_name: null,
     created_at: "2026-10-24T11:00:00Z",
@@ -41,7 +41,7 @@ describe("AccessTrailCard", () => {
   it("lists who looked, what they opened and when", async () => {
     mocked.accessLog.mockResolvedValue([
       entry({ id: "e1", action: "dsar_export", created_at: "2026-10-24T11:55:00Z" }),
-      entry({ id: "e2", action: "cv_download", actor_label: "Jonas", actor_email: "jonas@northwind.example" }),
+      entry({ id: "e2", action: "cv_download", actor_label: "Jonas", actor_email: "jonas@acme.example" }),
       entry({ id: "e3", action: "view", actor_email: null, actor_label: null, api_key_name: "ATS sync" }),
     ]);
     render(<AccessTrailCard applicationId="a1" now={NOW} />);

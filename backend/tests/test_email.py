@@ -76,7 +76,7 @@ def _invite_kwargs(**overrides: Any) -> dict[str, Any]:
         "to": "marta@example.com",
         "candidate_name": "Marta",
         "job_title": "Senior Frontend Engineer",
-        "company_name": "Northwind Robotics",
+        "company_name": "ACME Ganek",
         "brand_primary": "#3d5afe",
         "quiz_url": "https://jobs.example.com/quiz/tok123",
         "question_count": 12,
@@ -105,7 +105,7 @@ def test_quiz_invite_renders_link_details_and_branding(
     assert len(FakeSMTP.sent) == 1
     message = FakeSMTP.sent[0]
     assert message["To"] == "marta@example.com"
-    assert message["Subject"] == "Your Northwind Robotics assessment — one step left"
+    assert message["Subject"] == "Your ACME Ganek assessment — one step left"
     text, html = _sent_parts(message)
     for part in (text, html):
         assert "https://jobs.example.com/quiz/tok123" in part
@@ -116,7 +116,7 @@ def test_quiz_invite_renders_link_details_and_branding(
         assert "one attempt" in part
         assert "Jul 31" in part  # link validity from expires_at
     assert "#3d5afe" in html  # brand top bar + CTA
-    assert "Sent by Ganek on behalf of Northwind Robotics" in html
+    assert "Sent by Ganek on behalf of ACME Ganek" in html
 
 
 def test_quiz_invite_defaults_brand_and_omits_timer_line(
@@ -142,15 +142,15 @@ def test_privacy_footer_names_controller_and_links_notice(
 
     email_service.send_quiz_invite(
         **_invite_kwargs(
-            controller_name="Northwind Robotics Sp. z o.o.",
-            privacy_url="https://jobs.example.com/c/northwind/privacy",
+            controller_name="ACME Ganek Sp. z o.o.",
+            privacy_url="https://jobs.example.com/c/acme/privacy",
         )
     )
 
     text, html = _sent_parts(FakeSMTP.sent[0])
-    assert "Privacy & your data: https://jobs.example.com/c/northwind/privacy" in text
-    assert "Sent by Ganek on behalf of Northwind Robotics Sp. z o.o." in html
-    assert 'href="https://jobs.example.com/c/northwind/privacy"' in html
+    assert "Privacy & your data: https://jobs.example.com/c/acme/privacy" in text
+    assert "Sent by Ganek on behalf of ACME Ganek Sp. z o.o." in html
+    assert 'href="https://jobs.example.com/c/acme/privacy"' in html
     assert ">privacy notice</a>" in html
 
 
@@ -164,7 +164,7 @@ def test_privacy_footer_absent_when_not_wired(monkeypatch: pytest.MonkeyPatch) -
     assert "Privacy & your data" not in text
     assert "privacy notice" not in html
     # footer falls back to the display name
-    assert "Sent by Ganek on behalf of Northwind Robotics" in html
+    assert "Sent by Ganek on behalf of ACME Ganek" in html
 
 
 def test_quiz_invite_transport_errors_propagate(
@@ -190,7 +190,7 @@ def test_quiz_reminder_renders_expiry_and_link(monkeypatch: pytest.MonkeyPatch) 
         to="marta@example.com",
         candidate_name="Marta",
         job_title="Senior Frontend Engineer",
-        company_name="Northwind Robotics",
+        company_name="ACME Ganek",
         brand_primary="#3d5afe",
         quiz_url="https://jobs.example.com/quiz/tok123",
         expires_at=datetime(2026, 7, 31, 18, 0, tzinfo=UTC),
@@ -240,12 +240,12 @@ def test_stage_advance_renders_branding_and_team_signoff(
         to="marta@example.com",
         candidate_name="Marta",
         job_title="Senior Frontend Engineer",
-        company_name="Northwind Robotics",
+        company_name="ACME Ganek",
         brand_primary="#3d5afe",
     )
 
     message = FakeSMTP.sent[0]
-    assert message["Subject"] == "Next step: interviews at Northwind Robotics"
+    assert message["Subject"] == "Next step: interviews at ACME Ganek"
     text, html = _sent_parts(message)
     for part in (text, html):
         assert "Good news, Marta" in part
@@ -253,7 +253,7 @@ def test_stage_advance_renders_branding_and_team_signoff(
         assert "move you to interviews" in part
         assert "hiring team" in part
     assert "#3d5afe" in html
-    assert "Sent by Ganek on behalf of Northwind Robotics" in html
+    assert "Sent by Ganek on behalf of ACME Ganek" in html
 
 
 def test_stage_advance_links_status_page_when_given(
@@ -287,20 +287,20 @@ def test_rejection_renders_neutral_with_assessment_line(
         to="tomas@example.com",
         candidate_name="Tomas",
         job_title="Backend Engineer (Python)",
-        company_name="Northwind Robotics",
-        careers_url="https://jobs.example.com/c/northwind-robotics",
+        company_name="ACME Ganek",
+        careers_url="https://jobs.example.com/c/acme",
         completed_assessment=True,
     )
 
     message = FakeSMTP.sent[0]
-    assert message["Subject"] == "Your application to Northwind Robotics"
+    assert message["Subject"] == "Your application to ACME Ganek"
     text, html = _sent_parts(message)
     for part in (text, html):
         assert "Thank you, Tomas" in part
         assert "Backend Engineer (Python)" in part
         assert "won't be moving forward" in part
         assert "a real person reviewed it" in part
-        assert "https://jobs.example.com/c/northwind-robotics" in part
+        assert "https://jobs.example.com/c/acme" in part
     # neutral gray top bar — a rejection never carries brand accents
     assert "#d4d4d8" in html
 
@@ -315,8 +315,8 @@ def test_rejection_omits_assessment_line_without_completed_attempt(
         to="tomas@example.com",
         candidate_name="Tomas",
         job_title="Backend Engineer (Python)",
-        company_name="Northwind Robotics",
-        careers_url="https://jobs.example.com/c/northwind-robotics",
+        company_name="ACME Ganek",
+        careers_url="https://jobs.example.com/c/acme",
         completed_assessment=False,
     )
 

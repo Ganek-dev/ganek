@@ -32,8 +32,8 @@ def test_drift_window_and_replay() -> None:
 
 
 def test_provisioning_uri_names_issuer_and_account() -> None:
-    uri = totp.provisioning_uri("ABC234", account="erika@northwind.example")
-    assert uri.startswith("otpauth://totp/Ganek%3Aerika%40northwind.example?secret=ABC234")
+    uri = totp.provisioning_uri("ABC234", account="erika@acme.example")
+    assert uri.startswith("otpauth://totp/Ganek%3Aerika%40acme.example?secret=ABC234")
     assert "issuer=Ganek" in uri and "digits=6" in uri and "period=30" in uri
 
 

@@ -46,7 +46,7 @@ const TUE_2 = "2026-08-11T09:00:00+00:00"; // Tue 11:00 Berlin
 
 function interview(overrides: Partial<InterviewPublic> = {}): InterviewPublic {
   return {
-    company_name: "Northwind Robotics",
+    company_name: "ACME Ganek",
     brand_primary: "#3b82f6",
     logo_url: null,
     job_title: "Backend Engineer",
