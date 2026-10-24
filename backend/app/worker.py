@@ -37,6 +37,7 @@ from app.models import (
 from app.models.quiz import AttemptStatus
 from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
+from app.services import demo_seed
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import outbox as outbox_service
@@ -200,6 +201,33 @@ async def purge_retention(ctx: dict[str, Any]) -> None:
     await _mark(ctx, health_service.LAST_PURGE_KEY)
 
 
+async def reset_demo(ctx: dict[str, Any]) -> None:
+    """Nightly rebuild of the public demo workspace. Off while
+    GANEK_DEMO_RESET_SLUG is unset. The seed deletes the company (and its CV
+    objects) and recreates it, so visitors always find the same lived-in
+    workspace whatever yesterday's visitors did to it. Once per day across
+    workers, like the purge."""
+    slug = settings.demo_reset_slug
+    if not slug:
+        return
+    now = datetime.now(UTC)
+    if not await _claim_run(ctx, "reset_demo", now=now, ttl_seconds=PURGE_CLAIM_TTL_SECONDS):
+        return
+    async with ctx["session_factory"]() as db:
+        result = await demo_seed.seed(
+            db,
+            slug=slug,
+            password=settings.demo_password or demo_seed.DEFAULT_PASSWORD,
+            reset=True,
+        )
+    logger.info(
+        "demo reset: company '%s' rebuilt with %d applications and %d completed quizzes",
+        slug,
+        result.applications,
+        result.attempts,
+    )
+
+
 async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
     """Send one outbox row. Self-validating: only rows still `queued` are
     touched, so duplicate enqueues (sweeper races) are harmless.
@@ -309,6 +337,7 @@ class WorkerSettings:
         send_interview_reminder,
         send_quiz_nudge,
         purge_retention,
+        reset_demo,
         deliver_email,
         sweep_outbox,
         deliver_webhook,
@@ -317,6 +346,7 @@ class WorkerSettings:
     ]
     cron_jobs = [
         cron(purge_retention, hour=3, minute=17),
+        cron(reset_demo, hour=4, minute=7),  # no-op unless GANEK_DEMO_RESET_SLUG is set
         cron(sweep_outbox, minute={7, 17, 27, 37, 47, 57}),
         cron(sweep_webhooks, minute={3, 13, 23, 33, 43, 53}),
         cron(heartbeat),  # every minute
