@@ -3,18 +3,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import robots from "./robots";
 import sitemap from "./sitemap";
 
-const { fetchInstanceMode, singleCompanyPage } = vi.hoisted(() => ({
+const { fetchInstanceInfo, fetchInstanceMode, singleCompanyPage } = vi.hoisted(() => ({
+  fetchInstanceInfo: vi.fn(),
   fetchInstanceMode: vi.fn(),
   singleCompanyPage: vi.fn(),
 }));
 
 vi.mock("@/lib/public-api", () => ({
+  fetchInstanceInfo,
   fetchInstanceMode,
   publicApi: { singleCompanyPage },
 }));
 
 beforeEach(() => {
   process.env.GANEK_PUBLIC_BASE_URL = "https://jobs.example.com";
+  fetchInstanceInfo.mockResolvedValue({ mode: "single", demo: false });
 });
 
 afterEach(() => {
@@ -57,12 +60,20 @@ describe("sitemap", () => {
 });
 
 describe("robots", () => {
-  it("blocks admin and tokened candidate surfaces, links the sitemap", () => {
-    const out = robots();
+  it("blocks admin and tokened candidate surfaces, links the sitemap", async () => {
+    const out = await robots();
     const rule = Array.isArray(out.rules) ? out.rules[0] : out.rules;
     expect(rule?.disallow).toEqual(
       expect.arrayContaining(["/admin", "/quiz/", "/application/", "/interview/"]),
     );
     expect(out.sitemap).toBe("https://jobs.example.com/sitemap.xml");
+  });
+
+  it("disallows everything on a demo instance: its vacancies are fictional", async () => {
+    fetchInstanceInfo.mockResolvedValue({ mode: "single", demo: true });
+    const out = await robots();
+    const rule = Array.isArray(out.rules) ? out.rules[0] : out.rules;
+    expect(rule?.disallow).toBe("/");
+    expect(out.sitemap).toBeUndefined();
   });
 });

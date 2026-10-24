@@ -14,6 +14,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { DemoBanner } from "@/components/DemoBanner";
 import { Wordmark } from "@/components/Wordmark";
 import { api, ApiError, companyApi, stats, type StatsOverview, type UserOut } from "@/lib/api";
 
@@ -44,6 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [smtpMissing, setSmtpMissing] = useState(false);
   const [usageWarnings, setUsageWarnings] = useState<string[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     if (loadFailed) return; // retry re-arms by flipping this back
@@ -69,6 +71,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then((usage) => setUsageWarnings(usage.warnings))
       .catch(() => setUsageWarnings([])); // soft banner only
   }, [user]);
+  useEffect(() => {
+    api
+      .providers()
+      .then((p) => setDemo(p.demo === true))
+      .catch(() => setDemo(false)); // the strip is advisory; never block the shell
+  }, []);
   useEffect(() => {
     stats
       .overview()
@@ -171,7 +179,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
       <div className="ml-56 flex-1 p-7">
-        {smtpMissing ? (
+        {demo ? <DemoBanner /> : null}
+        {smtpMissing && !demo ? (
           <div
             role="alert"
             className="mb-5 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"

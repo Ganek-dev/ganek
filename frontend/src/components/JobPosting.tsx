@@ -235,20 +235,25 @@ const jobMd = {
 export function JobPosting({
   company,
   job,
+  jsonLd = true,
 }: {
   company: PublicCompany;
   job: PublicJobDetail;
+  /** false on a demo instance: fictional vacancies must not reach Google for Jobs */
+  jsonLd?: boolean;
 }) {
   return (
     <article>
-      <script
-        type="application/ld+json"
-        // '<' must not survive verbatim: a description containing
-        // "</script>" would otherwise break out of this element
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jobPostingJsonLd(company, job)).replaceAll("<", "\\u003c"),
-        }}
-      />
+      {jsonLd ? (
+        <script
+          type="application/ld+json"
+          // '<' must not survive verbatim: a description containing
+          // "</script>" would otherwise break out of this element
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(jobPostingJsonLd(company, job)).replaceAll("<", "\\u003c"),
+          }}
+        />
+      ) : null}
       <div className="job-body">
         <ReactMarkdown components={jobMd}>{job.description_md}</ReactMarkdown>
       </div>

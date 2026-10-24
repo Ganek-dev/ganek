@@ -16,7 +16,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    api: { ...original.api, me: vi.fn(), logout: vi.fn() },
+    api: { ...original.api, me: vi.fn(), logout: vi.fn(), providers: vi.fn() },
     companyApi: { ...original.companyApi, get: vi.fn(), usage: vi.fn() },
     stats: { overview: vi.fn() },
   };
@@ -37,6 +37,7 @@ describe("AdminLayout", () => {
       role: "admin",
     });
     mockedApi.logout.mockResolvedValue(undefined);
+    mockedApi.providers.mockResolvedValue({ google: false, mode: "single" });
     mockedCompany.usage.mockResolvedValue({
       emails_today: 0,
       emails_per_day_limit: 500,
@@ -194,5 +195,29 @@ describe("AdminLayout", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     await waitFor(() => expect(mockedApi.logout).toHaveBeenCalled());
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+  });
+
+  it("shows the demo strip and drops the SMTP warning on a demo instance", async () => {
+    mockedApi.providers.mockResolvedValue({ google: false, mode: "single", demo: true });
+    mockedCompany.get.mockResolvedValue({
+      slug: "acme",
+      name: "ACME Ganek",
+      description: "",
+      mode: "single",
+      smtp_configured: false,
+      logo_url: null,
+      website: null,
+      socials: {},
+      theme: {},
+      settings: {},
+    } as CompanyAdmin);
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    expect(await screen.findByTestId("demo-banner")).toHaveTextContent("Demo workspace.");
+    await waitFor(() => expect(mockedCompany.get).toHaveBeenCalled());
+    expect(screen.queryByText(/Email is not configured on this instance/)).toBeNull();
   });
 });

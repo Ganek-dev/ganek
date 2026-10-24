@@ -38,11 +38,14 @@ export function ApplyForm({
   jobTitle,
   companyName,
   privacyHref,
+  demo = false,
 }: {
   apiBasePath: string;
   jobTitle?: string;
   companyName?: string;
   privacyHref?: string;
+  /** demo instance: no CV field (the backend attaches its sample), nothing typed is kept */
+  demo?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [altcha, setAltcha] = useState<string | null>(null);
@@ -106,7 +109,7 @@ export function ApplyForm({
       setError("Please wait for the CV upload to finish.");
       return;
     }
-    if (cv.status !== "ready") {
+    if (!demo && cv.status !== "ready") {
       setError("Please attach your CV as a PDF.");
       return;
     }
@@ -124,8 +127,7 @@ export function ApplyForm({
         github: opt("github"),
         linkedin: opt("linkedin"),
         portfolio: opt("portfolio"),
-        cv_object_key: cv.objectKey,
-        cv_filename: cv.file.name,
+        ...(cv.status === "ready" ? { cv_object_key: cv.objectKey, cv_filename: cv.file.name } : {}),
         altcha,
       });
       setDone({
@@ -191,7 +193,9 @@ export function ApplyForm({
                 Start assessment now
               </Link>
               <p className="mt-2.5 text-center text-[13px] text-g500">
-                or later — save your personal link:
+                {demo
+                  ? "On the demo your link appears here instead of in an inbox:"
+                  : "or later — save your personal link:"}
               </p>
               <input
                 readOnly
@@ -234,8 +238,18 @@ export function ApplyForm({
         Apply{jobTitle ? ` — ${jobTitle}` : " for this position"}
       </h2>
       <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600">
-        Three fields, about two minutes.
+        {demo ? "Two fields, about one minute." : "Three fields, about two minutes."}
       </p>
+      {demo ? (
+        <p
+          role="note"
+          className="mt-4 rounded-md border border-edge bg-muted-fill/40 px-3.5 py-2.5 text-[13px] leading-[19px] text-g600"
+        >
+          This is a demo workspace. Nothing you type is kept: the application is stored
+          with a fictional name, email and links, and a sample CV is attached instead of an
+          upload. You still get the real assessment.
+        </p>
+      ) : null}
 
       <div className="mt-7 flex flex-col gap-[18px]">
         <label className="block space-y-2">
@@ -247,6 +261,17 @@ export function ApplyForm({
           <input name="email" type="email" required className={inputCls} />
         </label>
 
+        {demo ? (
+          <div className="flex items-center gap-3 rounded-lg border-[1.5px] border-dashed border-edge px-4 py-3.5">
+            <FileText aria-hidden className="h-[18px] w-[18px] shrink-0 text-g500" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">CV upload is off on the demo</div>
+              <div className="mt-0.5 text-[12.5px] text-g500">
+                A sample CV is attached to every demo application.
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-2">
           <label htmlFor="apply-cv" className={labelCls}>
             CV (PDF)
@@ -293,6 +318,7 @@ export function ApplyForm({
             </div>
           ) : null}
         </div>
+        )}
       </div>
 
       <div className="mt-8">

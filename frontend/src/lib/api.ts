@@ -33,6 +33,8 @@ export interface Providers {
   google: boolean;
   mode: "single" | "multi";
   limits?: InstanceLimits;
+  /** public demo instance (GANEK_DEMO_MODE): banner, locked account actions */
+  demo?: boolean;
 }
 
 export type RemotePolicy = "onsite" | "hybrid" | "remote";
@@ -305,8 +307,9 @@ export interface ApplicationPayload {
   github: string | null;
   linkedin: string | null;
   portfolio: string | null;
-  cv_object_key: string;
-  cv_filename: string;
+  /** both omitted on a demo instance, which attaches its sample CV instead */
+  cv_object_key?: string;
+  cv_filename?: string;
   /** solved proof-of-work payload; only when the instance renders the widget */
   altcha?: string | null;
 }

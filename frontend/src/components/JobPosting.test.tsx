@@ -113,6 +113,12 @@ describe("JobPosting", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
+  it("omits the JSON-LD on a demo instance so fictional jobs never reach Google", () => {
+    const { container } = render(<JobPosting company={company} job={job} jsonLd={false} />);
+    expect(container.querySelector('script[type="application/ld+json"]')).toBeNull();
+    expect(container.querySelector(".job-body")).not.toBeNull();
+  });
+
   it("escapes '<' in the JSON-LD script so content can't break out of it", () => {
     const evil: PublicCompany = { ...company, name: "Acme </script><script>alert(1)" };
     const { container } = render(<JobPosting company={evil} job={job} />);

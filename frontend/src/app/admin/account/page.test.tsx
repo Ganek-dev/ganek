@@ -181,4 +181,17 @@ describe("AccountPage", () => {
     await waitFor(() => expect(mocked.updateProfile).toHaveBeenCalledWith("The Miner"));
     expect(await screen.findByRole("button", { name: "Saved" })).toBeInTheDocument();
   });
+
+  it("locks password, two-factor, sessions and Google on a demo instance", async () => {
+    mocked.providers.mockResolvedValue({ google: true, mode: "single", demo: true });
+    render(<AccountPage />);
+    expect(
+      await screen.findByText(/Password changes are off on the demo workspace/),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Current password")).toBeNull();
+    expect(screen.getByRole("button", { name: "Set up" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign out everywhere" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Connect Google Calendar" })).toBeNull();
+    expect(screen.getByText("Connect Google Calendar")).toHaveAttribute("aria-disabled", "true");
+  });
 });

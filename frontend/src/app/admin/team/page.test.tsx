@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, team, type TeamInvite, type TeamUser } from "@/lib/api";
+import { ApiError, api, team, type TeamInvite, type TeamUser } from "@/lib/api";
 
 import TeamPage from "./page";
 
@@ -10,6 +10,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
+    api: { ...original.api, providers: vi.fn() },
     team: {
       list: vi.fn(),
       create: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 const mocked = vi.mocked(team);
+const mockedApi = vi.mocked(api);
 
 const admin: TeamUser = {
   id: "u1",
@@ -59,6 +61,7 @@ describe("TeamPage", () => {
     mocked.revokeInvite.mockResolvedValue(undefined);
     mocked.update.mockResolvedValue({ ...member, role: "admin" });
     mocked.anonymize.mockResolvedValue(undefined);
+    mockedApi.providers.mockResolvedValue({ google: false, mode: "single" });
   });
 
   async function openMemberMenu() {
@@ -184,5 +187,16 @@ describe("TeamPage", () => {
     render(<TeamPage />);
     expect(await screen.findByText("Dana K.")).toBeInTheDocument();
     expect(screen.queryByText("Dana Kowalska")).not.toBeInTheDocument();
+  });
+
+  it("replaces the invite bar with a note on a demo instance", async () => {
+    mockedApi.providers.mockResolvedValue({ google: false, mode: "single", demo: true });
+    render(<TeamPage />);
+    expect(
+      await screen.findByText(/Inviting teammates is off on the demo workspace/),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Invite email")).toBeNull();
+    expect(screen.getByRole("button", { name: "Invite member" })).toBeDisabled();
+    await screen.findByText("dana.kowalska@x.dev"); // the roster still renders
   });
 });

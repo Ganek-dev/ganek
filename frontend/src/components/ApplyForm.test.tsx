@@ -147,4 +147,46 @@ describe("ApplyForm", () => {
       screen.getByText(/leave out sensitive personal details/i),
     ).toBeInTheDocument();
   });
+
+  describe("demo instance", () => {
+    it("has no CV field and says nothing typed is kept", () => {
+      render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/x" demo />);
+      expect(screen.queryByLabelText("CV (PDF)")).toBeNull();
+      expect(screen.getByText("CV upload is off on the demo")).toBeInTheDocument();
+      expect(screen.getByRole("note")).toHaveTextContent("Nothing you type is kept");
+      expect(mocked.uploadTicket).not.toHaveBeenCalled();
+    });
+
+    it("submits without a CV and shows the assessment link on screen", async () => {
+      mocked.submit.mockResolvedValue({
+        status: "received",
+        quiz_token: "qt-demo",
+        status_token: "st-demo",
+      });
+      render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/x" demo />);
+      await fillAndUpload();
+      await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+
+      expect(mocked.submit).toHaveBeenCalledTimes(1);
+      const payload = mocked.submit.mock.calls[0]![1];
+      expect(payload).not.toHaveProperty("cv_object_key");
+      expect(payload).not.toHaveProperty("cv_filename");
+      expect(payload.name).toBe("Jane Doe");
+      expect(await screen.findByRole("link", { name: "Start assessment now" })).toHaveAttribute(
+        "href",
+        "/quiz/qt-demo",
+      );
+      expect(
+        screen.getByText("On the demo your link appears here instead of in an inbox:"),
+      ).toBeInTheDocument();
+    });
+
+    it("still requires a CV outside demo mode", async () => {
+      render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/x" />);
+      await fillAndUpload();
+      await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Please attach your CV as a PDF.");
+      expect(mocked.submit).not.toHaveBeenCalled();
+    });
+  });
 });
