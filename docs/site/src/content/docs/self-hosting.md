@@ -21,6 +21,19 @@ Candidate personal data lives in your Ganek instance, so the production checklis
 
 Route the public hostname to the frontend on port 3000. The frontend proxies `/api/*` to the backend, so a single upstream is enough. Pass `X-Forwarded-For` and `X-Forwarded-Proto` through. If candidates upload to a separate hostname, route that to MinIO (port 9000) and set `GANEK_S3_PUBLIC_ENDPOINT_URL` to it, then rebuild the frontend image so its Content Security Policy allows the origin.
 
+## Demo data
+
+An empty workspace shows little. `scripts/dev_seed.sh` builds **Northwind Robotics** inside the running backend container: two users, four published jobs, 17 fictional applicants with CVs and 11 completed quizzes driven through the real quiz engine, with realistic answer timings, a couple of integrity flags, notes and a spread of stages over the last three weeks. Everything is fictional; candidate addresses end in `@example.com`, so no mail can reach a real inbox.
+
+```
+scripts/dev_seed.sh            # create if missing
+scripts/dev_seed.sh --reset    # delete and rebuild
+```
+
+Log in as `erika@northwind.example` with `ganek-demo-1` (set `GANEK_DEMO_PASSWORD` before seeding to choose another); `jonas@northwind.example` is a member with the same password. The careers page is at `/c/northwind`. In single mode `/` serves the oldest company, which is Northwind on a fresh database. The seed is deterministic and idempotent: running it again leaves an existing Northwind alone unless you pass `--reset`.
+
+**Public demo instance.** Run a separate stack with SMTP unset (the demo's candidates cannot receive mail anyway), seed it, and reset it on a schedule so visitors always find the same workspace; a nightly `scripts/dev_seed.sh --reset` from cron is enough. Change the password for anything reachable from the internet.
+
 ## Upgrades
 
 1. Read the release notes on GitHub. A release that adds a migration says so.
