@@ -12,7 +12,7 @@ body:
     attributes:
       label: Ganek version
       description: The release tag or commit you run (`git describe --tags` or the image tag from your compose file).
-      placeholder: v0.2.0
+      placeholder: v0.3.0
     validations:
       required: true
   - type: dropdown

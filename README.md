@@ -6,7 +6,7 @@
 
 Ganek gives any company a branded careers page, job posting management, and applicant tracking - plus an optional twist: after a candidate submits their CV, Ganek can serve a short, timed multiple-choice quiz matched to the job's skill tags (Python job → python/asyncio/fastapi questions, ~20 seconds each). Recruiters see applications ranked with real signal instead of just a pile of PDFs.
 
-> **Status: v0.2.0 released.** Self-hostable today (see the quickstart below). Early release under active development - expect rough edges. A hosted version is planned; join the waitlist at [ganek.io](https://ganek.io).
+> **Status: v0.3.0 released.** Self-hostable today (see the quickstart below). Early release under active development - expect rough edges. A hosted version is planned; join the waitlist at [ganek.io](https://ganek.io).
 
 ## Why
 
