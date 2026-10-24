@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ganek demo workspace: Northwind Robotics with jobs, applicants and completed
+# Ganek demo workspace: ACME Ganek with jobs, applicants and completed
 # quizzes, for a first look at the admin UI, for screenshots, and for the
 # public demo. Runs the seed inside the backend image of a running compose
 # stack, so it needs no local Python. Everyone in it is fictional; candidate
@@ -10,8 +10,8 @@
 #   GANEK_DEMO_PASSWORD=... scripts/dev_seed.sh --reset
 #   COMPOSE_CMD="docker compose -p other" scripts/dev_seed.sh
 #
-# Afterwards: log in as erika@northwind.example (password ganek-demo-1 unless
-# you set GANEK_DEMO_PASSWORD); the careers page is at /c/northwind. In single
+# Afterwards: log in as erika@acme.example (password ganek-demo-1 unless
+# you set GANEK_DEMO_PASSWORD); the careers page is at /c/acme. In single
 # mode "/" serves the oldest company, which is this one on a fresh database.
 set -euo pipefail
 

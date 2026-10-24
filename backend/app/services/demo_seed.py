@@ -1,4 +1,4 @@
-"""Demo workspace: Northwind Robotics, for local dev, screenshots and the
+"""Demo workspace: ACME Ganek, for local dev, screenshots and the
 public demo instance.
 
 Everything goes through the real service layer (jobs, applications, the
@@ -10,7 +10,7 @@ first.
 
 Run inside the backend image, like the question bank seed::
 
-    uv run python -m app.services.demo_seed [--reset] [--slug northwind]
+    uv run python -m app.services.demo_seed [--reset] [--slug acme]
 
 The password comes from GANEK_DEMO_PASSWORD (default ``ganek-demo-1``). A public
 demo instance sets GANEK_DEMO_RESET_SLUG and the worker reruns this with
@@ -55,7 +55,7 @@ from app.services import quiz as quiz_service
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SLUG = "northwind"
+DEFAULT_SLUG = "acme"
 DEFAULT_PASSWORD = "ganek-demo-1"  # noqa: S105 (demo credential, documented)
 RNG_SEED = 20260830
 BRAND_PRIMARY = "#6d28d9"
@@ -136,6 +136,7 @@ class _Candidate:
     correct: int | None = None  # quiz answers right out of 8; None = quiz not taken
     stage: ApplicationStage = ApplicationStage.NEW
     github: str | None = None
+    linkedin: str | None = None
     message: str | None = None
     flag: str | None = None  # "blur" or "fast": the two integrity stories
 
@@ -146,7 +147,7 @@ CANDIDATES = (
         0,
         7,
         ApplicationStage.INTERVIEW,
-        github="https://github.com/mia-okafor",
+        github="https://github.com/Ganek-dev",
         message="I ran the ingestion pipeline at a logistics startup for three years.",
     ),
     _Candidate("Alex Brandt", 0, 7, ApplicationStage.SCREENING, flag="blur"),
@@ -156,7 +157,7 @@ CANDIDATES = (
         0,
         6,
         ApplicationStage.SCREENING,
-        github="https://github.com/hbergstrom",
+        linkedin="https://www.linkedin.com/company/ganek-io",
     ),
     _Candidate("Diego Alvarez", 0, 5, ApplicationStage.SCREENING),
     _Candidate("Nina Lindqvist", 0, 5, ApplicationStage.NEW),
@@ -319,16 +320,17 @@ async def seed(
     domain = f"{slug}.example"
     company = Company(
         slug=slug,
-        name="Northwind Robotics",
+        name="ACME Ganek",
         description=(
-            "We build autonomous warehouse robots and the software that runs them. "
+            "Fictional demo company. ACME Ganek builds autonomous warehouse robots and "
+            "the software that runs them. "
             "Berlin, 60 people, hardware and software under one roof."
         ),
         website=f"https://{domain}",
-        socials={"github": "https://github.com/northwind-robotics"},
+        socials={"github": "https://github.com/Ganek-dev"},
         theme={"primary_color": BRAND_PRIMARY},
         settings={
-            "legal_name": "Northwind Robotics GmbH",
+            "legal_name": "ACME Ganek GmbH",
             "contact_email": f"privacy@{domain}",
             "quiz_expired_reissue": "auto",
         },
@@ -392,6 +394,7 @@ async def seed(
                 email=_email(cand.name),
                 message=cand.message,
                 github=cand.github,
+                linkedin=cand.linkedin,
                 cv_object_key=key,
                 cv_filename=f"{cand.name.split()[-1].lower()}-cv.pdf",
             ),
@@ -451,7 +454,7 @@ async def run(*, slug: str, password: str, reset: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed the Northwind demo workspace.")
+    parser = argparse.ArgumentParser(description="Seed the ACME Ganek demo workspace.")
     parser.add_argument("--slug", default=os.environ.get("GANEK_DEMO_SLUG") or DEFAULT_SLUG)
     parser.add_argument("--reset", action="store_true", help="delete and rebuild if it exists")
     args = parser.parse_args()

@@ -23,7 +23,7 @@ function row(overrides: Partial<AccessLogRow>): AccessLogRow {
   return {
     id: "r1",
     action: "view",
-    actor_email: "erika@northwind.example",
+    actor_email: "erika@acme.example",
     actor_label: "Erika",
     api_key_name: null,
     application_id: "app-1",
@@ -38,8 +38,8 @@ describe("AccessLogSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedTeam.list.mockResolvedValue([
-      { id: "u1", email: "erika@northwind.example", display_label: "Erika", role: "admin" },
-      { id: "u2", email: "jonas@northwind.example", display_label: "Jonas", role: "member" },
+      { id: "u1", email: "erika@acme.example", display_label: "Erika", role: "admin" },
+      { id: "u2", email: "jonas@acme.example", display_label: "Jonas", role: "member" },
     ] as never);
   });
 

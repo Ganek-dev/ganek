@@ -23,16 +23,16 @@ Route the public hostname to the frontend on port 3000. The frontend proxies `/a
 
 ## Demo data
 
-An empty workspace shows little. `scripts/dev_seed.sh` builds **Northwind Robotics** inside the running backend container: two users, four published jobs, 17 fictional applicants with CVs and 11 completed quizzes driven through the real quiz engine, with realistic answer timings, a couple of integrity flags, notes and a spread of stages over the last three weeks. Everything is fictional; candidate addresses end in `@example.com`, so no mail can reach a real inbox.
+An empty workspace shows little. `scripts/dev_seed.sh` builds **ACME Ganek** inside the running backend container: two users, four published jobs, 17 fictional applicants with CVs and 11 completed quizzes driven through the real quiz engine, with realistic answer timings, a couple of integrity flags, notes and a spread of stages over the last three weeks. Everything is fictional; candidate addresses end in `@example.com`, so no mail can reach a real inbox.
 
 ```
 scripts/dev_seed.sh            # create if missing
 scripts/dev_seed.sh --reset    # delete and rebuild
 ```
 
-Log in as `erika@northwind.example` with `ganek-demo-1` (set `GANEK_DEMO_PASSWORD` before seeding to choose another); `jonas@northwind.example` is a member with the same password. The careers page is at `/c/northwind`. In single mode `/` serves the oldest company, which is Northwind on a fresh database. The seed is deterministic and idempotent: running it again leaves an existing Northwind alone unless you pass `--reset`.
+Log in as `erika@acme.example` with `ganek-demo-1` (set `GANEK_DEMO_PASSWORD` before seeding to choose another); `jonas@acme.example` is a member with the same password. The careers page is at `/c/acme`. In single mode `/` serves the oldest company, which is ACME Ganek on a fresh database. The seed is deterministic and idempotent: running it again leaves an existing ACME Ganek alone unless you pass `--reset`.
 
-**Public demo instance.** Run a separate stack with SMTP unset (the demo's candidates cannot receive mail anyway), seed it, and set `GANEK_DEMO_RESET_SLUG=northwind` in its `.env`: the worker then deletes and rebuilds that company every night at 04:07 UTC, so visitors always find the same workspace whatever yesterday's visitors did to it. Set `GANEK_DEMO_PASSWORD` to something other than the default for anything reachable from the internet; the seed and the nightly reset both read it.
+**Public demo instance.** Run a separate stack with SMTP unset (the demo's candidates cannot receive mail anyway), seed it, and set `GANEK_DEMO_RESET_SLUG=acme` in its `.env`: the worker then deletes and rebuilds that company every night at 04:07 UTC, so visitors always find the same workspace whatever yesterday's visitors did to it. Set `GANEK_DEMO_PASSWORD` to something other than the default for anything reachable from the internet; the seed and the nightly reset both read it.
 
 ## Upgrades
 

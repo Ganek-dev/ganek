@@ -64,12 +64,12 @@ async def test_off_while_the_slug_is_unset(
 async def test_two_workers_reset_once_per_day_with_the_configured_password(
     monkeypatch: pytest.MonkeyPatch, seed_calls: list[dict[str, Any]]
 ) -> None:
-    monkeypatch.setattr(settings, "demo_reset_slug", "northwind")
+    monkeypatch.setattr(settings, "demo_reset_slug", "acme")
     monkeypatch.setattr(settings, "demo_password", "s3cret-demo")
     redis = FakeRedis()
     await worker.reset_demo(_fake_ctx(redis))
     await worker.reset_demo(_fake_ctx(redis))
-    assert seed_calls == [{"slug": "northwind", "password": "s3cret-demo", "reset": True}]
+    assert seed_calls == [{"slug": "acme", "password": "s3cret-demo", "reset": True}]
     today = datetime.now(UTC).date().isoformat()
     _, ttl = redis.store[f"ganek:cron:reset_demo:{today}"]
     assert ttl == worker.PURGE_CLAIM_TTL_SECONDS
@@ -78,7 +78,7 @@ async def test_two_workers_reset_once_per_day_with_the_configured_password(
 async def test_default_password_when_none_is_configured(
     monkeypatch: pytest.MonkeyPatch, seed_calls: list[dict[str, Any]]
 ) -> None:
-    monkeypatch.setattr(settings, "demo_reset_slug", "northwind")
+    monkeypatch.setattr(settings, "demo_reset_slug", "acme")
     monkeypatch.setattr(settings, "demo_password", None)
     await worker.reset_demo(_fake_ctx(FakeRedis()))
     assert seed_calls[0]["password"] == demo_seed.DEFAULT_PASSWORD
@@ -90,7 +90,7 @@ async def test_default_password_when_none_is_configured(
 )
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
 async def test_cron_rebuilds_the_demo_company(monkeypatch: pytest.MonkeyPatch) -> None:
-    slug = f"northwind-{uuid4().hex[:6]}"
+    slug = f"acme-{uuid4().hex[:6]}"
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     try:

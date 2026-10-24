@@ -18,11 +18,11 @@
   replays them (`python -m app.services.tombstones`) so candidates erased
   after the backup stay erased. Policy: docs/compliance
   self-hosting guide, "Backups and erasure".
-- `dev_seed.sh [--reset]` - the Northwind Robotics demo workspace (two
+- `dev_seed.sh [--reset]` - the ACME Ganek demo workspace (two
   users, four jobs, 17 fictional applicants, 11 completed quizzes with
   realistic timings and two integrity stories) built through the real
   service layer inside the running backend container. Exists -> no-op;
-  `--reset` deletes and rebuilds. Log in as erika@northwind.example /
+  `--reset` deletes and rebuilds. Log in as erika@acme.example /
   ganek-demo-1 (GANEK_DEMO_PASSWORD overrides). Docs: self-hosting,
   "Demo data".
 - `migrate_dev_data_ganek.sh` - one-time migration of a pre-rename dev
