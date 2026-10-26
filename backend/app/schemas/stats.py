@@ -40,6 +40,20 @@ class PerJobStats(BaseModel):
     status: JobStatus
     applications: int
     new: int
+    views_30d: int = 0  # counted job page loads, today and the 29 days before
+
+
+class ViewCounts(BaseModel):
+    """Job page loads that passed the SSR filters (spec 5.5). Not unique."""
+
+    total: int = 0
+    last_30_days: int = 0
+
+
+class DailyPoint(BaseModel):
+    day: date  # UTC
+    views: int
+    applications: int
 
 
 class WeeklyPoint(BaseModel):
@@ -77,3 +91,6 @@ class JobStats(BaseModel):
     quiz: QuizCounts  # attempts of this job's applications; rates None when none
     weekly: list[WeeklyPoint]  # last 8 ISO weeks for this job, gaps filled
     days_open: int | None  # None for drafts; closed_at (or now) minus published_at
+    views: ViewCounts
+    views_by_source: dict[str, int]  # same labels as by_source (plus "other"), all time
+    daily: list[DailyPoint]  # last 30 UTC days, oldest first, gaps filled

@@ -1,9 +1,9 @@
 """Dashboard aggregates. Read-only; every query is company-scoped."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import ColumnElement, case, func, select
+from sqlalchemy import ColumnElement, Date, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -14,22 +14,34 @@ from app.models import (
     Company,
     Job,
     JobStatus,
+    JobView,
     QuizAttempt,
 )
 from app.schemas.stats import (
     ApplicationCounts,
+    DailyPoint,
     JobCounts,
     JobStats,
     PerJobStats,
     QuizCounts,
     RecentApplication,
     StatsOverview,
+    ViewCounts,
     WeeklyPoint,
 )
 from app.services import applications as applications_service
 
 WEEKS = 8
 RECENT = 5
+DAYS = 30  # "30d": today (UTC) and the 29 days before it
+
+
+def _today() -> date:
+    return datetime.now(UTC).date()
+
+
+def _window_start() -> date:
+    return _today() - timedelta(days=DAYS - 1)
 
 
 def _week_start(moment: datetime) -> datetime:
@@ -149,8 +161,24 @@ async def _per_job(db: AsyncSession, company: Company) -> list[PerJobStats]:
             .order_by(Job.created_at.desc())
         )
     ).all()
+    view_rows = (
+        await db.execute(
+            select(JobView.job_id, func.sum(JobView.views))
+            .join(Job, Job.id == JobView.job_id)
+            .where(Job.company_id == company.id, JobView.day >= _window_start())
+            .group_by(JobView.job_id)
+        )
+    ).all()
+    views = {job_id: int(total) for job_id, total in view_rows}
     return [
-        PerJobStats(job_id=job_id, title=title, status=status, applications=apps, new=new)
+        PerJobStats(
+            job_id=job_id,
+            title=title,
+            status=status,
+            applications=apps,
+            new=new,
+            views_30d=views.get(job_id, 0),
+        )
         for job_id, title, status, apps, new in rows
     ]
 
@@ -211,6 +239,64 @@ async def _recent(db: AsyncSession, company: Company) -> list[RecentApplication]
     ]
 
 
+async def _views(db: AsyncSession, job_id: uuid.UUID) -> ViewCounts:
+    row = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(JobView.views), 0),
+                func.coalesce(func.sum(JobView.views).filter(JobView.day >= _window_start()), 0),
+            ).where(JobView.job_id == job_id)
+        )
+    ).one()
+    return ViewCounts(total=int(row[0]), last_30_days=int(row[1]))
+
+
+async def _views_by_source(db: AsyncSession, job_id: uuid.UUID) -> dict[str, int]:
+    rows = (
+        await db.execute(
+            select(JobView.source, func.sum(JobView.views))
+            .where(JobView.job_id == job_id)
+            .group_by(JobView.source)
+        )
+    ).all()
+    return {source: int(total) for source, total in rows}
+
+
+async def _daily(db: AsyncSession, company: Company, job_id: uuid.UUID) -> list[DailyPoint]:
+    start = _window_start()
+    view_rows = (
+        await db.execute(
+            select(JobView.day, func.sum(JobView.views))
+            .where(JobView.job_id == job_id, JobView.day >= start)
+            .group_by(JobView.day)
+        )
+    ).all()
+    day_bucket = func.cast(
+        func.date_trunc("day", func.timezone("UTC", Application.created_at)), Date
+    )
+    application_rows = (
+        await db.execute(
+            select(day_bucket, func.count())
+            .where(
+                Application.company_id == company.id,
+                Application.job_id == job_id,
+                Application.created_at >= datetime.combine(start, datetime.min.time(), UTC),
+            )
+            .group_by(day_bucket)
+        )
+    ).all()
+    views = {day: int(total) for day, total in view_rows}
+    applications = {day: count for day, count in application_rows}
+    return [
+        DailyPoint(
+            day=start + timedelta(days=i),
+            views=views.get(start + timedelta(days=i), 0),
+            applications=applications.get(start + timedelta(days=i), 0),
+        )
+        for i in range(DAYS)
+    ]
+
+
 async def overview(db: AsyncSession, company: Company) -> StatsOverview:
     return StatsOverview(
         jobs=await _job_counts(db, company),
@@ -263,4 +349,7 @@ async def job_stats(db: AsyncSession, company: Company, job: Job) -> JobStats:
         quiz=await _quiz_counts(db, company, job_id=job.id),
         weekly=await _weekly(db, company, job_id=job.id),
         days_open=days_open,
+        views=await _views(db, job.id),
+        views_by_source=await _views_by_source(db, job.id),
+        daily=await _daily(db, company, job.id),
     )

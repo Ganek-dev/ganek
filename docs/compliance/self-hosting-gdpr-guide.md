@@ -361,7 +361,12 @@ Product guarantees you can rely on, as shipped:
 
 - **No cookies, no analytics, no fingerprinting** on any candidate-facing
   page (careers, apply, quiz, status, booking) - nothing to consent-banner.
-  The embeddable jobs widget is equally clean.
+  Job page views are counted server-side as daily totals per job and
+  source label, with no IP, user agent, cookie or visitor identifier, so
+  there is nothing per person to disclose. Tracked-link names identify
+  campaigns or channels: never name a link after an individual, or that
+  daily count becomes a per-person signal. The embeddable jobs widget is
+  equally clean.
 - **No IP addresses or user agents in quiz telemetry** - the integrity
   record is three event types (blur, paste, resize), tied to the open
   question. No keystrokes, no clipboard contents, no screen capture.

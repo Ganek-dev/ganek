@@ -1,7 +1,7 @@
 import random
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from sqlalchemy import select
 
 from app.api.auth import _set_session_cookie
@@ -25,6 +25,7 @@ from app.models import (
     Interview,
     InterviewStatus,
     Job,
+    JobStatus,
     QuizAttempt,
     Task,
     UserInvite,
@@ -67,6 +68,7 @@ from app.services import invites as invites_service
 from app.services import jobs as jobs_service
 from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
+from app.services import views as views_service
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -108,6 +110,22 @@ async def _published_job_or_404(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
 
+def _count_view(
+    request: Request, background: BackgroundTasks, db: DbSession, job: Job, preview: str | None
+) -> None:
+    """Spec 5.5: count the load when the SSR says so, the job is live and no
+    preview token was involved. The write happens after the response."""
+    if not views_service.wants_view(request) or preview is not None:
+        return
+    if job.status is not JobStatus.PUBLISHED:
+        return
+    bind = db.bind
+    if bind is None:  # typed as optional upstream; a request session is always bound
+        return
+    source = views_service.view_source(request.headers.get(views_service.SOURCE_HEADER))
+    background.add_task(views_service.record_view_task, bind, job.id, source)
+
+
 # Multi-tenant routes (hosted): /c/{slug} pages
 @router.get(
     "/companies/{slug}",
@@ -124,9 +142,16 @@ async def company_page(company: PublicCompany, db: DbSession) -> PublicCompanyPa
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
 async def company_job(
-    company: PublicCompany, job_slug: str, db: DbSession, preview: str | None = None
+    company: PublicCompany,
+    job_slug: str,
+    db: DbSession,
+    request: Request,
+    background: BackgroundTasks,
+    preview: str | None = None,
 ) -> Job:
-    return await _published_job_or_404(db, company, job_slug, preview)
+    job = await _published_job_or_404(db, company, job_slug, preview)
+    _count_view(request, background, db, job, preview)
+    return job
 
 
 # Single-tenant routes (self-host): the instance's one company at /
@@ -145,9 +170,16 @@ async def single_company_page(company: SingleCompany, db: DbSession) -> PublicCo
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
 async def single_company_job(
-    company: SingleCompany, job_slug: str, db: DbSession, preview: str | None = None
+    company: SingleCompany,
+    job_slug: str,
+    db: DbSession,
+    request: Request,
+    background: BackgroundTasks,
+    preview: str | None = None,
 ) -> Job:
-    return await _published_job_or_404(db, company, job_slug, preview)
+    job = await _published_job_or_404(db, company, job_slug, preview)
+    _count_view(request, background, db, job, preview)
+    return job
 
 
 # Candidate privacy notice (M5.6 G1): per-company variables for the
