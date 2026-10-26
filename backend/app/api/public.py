@@ -119,8 +119,11 @@ def _count_view(
         return
     if job.status is not JobStatus.PUBLISHED:
         return
+    bind = db.bind
+    if bind is None:  # typed as optional upstream; a request session is always bound
+        return
     source = views_service.view_source(request.headers.get(views_service.SOURCE_HEADER))
-    background.add_task(views_service.record_view_task, db.bind, job.id, source)
+    background.add_task(views_service.record_view_task, bind, job.id, source)
 
 
 # Multi-tenant routes (hosted): /c/{slug} pages
