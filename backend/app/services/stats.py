@@ -1,8 +1,9 @@
 """Dashboard aggregates. Read-only; every query is company-scoped."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import case, func, select
+from sqlalchemy import ColumnElement, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -17,12 +18,14 @@ from app.models import (
 from app.schemas.stats import (
     ApplicationCounts,
     JobCounts,
+    JobStats,
     PerJobStats,
     QuizCounts,
     RecentApplication,
     StatsOverview,
     WeeklyPoint,
 )
+from app.services import applications as applications_service
 
 WEEKS = 8
 RECENT = 5
@@ -61,8 +64,21 @@ async def _application_counts(db: AsyncSession, company: Company) -> Application
 SCORE_BUCKETS = 10  # 10-point-wide histogram buckets over 0–100
 
 
-async def _quiz_counts(db: AsyncSession, company: Company) -> QuizCounts:
+def _attempt_scope(company: Company, job_id: uuid.UUID | None) -> list[ColumnElement[bool]]:
+    """Where-conditions for one company's attempts, narrowed to one job when
+    asked (QuizAttempt has no job_id; the join rides Application)."""
+    conditions: list[ColumnElement[bool]] = [QuizAttempt.company_id == company.id]
+    if job_id is not None:
+        conditions.append(Application.id == QuizAttempt.application_id)
+        conditions.append(Application.job_id == job_id)
+    return conditions
+
+
+async def _quiz_counts(
+    db: AsyncSession, company: Company, job_id: uuid.UUID | None = None
+) -> QuizCounts:
     completed_filter = QuizAttempt.status == AttemptStatus.COMPLETED
+    scope = _attempt_scope(company, job_id)
     row = (
         await db.execute(
             select(
@@ -78,7 +94,7 @@ async def _quiz_counts(db: AsyncSession, company: Company) -> QuizCounts:
                         completed_filter, QuizAttempt.started_at.is_not(None)
                     ),
                 ),
-            ).where(QuizAttempt.company_id == company.id)
+            ).where(*scope)
         )
     ).one()
     total, completed, avg_score, median_score, avg_duration = row
@@ -89,11 +105,7 @@ async def _quiz_counts(db: AsyncSession, company: Company) -> QuizCounts:
     bucket_rows = (
         await db.execute(
             select(bucket, func.count())
-            .where(
-                QuizAttempt.company_id == company.id,
-                completed_filter,
-                QuizAttempt.score.is_not(None),
-            )
+            .where(*scope, completed_filter, QuizAttempt.score.is_not(None))
             .group_by(bucket)
         )
     ).all()
@@ -136,16 +148,17 @@ async def _per_job(db: AsyncSession, company: Company) -> list[PerJobStats]:
     ]
 
 
-async def _weekly(db: AsyncSession, company: Company) -> list[WeeklyPoint]:
+async def _weekly(
+    db: AsyncSession, company: Company, job_id: uuid.UUID | None = None
+) -> list[WeeklyPoint]:
     now = datetime.now(UTC)
     start = _week_start(now) - timedelta(weeks=WEEKS - 1)
     bucket = func.date_trunc("week", Application.created_at)
+    conditions = [Application.company_id == company.id, Application.created_at >= start]
+    if job_id is not None:
+        conditions.append(Application.job_id == job_id)
     rows = (
-        await db.execute(
-            select(bucket, func.count())
-            .where(Application.company_id == company.id, Application.created_at >= start)
-            .group_by(bucket)
-        )
+        await db.execute(select(bucket, func.count()).where(*conditions).group_by(bucket))
     ).all()
     counts = {moment.date(): count for moment, count in rows}
     return [
@@ -199,4 +212,31 @@ async def overview(db: AsyncSession, company: Company) -> StatsOverview:
         per_job=await _per_job(db, company),
         weekly=await _weekly(db, company),
         recent=await _recent(db, company),
+    )
+
+
+async def job_stats(db: AsyncSession, company: Company, job: Job) -> JobStats:
+    """Overview numbers for one job of this company (the caller resolved the
+    job through the tenancy dependency)."""
+    now = datetime.now(UTC)
+    row = (
+        await db.execute(
+            select(
+                func.count(),
+                func.count().filter(Application.stage == ApplicationStage.NEW),
+                func.count().filter(Application.created_at >= now - timedelta(days=7)),
+                func.count().filter(Application.created_at >= now - timedelta(days=30)),
+            ).where(Application.company_id == company.id, Application.job_id == job.id)
+        )
+    ).one()
+    days_open = (
+        None if job.published_at is None else ((job.closed_at or now) - job.published_at).days
+    )
+    return JobStats(
+        applications=ApplicationCounts(total=row[0], new=row[1], last_7_days=row[2]),
+        last_30_days=row[3],
+        by_stage=await applications_service.count_by_stage(db, company, job_id=job.id),
+        quiz=await _quiz_counts(db, company, job_id=job.id),
+        weekly=await _weekly(db, company, job_id=job.id),
+        days_open=days_open,
     )
