@@ -8,6 +8,7 @@ import { ExternalLink, Pencil } from "lucide-react";
 
 import { ScoreChip, StagePill } from "@/components/ApplicantChips";
 import { CopyButton } from "@/components/CopyButton";
+import { DailyChart } from "@/components/DailyChart";
 import { AssessmentChip, StatusPill } from "@/components/JobStatus";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
@@ -22,6 +23,13 @@ import {
   type JobStats,
 } from "@/lib/api";
 import { careersDisplay, careersUrl } from "@/lib/careers";
+import {
+  APPLY_RATE_TOOLTIP,
+  VIEWS_TOOLTIP,
+  applyRate,
+  formatCount,
+  sourceRows,
+} from "@/lib/job-metrics";
 import { relativeTime } from "@/lib/time";
 
 /** Job overview (spec "07b"): what a job is doing, who applied, and the
@@ -70,9 +78,19 @@ export function lifecycleLine(job: JobOut, daysOpen: number | null): string {
   return `${since} · ${plural(daysOpen, "day")} open`;
 }
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Tile({
+  label,
+  value,
+  hint,
+  title,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  title?: string;
+}) {
   return (
-    <div className="card px-4 py-3.5">
+    <div className="card px-4 py-3.5" title={title}>
       <p className="text-xs text-g500">{label}</p>
       <p className="mt-1.5 font-heading text-[26px] leading-none font-semibold">{value}</p>
       {hint ? <p className="mt-1.5 font-mono text-[11px] text-g500">{hint}</p> : null}
@@ -164,6 +182,9 @@ export default function JobOverviewPage() {
   const draft = job.status === "draft";
   const total = stats?.applications.total ?? 0;
   const quiz = stats && !draft ? quizTile(job, stats) : null;
+  const views30 = stats?.views.last_30_days ?? 0;
+  const rate = stats && !draft ? applyRate(views30, stats.last_30_days) : null;
+  const sources = stats ? sourceRows(stats.views_by_source, stats.by_source) : null;
 
   return (
     <section className="space-y-5">
@@ -226,6 +247,18 @@ export default function JobOverviewPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile
+          label="Views · 30d"
+          title={VIEWS_TOOLTIP}
+          value={stats && !draft ? formatCount(views30) : "-"}
+          hint={
+            draft
+              ? "Publish to start counting"
+              : stats
+                ? `${formatCount(stats.views.total)} all time · not unique`
+                : undefined
+          }
+        />
+        <Tile
           label="Applications · 30d"
           value={stats && !draft ? String(stats.last_30_days) : "-"}
           hint={
@@ -236,14 +269,22 @@ export default function JobOverviewPage() {
                 : undefined
           }
         />
-        <Tile label="Quiz completion" value={quiz?.value ?? "-"} hint={quiz?.hint} />
-        <Tile label="Views · 30d" value="-" hint="not counted yet" />
         <Tile
-          label="Days open"
-          value={stats?.days_open === null || stats?.days_open === undefined ? "-" : String(stats.days_open)}
-          hint={job.published_at ? `since ${shortDate(job.published_at)}` : "not published"}
+          label="Apply rate · 30d"
+          title={APPLY_RATE_TOOLTIP}
+          value={stats && !draft ? (rate ?? "n/a") : "-"}
+          hint={
+            stats && !draft
+              ? rate === null
+                ? "under 20 views"
+                : `${plural(stats.last_30_days, "application")} / ${formatCount(views30)} views`
+              : undefined
+          }
         />
+        <Tile label="Quiz completion" value={quiz?.value ?? "-"} hint={quiz?.hint} />
       </div>
+
+      {stats && !draft ? <DailyChart daily={stats.daily} /> : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="card overflow-visible">
@@ -362,19 +403,47 @@ export default function JobOverviewPage() {
           </div>
           <div className="card px-5 py-[18px]">
             <span className="font-heading text-[15px] font-semibold">Sources</span>
-            {stats && Object.keys(stats.by_source).length > 0 ? (
-              <ul className="mt-3 space-y-1.5">
-                {Object.entries(stats.by_source)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([source, count]) => (
-                    <li key={source} className="flex items-center justify-between gap-3">
-                      <span className="truncate font-mono text-[12px] text-g700">{source}</span>
-                      <span className="font-mono text-[12px] text-g500">{count}</span>
-                    </li>
-                  ))}
-              </ul>
+            {sources === null ? (
+              <div aria-busy="true" aria-label="Loading sources" className="mt-3 space-y-2">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="h-5 animate-pulse rounded-sm bg-muted-fill" />
+                ))}
+              </div>
+            ) : sources.length === 0 ? (
+              <p className="mt-3 text-sm text-g500">No views or applications yet.</p>
             ) : (
-              <p className="mt-3 text-sm text-g500">No applications yet.</p>
+              <table className="mt-3 w-full text-[12px]">
+                <thead>
+                  <tr className="text-left font-mono text-[10.5px] font-medium text-g500">
+                    <th className="pb-1.5 font-medium">Source</th>
+                    <th className="pb-1.5 text-right font-medium" title={VIEWS_TOOLTIP}>
+                      Views
+                    </th>
+                    <th className="pb-1.5 text-right font-medium">Applications</th>
+                    <th className="pb-1.5 text-right font-medium" title={APPLY_RATE_TOOLTIP}>
+                      Apply rate
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map((row) => (
+                    <tr key={row.source} className="border-t border-divider">
+                      <td className="max-w-[140px] truncate py-1.5 font-mono text-g700">
+                        {row.source}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-g700">
+                        {formatCount(row.views)}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-g700">
+                        {formatCount(row.applications)}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-g500">
+                        {row.applyRate ?? "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
           <QuizPreviewPanel jobId={job.id} />
