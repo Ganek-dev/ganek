@@ -6,9 +6,11 @@ from app.api.deps import AdminUser, CurrentCompany, DbSession
 from app.core.config import settings
 from app.models import Job, JobStatus
 from app.schemas.jobs import JobCreate, JobOut, JobUpdate, QuizPreviewOut, QuizPreviewQuestion
+from app.schemas.stats import JobStats
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
 from app.services import quotas
+from app.services import stats as stats_service
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -89,6 +91,13 @@ async def quiz_preview(job_id: uuid.UUID, db: DbSession, company: CurrentCompany
         },
         sample_question_ids=sample,
     )
+
+
+@router.get("/{job_id}/stats", response_model=JobStats)
+async def job_stats(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -> JobStats:
+    """Overview counts for one job (applications by stage, quiz, weekly, days open)."""
+    job = await _get_or_404(db, company, job_id)
+    return await stats_service.job_stats(db, company, job)
 
 
 @router.post("/{job_id}/publish", response_model=JobOut)

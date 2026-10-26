@@ -21,7 +21,8 @@ class ApplicationCounts(BaseModel):
 
 
 class QuizCounts(BaseModel):
-    attempts_total: int = 0
+    attempts_total: int = 0  # issued attempts; superseded (invalidated) ones excluded
+    attempts_started: int = 0  # opened by the candidate (started_at set)
     attempts_completed: int = 0
     completion_rate: float | None = None  # None when no attempts yet
     avg_score: float | None = None  # across completed attempts
@@ -63,3 +64,15 @@ class StatsOverview(BaseModel):
     per_job: list[PerJobStats]
     weekly: list[WeeklyPoint]  # last 8 ISO weeks, oldest first, gaps filled
     recent: list[RecentApplication]  # newest 5
+
+
+class JobStats(BaseModel):
+    """One job's numbers for the overview page. Counts only: nothing here
+    ranks, passes or recommends (rule 5)."""
+
+    applications: ApplicationCounts
+    last_30_days: int
+    by_stage: dict[str, int]  # stage value -> count; stages with 0 are absent
+    quiz: QuizCounts  # attempts of this job's applications; rates None when none
+    weekly: list[WeeklyPoint]  # last 8 ISO weeks for this job, gaps filled
+    days_open: int | None  # None for drafts; closed_at (or now) minus published_at

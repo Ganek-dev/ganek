@@ -60,6 +60,7 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
       questionnaire_id: null,
     },
     published_at: null,
+    closed_at: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: "2026-07-01T00:00:00Z",
     ...overrides,
@@ -72,6 +73,7 @@ function makeOverview(perJob: StatsOverview["per_job"]): StatsOverview {
     applications: { total: 0, new: 0, last_7_days: 0 },
     quiz: {
       attempts_total: 0,
+      attempts_started: 0,
       attempts_completed: 0,
       completion_rate: null,
       avg_score: null,

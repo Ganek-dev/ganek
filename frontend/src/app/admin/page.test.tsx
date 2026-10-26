@@ -17,6 +17,7 @@ const overview: StatsOverview = {
   applications: { total: 25, new: 7, last_7_days: 4 },
   quiz: {
     attempts_total: 10,
+    attempts_started: 10,
     attempts_completed: 8,
     completion_rate: 0.8,
     avg_score: 0.65,
