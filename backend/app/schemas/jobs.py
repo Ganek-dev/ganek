@@ -132,5 +132,6 @@ class JobOut(BaseModel):
     status: JobStatus
     quiz_config: QuizConfigSchema
     published_at: datetime | None
+    closed_at: datetime | None
     created_at: datetime
     updated_at: datetime

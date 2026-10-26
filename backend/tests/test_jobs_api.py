@@ -250,3 +250,19 @@ async def test_salary_period_and_closes_at_roundtrip(client: AsyncClient) -> Non
 
 def _dt(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_close_sets_closed_at_and_republish_clears_it(client: AsyncClient) -> None:
+    await _register(client)
+    job = (await client.post("/api/v1/jobs", json=_job_payload())).json()
+    assert job["closed_at"] is None
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    closed = (await client.post(f"/api/v1/jobs/{job['id']}/close")).json()
+    assert closed["closed_at"] is not None
+    assert datetime.fromisoformat(closed["closed_at"]) >= datetime.fromisoformat(
+        closed["published_at"]
+    )
+    reopened = (await client.post(f"/api/v1/jobs/{job['id']}/publish")).json()
+    assert reopened["closed_at"] is None
+    assert reopened["status"] == "published"

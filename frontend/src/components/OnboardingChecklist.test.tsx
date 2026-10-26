@@ -73,6 +73,7 @@ function makeJob(overrides: Partial<JobOut> = {}): JobOut {
       questionnaire_id: null,
     },
     published_at: null,
+    closed_at: null,
     created_at: "2026-08-01T00:00:00Z",
     updated_at: "2026-08-01T00:00:00Z",
     ...overrides,

@@ -76,6 +76,7 @@ export interface JobOut {
   status: JobStatus;
   quiz_config: QuizConfig;
   published_at: string | null;
+  closed_at: string | null;
   created_at: string;
   updated_at: string;
 }

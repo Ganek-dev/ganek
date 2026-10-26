@@ -107,6 +107,7 @@ async def publish_job(db: AsyncSession, job: Job) -> Job:
         raise InvalidTransitionError(job.status, JobStatus.PUBLISHED)
     job.status = JobStatus.PUBLISHED
     job.published_at = datetime.now(UTC)
+    job.closed_at = None
     await db.commit()
     await db.refresh(job)
     return job
@@ -116,6 +117,7 @@ async def close_job(db: AsyncSession, job: Job) -> Job:
     if job.status is not JobStatus.PUBLISHED:
         raise InvalidTransitionError(job.status, JobStatus.CLOSED)
     job.status = JobStatus.CLOSED
+    job.closed_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return job

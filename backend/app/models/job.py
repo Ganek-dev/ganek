@@ -81,6 +81,8 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
     status: Mapped[JobStatus] = mapped_column(_str_enum(JobStatus), default=JobStatus.DRAFT)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # set by close_job, cleared by publish_job: "days open" for closed jobs
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quiz_config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
     company: Mapped["Company"] = relationship(back_populates="jobs")
