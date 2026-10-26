@@ -294,6 +294,20 @@ describe("JobOverviewPage", () => {
     );
   });
 
+  it("lists where applications came from, most common first", async () => {
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Sources")).closest("div")!;
+    const rows = within(card).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual(["linkedin3", "direct2"]);
+  });
+
+  it("says when no application has a source yet", async () => {
+    mockedJobs.stats.mockResolvedValue(makeStats({ by_source: {} }));
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Sources")).closest("div")!;
+    expect(within(card).getByText("No applications yet.")).toBeInTheDocument();
+  });
+
   it("offers View as candidate as a plain link on a live job", async () => {
     render(<JobOverviewPage />);
     const view = await screen.findByRole("link", { name: "View as candidate" });

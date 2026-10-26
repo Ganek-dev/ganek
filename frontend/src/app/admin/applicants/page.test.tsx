@@ -429,6 +429,21 @@ describe("ApplicantsPage", () => {
     expect(await screen.findByText("No applications match.")).toBeInTheDocument();
   });
 
+  it("shows where the selected applicant came from", async () => {
+    mockedApps.list.mockResolvedValue(
+      pageOf([makeApp({ id: "app-1", stage: "new", source: "linkedin" })]),
+    );
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(screen.getByText(/applied .* · via linkedin$/)).toBeInTheDocument();
+  });
+
+  it("says nothing about the source when none was recorded", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(screen.queryByText(/· via /)).not.toBeInTheDocument();
+  });
+
   it("opens the CV in a new tab from the detail panel", async () => {
     const spy = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<ApplicantsPage />);

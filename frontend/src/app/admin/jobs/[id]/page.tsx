@@ -360,6 +360,23 @@ export default function JobOverviewPage() {
               ) : null}
             </div>
           </div>
+          <div className="card px-5 py-[18px]">
+            <span className="font-heading text-[15px] font-semibold">Sources</span>
+            {stats && Object.keys(stats.by_source).length > 0 ? (
+              <ul className="mt-3 space-y-1.5">
+                {Object.entries(stats.by_source)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([source, count]) => (
+                    <li key={source} className="flex items-center justify-between gap-3">
+                      <span className="truncate font-mono text-[12px] text-g700">{source}</span>
+                      <span className="font-mono text-[12px] text-g500">{count}</span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-g500">No applications yet.</p>
+            )}
+          </div>
           <QuizPreviewPanel jobId={job.id} />
         </div>
       </div>
