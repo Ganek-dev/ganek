@@ -74,6 +74,12 @@ describe("job list", () => {
     expect(link).toHaveTextContent(/Warsaw · Hybrid · Full-time · 15,000–25,000 PLN\/yr/);
   });
 
+  it("carries the source suffix on every job link (careers-list hop)", () => {
+    render(<JobList jobs={[job]} hrefPrefix="/jobs" hrefSuffix="?src=linkedin" />);
+    const link = screen.getByRole("link", { name: /Senior Python Developer/ });
+    expect(link).toHaveAttribute("href", "/jobs/senior-python-developer?src=linkedin");
+  });
+
   it("shows the empty state without pills when there are no jobs", () => {
     render(<JobList jobs={[]} hrefPrefix="/jobs" />);
     expect(screen.getByText(/No open positions right now/)).toBeInTheDocument();
