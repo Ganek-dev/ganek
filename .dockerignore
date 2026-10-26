@@ -1,0 +1,13 @@
+# Context for backend/Dockerfile is the repo root: allowlist what it COPYs.
+# (frontend/ has its own Dockerfile and .dockerignore with context ./frontend)
+*
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/alembic.ini
+!backend/alembic
+!backend/app
+!questions
+**/__pycache__
+**/.env*
+questions/validate.py
+questions/README.md

@@ -50,7 +50,8 @@ jobs:
       - name: Backend image (amd64, loaded for the boot smoke)
         uses: docker/build-push-action@v7
         with:
-          context: backend
+          context: .
+          file: backend/Dockerfile
           platforms: linux/amd64
           load: true
           cache-from: type=gha,scope=backend
@@ -75,11 +76,15 @@ jobs:
       - name: Boot the built images
         run: |
           cp .env.example .env
+          # migrate gets NO ./questions mount here: the smoke proves the image
+          # seeds the bank on its own (image-only deployments have no checkout)
           cat > compose.release-smoke.yml <<EOF
           services:
             backend:  { image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}" }
             worker:   { image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}" }
-            migrate:  { image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}" }
+            migrate:
+              image: "ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}"
+              volumes: !override []
             frontend: { image: "ghcr.io/ganek-dev/ganek-frontend:${{ steps.meta.outputs.version }}" }
           EOF
           # images exist locally, so compose uses them as-is (no --build)
@@ -96,6 +101,14 @@ jobs:
           docker compose -f docker-compose.yml -f compose.release-smoke.yml ps
           docker compose -f docker-compose.yml -f compose.release-smoke.yml logs
           exit 1
+      - name: Question bank seeded from the image (no checkout mount)
+        run: |
+          docker compose -f docker-compose.yml -f compose.release-smoke.yml logs migrate > migrate.log
+          grep -E "question bank seeded from /srv/questions: [0-9]+ created" migrate.log || {
+            echo "migrate did not seed from the image"; cat migrate.log; exit 1; }
+          created=$(grep -oE "seeded from /srv/questions: [0-9]+ created" migrate.log | grep -oE "[0-9]+")
+          echo "questions created: $created"
+          [ "$created" -ge 225 ] || { echo "expected at least 225 questions"; exit 1; }
       - name: Smoke test against the built images
         run: bash scripts/e2e_smoke.sh http://localhost:3000
       - name: Dump logs on failure
@@ -128,7 +141,8 @@ jobs:
       - name: Backend image (amd64 + arm64, pushed on tags)
         uses: docker/build-push-action@v7
         with:
-          context: backend
+          context: .
+          file: backend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
           provenance: false
