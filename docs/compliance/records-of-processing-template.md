@@ -42,7 +42,8 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Data subjects:** job applicants.
 - **Data:** name, email, CV file, links, free-text message, stage history,
   how the candidate reached the page (a source label such as linkedin,
-  google, direct or a tracked-link name; never the full referring URL).
+  google, direct, a tracked-link name, or the referring site's domain;
+  never the full referring URL).
 - **Recipients:** recruiting staff; `{hosting provider}` (infrastructure);
   `{email relay}` (transactional email).
 - **Transfers:** none (see Activity 6 for the only built-in transfer).

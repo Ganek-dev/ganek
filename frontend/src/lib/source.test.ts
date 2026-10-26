@@ -99,6 +99,28 @@ describe("resolveSource", () => {
     ).toBe("linkedin");
   });
 
+  it("maps Google for Jobs and host-like utm values onto their buckets", () => {
+    expect(
+      resolveSource({
+        utm_source: "google_jobs_apply",
+        referer: "https://www.google.com/",
+        websiteHost: null,
+      }),
+    ).toBe("google");
+    expect(resolveSource({ utm_source: "linkedin.com", referer: null, websiteHost: null })).toBe(
+      "linkedin",
+    );
+    expect(resolveSource({ src: "www.indeed.com", referer: null, websiteHost: null })).toBe("indeed");
+  });
+
+  it("never lets a platform website swallow that platform's traffic", () => {
+    expect(bucketFromReferrer("https://www.linkedin.com/jobs/view/1", "www.linkedin.com")).toBe(
+      "linkedin",
+    );
+    expect(bucketFromReferrer("https://www.google.com/", "sites.google.com")).toBe("google");
+    expect(bucketFromReferrer("https://careers.acme.com/", "www.acme.com")).toBe("website");
+  });
+
   it("takes the first value of a repeated query parameter", () => {
     expect(
       resolveSource({ src: ["newsletter", "other"], referer: null, websiteHost: null }),

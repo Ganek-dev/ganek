@@ -69,4 +69,7 @@ async def test_apply_stores_a_valid_source_and_drops_an_invalid_one(client: Asyn
     assert await _apply(client, slug, job_slug, source="<script>alert(1)</script>") == 201
     assert await _apply(client, slug, job_slug) == 201
     assert await _apply(client, slug, job_slug, source="x" * 200) == 201
-    assert await _sources_seen(client, creds) == [None, None, None, "link:newsletter"]
+    # over the schema limit or the wrong type: still never a 4xx (spec 5.4)
+    assert await _apply(client, slug, job_slug, source="x" * 300) == 201
+    assert await _apply(client, slug, job_slug, source=12345) == 201
+    assert await _sources_seen(client, creds) == [None, None, None, None, None, "link:newsletter"]

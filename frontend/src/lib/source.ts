@@ -52,6 +52,13 @@ const BRAND_BUCKETS: Record<string, KnownSource> = {
   stepstone: "stepstone",
 };
 
+/** utm_source values job boards and aggregators attach to apply links;
+ * Google for Jobs sends utm_source=google_jobs_apply */
+const UTM_ALIASES: Record<string, KnownSource> = {
+  google_jobs_apply: "google",
+  google_jobs: "google",
+};
+
 /** second-level labels under which the real domain is one level deeper */
 const SECOND_LEVEL = new Set(["co", "com", "org", "net", "gov", "ac", "edu"]);
 
@@ -78,16 +85,21 @@ function hostOf(referer: string): string | null {
 /** Bucket for an inbound Referer (origin is enough; the path is never read
  * beyond parsing). `websiteHost` is the company's own site, so arrivals
  * from it count as "website". Unknown hosts become `ref:<domain>`. */
+/** The bucket a registrable domain belongs to, or null for an unknown host. */
+function bucketForDomain(domain: string): KnownSource | null {
+  return HOST_BUCKETS[domain] ?? BRAND_BUCKETS[domain.split(".")[0]!] ?? null;
+}
+
 export function bucketFromReferrer(referer: string | null, websiteHost: string | null): string {
   if (!referer) return "direct";
   const host = hostOf(referer);
   if (host === null || !host.includes(".") || /^[\d.]+$/.test(host)) return "direct";
   const domain = registrableDomain(host);
-  if (websiteHost && registrableDomain(websiteHost) === domain) return "website";
-  const known = HOST_BUCKETS[domain];
+  // platforms first: a company whose "website" is its LinkedIn page must
+  // not swallow every LinkedIn arrival as "website"
+  const known = bucketForDomain(domain);
   if (known) return known;
-  const brand = BRAND_BUCKETS[domain.split(".")[0]!];
-  if (brand) return brand;
+  if (websiteHost && registrableDomain(websiteHost) === domain) return "website";
   return REF_HOST.test(domain) ? `ref:${domain}` : "direct";
 }
 
@@ -108,6 +120,13 @@ function fromQuery(value: string | string[] | undefined): string | null {
   if (raw === undefined) return null;
   const lowered = raw.trim().toLowerCase();
   if (KNOWN.has(lowered)) return lowered;
+  const alias = UTM_ALIASES[lowered];
+  if (alias) return alias;
+  if (REF_HOST.test(lowered)) {
+    // a host-like value (utm_source=linkedin.com): the platform's bucket if known
+    const known = bucketForDomain(registrableDomain(lowered));
+    if (known) return known;
+  }
   if (lowered.startsWith("ref:") && REF_HOST.test(lowered.slice(4))) return lowered;
   if (lowered.startsWith("link:")) {
     const name = normalizeLinkName(lowered.slice(5));

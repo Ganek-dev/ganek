@@ -37,6 +37,16 @@ def test_normalize_source(raw: str | None, stored: str | None) -> None:
     assert normalize_source(raw) == stored
 
 
+def test_submit_schema_never_rejects_a_source() -> None:
+    from app.schemas.public import ApplicationSubmit
+
+    base = {"name": "A", "email": "a@example.org"}
+    assert ApplicationSubmit(**base, source="x" * 300).source is None
+    assert ApplicationSubmit(**base, source=12345).source is None  # type: ignore[arg-type]
+    assert ApplicationSubmit(**base, source="linkedin").source == "linkedin"
+    assert ApplicationSubmit(**base, source=None).source is None
+
+
 def test_known_sources_are_the_documented_buckets() -> None:
     assert KNOWN_SOURCES == frozenset(
         {
