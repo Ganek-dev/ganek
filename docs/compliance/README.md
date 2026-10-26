@@ -32,7 +32,9 @@ never of software alone. Ganek ships as **GDPR-ready**:
   request a copy of their data or ask for deletion - each lands as a task
   in your dashboard.
 - **No cookies, no trackers** on any candidate-facing page, and no IP or
-  user-agent in quiz telemetry.
+  user-agent in quiz telemetry. Job page views are counted server-side as
+  daily totals per job and source; no cookie, no script, no IP, no user
+  agent, no visitor identifier is stored.
 - **No automated decisions**: scores and integrity flags inform humans;
   Ganek never auto-rejects, auto-advances, or auto-filters anyone.
 - **EU-hostable**: one compose stack you can run entirely on EU
@@ -52,9 +54,10 @@ never of software alone. Ganek ships as **GDPR-ready**:
 
 ## If you change Ganek
 
-These documents describe **upstream Ganek as shipped**. Adding analytics or
-cookies to candidate pages, new telemetry event types, ML-based parsing,
-scoring or ranking, or any automated stage change invalidates parts of this
+These documents describe **upstream Ganek as shipped**. Adding analytics,
+cookies or any visitor identifier to candidate pages (the shipped view
+counter stores none), new telemetry event types, ML-based parsing, scoring
+or ranking, or any automated stage change invalidates parts of this
 pack - at minimum redo the
 [telemetry LIA](telemetry-legitimate-interests.md) and the
 [AI Act statement](ai-act-statement.md), and revisit the DPIA's risk table.
