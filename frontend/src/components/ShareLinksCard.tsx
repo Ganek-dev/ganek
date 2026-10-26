@@ -19,16 +19,25 @@ import {
  * `?src=` value lands in the source bucket that views and applications
  * already report under. */
 
-function display(url: string): string {
-  return url.replace(/^https?:\/\//, "");
+/** Protocol-less base and the `?src=` part apart: the rail is 320px wide, so
+ * the base may truncate but the part that differs per row never does. */
+function splitDisplay(url: string): { base: string; suffix: string } {
+  const shown = url.replace(/^https?:\/\//, "");
+  const at = shown.lastIndexOf("src=") - 1; // the ? or & before src=
+  return { base: shown.slice(0, at), suffix: shown.slice(at) };
 }
 
 function LinkRow({ label, url, copyLabel }: { label: string; url: string; copyLabel: string }) {
+  const { base, suffix } = splitDisplay(url);
   return (
     <li className="flex items-center gap-2">
       <span className="w-[76px] shrink-0 text-[12.5px] font-medium text-g700">{label}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-g500">
-        {display(url)}
+      <span
+        title={url}
+        className="flex min-w-0 flex-1 items-baseline font-mono text-[11.5px] text-g500"
+      >
+        <span className="min-w-0 truncate">{base}</span>
+        <span className="shrink-0 text-g700">{suffix}</span>
       </span>
       <CopyButton text={url} label={copyLabel} />
     </li>

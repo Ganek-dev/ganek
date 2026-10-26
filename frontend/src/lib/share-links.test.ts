@@ -43,6 +43,12 @@ describe("sourceLabelFor", () => {
     expect(sourceLabelFor("newsletter")).toBe("link:newsletter");
     expect(sourceLabelFor("q4_push")).toBe("link:q4_push");
   });
+
+  it("agrees with the page's resolver for alias names", () => {
+    // Google for Jobs' utm value is an alias of the google bucket (lib/source.ts)
+    expect(sourceLabelFor("google_jobs")).toBe("google");
+    expect(sourceLabelFor("google_jobs_apply")).toBe("google");
+  });
 });
 
 describe("constants", () => {

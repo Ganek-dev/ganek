@@ -4,7 +4,7 @@
  * view counter and the apply form carry that label, and the overview's
  * Sources table lists it. No storage, no shortener, no click tracking. */
 
-import { KNOWN_SOURCES, normalizeLinkName } from "@/lib/source";
+import { normalizeLinkName, resolveSource } from "@/lib/source";
 
 export const SHARE_PRESETS: readonly { name: string; label: string }[] = [
   { name: "linkedin", label: "LinkedIn" },
@@ -17,8 +17,6 @@ export const EMBED_DOCS_URL = "https://ganek.dev/api-embed/";
 
 export const CUSTOM_NAME_HINT = "letters, digits, - or _ only, up to 40";
 
-const KNOWN = new Set<string>(KNOWN_SOURCES);
-
 export function shareUrl(jobUrl: string, name: string): string {
   const joiner = jobUrl.includes("?") ? "&" : "?";
   return `${jobUrl}${joiner}src=${encodeURIComponent(name)}`;
@@ -30,7 +28,9 @@ export function customShareName(raw: string): string | null {
   return normalizeLinkName(raw);
 }
 
-/** The label the Sources table will show for this name. */
+/** The label the Sources table will show for this name: asked of the same
+ * resolver the job page runs on `?src=`, so the two can never disagree
+ * (known buckets and utm aliases included). */
 export function sourceLabelFor(name: string): string {
-  return KNOWN.has(name) ? name : `link:${name}`;
+  return resolveSource({ src: name, referer: null, websiteHost: null });
 }

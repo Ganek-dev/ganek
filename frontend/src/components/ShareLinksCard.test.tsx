@@ -18,7 +18,10 @@ describe("ShareLinksCard", () => {
       ["Newsletter", "newsletter"],
     ]) {
       const row = screen.getByText(label, { exact: true }).closest("li")!;
-      expect(within(row).getByText(`jobs.acme.com/jobs/senior-frontend-engineer?src=${name}`)).toBeInTheDocument();
+      // the base may truncate in the 320px rail; the part that differs never does
+      expect(within(row).getByText("jobs.acme.com/jobs/senior-frontend-engineer")).toBeInTheDocument();
+      expect(within(row).getByText(`?src=${name}`)).toBeInTheDocument();
+      expect(within(row).getByTitle(`${JOB_URL}?src=${name}`)).toBeInTheDocument();
       expect(within(row).getByRole("button", { name: `Copy ${label} link` })).toBeInTheDocument();
     }
     await user.click(screen.getByRole("button", { name: "Copy LinkedIn link" }));
@@ -30,7 +33,7 @@ describe("ShareLinksCard", () => {
     render(<ShareLinksCard jobUrl={JOB_URL} live />);
     const input = screen.getByLabelText("Custom link name");
     await user.type(input, "Newsletter-Q4");
-    expect(screen.getByText(/\?src=newsletter-q4$/)).toBeInTheDocument();
+    expect(screen.getByText("?src=newsletter-q4")).toBeInTheDocument();
     expect(screen.getByText("appears as link:newsletter-q4 in Sources")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Copy custom link" }));
     expect(await window.navigator.clipboard.readText()).toBe(`${JOB_URL}?src=newsletter-q4`);
@@ -62,6 +65,7 @@ describe("ShareLinksCard", () => {
     render(<ShareLinksCard jobUrl={null} live />);
     expect(screen.getByLabelText("Loading share links")).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByText(/\?src=/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/jobs\.acme/)).not.toBeInTheDocument();
   });
 
   it("links the embed docs and warns against naming links after people", () => {
