@@ -16,6 +16,10 @@ QUIZ_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 _status_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-application-status")
 STATUS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days (G0 minimization decision, was 60)
 _invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-team-invite")
+# recruiter-made link to an unpublished job page (spec job posts v2 5.3);
+# internal, not a candidate-facing promise
+_preview_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-job-preview")
+PREVIEW_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 # generous signature window — the invite row's expires_at is the real
 # deadline (resend pushes it forward without re-emailing a new token)
 INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
@@ -141,6 +145,18 @@ def create_status_token(application_id: uuid.UUID) -> str:
 def read_status_token(token: str) -> uuid.UUID | None:
     try:
         raw: str = _status_serializer.loads(token, max_age=STATUS_TOKEN_MAX_AGE_SECONDS)
+        return uuid.UUID(raw)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+
+
+def create_preview_token(job_id: uuid.UUID) -> str:
+    return _preview_serializer.dumps(str(job_id))
+
+
+def read_preview_token(token: str) -> uuid.UUID | None:
+    try:
+        raw: str = _preview_serializer.loads(token, max_age=PREVIEW_TOKEN_MAX_AGE_SECONDS)
         return uuid.UUID(raw)
     except (BadSignature, SignatureExpired, ValueError):
         return None

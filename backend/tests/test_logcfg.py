@@ -41,6 +41,18 @@ def test_scrubs_token_query_params() -> None:
     )
 
 
+def test_scrubs_job_preview_tokens() -> None:
+    # a 7-day bearer for an unpublished job must never sit in the access log
+    assert (
+        scrub_path("/api/v1/public/company/jobs/hidden-draft?preview=" + TOKEN)
+        == "/api/v1/public/company/jobs/hidden-draft?preview=[token]"
+    )
+    assert (
+        scrub_path("/api/v1/public/companies/acme/jobs/x?preview=" + TOKEN + "&other=1")
+        == "/api/v1/public/companies/acme/jobs/x?preview=[token]&other=1"
+    )
+
+
 def test_leaves_normal_paths_alone() -> None:
     for path in ("/api/v1/jobs", "/api/v1/public/companies/acme/jobs", "/api/health"):
         assert scrub_path(path) == path

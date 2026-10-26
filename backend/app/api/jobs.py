@@ -1,11 +1,21 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, CurrentCompany, DbSession
+from app.core import urls
 from app.core.config import settings
+from app.core.security import PREVIEW_TOKEN_MAX_AGE_SECONDS, create_preview_token
 from app.models import Job, JobStatus
-from app.schemas.jobs import JobCreate, JobOut, JobUpdate, QuizPreviewOut, QuizPreviewQuestion
+from app.schemas.jobs import (
+    JobCreate,
+    JobOut,
+    JobUpdate,
+    PreviewLinkOut,
+    QuizPreviewOut,
+    QuizPreviewQuestion,
+)
 from app.schemas.stats import JobStats
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
@@ -98,6 +108,18 @@ async def job_stats(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -
     """Overview counts for one job (applications by stage, quiz, weekly, days open)."""
     job = await _get_or_404(db, company, job_id)
     return await stats_service.job_stats(db, company, job)
+
+
+@router.post("/{job_id}/preview-link", response_model=PreviewLinkOut)
+async def preview_link(job_id: uuid.UUID, db: DbSession, company: CurrentCompany) -> PreviewLinkOut:
+    """A 7-day link that shows this job as candidates will see it, published
+    or not; shareable with a colleague who has no login (spec 5.3)."""
+    job = await _get_or_404(db, company, job_id)
+    token = create_preview_token(job.id)
+    return PreviewLinkOut(
+        url=f"{urls.job_url(company, job.slug)}?preview={token}",
+        expires_at=datetime.now(UTC) + timedelta(seconds=PREVIEW_TOKEN_MAX_AGE_SECONDS),
+    )
 
 
 @router.post("/{job_id}/publish", response_model=JobOut)

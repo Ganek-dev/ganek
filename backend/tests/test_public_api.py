@@ -122,3 +122,82 @@ async def test_public_payloads_carry_salary_period_and_closes_at(client: AsyncCl
     detail = (await client.get(f"/api/v1/public/companies/{slug}/jobs/{job['slug']}")).json()
     assert detail["salary_period"] == "month"
     assert detail["closes_at"].startswith("2026-12-01T00:00:00")
+
+
+async def _draft(client: AsyncClient, title: str) -> dict:
+    resp = await client.post("/api/v1/jobs", json={"title": title})
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _preview_token(client: AsyncClient, job_id: str) -> str:
+    resp = await client.post(f"/api/v1/jobs/{job_id}/preview-link")
+    assert resp.status_code == 200, resp.text
+    link = resp.json()
+    assert "preview=" in link["url"] and link["expires_at"]
+    return link["url"].split("preview=")[1]
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_preview_link_shows_a_draft_and_only_that_draft(client: AsyncClient) -> None:
+    slug = await _register(client)
+    draft = await _draft(client, "Hidden Draft")
+    other = await _draft(client, "Other Draft")
+    link = (await client.post(f"/api/v1/jobs/{draft['id']}/preview-link")).json()
+    assert f"/jobs/{draft['slug']}?preview=" in link["url"]
+    token = link["url"].split("preview=")[1]
+
+    base = f"/api/v1/public/companies/{slug}/jobs"
+    shown = await client.get(f"{base}/{draft['slug']}", params={"preview": token})
+    assert shown.status_code == 200, shown.text
+    assert shown.json()["title"] == "Hidden Draft"
+    assert (
+        await client.get(f"{base}/{other['slug']}", params={"preview": token})
+    ).status_code == 404
+    assert (
+        await client.get(f"{base}/{draft['slug']}", params={"preview": "garbage"})
+    ).status_code == 404
+    assert (await client.get(f"{base}/{draft['slug']}")).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_preview_token_is_ignored_on_a_published_job(client: AsyncClient) -> None:
+    slug = await _register(client)
+    job = await _create_and_publish(client, "Live Role")
+    token = await _preview_token(client, job["id"])
+    url = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
+    plain = await client.get(url)
+    with_token = await client.get(url, params={"preview": token})
+    with_junk = await client.get(url, params={"preview": "junk"})
+    assert plain.status_code == with_token.status_code == with_junk.status_code == 200
+    assert plain.json() == with_token.json() == with_junk.json()
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_preview_token_never_lets_a_draft_take_applications(client: AsyncClient) -> None:
+    slug = await _register(client)
+    draft = await _draft(client, "Hidden Draft")
+    token = await _preview_token(client, draft["id"])
+    base = f"/api/v1/public/companies/{slug}/jobs/{draft['slug']}"
+    assert (
+        await client.post(f"{base}/apply/upload-url", params={"preview": token})
+    ).status_code == 404
+    resp = await client.post(
+        f"{base}/apply",
+        params={"preview": token},
+        json={"name": "Nope", "email": "nope@ganek-ci.dev"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_preview_token_from_another_company_404s(client: AsyncClient) -> None:
+    await _register(client)
+    draft = await _draft(client, "Hidden Draft")
+    token = await _preview_token(client, draft["id"])
+    await client.post("/api/v1/auth/logout")
+    other_slug = await _register(client)
+    resp = await client.get(
+        f"/api/v1/public/companies/{other_slug}/jobs/{draft['slug']}", params={"preview": token}
+    )
+    assert resp.status_code == 404

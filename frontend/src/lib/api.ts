@@ -268,6 +268,10 @@ export const api = {
     delete: (id: string) => request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
     quizPreview: (id: string) => request<QuizPreview>(`/api/v1/jobs/${id}/quiz-preview`),
     stats: (id: string) => request<JobStats>(`/api/v1/jobs/${id}/stats`),
+    /** 7-day signed link that renders the job as candidates will see it,
+     * published or not; shareable with someone who has no login */
+    previewLink: (id: string) =>
+      request<PreviewLink>(`/api/v1/jobs/${id}/preview-link`, { method: "POST" }),
   },
 };
 
@@ -975,6 +979,11 @@ export const questionnaires = {
   delete: (id: string) =>
     request<void>(`/api/v1/questionnaires/${id}`, { method: "DELETE" }),
 };
+
+export interface PreviewLink {
+  url: string;
+  expires_at: string;
+}
 
 /** One job's overview numbers (GET /jobs/{id}/stats). Counts only. */
 export interface JobStats {

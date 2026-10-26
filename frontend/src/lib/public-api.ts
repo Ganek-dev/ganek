@@ -91,13 +91,42 @@ export async function fetchInstanceMode(): Promise<"single" | "multi"> {
   return health?.mode ?? "single";
 }
 
+/** `?preview=<token>` lets a recruiter's signed link render an unpublished
+ * job (spec job posts v2 5.3). Absent or empty: the normal published lookup. */
+function previewQuery(preview?: string): string {
+  return preview ? `?preview=${encodeURIComponent(preview)}` : "";
+}
+
+export interface JobView {
+  job: PublicJobDetail | null;
+  /** true only when the job rendered BECAUSE of the token: a published job
+   * opened with a token is the live page, token ignored */
+  previewing: boolean;
+}
+
+/** Resolve a job page's data. With a token the backend may answer for an
+ * unpublished job; a second plain lookup tells whether the token mattered,
+ * so a live job never shows the preview bar (previews are rare, two
+ * requests are fine). */
+export async function resolveJobView(
+  fetchJob: (preview?: string) => Promise<PublicJobDetail | null>,
+  preview?: string,
+): Promise<JobView> {
+  const job = await fetchJob(preview);
+  if (job === null || !preview) return { job, previewing: false };
+  const live = await fetchJob();
+  return { job, previewing: live === null };
+}
+
 export const publicApi = {
   companyPage: (slug: string) => get<PublicCompanyPage>(`/api/v1/public/companies/${slug}`),
-  companyJob: (slug: string, jobSlug: string) =>
-    get<PublicJobDetail>(`/api/v1/public/companies/${slug}/jobs/${jobSlug}`),
+  companyJob: (slug: string, jobSlug: string, preview?: string) =>
+    get<PublicJobDetail>(
+      `/api/v1/public/companies/${slug}/jobs/${jobSlug}${previewQuery(preview)}`,
+    ),
   singleCompanyPage: () => get<PublicCompanyPage>("/api/v1/public/company"),
-  singleCompanyJob: (jobSlug: string) =>
-    get<PublicJobDetail>(`/api/v1/public/company/jobs/${jobSlug}`),
+  singleCompanyJob: (jobSlug: string, preview?: string) =>
+    get<PublicJobDetail>(`/api/v1/public/company/jobs/${jobSlug}${previewQuery(preview)}`),
   companyPrivacy: (slug: string) =>
     get<PublicPrivacyNotice>(`/api/v1/public/companies/${slug}/privacy`),
   singlePrivacy: () => get<PublicPrivacyNotice>("/api/v1/public/company/privacy"),

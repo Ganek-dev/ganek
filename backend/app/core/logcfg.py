@@ -23,7 +23,7 @@ from typing import Any
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 _TOKEN_PATH = re.compile(r"(/public/(?:quiz|applications|interviews|invites)/)[^/?\s]+")
-_TOKEN_QUERY = re.compile(r"([?&](?:gs|code|state|token)=)[^&\s]+")
+_TOKEN_QUERY = re.compile(r"([?&](?:gs|code|state|token|preview)=)[^&\s]+")
 
 
 def scrub_path(path: str) -> str:

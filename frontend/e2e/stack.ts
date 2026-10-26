@@ -8,6 +8,8 @@ export const ADMIN_PASSWORD = "e2e-super-secret-password";
 export const COMPANY_NAME = "E2E Test Co";
 export const QUIZ_JOB_TITLE = "E2E Quiz Engineer";
 export const QUIZ_JOB_SLUG = "e2e-quiz-engineer";
+/** never published: the recruiter spec previews it as a candidate */
+export const DRAFT_JOB_TITLE = "E2E Draft Role";
 export const QUIZ_QUESTION_COUNT = 3;
 
 export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void> {
@@ -37,6 +39,12 @@ export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void>
   const jobs = await api.get("/api/v1/jobs");
   expect(jobs.ok()).toBe(true);
   const list = (await jobs.json()) as { title: string }[];
+  if (!list.some((job) => job.title === DRAFT_JOB_TITLE)) {
+    const draft = await api.post("/api/v1/jobs", {
+      data: { title: DRAFT_JOB_TITLE, description_md: "Not published. Preview only." },
+    });
+    expect(draft.status(), "draft creation should succeed").toBe(201);
+  }
   if (list.some((job) => job.title === QUIZ_JOB_TITLE)) return;
 
   const created = await api.post("/api/v1/jobs", {
