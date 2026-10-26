@@ -135,3 +135,11 @@ class JobOut(BaseModel):
     closed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class PreviewLinkOut(BaseModel):
+    """A recruiter-made link that renders an unpublished job as candidates
+    will see it (spec job posts v2 5.3). Signed, bound to the job, expires."""
+
+    url: str
+    expires_at: datetime

@@ -13,6 +13,7 @@ from app.core.security import (
     create_quiz_token,
     create_status_token,
     read_interview_token,
+    read_preview_token,
     read_quiz_token,
     read_status_token,
 )
@@ -90,11 +91,21 @@ async def _company_page(db: DbSession, company: Company) -> PublicCompanyPage:
     )
 
 
-async def _published_job_or_404(db: DbSession, company: Company, job_slug: str) -> Job:
+async def _published_job_or_404(
+    db: DbSession, company: Company, job_slug: str, preview: str | None = None
+) -> Job:
+    """The published job, or an unpublished one when ``preview`` is a valid
+    token for exactly that job (recruiter preview, spec 5.3). Apply, upload
+    and feed callers never pass ``preview``, so a preview cannot apply.
+    Views card: a request carrying a valid preview token must not count."""
     job = await jobs_service.get_published_job(db, company, job_slug)
-    if job is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    return job
+    if job is not None:
+        return job
+    if preview is not None:
+        previewed = await jobs_service.get_job_by_slug(db, company, job_slug)
+        if previewed is not None and read_preview_token(preview) == previewed.id:
+            return previewed
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
 
 # Multi-tenant routes (hosted): /c/{slug} pages
@@ -112,8 +123,10 @@ async def company_page(company: PublicCompany, db: DbSession) -> PublicCompanyPa
     response_model=PublicJobDetail,
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
-async def company_job(company: PublicCompany, job_slug: str, db: DbSession) -> Job:
-    return await _published_job_or_404(db, company, job_slug)
+async def company_job(
+    company: PublicCompany, job_slug: str, db: DbSession, preview: str | None = None
+) -> Job:
+    return await _published_job_or_404(db, company, job_slug, preview)
 
 
 # Single-tenant routes (self-host): the instance's one company at /
@@ -131,8 +144,10 @@ async def single_company_page(company: SingleCompany, db: DbSession) -> PublicCo
     response_model=PublicJobDetail,
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
-async def single_company_job(company: SingleCompany, job_slug: str, db: DbSession) -> Job:
-    return await _published_job_or_404(db, company, job_slug)
+async def single_company_job(
+    company: SingleCompany, job_slug: str, db: DbSession, preview: str | None = None
+) -> Job:
+    return await _published_job_or_404(db, company, job_slug, preview)
 
 
 # Candidate privacy notice (M5.6 G1): per-company variables for the

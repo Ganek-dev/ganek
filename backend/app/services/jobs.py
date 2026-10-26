@@ -139,6 +139,13 @@ async def list_published_jobs(db: AsyncSession, company: Company) -> list[Job]:
     return list((await db.execute(query)).scalars().all())
 
 
+async def get_job_by_slug(db: AsyncSession, company: Company, job_slug: str) -> Job | None:
+    """Any status; only for the preview path, which checks a signed token."""
+    return (
+        await db.execute(select(Job).where(Job.company_id == company.id, Job.slug == job_slug))
+    ).scalar_one_or_none()
+
+
 async def get_published_job(db: AsyncSession, company: Company, job_slug: str) -> Job | None:
     return (
         await db.execute(

@@ -266,3 +266,13 @@ async def test_close_sets_closed_at_and_republish_clears_it(client: AsyncClient)
     reopened = (await client.post(f"/api/v1/jobs/{job['id']}/publish")).json()
     assert reopened["closed_at"] is None
     assert reopened["status"] == "published"
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_preview_link_404s_for_another_tenants_job(client: AsyncClient) -> None:
+    await _register(client)
+    job = (await client.post("/api/v1/jobs", json=_job_payload())).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/preview-link")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+    await _register(client)
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/preview-link")).status_code == 404
