@@ -18,4 +18,19 @@ describe("DemoBanner", () => {
     expect(strip).toHaveTextContent("Nothing you type or upload here is kept.");
     expect(strip.className).toContain("bg-brand");
   });
+
+  it("invites visitors to the recruiter side without printing any credential", () => {
+    render(<DemoBanner tone="brand" />);
+    const strip = screen.getByRole("status");
+    expect(strip).toHaveTextContent("Curious about the recruiter side?");
+    const link = screen.getByRole("link", { name: "Sign in with one click" });
+    expect(link).toHaveAttribute("href", "/login");
+    expect(strip.textContent).not.toMatch(/@|password|ganek-demo/i);
+    expect(strip.textContent).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  it("keeps the admin variant free of the sign-in invitation", () => {
+    render(<DemoBanner />);
+    expect(screen.queryByRole("link", { name: "Sign in with one click" })).not.toBeInTheDocument();
+  });
 });
