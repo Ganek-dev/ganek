@@ -337,7 +337,7 @@ export default function JobOverviewPage() {
         </div>
 
         <div className="space-y-5">
-          <JobStatusCard job={job} onError={setError} onChanged={reload} />
+          <JobStatusCard job={job} publicUrl={jobUrl} onError={setError} onChanged={reload} />
           <div className="card px-5 py-[18px]">
             <div className="flex items-center justify-between">
               <span className="font-heading text-[15px] font-semibold">Assessment</span>

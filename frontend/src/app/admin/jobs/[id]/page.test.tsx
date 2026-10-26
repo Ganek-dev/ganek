@@ -39,6 +39,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
         stats: vi.fn(),
         publish: vi.fn(),
         close: vi.fn(),
+        previewLink: vi.fn(),
       },
     },
     applications: { ...original.applications, list: vi.fn() },
@@ -129,6 +130,10 @@ describe("JobOverviewPage", () => {
     mockedJobs.get.mockResolvedValue(makeJob());
     mockedJobs.stats.mockResolvedValue(makeStats());
     mockedCompany.get.mockResolvedValue(company);
+    mockedJobs.previewLink.mockResolvedValue({
+      url: "http://localhost:3000/c/acme/jobs/senior-frontend-engineer?preview=default",
+      expires_at: "2026-11-02T00:00:00Z",
+    });
     mockedApplications.list.mockResolvedValue({
       items: [
         makeApplication({
@@ -285,6 +290,38 @@ describe("JobOverviewPage", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("offers View as candidate as a plain link on a live job", async () => {
+    render(<JobOverviewPage />);
+    const view = await screen.findByRole("link", { name: "View as candidate" });
+    expect(view).toHaveAttribute("href", expect.stringMatching(/\/c\/acme\/jobs\/senior-frontend-engineer$/));
+    expect(view).toHaveAttribute("target", "_blank");
+    expect(mockedJobs.previewLink).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Copy preview link" })).not.toBeInTheDocument();
+  });
+
+  it("fetches a preview link for a draft and opens it as the candidate view", async () => {
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "draft", published_at: null }));
+    mockedJobs.previewLink.mockResolvedValue({
+      url: "http://localhost:3000/c/acme/jobs/senior-frontend-engineer?preview=tok",
+      expires_at: "2026-11-02T00:00:00Z",
+    });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<JobOverviewPage />);
+    // the Copy button appears once the preview link has been fetched
+    expect(await screen.findByRole("button", { name: "Copy preview link" })).toBeInTheDocument();
+    expect(mockedJobs.previewLink).toHaveBeenCalledWith(JOB_ID);
+    expect(screen.getByText("link valid 7 days")).toBeInTheDocument();
+    const view = screen.getByRole("button", { name: "View as candidate" });
+    expect(view).toBeEnabled();
+    await userEvent.click(view);
+    expect(open).toHaveBeenCalledWith(
+      "http://localhost:3000/c/acme/jobs/senior-frontend-engineer?preview=tok",
+      "_blank",
+      "noopener",
+    );
+    open.mockRestore();
   });
 
   it("reloads the job and its stats after closing from the status card", async () => {

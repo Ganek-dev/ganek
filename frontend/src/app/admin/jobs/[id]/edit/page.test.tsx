@@ -24,6 +24,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
         update: vi.fn(),
         publish: vi.fn(),
         close: vi.fn(),
+        previewLink: vi.fn(),
       },
     },
     questionnaires: { ...original.questionnaires, list: vi.fn() },
@@ -71,6 +72,10 @@ describe("EditJobPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedJobs.get.mockResolvedValue(makeJob({}));
+    mockedJobs.previewLink.mockResolvedValue({
+      url: "http://x/jobs/s?preview=default",
+      expires_at: "2026-11-02T00:00:00Z",
+    });
     vi.mocked(questionnaires.list).mockResolvedValue([]);
     vi.mocked(questions.resolve).mockResolvedValue([]);
   });
@@ -89,6 +94,15 @@ describe("EditJobPage", () => {
     expect(screen.getByText(/Live since/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.queryByText("quiz preview")).not.toBeInTheDocument();
+  });
+
+  it("shows the preview actions for an unpublished job in the rail", async () => {
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "draft", published_at: null }));
+    mockedJobs.previewLink.mockResolvedValue({ url: "http://x/jobs/s?preview=t", expires_at: "2026-11-02T00:00:00Z" });
+    render(<EditJobPage />);
+    expect(await screen.findByRole("button", { name: "Copy preview link" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View as candidate" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View as candidate" })).not.toBeInTheDocument();
   });
 
   it("returns to the job overview after saving", async () => {
