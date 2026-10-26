@@ -19,6 +19,7 @@ const CANDIDATE_NAME = "Goldie Path";
 test("recruiter logs in, reviews the applicant, and advances the stage", async ({
   page,
   context,
+  browser,
 }) => {
   await test.step("log in through the UI", async () => {
     await page.goto("/login");
@@ -86,6 +87,27 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     await expect(
       page.locator("div.card", { hasText: "Views · 30d" }).first().locator("p").nth(1),
     ).toHaveText(before.toLocaleString("en-US"));
+  });
+
+  await test.step("a tracked share link lands in the sources table under its name", async () => {
+    const shareCard = page.locator("div.card", { hasText: "Share this job" }).first();
+    const linkedinRow = shareCard.getByRole("listitem").filter({ hasText: "LinkedIn" });
+    const shown = (await linkedinRow.locator("span").nth(1).textContent())!.trim();
+    expect(shown).toMatch(/\?src=linkedin$/);
+    // a stranger opens it: fresh context, no recruiter cookie, same desktop UA
+    const visitor = await browser.newContext({ baseURL: page.url() });
+    const visitorPage = await visitor.newPage();
+    await visitorPage.goto(`${new URL(page.url()).protocol}//${shown}`);
+    await expect(visitorPage.getByRole("heading", { name: QUIZ_JOB_TITLE }).first()).toBeVisible();
+    await visitor.close();
+    await page.reload();
+    const sourcesRow = page
+      .locator("div.card", { hasText: "Sources" })
+      .first()
+      .getByRole("row", { name: /^linkedin\b/ });
+    await expect(sourcesRow).toBeVisible();
+    const rowViews = Number((await sourcesRow.getByRole("cell").nth(1).textContent())!.replace(/,/g, ""));
+    expect(rowViews).toBeGreaterThanOrEqual(1);
   });
 
   await test.step("a draft previews as the candidate sees it, without applying", async () => {
