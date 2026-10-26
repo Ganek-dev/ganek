@@ -175,8 +175,12 @@ describe("JobOverviewPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("published").length).toBeGreaterThan(0);
     expect(await screen.findByText("Live since Jul 10 · 12 days open")).toBeInTheDocument();
-    expect(screen.getByText(/\/c\/acme\/jobs\/senior-frontend-engineer$/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy job URL" })).toBeInTheDocument();
+    const urlCard = screen
+      .getByRole("button", { name: "Copy job URL" })
+      .closest<HTMLElement>("div.card")!;
+    expect(
+      within(urlCard).getByText(/\/c\/acme\/jobs\/senior-frontend-engineer$/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
       `/admin/jobs/${JOB_ID}/edit`,
@@ -201,6 +205,22 @@ describe("JobOverviewPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("quiz preview")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/visitor/i);
+  });
+
+  it("offers tracked share links on a live job and asks a draft to publish first", async () => {
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Share this job")).closest("div")!;
+    const linkedinRow = (await within(card).findByText("LinkedIn")).closest("li")!;
+    expect(
+      within(linkedinRow).getByText(/\/c\/acme\/jobs\/senior-frontend-engineer$/),
+    ).toBeInTheDocument();
+    expect(within(linkedinRow).getByText("?src=linkedin")).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Copy LinkedIn link" })).toBeInTheDocument();
+    cleanup();
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "draft", published_at: null }));
+    render(<JobOverviewPage />);
+    const draftCard = (await screen.findByText("Share this job")).closest("div")!;
+    expect(within(draftCard).getByText("Publish to get share links.")).toBeInTheDocument();
   });
 
   it("hides the apply rate under 20 views and shows it from there", async () => {

@@ -12,6 +12,7 @@ import { DailyChart } from "@/components/DailyChart";
 import { AssessmentChip, StatusPill } from "@/components/JobStatus";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
+import { ShareLinksCard } from "@/components/ShareLinksCard";
 import {
   api,
   applications,
@@ -378,6 +379,7 @@ export default function JobOverviewPage() {
         </div>
 
         <div className="space-y-5">
+          <ShareLinksCard jobUrl={live ? jobUrl : null} live={live} />
           <JobStatusCard job={job} publicUrl={jobUrl} onError={setError} onChanged={reload} />
           <div className="card px-5 py-[18px]">
             <div className="flex items-center justify-between">
