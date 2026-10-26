@@ -86,6 +86,12 @@ FAMILIES = [
         security.read_google_signup_token,
         id="google-signup",
     ),
+    pytest.param(
+        security.PREVIEW_TOKEN_MAX_AGE_SECONDS,
+        lambda: security.create_preview_token(uuid.uuid4()),
+        security.read_preview_token,
+        id="job-preview",
+    ),
 ]
 
 
@@ -107,3 +113,6 @@ def test_published_ttls_stay_pinned() -> None:
     assert security.STATUS_TOKEN_MAX_AGE_SECONDS == 30 * DAY
     assert security.INTERVIEW_TOKEN_MAX_AGE_SECONDS == 60 * DAY
     assert security.QUIZ_TOKEN_MAX_AGE_SECONDS == 30 * DAY
+    # internal recruiter link, not promised in compliance copy; pinned so a
+    # change is still a deliberate one
+    assert security.PREVIEW_TOKEN_MAX_AGE_SECONDS == 7 * DAY

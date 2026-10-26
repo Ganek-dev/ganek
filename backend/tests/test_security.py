@@ -4,11 +4,13 @@ from app.core.security import (
     create_google_flow_token,
     create_google_signup_token,
     create_interview_token,
+    create_preview_token,
     create_session_token,
     hash_password,
     read_google_flow_token,
     read_google_signup_token,
     read_interview_token,
+    read_preview_token,
     read_session_token,
     verify_password,
 )
@@ -86,3 +88,11 @@ def test_interview_token_roundtrip() -> None:
 
 def test_interview_token_garbage() -> None:
     assert read_interview_token("garbage") is None
+
+
+def test_preview_token_roundtrip_and_tamper() -> None:
+    job_id = uuid.uuid4()
+    token = create_preview_token(job_id)
+    assert read_preview_token(token) == job_id
+    assert read_preview_token(token[:-2] + "xx") is None
+    assert read_preview_token("bogus") is None
