@@ -11,7 +11,9 @@ x-logging: &default-logging
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     logging: *default-logging
     env_file: .env
     environment:
@@ -41,7 +43,9 @@ services:
 
   worker:
     logging: *default-logging
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
     # arq exits (code 1) when redis goes away; without this a redis blip
     # silently ends nightly purges and queued email until someone notices
@@ -91,10 +95,14 @@ services:
 
   migrate:
     logging: *default-logging
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     env_file: .env
     environment:
       GANEK_DATABASE_URL: postgresql+asyncpg://ganek:${POSTGRES_PASSWORD:-ganek}@postgres:5432/ganek
+    # The image already carries questions/; this mount only lets a checkout
+    # seed locally edited YAML. Image-only deployments drop it.
     volumes:
       - ./questions:/srv/questions:ro
     command: sh -c "uv run alembic upgrade head && uv run python -m app.services.seed"

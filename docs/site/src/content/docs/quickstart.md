@@ -36,6 +36,8 @@ Postgres and Redis are not published on the host.
 
 Every release publishes `ghcr.io/ganek-dev/ganek-backend` and `ghcr.io/ganek-dev/ganek-frontend` tagged with the version (`0.3.0`) and `latest`. Pin a version tag in production and read the [upgrade notes](/self-hosting/#upgrades) before moving.
 
+The images are self-contained: the backend image carries the open question bank, so a compose file that only references the published images seeds it without a repository checkout. The `./questions` bind mount in the bundled compose file is optional; it exists so a checkout can seed locally edited YAML.
+
 ## Your own database
 
 Ganek expects a database of its own. The bundled Postgres has an isolated volume and no published port. If you point Ganek at an existing server instead, create a dedicated database for it and set `GANEK_DATABASE_URL`; do not share a database with another application.
