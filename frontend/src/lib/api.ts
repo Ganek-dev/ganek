@@ -999,6 +999,13 @@ export interface JobStats {
   weekly: { week_start: string; count: number }[];
   /** null for drafts and for jobs closed before closed_at existed */
   days_open: number | null;
+  /** counted job page loads (spec 5.5): bots, prefetches, previews and
+   * signed-in recruiters excluded; never unique visitors */
+  views: { total: number; last_30_days: number };
+  /** source label -> views, all time; same labels as by_source plus "other" */
+  views_by_source: Record<string, number>;
+  /** last 30 UTC days, oldest first, gaps filled */
+  daily: { day: string; views: number; applications: number }[];
 }
 
 export interface StatsOverview {
@@ -1021,6 +1028,8 @@ export interface StatsOverview {
     status: JobStatus;
     applications: number;
     new: number;
+    /** counted job page loads, today and the 29 days before */
+    views_30d: number;
   }[];
   weekly: { week_start: string; count: number }[];
   recent: {

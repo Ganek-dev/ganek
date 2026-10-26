@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -88,6 +88,13 @@ function makeJob(overrides: Partial<JobOut> = {}): JobOut {
 function makeStats(overrides: Partial<JobStats> = {}): JobStats {
   return {
     applications: { total: 5, new: 2, last_7_days: 3 },
+    views: { total: 3410, last_30_days: 1204 },
+    views_by_source: { linkedin: 40, "ref:tiny.example": 2 },
+    daily: Array.from({ length: 30 }, (_, i) => ({
+      day: `2026-07-${String(i + 1).padStart(2, "0")}`,
+      views: i,
+      applications: i % 7 === 0 ? 1 : 0,
+    })),
     last_30_days: 3,
     by_stage: { new: 2, screening: 1, hired: 2 },
     by_source: { linkedin: 3, direct: 2 },
@@ -182,11 +189,44 @@ describe("JobOverviewPage", () => {
     expect(within(quizTile).getByText("67%")).toBeInTheDocument();
     expect(within(quizTile).getByText("2 of 3 started · median 75%")).toBeInTheDocument();
     const viewsTile = screen.getByText("Views · 30d").closest("div")!;
-    expect(within(viewsTile).getByText("-")).toBeInTheDocument();
-    expect(within(viewsTile).getByText("not counted yet")).toBeInTheDocument();
-    const daysTile = screen.getByText("Days open").closest("div")!;
-    expect(within(daysTile).getByText("12")).toBeInTheDocument();
+    expect(within(viewsTile).getByText("1,204")).toBeInTheDocument();
+    expect(within(viewsTile).getByText("3,410 all time · not unique")).toBeInTheDocument();
+    expect(viewsTile).toHaveAttribute("title", expect.stringMatching(/^Page loads by people\./));
+    const rateTile = screen.getByText("Apply rate · 30d").closest("div")!;
+    expect(within(rateTile).getByText("0%")).toBeInTheDocument();
+    expect(within(rateTile).getByText("3 applications / 1,204 views")).toBeInTheDocument();
+    expect(screen.queryByText("Days open")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Views and applications, last 30 days" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("quiz preview")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/visitor/i);
+  });
+
+  it("hides the apply rate under 20 views and shows it from there", async () => {
+    mockedJobs.stats.mockResolvedValue(
+      makeStats({ views: { total: 19, last_30_days: 19 }, last_30_days: 5 }),
+    );
+    render(<JobOverviewPage />);
+    const rateTile = (await screen.findByText("Apply rate · 30d")).closest("div")!;
+    expect(within(rateTile).getByText("n/a")).toBeInTheDocument();
+    expect(within(rateTile).getByText("under 20 views")).toBeInTheDocument();
+    cleanup();
+    // a job older than the counter: applications without matching views
+    mockedJobs.stats.mockResolvedValue(
+      makeStats({ views: { total: 25, last_30_days: 25 }, last_30_days: 40 }),
+    );
+    render(<JobOverviewPage />);
+    const legacy = (await screen.findByText("Apply rate · 30d")).closest("div")!;
+    expect(await within(legacy).findByText("n/a")).toBeInTheDocument();
+    expect(within(legacy).getByText("applications outnumber counted views")).toBeInTheDocument();
+    cleanup();
+    mockedJobs.stats.mockResolvedValue(
+      makeStats({ views: { total: 100, last_30_days: 100 }, last_30_days: 10 }),
+    );
+    render(<JobOverviewPage />);
+    const shown = (await screen.findByText("Apply rate · 30d")).closest("div")!;
+    expect(await within(shown).findByText("10%")).toBeInTheDocument();
   });
 
   it("explains the draft state: no public link, empty tiles, no candidates", async () => {
@@ -216,8 +256,14 @@ describe("JobOverviewPage", () => {
     expect(await screen.findByText("Draft, not published")).toBeInTheDocument();
     expect(screen.getByText("Publish to get a public link")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy job URL" })).not.toBeInTheDocument();
-    const daysTile = screen.getByText("Days open").closest("div")!;
-    expect(within(daysTile).getByText("-")).toBeInTheDocument();
+    const viewsTile = screen.getByText("Views · 30d").closest("div")!;
+    expect(within(viewsTile).getByText("-")).toBeInTheDocument();
+    expect(within(viewsTile).getByText("Publish to start counting")).toBeInTheDocument();
+    const rateTile = screen.getByText("Apply rate · 30d").closest("div")!;
+    expect(within(rateTile).getByText("-")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Views and applications, last 30 days" }),
+    ).not.toBeInTheDocument();
     const applicationsTile = screen.getByText("Applications · 30d").closest("div")!;
     expect(within(applicationsTile).getByText("-")).toBeInTheDocument();
     expect(within(applicationsTile).getByText("Publish to start counting")).toBeInTheDocument();
@@ -294,18 +340,33 @@ describe("JobOverviewPage", () => {
     );
   });
 
-  it("lists where applications came from, most common first", async () => {
+  it("lists sources with views, applications and apply rate, most viewed first", async () => {
     render(<JobOverviewPage />);
     const card = (await screen.findByText("Sources")).closest("div")!;
-    const rows = within(card).getAllByRole("listitem");
-    expect(rows.map((row) => row.textContent)).toEqual(["linkedin3", "direct2"]);
+    const table = within(card).getByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "Views" })).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Page loads by people\./),
+    );
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map((row) => row.textContent)).toEqual(["linkedin4038%", "direct02-"]);
+    // a ref: row under 5 views with no application is advisory noise (JP8)
+    expect(within(card).queryByText("ref:tiny.example")).not.toBeInTheDocument();
   });
 
-  it("says when no application has a source yet", async () => {
-    mockedJobs.stats.mockResolvedValue(makeStats({ by_source: {} }));
+  it("says when nothing was viewed or applied for yet", async () => {
+    mockedJobs.stats.mockResolvedValue(makeStats({ by_source: {}, views_by_source: {} }));
     render(<JobOverviewPage />);
     const card = (await screen.findByText("Sources")).closest("div")!;
-    expect(within(card).getByText("No applications yet.")).toBeInTheDocument();
+    expect(within(card).getByText("No views or applications yet.")).toBeInTheDocument();
+  });
+
+  it("shows a skeleton, not an empty claim, while stats load", async () => {
+    mockedJobs.stats.mockReturnValue(new Promise(() => {}));
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Sources")).closest("div")!;
+    expect(within(card).getByLabelText("Loading sources")).toHaveAttribute("aria-busy", "true");
+    expect(within(card).queryByText(/No views/)).not.toBeInTheDocument();
   });
 
   it("offers View as candidate as a plain link on a live job", async () => {

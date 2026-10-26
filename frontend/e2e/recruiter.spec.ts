@@ -4,6 +4,7 @@ import {
   ADMIN_EMAIL,
   ADMIN_PASSWORD,
   DRAFT_JOB_TITLE,
+  QUIZ_JOB_SLUG,
   QUIZ_JOB_TITLE,
   QUIZ_QUESTION_COUNT,
 } from "./stack";
@@ -62,6 +63,29 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page).toHaveURL(/\/admin\/jobs\/[0-9a-f-]{36}$/);
     await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE })).toBeVisible();
+  });
+
+  await test.step("the candidate's visit was counted, the recruiter's is not", async () => {
+    const viewsValue = page.locator("div.card", { hasText: "Views · 30d" }).first().locator("p").nth(1);
+    await expect(viewsValue).toHaveText(/^[\d,]+$/);
+    const before = Number((await viewsValue.textContent())!.replace(/,/g, ""));
+    expect(before, "candidate.spec loaded the job page once as a person").toBeGreaterThanOrEqual(1);
+    const sourceRow = page
+      .locator("div.card", { hasText: "Sources" })
+      .first()
+      .getByRole("row", { name: /link:e2e-link/ });
+    await expect(sourceRow).toBeVisible();
+    const rowViews = Number((await sourceRow.getByRole("cell").nth(1).textContent())!.replace(/,/g, ""));
+    expect(rowViews).toBeGreaterThanOrEqual(1);
+
+    // the signed-in recruiter opens the live page on this domain: not a view
+    const overviewUrl = page.url();
+    await page.goto(`/jobs/${QUIZ_JOB_SLUG}`);
+    await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE }).first()).toBeVisible();
+    await page.goto(overviewUrl);
+    await expect(
+      page.locator("div.card", { hasText: "Views · 30d" }).first().locator("p").nth(1),
+    ).toHaveText(before.toLocaleString("en-US"));
   });
 
   await test.step("a draft previews as the candidate sees it, without applying", async () => {

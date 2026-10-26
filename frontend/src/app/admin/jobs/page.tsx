@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 
 import { api, stats, type JobOut, type JobStatus } from "@/lib/api";
+import { VIEWS_TOOLTIP, formatCount } from "@/lib/job-metrics";
 import { AssessmentChip, STATUS_PILL } from "@/components/JobStatus";
 import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
@@ -52,6 +53,8 @@ export function defaultFilter(jobs: JobOut[]): JobFilter {
 interface ApplicantCounts {
   applications: number;
   new: number;
+  /** counted job page loads, last 30 days (spec 5.5) */
+  views: number;
 }
 
 function RowMenu({
@@ -120,7 +123,7 @@ function JobsPageInner() {
           Object.fromEntries(
             overview.per_job.map((row) => [
               row.job_id,
-              { applications: row.applications, new: row.new },
+              { applications: row.applications, new: row.new, views: row.views_30d },
             ]),
           ),
         ),
@@ -234,7 +237,7 @@ function JobsPageInner() {
             "No jobs match."
           ) : (
             <>
-              No jobs yet —{" "}
+              No jobs yet -{" "}
               <Link href="/admin/jobs/new" className="text-accent underline">
                 create your first
               </Link>
@@ -250,6 +253,9 @@ function JobsPageInner() {
                 <th className="h-10 px-4 font-medium">Role</th>
                 <th className="h-10 px-3 font-medium">Status</th>
                 <th className="h-10 px-3 font-medium">Applicants</th>
+                <th className="h-10 px-3 font-medium" title={VIEWS_TOOLTIP}>
+                  Views · 30d
+                </th>
                 <th className="h-10 px-3 font-medium">Assessment</th>
                 <th className="h-10 px-3 font-medium">Posted</th>
                 <th className="h-10 px-3" />
@@ -297,13 +303,18 @@ function JobsPageInner() {
                     </td>
                     <td className="px-3 py-3 align-middle whitespace-nowrap">
                       <span className="font-mono text-[13px]">
-                        {applicant === undefined ? "—" : applicant.applications}
+                        {applicant === undefined ? "-" : applicant.applications}
                       </span>
                       {applicant !== undefined && applicant.new > 0 ? (
                         <span className="ml-1.5 font-mono text-[11px] font-semibold text-accent">
                           +{applicant.new} new
                         </span>
                       ) : null}
+                    </td>
+                    <td className="px-3 py-3 align-middle whitespace-nowrap">
+                      <span className="font-mono text-[13px]">
+                        {applicant === undefined ? "-" : formatCount(applicant.views)}
+                      </span>
                     </td>
                     <td className="px-3 py-3 align-middle whitespace-nowrap">
                       <AssessmentChip job={job} />
@@ -314,7 +325,7 @@ function JobsPageInner() {
                             month: "short",
                             day: "numeric",
                           })
-                        : "—"}
+                        : "-"}
                     </td>
                     <td className="px-3 py-3 text-right align-middle">
                       <RowMenu job={job} onAction={act} />

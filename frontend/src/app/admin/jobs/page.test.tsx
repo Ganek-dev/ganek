@@ -114,9 +114,9 @@ describe("JobsPage", () => {
     ]);
     mockedStats.overview.mockResolvedValue(
       makeOverview([
-        { job_id: LIVE_ID, title: "Live role", status: "published", applications: 12, new: 7 },
-        { job_id: DRAFT_ID, title: "Draft role", status: "draft", applications: 0, new: 0 },
-        { job_id: CLOSED_ID, title: "Old role", status: "closed", applications: 3, new: 0 },
+        { job_id: LIVE_ID, title: "Live role", status: "published", applications: 12, new: 7, views_30d: 1340 },
+        { job_id: DRAFT_ID, title: "Draft role", status: "draft", applications: 0, new: 0, views_30d: 0 },
+        { job_id: CLOSED_ID, title: "Old role", status: "closed", applications: 3, new: 0, views_30d: 25 },
       ]),
     );
   });
@@ -301,6 +301,20 @@ describe("JobsPage", () => {
     mockedStats.overview.mockRejectedValue(new Error("boom"));
     render(<JobsPage />);
     const row = (await screen.findByText("Live role")).closest("tr")!;
-    expect(within(row).getAllByText("—").length).toBeGreaterThan(0);
+    // applicants and views cells both fall back to a plain dash
+    expect(within(row).getAllByText("-").length).toBeGreaterThanOrEqual(2);
+    expect(within(row).queryByText("—")).not.toBeInTheDocument();
+  });
+
+  it("shows counted views for the last 30 days per job", async () => {
+    search = new URLSearchParams("status=all");
+    render(<JobsPage />);
+    const row = (await screen.findByText("Live role")).closest("tr")!;
+    expect(screen.getByRole("columnheader", { name: "Views · 30d" })).toBeInTheDocument();
+    expect(await within(row).findByText("1,340")).toBeInTheDocument();
+    const closedRow = screen.getByText("Old role").closest("tr")!;
+    expect(within(closedRow).getByText("25")).toBeInTheDocument();
+    const draftRow = screen.getByText("Draft role").closest("tr")!;
+    expect(within(draftRow).getAllByText("0").length).toBeGreaterThanOrEqual(1);
   });
 });
