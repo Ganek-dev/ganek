@@ -31,10 +31,11 @@ test("candidate applies, takes the quiz, and lands on the status page", async ({
   });
 
   await test.step("careers page lists the job (SSR, single mode)", async () => {
-    await page.goto("/");
+    // a tracked link: the careers page must carry the source to the job link
+    await page.goto("/?src=e2e-link");
     await expect(page.getByText(COMPANY_NAME).first()).toBeVisible();
     await page.getByRole("link", { name: new RegExp(QUIZ_JOB_TITLE) }).first().click();
-    await expect(page).toHaveURL(new RegExp(`/jobs/${QUIZ_JOB_SLUG}`));
+    await expect(page).toHaveURL(new RegExp(`/jobs/${QUIZ_JOB_SLUG}\\?src=link%3Ae2e-link`));
     await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE }).first()).toBeVisible();
   });
 

@@ -37,9 +37,10 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     await row.click();
   });
 
-  await test.step("panel shows the completed quiz", async () => {
+  await test.step("panel shows the completed quiz and where the candidate came from", async () => {
     await expect(page.getByText(`Q${QUIZ_QUESTION_COUNT}`, { exact: false }).first()).toBeVisible();
     await expect(page.getByText("Integrity").first()).toBeVisible();
+    await expect(page.getByText(/via link:e2e-link/)).toBeVisible();
   });
 
   await test.step("advance the stage", async () => {
