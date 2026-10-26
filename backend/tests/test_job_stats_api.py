@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Application, AttemptStatus, Job, JobStatus, QuizAttempt
+from app.services.views import record_view
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 
@@ -253,3 +254,60 @@ async def test_job_stats_count_applications_by_source(client: AsyncClient) -> No
     await ws.login()
     stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
     assert stats["by_source"] == {"linkedin": 1, "direct": 1, "link:newsletter": 1}
+
+
+VIEW_HEADERS = {"X-Ganek-View": "1", "X-Ganek-Source": "linkedin"}
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_job_stats_include_views_sources_and_daily_series(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ws = await _register(client)
+    job_id, _ = await ws.published_job_with_applicant("Backend Engineer", source="linkedin")
+    job = (await client.get(f"/api/v1/jobs/{job_id}")).json()
+    await ws.apply(job["slug"])  # no source: counts as direct
+    # two counted candidate loads today, one old direct view outside the 30 days
+    public_url = f"/api/v1/public/companies/{ws.slug}/jobs/{job['slug']}"
+    for _ in range(2):
+        assert (await client.get(public_url, headers=VIEW_HEADERS)).status_code == 200
+    today = datetime.now(UTC).date()
+    await record_view(db_session, UUID(job_id), "direct", day=today - timedelta(days=40))
+    await ws.login()
+
+    stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
+    assert stats["views"] == {"total": 3, "last_30_days": 2}
+    assert stats["views_by_source"] == {"linkedin": 2, "direct": 1}
+    daily = stats["daily"]
+    assert len(daily) == 30
+    assert [point["day"] for point in daily] == [
+        (today - timedelta(days=29 - i)).isoformat() for i in range(30)
+    ]
+    assert daily[-1] == {"day": today.isoformat(), "views": 2, "applications": 2}
+    assert daily[0] == {
+        "day": (today - timedelta(days=29)).isoformat(),
+        "views": 0,
+        "applications": 0,
+    }
+
+    overview = (await client.get("/api/v1/stats/overview")).json()
+    row = next(r for r in overview["per_job"] if r["job_id"] == job_id)
+    assert row["views_30d"] == 2
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_per_job_views_are_tenant_scoped(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await _register(client)
+    job = (await client.post("/api/v1/jobs", json={"title": "Viewed Role"})).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    for _ in range(3):
+        await record_view(db_session, UUID(job["id"]), "direct")
+    mine = (await client.get("/api/v1/stats/overview")).json()
+    assert [r["views_30d"] for r in mine["per_job"] if r["job_id"] == job["id"]] == [3]
+
+    await _register(client)  # a second company, now signed in
+    theirs = (await client.get("/api/v1/stats/overview")).json()
+    assert job["id"] not in [r["job_id"] for r in theirs["per_job"]]
+    assert (await client.get(f"/api/v1/jobs/{job['id']}/stats")).status_code == 404
