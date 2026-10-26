@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { ApplyForm } from "@/components/ApplyForm";
@@ -9,6 +9,7 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { PreviewBar } from "@/components/PreviewBar";
 import { demoRobots, fetchInstanceInfo, publicApi, resolveJobView } from "@/lib/public-api";
 import { resolveSource, websiteHostOf } from "@/lib/source";
+import { isPrefetch, shouldCountView, viewHeaders } from "@/lib/views";
 
 interface Props {
   params: Promise<{ slug: string; jobSlug: string }>;
@@ -36,18 +37,38 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 }
 
 export default async function CompanyJobPage({ params, searchParams }: Props) {
-  const [{ slug, jobSlug }, query, requestHeaders] = await Promise.all([
+  const [{ slug, jobSlug }, query, requestHeaders, cookieStore] = await Promise.all([
     params,
     searchParams,
     headers(),
+    cookies(),
   ]);
   const { preview } = query;
-  const [page, { job, previewing }, { demo }] = await Promise.all([
-    publicApi.companyPage(slug),
-    resolveJobView((token) => publicApi.companyJob(slug, jobSlug, token), preview),
+  // the company first: the source bucket needs its website host
+  const page = await publicApi.companyPage(slug);
+  if (!page) notFound();
+
+  // where this visit came from (spec 5.4): src > utm_source > Referer > direct
+  const source = resolveSource({
+    src: query.src,
+    utm_source: query.utm_source,
+    referer: requestHeaders.get("referer"),
+    websiteHost: websiteHostOf(page.company.website),
+  });
+  // spec 5.5: only the page render counts a view, and only for a person
+  // who is not the signed-in recruiter, not previewing, not prefetching
+  const view = shouldCountView({
+    userAgent: requestHeaders.get("user-agent"),
+    hasSession: cookieStore.has("ganek_session"),
+    preview,
+    prefetch: isPrefetch(requestHeaders),
+  })
+    ? viewHeaders(source)
+    : undefined;
+  const [{ job, previewing }, { demo }] = await Promise.all([
+    resolveJobView((token) => publicApi.companyJob(slug, jobSlug, token, view), preview),
     fetchInstanceInfo(),
   ]);
-  if (!page) notFound();
   if (!job) {
     // screen 27a: job gone, company still live — themed, with a way back
     return (
@@ -60,14 +81,6 @@ export default async function CompanyJobPage({ params, searchParams }: Props) {
       </main>
     );
   }
-
-  // where this visit came from (spec 5.4): src > utm_source > Referer > direct
-  const source = resolveSource({
-    src: query.src,
-    utm_source: query.utm_source,
-    referer: requestHeaders.get("referer"),
-    websiteHost: websiteHostOf(page.company.website),
-  });
 
   return (
     <main

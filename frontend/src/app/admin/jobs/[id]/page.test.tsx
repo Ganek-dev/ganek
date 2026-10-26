@@ -88,6 +88,9 @@ function makeJob(overrides: Partial<JobOut> = {}): JobOut {
 function makeStats(overrides: Partial<JobStats> = {}): JobStats {
   return {
     applications: { total: 5, new: 2, last_7_days: 3 },
+    views: { total: 0, last_30_days: 0 },
+    views_by_source: {},
+    daily: [],
     last_30_days: 3,
     by_stage: { new: 2, screening: 1, hired: 2 },
     by_source: { linkedin: 3, direct: 2 },

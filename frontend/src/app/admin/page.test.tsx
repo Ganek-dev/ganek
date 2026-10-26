@@ -31,7 +31,7 @@ const overview: StatsOverview = {
       title: "Backend Engineer",
       status: "published",
       applications: 12,
-      new: 5,
+      new: 5, views_30d: 0,
     },
   ],
   weekly: Array.from({ length: 8 }, (_, i) => ({

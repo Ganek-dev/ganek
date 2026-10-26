@@ -55,8 +55,11 @@ export interface PublicPrivacyNotice {
   logo_url: string | null;
 }
 
-async function get<T>(path: string): Promise<T | null> {
-  const resp = await fetch(`${BACKEND_URL}${path}`, { cache: "no-store" });
+async function get<T>(path: string, headers?: Record<string, string>): Promise<T | null> {
+  const resp = await fetch(`${BACKEND_URL}${path}`, {
+    cache: "no-store",
+    ...(headers ? { headers } : {}),
+  });
   if (resp.status === 404) return null;
   if (!resp.ok) throw new Error(`Backend responded ${resp.status} for ${path}`);
   return (await resp.json()) as T;
@@ -118,15 +121,21 @@ export async function resolveJobView(
   return { job, previewing: live === null };
 }
 
+/** `headers` carries the view headers (`lib/views.ts`) on the one page-render
+ * fetch that counts; metadata and preview lookups never pass them. */
 export const publicApi = {
   companyPage: (slug: string) => get<PublicCompanyPage>(`/api/v1/public/companies/${slug}`),
-  companyJob: (slug: string, jobSlug: string, preview?: string) =>
+  companyJob: (slug: string, jobSlug: string, preview?: string, headers?: Record<string, string>) =>
     get<PublicJobDetail>(
       `/api/v1/public/companies/${slug}/jobs/${jobSlug}${previewQuery(preview)}`,
+      headers,
     ),
   singleCompanyPage: () => get<PublicCompanyPage>("/api/v1/public/company"),
-  singleCompanyJob: (jobSlug: string, preview?: string) =>
-    get<PublicJobDetail>(`/api/v1/public/company/jobs/${jobSlug}${previewQuery(preview)}`),
+  singleCompanyJob: (jobSlug: string, preview?: string, headers?: Record<string, string>) =>
+    get<PublicJobDetail>(
+      `/api/v1/public/company/jobs/${jobSlug}${previewQuery(preview)}`,
+      headers,
+    ),
   companyPrivacy: (slug: string) =>
     get<PublicPrivacyNotice>(`/api/v1/public/companies/${slug}/privacy`),
   singlePrivacy: () => get<PublicPrivacyNotice>("/api/v1/public/company/privacy"),

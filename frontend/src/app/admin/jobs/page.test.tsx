@@ -114,9 +114,9 @@ describe("JobsPage", () => {
     ]);
     mockedStats.overview.mockResolvedValue(
       makeOverview([
-        { job_id: LIVE_ID, title: "Live role", status: "published", applications: 12, new: 7 },
-        { job_id: DRAFT_ID, title: "Draft role", status: "draft", applications: 0, new: 0 },
-        { job_id: CLOSED_ID, title: "Old role", status: "closed", applications: 3, new: 0 },
+        { job_id: LIVE_ID, title: "Live role", status: "published", applications: 12, new: 7, views_30d: 0 },
+        { job_id: DRAFT_ID, title: "Draft role", status: "draft", applications: 0, new: 0, views_30d: 0 },
+        { job_id: CLOSED_ID, title: "Old role", status: "closed", applications: 3, new: 0, views_30d: 0 },
       ]),
     );
   });
