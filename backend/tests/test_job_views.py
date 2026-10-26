@@ -212,3 +212,26 @@ async def test_record_view_task_never_raises() -> None:
     dead = create_async_engine("postgresql+asyncpg://nobody:nothing@127.0.0.1:1/none")
     assert await record_view_task(dead, uuid4(), "direct") is None
     await dead.dispose()
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_fold_never_swallows_known_buckets_or_direct(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Review focus 2: a spam run must not push real traffic into 'other'."""
+    from app.services.views import MAX_SOURCES_PER_DAY, OTHER, record_view
+
+    slug = await _register(client)
+    job = await _publish(client, "Spam Then Real Role")
+    job_id = UUID(job["id"])
+    for i in range(MAX_SOURCES_PER_DAY + 10):
+        await record_view(db_session, job_id, f"link:spam{i}")
+    assert await _view(client, slug, job["slug"], {**VIEW, "X-Ganek-Source": "<script>"}) == 200
+    assert await _view(client, slug, job["slug"], {**VIEW, "X-Ganek-Source": "linkedin"}) == 200
+    assert await record_view(db_session, job_id, "ref:late.example") == OTHER
+    rows = await _rows(db_session, job["id"])
+    assert rows[(_today(), "direct")] == 1
+    assert rows[(_today(), "linkedin")] == 1
+    assert rows[(_today(), OTHER)] == 11
+    named_links = [s for (_, s) in rows if s.startswith("link:")]
+    assert len(named_links) == MAX_SOURCES_PER_DAY

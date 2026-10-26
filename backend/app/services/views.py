@@ -51,23 +51,33 @@ def today() -> date:
     return datetime.now(UTC).date()
 
 
+def is_open_ended(source: str) -> bool:
+    """``link:<name>`` and ``ref:<host>`` are chosen by whoever sends them;
+    only those count against the daily source budget."""
+    return source.startswith(("link:", "ref:"))
+
+
 async def record_view(
     db: AsyncSession, job_id: uuid.UUID, source: str, day: date | None = None
 ) -> str:
     """Add one view to (job, day, source) and commit. Returns the stored
-    label: ``source``, or ``other`` once the day already holds
-    ``MAX_SOURCES_PER_DAY`` distinct sources and this is a new one."""
+    label: ``source``, or ``other`` for a new ``link:`` / ``ref:`` name once
+    the day already holds ``MAX_SOURCES_PER_DAY`` distinct ones. ``direct``
+    and the known buckets never fold: a spam run must not turn real
+    traffic into ``other`` (review focus 2)."""
     day = day or today()
-    existing = set(
-        (
-            await db.execute(
-                select(JobView.source).where(JobView.job_id == job_id, JobView.day == day)
-            )
-        ).scalars()
-    )
     label = source
-    if source not in existing and len(existing) >= MAX_SOURCES_PER_DAY:
-        label = OTHER
+    if is_open_ended(source):
+        existing = set(
+            (
+                await db.execute(
+                    select(JobView.source).where(JobView.job_id == job_id, JobView.day == day)
+                )
+            ).scalars()
+        )
+        named = {s for s in existing if is_open_ended(s)}
+        if source not in named and len(named) >= MAX_SOURCES_PER_DAY:
+            label = OTHER
     stmt = (
         pg_insert(JobView)
         .values(job_id=job_id, day=day, source=label, views=1)
