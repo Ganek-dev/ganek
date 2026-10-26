@@ -39,7 +39,7 @@ staff (accounts, calendar connections).
 | Integrity telemetry | Events of exactly three types - window focus lost (with duration), paste occurred, window resized - each tied to the question that was open; derived review flags | Quiz page during an attempt |
 | Scheduling | Chosen interview slot, timezone; Google Calendar event with name + email (only if used) | Booking page |
 | Pipeline metadata | Stage history, decision timestamps, recruiter notes about the candidate, activity entries | Recruiting staff |
-| Page views (aggregate, not personal data) | Daily total of job-page loads per job and per source label (for example linkedin, google, direct, a tracked-link name, a referring site's domain); no IP, user agent, cookie or visitor identifier | Server render of the job page |
+| Page views (aggregate, not personal data) | Daily total of job-page loads per job and per source label (for example linkedin, google, direct, a tracked-link name, a referring site's domain; name tracked links after channels, never after a person); no IP, user agent, cookie or visitor identifier | Server render of the job page |
 
 **Explicitly not collected:** IP addresses and user agents are not stored
 in telemetry or application records (IPs appear only in short-lived
