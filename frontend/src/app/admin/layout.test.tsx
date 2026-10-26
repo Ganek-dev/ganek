@@ -64,6 +64,7 @@ describe("AdminLayout", () => {
       applications: { total: 10, new: 7, last_7_days: 2 },
       quiz: {
         attempts_total: 0,
+        attempts_started: 0,
         attempts_completed: 0,
         completion_rate: null,
         avg_score: null,

@@ -21,7 +21,8 @@ class ApplicationCounts(BaseModel):
 
 
 class QuizCounts(BaseModel):
-    attempts_total: int = 0
+    attempts_total: int = 0  # issued attempts; superseded (invalidated) ones excluded
+    attempts_started: int = 0  # opened by the candidate (started_at set)
     attempts_completed: int = 0
     completion_rate: float | None = None  # None when no attempts yet
     avg_score: float | None = None  # across completed attempts

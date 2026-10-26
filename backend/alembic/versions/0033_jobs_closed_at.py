@@ -18,6 +18,11 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("jobs", sa.Column("closed_at", sa.DateTime(timezone=True), nullable=True))
+    # jobs closed before this column existed: updated_at is the closest proxy
+    # (late only if the posting was edited after closing)
+    op.execute(
+        "UPDATE jobs SET closed_at = updated_at WHERE status = 'closed' AND closed_at IS NULL"
+    )
 
 
 def downgrade() -> None:

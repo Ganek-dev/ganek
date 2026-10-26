@@ -1,5 +1,5 @@
 """Per-job stats endpoint (job overview card): applications by stage, quiz
-counts, weekly series and days open, always tenant-scoped."""
+counts, weekly series and days open, always tenant- and job-scoped."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -10,7 +10,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Application, AttemptStatus, Job, QuizAttempt
+from app.models import Application, AttemptStatus, Job, JobStatus, QuizAttempt
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 
@@ -27,9 +27,47 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
 
 
-async def _company_with_applicant(client: AsyncClient) -> tuple[str, str]:
-    """Registers a company, publishes a job, applies once as a candidate and
-    logs back in as the admin. Returns (job_id, application_id)."""
+class Workspace:
+    """One registered company: admin creds, slug, and a way to create jobs
+    with applicants through the public apply flow."""
+
+    def __init__(self, client: AsyncClient, creds: dict[str, str], slug: str) -> None:
+        self.client = client
+        self.creds = creds
+        self.slug = slug
+
+    async def login(self) -> None:
+        resp = await self.client.post("/api/v1/auth/login", json=self.creds)
+        assert resp.status_code == 200, resp.text
+
+    async def published_job_with_applicant(self, title: str) -> tuple[str, str]:
+        """Creates and publishes a job, applies once as a candidate (which
+        logs the admin out), logs the admin back in. Returns
+        (job_id, application_id)."""
+        job = (await self.client.post("/api/v1/jobs", json={"title": title})).json()
+        assert (await self.client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+        await self.client.post("/api/v1/auth/logout")
+
+        base = f"/api/v1/public/companies/{self.slug}/jobs/{job['slug']}"
+        ticket = (await self.client.post(f"{base}/apply/upload-url")).json()
+        assert (await upload_pdf(ticket, PDF_BYTES)).is_success
+        resp = await self.client.post(
+            f"{base}/apply",
+            json={
+                "name": "Marta Vidal",
+                "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
+                "cv_object_key": ticket["object_key"],
+                "cv_filename": "marta.pdf",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+
+        await self.login()
+        page = (await self.client.get("/api/v1/applications", params={"job_id": job["id"]})).json()
+        return job["id"], page["items"][0]["id"]
+
+
+async def _register(client: AsyncClient) -> Workspace:
     creds = {
         "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
         "password": "a-long-secure-password",
@@ -37,48 +75,32 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str]:
     name = f"Stats Co {uuid4().hex[:6]}"
     resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
     assert resp.status_code == 201, resp.text
-    slug = name.lower().replace(" ", "-")
-
-    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
-    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
-    await client.post("/api/v1/auth/logout")
-
-    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}"
-    ticket = (await client.post(f"{base}/apply/upload-url")).json()
-    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
-    resp = await client.post(
-        f"{base}/apply",
-        json={
-            "name": "Marta Vidal",
-            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
-            "cv_object_key": ticket["object_key"],
-            "cv_filename": "marta.pdf",
-        },
-    )
-    assert resp.status_code == 201, resp.text
-
-    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
-    application_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
-    return job["id"], application_id
+    return Workspace(client, creds, name.lower().replace(" ", "-"))
 
 
-async def _add_completed_attempt(
-    db_session: AsyncSession, application_id: str, score: float
+async def _add_attempt(
+    db_session: AsyncSession,
+    application_id: str,
+    *,
+    status: AttemptStatus = AttemptStatus.COMPLETED,
+    score: float | None = None,
+    started: bool = True,
 ) -> None:
     application = await db_session.get(Application, UUID(application_id))
     assert application is not None
     now = datetime.now(UTC)
+    completed = status is AttemptStatus.COMPLETED
     db_session.add(
         QuizAttempt(
             company_id=application.company_id,
             application_id=application.id,
-            status=AttemptStatus.COMPLETED,
+            status=status,
             question_ids=["q1", "q2"],
             time_limit_seconds=None,
-            started_at=now - timedelta(minutes=5),
-            completed_at=now,
+            started_at=now - timedelta(minutes=5) if started else None,
+            completed_at=now if completed else None,
             expires_at=now + timedelta(days=7),
-            score=score,
+            score=score if completed else None,
         )
     )
     await db_session.commit()
@@ -88,8 +110,9 @@ async def _add_completed_attempt(
 async def test_job_stats_counts_applications_by_stage_and_quiz(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    job_id, application_id = await _company_with_applicant(client)
-    await _add_completed_attempt(db_session, application_id, 0.75)
+    ws = await _register(client)
+    job_id, application_id = await ws.published_job_with_applicant("Backend Engineer")
+    await _add_attempt(db_session, application_id, score=0.75)
 
     resp = await client.get(f"/api/v1/jobs/{job_id}/stats")
     assert resp.status_code == 200, resp.text
@@ -99,6 +122,7 @@ async def test_job_stats_counts_applications_by_stage_and_quiz(
     assert stats["last_30_days"] == 1
     assert stats["by_stage"] == {"new": 1}
     assert stats["quiz"]["attempts_total"] == 1
+    assert stats["quiz"]["attempts_started"] == 1
     assert stats["quiz"]["attempts_completed"] == 1
     assert stats["quiz"]["median_score"] == 0.75
     assert stats["days_open"] == 0
@@ -107,27 +131,69 @@ async def test_job_stats_counts_applications_by_stage_and_quiz(
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_job_stats_are_scoped_to_the_job_not_the_company(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ws = await _register(client)
+    job_id, application_id = await ws.published_job_with_applicant("Backend Engineer")
+    await _add_attempt(db_session, application_id, score=0.75)
+    other_job_id, other_application_id = await ws.published_job_with_applicant("Data Engineer")
+    await _add_attempt(db_session, other_application_id, score=0.25)
+    resp = await client.patch(
+        f"/api/v1/applications/{other_application_id}/stage",
+        json={"stage": "screening", "notify_candidate": False},
+    )
+    assert resp.status_code == 200, resp.text
+
+    stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
+    assert stats["applications"]["total"] == 1
+    assert stats["by_stage"] == {"new": 1}
+    assert stats["quiz"]["attempts_total"] == 1
+    assert stats["quiz"]["median_score"] == 0.75
+    assert stats["weekly"][-1]["count"] == 1
+
+    other = (await client.get(f"/api/v1/jobs/{other_job_id}/stats")).json()
+    assert other["by_stage"] == {"screening": 1}
+    assert other["quiz"]["median_score"] == 0.25
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_job_stats_quiz_denominators_skip_invalidated_and_count_started(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ws = await _register(client)
+    job_id, application_id = await ws.published_job_with_applicant("Backend Engineer")
+    # a re-issue leaves the superseded attempt INVALIDATED: audit only
+    await _add_attempt(db_session, application_id, status=AttemptStatus.INVALIDATED)
+    # an invite never opened: issued but not started
+    await _add_attempt(db_session, application_id, status=AttemptStatus.PENDING, started=False)
+    await _add_attempt(db_session, application_id, score=0.5)
+
+    quiz = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()["quiz"]
+    assert quiz["attempts_total"] == 2
+    assert quiz["attempts_started"] == 1
+    assert quiz["attempts_completed"] == 1
+    assert quiz["completion_rate"] == 0.5
+    assert quiz["median_score"] == 0.5
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_job_stats_without_attempts_has_null_rates(client: AsyncClient) -> None:
-    job_id, _ = await _company_with_applicant(client)
+    ws = await _register(client)
+    job_id, _ = await ws.published_job_with_applicant("Backend Engineer")
     stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
     assert stats["quiz"]["attempts_total"] == 0
+    assert stats["quiz"]["attempts_started"] == 0
     assert stats["quiz"]["completion_rate"] is None
     assert stats["quiz"]["median_score"] is None
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_job_stats_is_tenant_scoped(client: AsyncClient) -> None:
-    job_id, _ = await _company_with_applicant(client)
+    ws = await _register(client)
+    job_id, _ = await ws.published_job_with_applicant("Backend Engineer")
     await client.post("/api/v1/auth/logout")
-    resp = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "company_name": f"Other Co {uuid4().hex[:6]}",
-            "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",
-            "password": "a-long-secure-password",
-        },
-    )
-    assert resp.status_code == 201, resp.text
+    await _register(client)
     assert (await client.get(f"/api/v1/jobs/{job_id}/stats")).status_code == 404
 
 
@@ -135,7 +201,8 @@ async def test_job_stats_is_tenant_scoped(client: AsyncClient) -> None:
 async def test_job_stats_days_open_uses_closed_at(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    job_id, _ = await _company_with_applicant(client)
+    ws = await _register(client)
+    job_id, _ = await ws.published_job_with_applicant("Backend Engineer")
     await db_session.execute(
         update(Job)
         .where(Job.id == UUID(job_id))
@@ -143,5 +210,29 @@ async def test_job_stats_days_open_uses_closed_at(
     )
     await db_session.commit()
     assert (await client.post(f"/api/v1/jobs/{job_id}/close")).status_code == 200
+    job = (await client.get(f"/api/v1/jobs/{job_id}")).json()
+    assert job["closed_at"] is not None
     stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
     assert stats["days_open"] == 10
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_job_stats_days_open_is_null_for_closed_jobs_without_closed_at(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Jobs closed before migration 0033 have no closed_at: the overview
+    must show "-" rather than a number that grows every day."""
+    ws = await _register(client)
+    job_id, _ = await ws.published_job_with_applicant("Backend Engineer")
+    await db_session.execute(
+        update(Job)
+        .where(Job.id == UUID(job_id))
+        .values(
+            status=JobStatus.CLOSED,
+            closed_at=None,
+            published_at=datetime.now(UTC) - timedelta(days=30),
+        )
+    )
+    await db_session.commit()
+    stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
+    assert stats["days_open"] is None

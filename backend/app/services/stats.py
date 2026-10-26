@@ -13,6 +13,7 @@ from app.models import (
     Candidate,
     Company,
     Job,
+    JobStatus,
     QuizAttempt,
 )
 from app.schemas.stats import (
@@ -67,7 +68,11 @@ SCORE_BUCKETS = 10  # 10-point-wide histogram buckets over 0–100
 def _attempt_scope(company: Company, job_id: uuid.UUID | None) -> list[ColumnElement[bool]]:
     """Where-conditions for one company's attempts, narrowed to one job when
     asked (QuizAttempt has no job_id; the join rides Application)."""
-    conditions: list[ColumnElement[bool]] = [QuizAttempt.company_id == company.id]
+    conditions: list[ColumnElement[bool]] = [
+        QuizAttempt.company_id == company.id,
+        # a re-issue invalidates the earlier attempt: audit history, not a stat
+        QuizAttempt.status != AttemptStatus.INVALIDATED,
+    ]
     if job_id is not None:
         conditions.append(Application.id == QuizAttempt.application_id)
         conditions.append(Application.job_id == job_id)
@@ -83,6 +88,7 @@ async def _quiz_counts(
         await db.execute(
             select(
                 func.count(),
+                func.count().filter(QuizAttempt.started_at.is_not(None)),
                 func.count().filter(completed_filter),
                 func.avg(QuizAttempt.score).filter(completed_filter),
                 func.percentile_cont(0.5)
@@ -97,7 +103,7 @@ async def _quiz_counts(
             ).where(*scope)
         )
     ).one()
-    total, completed, avg_score, median_score, avg_duration = row
+    total, started, completed, avg_score, median_score, avg_duration = row
 
     # histogram of completed scores (stored as 0–1 fractions); a perfect 1.0
     # folds into the top bucket
@@ -116,6 +122,7 @@ async def _quiz_counts(
 
     return QuizCounts(
         attempts_total=total,
+        attempts_started=started,
         attempts_completed=completed,
         completion_rate=(completed / total) if total else None,
         avg_score=float(avg_score) if avg_score is not None else None,
@@ -229,9 +236,14 @@ async def job_stats(db: AsyncSession, company: Company, job: Job) -> JobStats:
             ).where(Application.company_id == company.id, Application.job_id == job.id)
         )
     ).one()
-    days_open = (
-        None if job.published_at is None else ((job.closed_at or now) - job.published_at).days
-    )
+    if job.published_at is None:
+        days_open = None
+    elif job.status is JobStatus.CLOSED:
+        # jobs closed before migration 0033 carry no closed_at: show "-"
+        # rather than a number that grows every day
+        days_open = None if job.closed_at is None else (job.closed_at - job.published_at).days
+    else:
+        days_open = (now - job.published_at).days
     return JobStats(
         applications=ApplicationCounts(total=row[0], new=row[1], last_7_days=row[2]),
         last_30_days=row[3],

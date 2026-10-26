@@ -980,6 +980,7 @@ export interface StatsOverview {
   applications: { total: number; new: number; last_7_days: number };
   quiz: {
     attempts_total: number;
+    attempts_started: number;
     attempts_completed: number;
     completion_rate: number | null;
     avg_score: number | null;

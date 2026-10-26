@@ -73,6 +73,7 @@ function makeOverview(perJob: StatsOverview["per_job"]): StatsOverview {
     applications: { total: 0, new: 0, last_7_days: 0 },
     quiz: {
       attempts_total: 0,
+      attempts_started: 0,
       attempts_completed: 0,
       completion_rate: null,
       avg_score: null,
