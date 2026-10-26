@@ -269,7 +269,14 @@ describe("JobsPage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Actions for Draft role" }));
     const menu = screen.getByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Overview" })).toHaveAttribute(
+      "href",
+      `/admin/jobs/${DRAFT_ID}`,
+    );
+    expect(within(menu).getByRole("menuitem", { name: "Edit" })).toHaveAttribute(
+      "href",
+      `/admin/jobs/${DRAFT_ID}/edit`,
+    );
     expect(within(menu).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
 
     await userEvent.click(within(menu).getByRole("menuitem", { name: "Publish" }));

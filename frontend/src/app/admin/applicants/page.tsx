@@ -750,7 +750,9 @@ function ApplicantsContent() {
   // Deep links (dashboard queue, emails) name the applicant to open as
   // ?selected=<id>; the list is paginated, so one outside the first page is
   // fetched on its own and pinned to the top.
-  const requestedId = useSearchParams().get("selected");
+  const searchParams = useSearchParams();
+  const requestedId = searchParams.get("selected");
+  const requestedJob = searchParams.get("job") ?? "";
   const requestHandled = useRef(false);
   const [items, setItems] = useState<ApplicationOut[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -758,7 +760,7 @@ function ApplicantsContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [jobs, setJobs] = useState<JobOut[]>([]);
   const [stageFilter, setStageFilter] = useState<ApplicationStage | "all">("all");
-  const [jobFilter, setJobFilter] = useState<string>("");
+  const [jobFilter, setJobFilter] = useState<string>(requestedJob);
   const [selectedId, setSelectedId] = useState<string | null>(requestedId);
   const [checked, setChecked] = useState<Map<string, string>>(new Map());
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});

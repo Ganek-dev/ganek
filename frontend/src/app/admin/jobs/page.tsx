@@ -66,7 +66,10 @@ function RowMenu({
       <MenuDotsTrigger label={`Actions for ${job.title}`} />
       <MenuContent>
         <MenuItem asChild>
-          <Link href={`/admin/jobs/${job.id}`}>Edit</Link>
+          <Link href={`/admin/jobs/${job.id}`}>Overview</Link>
+        </MenuItem>
+        <MenuItem asChild>
+          <Link href={`/admin/jobs/${job.id}/edit`}>Edit</Link>
         </MenuItem>
         {job.status !== "published" ? (
           <MenuItem onSelect={() => onAction(() => api.jobs.publish(job.id))}>Publish</MenuItem>
