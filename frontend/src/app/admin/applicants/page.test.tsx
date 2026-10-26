@@ -223,6 +223,19 @@ describe("ApplicantsPage", () => {
     expect(screen.getByRole("button", { name: /^Screening · 1/ })).toBeInTheDocument();
   });
 
+  it("pre-filters by the job named in ?job=", async () => {
+    search = new URLSearchParams("job=job-2");
+    mockedJobs.list.mockResolvedValue([
+      { id: "job-1", title: "Backend Engineer" } as never,
+      { id: "job-2", title: "Data Engineer" } as never,
+    ]);
+    render(<ApplicantsPage />);
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenCalledWith(expect.objectContaining({ job_id: "job-2" })),
+    );
+    await waitFor(() => expect(screen.getByLabelText("Filter by job")).toHaveValue("job-2"));
+  });
+
   it("preselects the applicant named by ?selected= when it is in the list", async () => {
     search = new URLSearchParams("selected=app-2");
     render(<ApplicantsPage />);

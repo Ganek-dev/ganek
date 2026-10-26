@@ -1,10 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api, type JobOut } from "@/lib/api";
+import {
+  api,
+  applications,
+  companyApi,
+  type ApplicationOut,
+  type CompanyAdmin,
+  type JobOut,
+  type JobStats,
+} from "@/lib/api";
 
-import EditJobPage from "./page";
+import JobOverviewPage from "./page";
+
+const JOB_ID = "11111111-1111-1111-1111-111111111111";
+const APP_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const APP_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -21,16 +33,26 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     api: {
       ...original.api,
-      jobs: { ...original.api.jobs, get: vi.fn(), publish: vi.fn(), close: vi.fn() },
+      jobs: {
+        ...original.api.jobs,
+        get: vi.fn(),
+        stats: vi.fn(),
+        publish: vi.fn(),
+        close: vi.fn(),
+      },
     },
+    applications: { ...original.applications, list: vi.fn() },
+    companyApi: { ...original.companyApi, get: vi.fn() },
   };
 });
 
 const mockedJobs = vi.mocked(api.jobs);
+const mockedApplications = vi.mocked(applications);
+const mockedCompany = vi.mocked(companyApi);
 
-function makeJob(overrides: Partial<JobOut>): JobOut {
+function makeJob(overrides: Partial<JobOut> = {}): JobOut {
   return {
-    id: "11111111-1111-1111-1111-111111111111",
+    id: JOB_ID,
     slug: "senior-frontend-engineer",
     title: "Senior Frontend Engineer",
     description_md: "",
@@ -42,14 +64,14 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
     salary_currency: null,
     salary_period: "year",
     closes_at: null,
-    tags: [],
+    tags: ["react"],
     status: "published",
     quiz_config: {
-      enabled: false,
+      enabled: true,
       tags: null,
-      question_count: 6,
+      question_count: 12,
       include_company_questions: true,
-      time_limit_seconds: 20,
+      time_limit_seconds: 25,
       difficulties: null,
       exclude_ids: [],
       questionnaire_id: null,
@@ -62,33 +84,218 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
   };
 }
 
-describe("EditJobPage", () => {
+function makeStats(overrides: Partial<JobStats> = {}): JobStats {
+  return {
+    applications: { total: 5, new: 2, last_7_days: 3 },
+    last_30_days: 3,
+    by_stage: { new: 2, screening: 1, hired: 2 },
+    quiz: {
+      attempts_total: 3,
+      attempts_started: 3,
+      attempts_completed: 2,
+      completion_rate: 2 / 3,
+      avg_score: 0.7,
+      median_score: 0.75,
+      avg_duration_seconds: 300,
+      score_distribution: Array(10).fill(0),
+    },
+    weekly: Array.from({ length: 8 }, (_, i) => ({ week_start: `2026-0${i + 1}-01`, count: i })),
+    days_open: 12,
+    ...overrides,
+  };
+}
+
+function makeApplication(overrides: Partial<ApplicationOut>): ApplicationOut {
+  return {
+    id: APP_A,
+    job_id: JOB_ID,
+    candidate: { id: "c1", name: "Marta Vidal", email: "marta@example.com", links: {} },
+    cv_filename: "marta.pdf",
+    cv_size: 1024,
+    message: null,
+    stage: "new",
+    source: null,
+    quiz_attempt: null,
+    created_at: "2026-07-15T00:00:00Z",
+    ...overrides,
+  };
+}
+
+const company = { slug: "acme", name: "ACME", mode: "multi" } as CompanyAdmin;
+
+describe("JobOverviewPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedJobs.get.mockResolvedValue(makeJob({}));
+    mockedJobs.get.mockResolvedValue(makeJob());
+    mockedJobs.stats.mockResolvedValue(makeStats());
+    mockedCompany.get.mockResolvedValue(company);
+    mockedApplications.list.mockResolvedValue({
+      items: [
+        makeApplication({
+          id: APP_A,
+          quiz_attempt: {
+            status: "completed",
+            score: 0.75,
+            per_tag_scores: {},
+            completed_at: "2026-07-16T00:00:00Z",
+            question_ids: [],
+            time_multiplier: 1,
+            integrity: { flags: [{ code: "blur", summary: "left the tab", detail: "", question_ids: [] }] },
+          },
+          source: "linkedin",
+        }),
+        makeApplication({
+          id: APP_B,
+          stage: "screening",
+          candidate: { id: "c2", name: "Jonas Berg", email: "jonas@example.com", links: {} },
+        }),
+      ],
+      total: 2,
+      stage_counts: { new: 1, screening: 1 },
+    });
   });
 
-  it("renders breadcrumb, status pill and the status card", async () => {
-    render(<EditJobPage />);
+  it("shows the header, the public URL and the stat tiles for a live job", async () => {
+    render(<JobOverviewPage />);
     expect(
       await screen.findByRole("heading", { name: "Senior Frontend Engineer" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/senior-frontend-engineer/)).toBeInTheDocument();
     expect(screen.getAllByText("published").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Live since/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(await screen.findByText("Live since Jul 10 · 12 days open")).toBeInTheDocument();
+    expect(screen.getByText(/\/c\/acme\/jobs\/senior-frontend-engineer$/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy job URL" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      `/admin/jobs/${JOB_ID}/edit`,
+    );
+
+    const applicationsTile = screen.getByText("Applications · 30d").closest("div")!;
+    expect(within(applicationsTile).getByText("3")).toBeInTheDocument();
+    expect(within(applicationsTile).getByText("5 all time · +2 new")).toBeInTheDocument();
+    const quizTile = screen.getByText("Quiz completion").closest("div")!;
+    expect(within(quizTile).getByText("67%")).toBeInTheDocument();
+    expect(within(quizTile).getByText("2 of 3 started · median 75%")).toBeInTheDocument();
+    const viewsTile = screen.getByText("Views · 30d").closest("div")!;
+    expect(within(viewsTile).getByText("-")).toBeInTheDocument();
+    expect(within(viewsTile).getByText("not counted yet")).toBeInTheDocument();
+    const daysTile = screen.getByText("Days open").closest("div")!;
+    expect(within(daysTile).getByText("12")).toBeInTheDocument();
     expect(screen.getByText("quiz preview")).toBeInTheDocument();
   });
 
-  it("closes a published job from the status card and reloads", async () => {
-    mockedJobs.close.mockResolvedValue(makeJob({ status: "closed" }));
-    render(<EditJobPage />);
+  it("explains the draft state: no public link, empty tiles, no candidates", async () => {
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "draft", published_at: null }));
+    mockedJobs.stats.mockResolvedValue(
+      makeStats({
+        applications: { total: 0, new: 0, last_7_days: 0 },
+        last_30_days: 0,
+        by_stage: {},
+        quiz: {
+          attempts_total: 0,
+          attempts_started: 0,
+          attempts_completed: 0,
+          completion_rate: null,
+          avg_score: null,
+          median_score: null,
+          avg_duration_seconds: null,
+          score_distribution: Array(10).fill(0),
+        },
+        days_open: null,
+      }),
+    );
+    mockedApplications.list.mockResolvedValue({ items: [], total: 0, stage_counts: {} });
+    render(<JobOverviewPage />);
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    expect(await screen.findByText("Draft, not published")).toBeInTheDocument();
+    expect(screen.getByText("Publish to get a public link")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy job URL" })).not.toBeInTheDocument();
+    const daysTile = screen.getByText("Days open").closest("div")!;
+    expect(within(daysTile).getByText("-")).toBeInTheDocument();
+    const applicationsTile = screen.getByText("Applications · 30d").closest("div")!;
+    expect(within(applicationsTile).getByText("-")).toBeInTheDocument();
+    expect(within(applicationsTile).getByText("Publish to start counting")).toBeInTheDocument();
+    const quizTile = screen.getByText("Quiz completion").closest("div")!;
+    expect(within(quizTile).getByText("-")).toBeInTheDocument();
+    expect(within(quizTile).queryByText("no attempts yet")).not.toBeInTheDocument();
+    expect(await screen.findByText("No candidates yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
+  });
 
-    mockedJobs.get.mockResolvedValue(makeJob({ status: "closed" }));
+  it("never claims a live job went live today while stats are missing", async () => {
+    mockedJobs.stats.mockRejectedValue(new Error("boom"));
+    render(<JobOverviewPage />);
+    expect((await screen.findAllByText("Live since Jul 10")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/today/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Marta Vidal" })).toBeInTheDocument();
+  });
+
+  it("says when the assessment is off and when a closed job closed", async () => {
+    mockedJobs.get.mockResolvedValue(
+      makeJob({
+        status: "closed",
+        closed_at: "2026-08-20T00:00:00Z",
+        quiz_config: { ...makeJob().quiz_config, enabled: false },
+      }),
+    );
+    mockedJobs.stats.mockResolvedValue(
+      makeStats({
+        quiz: { ...makeStats().quiz, attempts_total: 0, attempts_started: 0, attempts_completed: 0, completion_rate: null, median_score: null },
+        days_open: 41,
+      }),
+    );
+    render(<JobOverviewPage />);
+    expect(await screen.findByText("Closed after 41 days")).toBeInTheDocument();
+    const quizTile = screen.getByText("Quiz completion").closest("div")!;
+    expect(within(quizTile).getByText("assessment off")).toBeInTheDocument();
+  });
+
+  it("lists candidates with stage, score, flags and source, linking into the review", async () => {
+    render(<JobOverviewPage />);
+    const marta = await screen.findByRole("link", { name: "Marta Vidal" });
+    expect(marta).toHaveAttribute("href", `/admin/applicants?job=${JOB_ID}&selected=${APP_A}`);
+    const martaRow = marta.closest("tr")!;
+    expect(within(martaRow).getByText("75")).toBeInTheDocument();
+    expect(within(martaRow).getByText("new")).toBeInTheDocument();
+    expect(within(martaRow).getByText("linkedin")).toBeInTheDocument();
+    expect(within(martaRow).getByLabelText("1 integrity flag")).toBeInTheDocument();
+
+    const jonasRow = screen.getByRole("link", { name: "Jonas Berg" }).closest("tr")!;
+    expect(within(jonasRow).getByText("screening")).toBeInTheDocument();
+    expect(within(jonasRow).queryByText("75")).not.toBeInTheDocument();
+    expect(within(jonasRow).getAllByText("-")).toHaveLength(2);
+    expect(within(jonasRow).queryByText("\u2014")).not.toBeInTheDocument();
+
+    expect(screen.getByRole("link", { name: "All 5 candidates" })).toHaveAttribute(
+      "href",
+      `/admin/applicants?job=${JOB_ID}`,
+    );
+    expect(mockedApplications.list).toHaveBeenCalledWith(
+      expect.objectContaining({ job_id: JOB_ID, limit: 50 }),
+    );
+  });
+
+  it("filters the candidate table by stage pill", async () => {
+    render(<JobOverviewPage />);
+    await screen.findByRole("link", { name: "Marta Vidal" });
+    await userEvent.click(screen.getByRole("button", { name: "Screening · 1" }));
+    expect(mockedApplications.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ job_id: JOB_ID, stage: "screening" }),
+    );
+    expect(screen.getByRole("button", { name: "Screening · 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("reloads the job and its stats after closing from the status card", async () => {
+    mockedJobs.close.mockResolvedValue(makeJob({ status: "closed" }));
+    render(<JobOverviewPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "closed", closed_at: "2026-07-22T00:00:00Z" }));
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    expect(mockedJobs.close).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111");
+    expect(mockedJobs.close).toHaveBeenCalledWith(JOB_ID);
     expect(await screen.findByRole("button", { name: "Publish" })).toBeInTheDocument();
+    expect(mockedJobs.get).toHaveBeenCalledTimes(2);
+    expect(mockedJobs.stats).toHaveBeenCalledTimes(2);
   });
 });

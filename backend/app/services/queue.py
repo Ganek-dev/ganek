@@ -51,7 +51,7 @@ async def _jobs_without_quiz(db: AsyncSession, company: Company) -> list[QueueIt
             kind="job-quiz",
             title=f"Add a quiz to {job.title}",
             hint="Published without screening",
-            href=f"/admin/jobs/{job.id}",
+            href=f"/admin/jobs/{job.id}/edit",
             since=job.updated_at,
         )
         for job in jobs

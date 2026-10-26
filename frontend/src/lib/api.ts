@@ -267,6 +267,7 @@ export const api = {
     close: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/close`, { method: "POST" }),
     delete: (id: string) => request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
     quizPreview: (id: string) => request<QuizPreview>(`/api/v1/jobs/${id}/quiz-preview`),
+    stats: (id: string) => request<JobStats>(`/api/v1/jobs/${id}/stats`),
   },
 };
 
@@ -974,6 +975,18 @@ export const questionnaires = {
   delete: (id: string) =>
     request<void>(`/api/v1/questionnaires/${id}`, { method: "DELETE" }),
 };
+
+/** One job's overview numbers (GET /jobs/{id}/stats). Counts only. */
+export interface JobStats {
+  applications: { total: number; new: number; last_7_days: number };
+  last_30_days: number;
+  /** stage value -> count; stages with no applications are absent */
+  by_stage: Partial<Record<ApplicationStage, number>>;
+  quiz: StatsOverview["quiz"];
+  weekly: { week_start: string; count: number }[];
+  /** null for drafts and for jobs closed before closed_at existed */
+  days_open: number | null;
+}
 
 export interface StatsOverview {
   jobs: { draft: number; published: number; closed: number };

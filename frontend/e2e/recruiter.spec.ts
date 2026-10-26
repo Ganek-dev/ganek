@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { ADMIN_EMAIL, ADMIN_PASSWORD, QUIZ_QUESTION_COUNT } from "./stack";
+import { ADMIN_EMAIL, ADMIN_PASSWORD, QUIZ_JOB_TITLE, QUIZ_QUESTION_COUNT } from "./stack";
 
 /** Golden path 2 — the recruiter: login UI → applicants review → open the
  * candidate that candidate.spec created earlier in this run → score +
@@ -38,6 +38,20 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     await expect(stageSelect).toHaveValue("new");
     await page.getByRole("button", { name: "Advance", exact: true }).first().click();
     await expect(stageSelect).toHaveValue("screening");
+  });
+
+  await test.step("job row opens the overview, Edit opens the form, save returns", async () => {
+    await page.goto("/admin/jobs");
+    await page.getByRole("link", { name: QUIZ_JOB_TITLE }).click();
+    await expect(page).toHaveURL(/\/admin\/jobs\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE })).toBeVisible();
+    await expect(page.getByText("Pipeline")).toBeVisible();
+    await expect(page.getByRole("link", { name: CANDIDATE_NAME })).toBeVisible();
+    await page.getByRole("link", { name: "Edit" }).click();
+    await expect(page).toHaveURL(/\/admin\/jobs\/[0-9a-f-]{36}\/edit$/);
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page).toHaveURL(/\/admin\/jobs\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE })).toBeVisible();
   });
 
   await test.step("sign out lands on the login page", async () => {
