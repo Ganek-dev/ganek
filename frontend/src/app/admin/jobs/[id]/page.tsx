@@ -19,7 +19,7 @@ import {
   companyApi,
   type ApplicationOut,
   type ApplicationStage,
-  type CompanyAdmin,
+  type CompanySummary,
   type JobOut,
   type JobStats,
 } from "@/lib/api";
@@ -127,7 +127,7 @@ export default function JobOverviewPage() {
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<JobOut | null>(null);
   const [stats, setStats] = useState<JobStats | null>(null);
-  const [company, setCompany] = useState<CompanyAdmin | null>(null);
+  const [company, setCompany] = useState<CompanySummary | null>(null);
   const [candidates, setCandidates] = useState<ApplicationOut[] | null>(null);
   const [stage, setStage] = useState<ApplicationStage | "all">("all");
   const [error, setError] = useState<string | null>(null);
@@ -140,8 +140,10 @@ export default function JobOverviewPage() {
         setError(err instanceof Error ? err.message : "Failed to load job"),
       );
     api.jobs.stats(params.id).then(setStats).catch(() => setStats(null));
+    // any role may read the summary; the admin-only company view would 403
+    // for members and leave the public link and share links blank
     companyApi
-      .get()
+      .summary()
       .then(setCompany)
       .catch(() => setCompany(null));
   }, [params.id]);

@@ -2,7 +2,13 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from app.api.deps import AdminUser, CurrentCompany, DbSession
 from app.models import Company
-from app.schemas.company import BrandingUpdate, CompanyOut, CompanySettingsUpdate, UsageOut
+from app.schemas.company import (
+    BrandingUpdate,
+    CompanyOut,
+    CompanySettingsUpdate,
+    CompanySummary,
+    UsageOut,
+)
 from app.services import company as company_service
 from app.services import email as email_service
 from app.services import quotas, storage
@@ -13,6 +19,13 @@ router = APIRouter(prefix="/company", tags=["company"])
 
 @router.get("", response_model=CompanyOut)
 async def get_company(company: CurrentCompany, _admin: AdminUser) -> Company:
+    return company
+
+
+@router.get("/summary", response_model=CompanySummary)
+async def get_company_summary(company: CurrentCompany) -> Company:
+    """Slug, name and instance mode for any role: the job overview builds
+    the public job URL and the share links from these."""
     return company
 
 

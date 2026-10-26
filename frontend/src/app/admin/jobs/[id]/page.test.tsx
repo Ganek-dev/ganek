@@ -43,7 +43,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
       },
     },
     applications: { ...original.applications, list: vi.fn() },
-    companyApi: { ...original.companyApi, get: vi.fn() },
+    // the overview must not depend on the admin-only company view: a member
+    // (recruiter) sees the public link and the share links too
+    companyApi: { ...original.companyApi, get: vi.fn(), summary: vi.fn() },
   };
 });
 
@@ -137,7 +139,12 @@ describe("JobOverviewPage", () => {
     vi.clearAllMocks();
     mockedJobs.get.mockResolvedValue(makeJob());
     mockedJobs.stats.mockResolvedValue(makeStats());
-    mockedCompany.get.mockResolvedValue(company);
+    mockedCompany.get.mockRejectedValue(new Error("403 admin only"));
+    mockedCompany.summary.mockResolvedValue({
+      slug: company.slug,
+      name: company.name,
+      mode: company.mode,
+    });
     mockedJobs.previewLink.mockResolvedValue({
       url: "http://localhost:3000/c/acme/jobs/senior-frontend-engineer?preview=default",
       expires_at: "2026-11-02T00:00:00Z",
