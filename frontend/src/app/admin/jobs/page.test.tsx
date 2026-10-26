@@ -4,7 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api, stats, type JobOut, type StatsOverview } from "@/lib/api";
 
-import JobsPage from "./page";
+import JobsPage, { defaultFilter, filterFromParam, paramFromFilter } from "./page";
+
+let search = new URLSearchParams();
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/jobs",
+  useRouter: () => ({ push: vi.fn(), replace }),
+  useSearchParams: () => search,
+}));
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
@@ -80,6 +88,7 @@ function makeOverview(perJob: StatsOverview["per_job"]): StatsOverview {
 describe("JobsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    search = new URLSearchParams();
     mockedJobs.list.mockResolvedValue([
       makeJob({
         id: LIVE_ID,
@@ -110,24 +119,93 @@ describe("JobsPage", () => {
     );
   });
 
-  it("shows all jobs by default and filters via status pills with counts", async () => {
+  it("defaults to Open when a published job exists and keeps counts for the whole list", async () => {
     render(<JobsPage />);
     expect(await screen.findByText("Live role")).toBeInTheDocument();
-    expect(screen.getByText("Draft role")).toBeInTheDocument();
-    expect(screen.getByText("Old role")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All · 3" })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Open · 1" }));
-    expect(screen.getByText("Live role")).toBeInTheDocument();
-    expect(screen.queryByText("Old role")).not.toBeInTheDocument();
     expect(screen.queryByText("Draft role")).not.toBeInTheDocument();
+    expect(screen.queryByText("Old role")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open · 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "All · 3" })).toHaveAttribute("aria-pressed", "false");
+    expect(replace).not.toHaveBeenCalled();
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: "Closed · 1" }));
+  it("defaults to All when nothing is published", async () => {
+    mockedJobs.list.mockResolvedValue([
+      makeJob({ id: DRAFT_ID, title: "Draft role", status: "draft" }),
+    ]);
+    render(<JobsPage />);
+    expect(await screen.findByText("Draft role")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All · 1" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("reads the pill from ?status= on load", async () => {
+    search = new URLSearchParams("status=closed");
+    render(<JobsPage />);
+    expect(await screen.findByText("Old role")).toBeInTheDocument();
     expect(screen.queryByText("Live role")).not.toBeInTheDocument();
-    expect(screen.getByText("Old role")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Closed · 1" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("falls back to the default for an unknown ?status= value", async () => {
+    search = new URLSearchParams("status=bogus");
+    render(<JobsPage />);
+    expect(await screen.findByText("Live role")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open · 1" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("writes the clicked pill to the URL and keeps it across a reload of the jobs", async () => {
+    mockedJobs.publish.mockResolvedValue(makeJob({ id: DRAFT_ID, status: "published" }));
+    render(<JobsPage />);
+    await screen.findByText("Live role");
+    await userEvent.click(screen.getByRole("button", { name: "Draft · 1" }));
+    expect(replace).toHaveBeenCalledWith("/admin/jobs?status=draft", { scroll: false });
+    expect(screen.getByText("Draft role")).toBeInTheDocument();
+    expect(screen.queryByText("Live role")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Draft role" }));
+    await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Publish" }));
+    expect(mockedJobs.list).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: /^Draft/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps the latched default after publishing the first draft in a drafts-only workspace", async () => {
+    const DRAFT_B = "44444444-4444-4444-4444-444444444444";
+    mockedJobs.list.mockResolvedValueOnce([
+      makeJob({ id: DRAFT_ID, title: "Draft role", status: "draft" }),
+      makeJob({ id: DRAFT_B, title: "Second draft", status: "draft" }),
+    ]);
+    mockedJobs.list.mockResolvedValueOnce([
+      makeJob({ id: DRAFT_ID, title: "Draft role", status: "published" }),
+      makeJob({ id: DRAFT_B, title: "Second draft", status: "draft" }),
+    ]);
+    mockedJobs.publish.mockResolvedValue(makeJob({ id: DRAFT_ID, status: "published" }));
+    render(<JobsPage />);
+    await screen.findByText("Second draft");
+    expect(screen.getByRole("button", { name: "All · 2" })).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Draft role" }));
+    await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Publish" }));
+    expect(await screen.findByRole("button", { name: "Open · 1" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "All · 2" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Second draft")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("maps filters to and from the URL vocabulary", () => {
+    expect(filterFromParam("open")).toBe("published");
+    expect(filterFromParam("all")).toBe("all");
+    expect(filterFromParam("")).toBeNull();
+    expect(filterFromParam(null)).toBeNull();
+    expect(filterFromParam("bogus")).toBeNull();
+    expect(paramFromFilter("published")).toBe("open");
+    expect(defaultFilter([makeJob({ status: "draft" })])).toBe("all");
+    expect(
+      defaultFilter([makeJob({ status: "draft" }), makeJob({ status: "published" })]),
+    ).toBe("published");
   });
 
   it("filters by search query across title and tags", async () => {
+    search = new URLSearchParams("status=all");
     render(<JobsPage />);
     await screen.findByText("Live role");
 
@@ -142,6 +220,7 @@ describe("JobsPage", () => {
   });
 
   it("renders applicant counts with the new-applicants accent", async () => {
+    search = new URLSearchParams("status=all");
     render(<JobsPage />);
     const row = (await screen.findByText("Live role")).closest("tr")!;
     expect(within(row).getByText("12")).toBeInTheDocument();
@@ -153,6 +232,7 @@ describe("JobsPage", () => {
   });
 
   it("shows assessment chips: config summary, no-quiz nudge, off", async () => {
+    search = new URLSearchParams("status=all");
     render(<JobsPage />);
     const live = (await screen.findByText("Live role")).closest("tr")!;
     expect(within(live).getByText("12q · 25s")).toBeInTheDocument();
@@ -171,6 +251,7 @@ describe("JobsPage", () => {
   });
 
   it("shows tag chips with overflow counter and posted date", async () => {
+    search = new URLSearchParams("status=all");
     render(<JobsPage />);
     const row = (await screen.findByText("Live role")).closest("tr")!;
     expect(within(row).getByText("python")).toBeInTheDocument();
@@ -179,6 +260,7 @@ describe("JobsPage", () => {
   });
 
   it("publishes a draft from the row actions menu", async () => {
+    search = new URLSearchParams("status=all");
     mockedJobs.publish.mockResolvedValue(makeJob({ id: DRAFT_ID, status: "published" }));
     render(<JobsPage />);
     await screen.findByText("Draft role");

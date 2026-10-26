@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { Plus, Search } from "lucide-react";
 
@@ -28,6 +29,32 @@ const FILTERS: { value: JobFilter; label: string }[] = [
   { value: "draft", label: "Draft" },
   { value: "closed", label: "Closed" },
 ];
+
+const URL_PARAM = "status";
+
+type StatusParam = "open" | "draft" | "closed" | "all";
+
+const PARAM_TO_FILTER: Record<StatusParam, JobFilter> = {
+  open: "published",
+  draft: "draft",
+  closed: "closed",
+  all: "all",
+};
+
+/** `?status=` value -> filter; unknown or missing values mean "not chosen". */
+export function filterFromParam(value: string | null): JobFilter | null {
+  if (value === null) return null;
+  return value in PARAM_TO_FILTER ? PARAM_TO_FILTER[value as StatusParam] : null;
+}
+
+export function paramFromFilter(filter: JobFilter): StatusParam {
+  return filter === "published" ? "open" : filter;
+}
+
+/** Open when anything is live, otherwise All so a drafts-only workspace is not empty. */
+export function defaultFilter(jobs: JobOut[]): JobFilter {
+  return jobs.some((job) => job.status === "published") ? "published" : "all";
+}
 
 interface ApplicantCounts {
   applications: number;
@@ -91,17 +118,27 @@ function RowMenu({
   );
 }
 
-export default function JobsPage() {
+function JobsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<JobOut[] | null>(null);
   const [applicants, setApplicants] = useState<Record<string, ApplicantCounts> | null>(null);
-  const [filter, setFilter] = useState<JobFilter>("all");
+  const [chosen, setChosen] = useState<JobFilter | null>(() =>
+    filterFromParam(searchParams.get(URL_PARAM)),
+  );
+  const filter: JobFilter = chosen ?? "all";
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     api.jobs
       .list()
-      .then(setJobs)
+      .then((list) => {
+        setJobs(list);
+        // latch the data-driven default once; later reloads (publish, close)
+        // never move the user's view (spec 5.1, JP4)
+        setChosen((current) => current ?? defaultFilter(list));
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load jobs"),
       );
@@ -189,7 +226,12 @@ export default function JobsPage() {
               key={option.value}
               type="button"
               aria-pressed={filter === option.value}
-              onClick={() => setFilter(option.value)}
+              onClick={() => {
+                setChosen(option.value);
+                router.replace(`/admin/jobs?${URL_PARAM}=${paramFromFilter(option.value)}`, {
+                  scroll: false,
+                });
+              }}
               className={`inline-flex h-7 items-center rounded-full px-[11px] text-[12.5px] font-medium ${
                 filter === option.value
                   ? "bg-inverse text-inverse-foreground"
@@ -314,5 +356,13 @@ export default function JobsPage() {
         </div>
       )}
     </section>
+  );
+}
+
+export default function JobsPage() {
+  return (
+    <Suspense>
+      <JobsPageInner />
+    </Suspense>
   );
 }
