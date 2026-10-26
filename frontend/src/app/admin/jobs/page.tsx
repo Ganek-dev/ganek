@@ -126,14 +126,19 @@ function JobsPageInner() {
   const [chosen, setChosen] = useState<JobFilter | null>(() =>
     filterFromParam(searchParams.get(URL_PARAM)),
   );
-  const filter: JobFilter = chosen ?? (jobs === null ? "all" : defaultFilter(jobs));
+  const filter: JobFilter = chosen ?? "all";
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     api.jobs
       .list()
-      .then(setJobs)
+      .then((list) => {
+        setJobs(list);
+        // latch the data-driven default once; later reloads (publish, close)
+        // never move the user's view (spec 5.1, JP4)
+        setChosen((current) => current ?? defaultFilter(list));
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load jobs"),
       );

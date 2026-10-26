@@ -168,6 +168,29 @@ describe("JobsPage", () => {
     expect(screen.getByRole("button", { name: /^Draft/ })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("keeps the latched default after publishing the first draft in a drafts-only workspace", async () => {
+    const DRAFT_B = "44444444-4444-4444-4444-444444444444";
+    mockedJobs.list.mockResolvedValueOnce([
+      makeJob({ id: DRAFT_ID, title: "Draft role", status: "draft" }),
+      makeJob({ id: DRAFT_B, title: "Second draft", status: "draft" }),
+    ]);
+    mockedJobs.list.mockResolvedValueOnce([
+      makeJob({ id: DRAFT_ID, title: "Draft role", status: "published" }),
+      makeJob({ id: DRAFT_B, title: "Second draft", status: "draft" }),
+    ]);
+    mockedJobs.publish.mockResolvedValue(makeJob({ id: DRAFT_ID, status: "published" }));
+    render(<JobsPage />);
+    await screen.findByText("Second draft");
+    expect(screen.getByRole("button", { name: "All · 2" })).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Draft role" }));
+    await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Publish" }));
+    expect(await screen.findByRole("button", { name: "Open · 1" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "All · 2" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Second draft")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("maps filters to and from the URL vocabulary", () => {
     expect(filterFromParam("open")).toBe("published");
     expect(filterFromParam("all")).toBe("all");
