@@ -65,7 +65,8 @@ export function lifecycleLine(job: JobOut, daysOpen: number | null): string {
     return daysOpen === null ? "Closed" : `Closed after ${plural(daysOpen, "day")}`;
   }
   const since = `Live since ${shortDate(job.published_at)}`;
-  if (daysOpen === null || daysOpen === 0) return `${since} · today`;
+  if (daysOpen === null) return since; // stats missing or still loading: no claim
+  if (daysOpen === 0) return `${since} · today`;
   return `${since} · ${plural(daysOpen, "day")} open`;
 }
 
@@ -160,8 +161,9 @@ export default function JobOverviewPage() {
   const jobDisplay = company
     ? `${careersDisplay(company.mode, company.slug)}/jobs/${job.slug}`
     : null;
+  const draft = job.status === "draft";
   const total = stats?.applications.total ?? 0;
-  const quiz = stats ? quizTile(job, stats) : null;
+  const quiz = stats && !draft ? quizTile(job, stats) : null;
 
   return (
     <section className="space-y-5">
@@ -225,11 +227,13 @@ export default function JobOverviewPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile
           label="Applications · 30d"
-          value={stats ? String(stats.last_30_days) : "-"}
+          value={stats && !draft ? String(stats.last_30_days) : "-"}
           hint={
-            stats
-              ? `${total} all time${stats.applications.new > 0 ? ` · +${stats.applications.new} new` : ""}`
-              : undefined
+            draft
+              ? "Publish to start counting"
+              : stats
+                ? `${total} all time${stats.applications.new > 0 ? ` · +${stats.applications.new} new` : ""}`
+                : undefined
           }
         />
         <Tile label="Quiz completion" value={quiz?.value ?? "-"} hint={quiz?.hint} />

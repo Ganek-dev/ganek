@@ -36,7 +36,7 @@ export function ScoreChip({ result }: { result: QuizResult | null }) {
   if (!result || result.status !== "completed" || result.score === null) {
     return (
       <span className={`inline-flex h-[22px] items-center rounded-full px-2 font-mono text-xs ${SCORE_TONE.muted.chip}`}>
-        —
+        -
       </span>
     );
   }

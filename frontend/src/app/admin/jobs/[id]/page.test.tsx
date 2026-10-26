@@ -211,10 +211,22 @@ describe("JobOverviewPage", () => {
     expect(screen.queryByRole("button", { name: "Copy job URL" })).not.toBeInTheDocument();
     const daysTile = screen.getByText("Days open").closest("div")!;
     expect(within(daysTile).getByText("-")).toBeInTheDocument();
+    const applicationsTile = screen.getByText("Applications · 30d").closest("div")!;
+    expect(within(applicationsTile).getByText("-")).toBeInTheDocument();
+    expect(within(applicationsTile).getByText("Publish to start counting")).toBeInTheDocument();
     const quizTile = screen.getByText("Quiz completion").closest("div")!;
-    expect(within(quizTile).getByText("no attempts yet")).toBeInTheDocument();
+    expect(within(quizTile).getByText("-")).toBeInTheDocument();
+    expect(within(quizTile).queryByText("no attempts yet")).not.toBeInTheDocument();
     expect(await screen.findByText("No candidates yet.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
+  });
+
+  it("never claims a live job went live today while stats are missing", async () => {
+    mockedJobs.stats.mockRejectedValue(new Error("boom"));
+    render(<JobOverviewPage />);
+    expect((await screen.findAllByText("Live since Jul 10")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/today/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Marta Vidal" })).toBeInTheDocument();
   });
 
   it("says when the assessment is off and when a closed job closed", async () => {
@@ -250,6 +262,8 @@ describe("JobOverviewPage", () => {
     const jonasRow = screen.getByRole("link", { name: "Jonas Berg" }).closest("tr")!;
     expect(within(jonasRow).getByText("screening")).toBeInTheDocument();
     expect(within(jonasRow).queryByText("75")).not.toBeInTheDocument();
+    expect(within(jonasRow).getAllByText("-")).toHaveLength(2);
+    expect(within(jonasRow).queryByText("\u2014")).not.toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: "All 5 candidates" })).toHaveAttribute(
       "href",
