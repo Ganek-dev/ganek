@@ -127,6 +127,9 @@ class ApplicationSubmit(BaseModel):
     # solved proof-of-work payload (core/challenge.py); required only in
     # multi mode with GANEK_CAPTCHA_ENABLED
     altcha: str | None = Field(default=None, max_length=2000)
+    # where the candidate came from, resolved by the page that rendered the
+    # form (core/sources.py grammar); anything else is stored as NULL
+    source: str | None = Field(default=None, max_length=200)
 
     def links(self) -> dict[str, str]:
         return {

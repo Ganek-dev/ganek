@@ -45,6 +45,15 @@ def _real_submission(**overrides: object) -> ApplicationSubmit:
 # --- pure -------------------------------------------------------------------
 
 
+def test_pseudonymize_keeps_the_source() -> None:
+    # where the candidate came from is not visitor-typed text; it stays
+    out = demo_mode.pseudonymize(
+        ApplicationSubmit(name="Real Person", email="real@example.org", source="linkedin"),
+        cv_object_key="k",
+    )
+    assert out.source == "linkedin"
+
+
 def test_pseudonymize_replaces_every_personal_value() -> None:
     out = demo_mode.pseudonymize(_real_submission(), cv_object_key="cvs/c/demo-sample.pdf")
     assert out.name.startswith("Demo Candidate ")

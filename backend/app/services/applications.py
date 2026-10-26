@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
+from app.core.sources import normalize_source
 from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.schemas.public import ApplicationSubmit
 from app.services import activity, storage, webhooks
@@ -79,6 +80,7 @@ async def submit_application(
         cv_filename=payload.cv_filename,
         cv_size=stat.size,
         message=payload.message,
+        source=normalize_source(payload.source),
     )
     db.add(application)
     try:
