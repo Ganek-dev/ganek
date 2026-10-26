@@ -519,6 +519,7 @@ function DetailPanel({
             </button>
             <span className="font-mono text-[11.5px] text-g400">
               {jobTitle} · applied {relativeTime(app.created_at, now)}
+              {app.source ? ` · via ${app.source}` : ""}
             </span>
           </div>
         </div>

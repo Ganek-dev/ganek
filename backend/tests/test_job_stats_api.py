@@ -40,15 +40,23 @@ class Workspace:
         resp = await self.client.post("/api/v1/auth/login", json=self.creds)
         assert resp.status_code == 200, resp.text
 
-    async def published_job_with_applicant(self, title: str) -> tuple[str, str]:
+    async def published_job_with_applicant(
+        self, title: str, *, source: str | None = None
+    ) -> tuple[str, str]:
         """Creates and publishes a job, applies once as a candidate (which
         logs the admin out), logs the admin back in. Returns
         (job_id, application_id)."""
         job = (await self.client.post("/api/v1/jobs", json={"title": title})).json()
         assert (await self.client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
-        await self.client.post("/api/v1/auth/logout")
+        await self.apply(job["slug"], source=source)
+        await self.login()
+        page = (await self.client.get("/api/v1/applications", params={"job_id": job["id"]})).json()
+        return job["id"], page["items"][0]["id"]
 
-        base = f"/api/v1/public/companies/{self.slug}/jobs/{job['slug']}"
+    async def apply(self, job_slug: str, *, source: str | None = None) -> None:
+        """One public application to a published job (logs the admin out)."""
+        await self.client.post("/api/v1/auth/logout")
+        base = f"/api/v1/public/companies/{self.slug}/jobs/{job_slug}"
         ticket = (await self.client.post(f"{base}/apply/upload-url")).json()
         assert (await upload_pdf(ticket, PDF_BYTES)).is_success
         resp = await self.client.post(
@@ -58,13 +66,10 @@ class Workspace:
                 "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
                 "cv_object_key": ticket["object_key"],
                 "cv_filename": "marta.pdf",
+                **({"source": source} if source is not None else {}),
             },
         )
         assert resp.status_code == 201, resp.text
-
-        await self.login()
-        page = (await self.client.get("/api/v1/applications", params={"job_id": job["id"]})).json()
-        return job["id"], page["items"][0]["id"]
 
 
 async def _register(client: AsyncClient) -> Workspace:
@@ -236,3 +241,15 @@ async def test_job_stats_days_open_is_null_for_closed_jobs_without_closed_at(
     await db_session.commit()
     stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
     assert stats["days_open"] is None
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_job_stats_count_applications_by_source(client: AsyncClient) -> None:
+    ws = await _register(client)
+    job_id, _ = await ws.published_job_with_applicant("Backend Engineer", source="linkedin")
+    job = (await client.get(f"/api/v1/jobs/{job_id}")).json()
+    await ws.apply(job["slug"])  # no source: counts as direct
+    await ws.apply(job["slug"], source="link:newsletter")
+    await ws.login()
+    stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
+    assert stats["by_source"] == {"linkedin": 1, "direct": 1, "link:newsletter": 1}

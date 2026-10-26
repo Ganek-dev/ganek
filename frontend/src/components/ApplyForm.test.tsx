@@ -70,6 +70,32 @@ describe("ApplyForm", () => {
     );
   });
 
+  it("sends the resolved source with the application, null when none was given", async () => {
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    const { unmount } = render(
+      <ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" source="linkedin" />,
+    );
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(await screen.findByText(/Application received/)).toBeInTheDocument();
+    expect(mocked.submit).toHaveBeenLastCalledWith(
+      "/api/v1/public/company/jobs/dev",
+      expect.objectContaining({ source: "linkedin" }),
+    );
+    // the value is static markup, never typed by the candidate
+    expect(screen.queryByRole("textbox", { name: /source/i })).not.toBeInTheDocument();
+    unmount();
+
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(await screen.findByText(/Application received/)).toBeInTheDocument();
+    expect(mocked.submit).toHaveBeenLastCalledWith(
+      "/api/v1/public/company/jobs/dev",
+      expect.objectContaining({ source: null }),
+    );
+  });
+
   it("rejects non-PDF files client-side without requesting a ticket", async () => {
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
     const file = new File(["plain"], "cv.docx", { type: "text/plain" });

@@ -39,6 +39,7 @@ export function ApplyForm({
   companyName,
   privacyHref,
   demo = false,
+  source = null,
 }: {
   apiBasePath: string;
   jobTitle?: string;
@@ -46,6 +47,8 @@ export function ApplyForm({
   privacyHref?: string;
   /** demo instance: no CV field (the backend attaches its sample), nothing typed is kept */
   demo?: boolean;
+  /** where the visit came from, resolved by the page (lib/source.ts); never typed here */
+  source?: string | null;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [altcha, setAltcha] = useState<string | null>(null);
@@ -129,6 +132,7 @@ export function ApplyForm({
         portfolio: opt("portfolio"),
         ...(cv.status === "ready" ? { cv_object_key: cv.objectKey, cv_filename: cv.file.name } : {}),
         altcha,
+        source,
       });
       setDone({
         firstName: str("name").split(/\s+/)[0] ?? "",

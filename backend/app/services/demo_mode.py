@@ -118,6 +118,7 @@ def pseudonymize(payload: ApplicationSubmit, *, cv_object_key: str) -> Applicati
         portfolio=DEMO_LINKS["portfolio"],
         cv_object_key=cv_object_key,
         cv_filename=SAMPLE_CV_FILENAME,
+        source=payload.source,
         altcha=payload.altcha,
     )
 

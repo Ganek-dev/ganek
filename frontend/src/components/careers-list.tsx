@@ -56,9 +56,12 @@ const PILL_IDLE = `${PILL_BASE} border border-edge text-g700 hover:border-brand 
 export function JobList({
   jobs,
   hrefPrefix,
+  hrefSuffix = "",
 }: {
   jobs: PublicJobSummary[];
   hrefPrefix: string;
+  /** `?src=<bucket>` from the careers page so the job page keeps the source */
+  hrefSuffix?: string;
 }) {
   const [active, setActive] = useState("all");
   const filters = useMemo(() => buildFilters(jobs), [jobs]);
@@ -91,7 +94,7 @@ export function JobList({
         {visible.map((job) => (
           <li key={job.slug}>
             <Link
-              href={`${hrefPrefix}/${job.slug}`}
+              href={`${hrefPrefix}/${job.slug}${hrefSuffix}`}
               className="flex items-center justify-between gap-3 rounded-lg border border-edge px-4 py-[15px] hover:border-brand hover:shadow-[0_0_0_1px_var(--brand-primary)] sm:gap-4 sm:px-5 sm:py-[18px]"
             >
               <span className="flex flex-col gap-1">

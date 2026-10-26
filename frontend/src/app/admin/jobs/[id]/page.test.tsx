@@ -90,6 +90,7 @@ function makeStats(overrides: Partial<JobStats> = {}): JobStats {
     applications: { total: 5, new: 2, last_7_days: 3 },
     last_30_days: 3,
     by_stage: { new: 2, screening: 1, hired: 2 },
+    by_source: { linkedin: 3, direct: 2 },
     quiz: {
       attempts_total: 3,
       attempts_started: 3,
@@ -195,6 +196,7 @@ describe("JobOverviewPage", () => {
         applications: { total: 0, new: 0, last_7_days: 0 },
         last_30_days: 0,
         by_stage: {},
+        by_source: {},
         quiz: {
           attempts_total: 0,
           attempts_started: 0,
@@ -290,6 +292,20 @@ describe("JobOverviewPage", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("lists where applications came from, most common first", async () => {
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Sources")).closest("div")!;
+    const rows = within(card).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual(["linkedin3", "direct2"]);
+  });
+
+  it("says when no application has a source yet", async () => {
+    mockedJobs.stats.mockResolvedValue(makeStats({ by_source: {} }));
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Sources")).closest("div")!;
+    expect(within(card).getByText("No applications yet.")).toBeInTheDocument();
   });
 
   it("offers View as candidate as a plain link on a live job", async () => {

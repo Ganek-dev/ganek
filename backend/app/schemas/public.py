@@ -7,7 +7,7 @@ beyond published_at. What is not serialized cannot leak.
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
 from app.core import challenge
 from app.models import EmploymentType, RemotePolicy, SalaryPeriod
@@ -127,6 +127,17 @@ class ApplicationSubmit(BaseModel):
     # solved proof-of-work payload (core/challenge.py); required only in
     # multi mode with GANEK_CAPTCHA_ENABLED
     altcha: str | None = Field(default=None, max_length=2000)
+    # where the candidate came from, resolved by the page that rendered the
+    # form (core/sources.py grammar); anything else is stored as NULL and an
+    # odd value never blocks an application (no 422 from this field)
+    source: str | None = Field(default=None, max_length=200)
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _lenient_source(cls, value: object) -> str | None:
+        if isinstance(value, str) and len(value) <= 200:
+            return value
+        return None
 
     def links(self) -> dict[str, str]:
         return {

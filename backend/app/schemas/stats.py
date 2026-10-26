@@ -73,6 +73,7 @@ class JobStats(BaseModel):
     applications: ApplicationCounts
     last_30_days: int
     by_stage: dict[str, int]  # stage value -> count; stages with 0 are absent
+    by_source: dict[str, int]  # source label -> count; NULL counts as "direct"
     quiz: QuizCounts  # attempts of this job's applications; rates None when none
     weekly: list[WeeklyPoint]  # last 8 ISO weeks for this job, gaps filled
     days_open: int | None  # None for drafts; closed_at (or now) minus published_at
