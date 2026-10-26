@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { ADMIN_EMAIL, ADMIN_PASSWORD, QUIZ_JOB_TITLE, QUIZ_QUESTION_COUNT } from "./stack";
+import {
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+  DRAFT_JOB_TITLE,
+  QUIZ_JOB_TITLE,
+  QUIZ_QUESTION_COUNT,
+} from "./stack";
 
 /** Golden path 2 — the recruiter: login UI → applicants review → open the
  * candidate that candidate.spec created earlier in this run → score +
@@ -9,7 +15,10 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD, QUIZ_JOB_TITLE, QUIZ_QUESTION_COUNT } from
 
 const CANDIDATE_NAME = "Goldie Path";
 
-test("recruiter logs in, reviews the applicant, and advances the stage", async ({ page }) => {
+test("recruiter logs in, reviews the applicant, and advances the stage", async ({
+  page,
+  context,
+}) => {
   await test.step("log in through the UI", async () => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
@@ -52,6 +61,24 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page).toHaveURL(/\/admin\/jobs\/[0-9a-f-]{36}$/);
     await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE })).toBeVisible();
+  });
+
+  await test.step("a draft previews as the candidate sees it, without applying", async () => {
+    await page.goto("/admin/jobs?status=draft");
+    await page.getByRole("link", { name: DRAFT_JOB_TITLE }).click();
+    await expect(page.getByRole("heading", { name: DRAFT_JOB_TITLE })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Copy preview link" })).toBeVisible();
+    const [preview] = await Promise.all([
+      context.waitForEvent("page"),
+      page.getByRole("button", { name: "View as candidate", exact: true }).click(),
+    ]);
+    await expect(preview).toHaveURL(/\/jobs\/[a-z0-9-]+\?preview=/);
+    await expect(preview.getByRole("status")).toContainText("Preview, not live.");
+    await expect(preview.getByText("Applications open when the job is published.")).toBeVisible();
+    await expect(preview.locator('script[type="application/ld+json"]')).toHaveCount(0);
+    await expect(preview.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(preview.getByRole("button", { name: /Apply/ })).toHaveCount(0);
+    await preview.close();
   });
 
   await test.step("sign out lands on the login page", async () => {
