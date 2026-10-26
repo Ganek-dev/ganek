@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { JobForm } from "@/components/JobForm";
-import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
 import { api, type JobOut, type JobStatus } from "@/lib/api";
 
 const STATUS_PILL: Record<JobStatus, string> = {
@@ -114,7 +113,11 @@ export default function EditJobPage() {
           <Link href="/admin/jobs" className="hover:text-accent">
             Jobs
           </Link>{" "}
-          / {job.slug}
+          /{" "}
+          <Link href={`/admin/jobs/${job.id}`} className="hover:text-accent">
+            {job.slug}
+          </Link>{" "}
+          / edit
         </p>
         <div className="mt-1.5 flex items-center gap-2.5">
           <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">
@@ -139,11 +142,10 @@ export default function EditJobPage() {
         submitLabel="Save changes"
         onSubmit={async (values) => {
           await api.jobs.update(job.id, values);
-          router.push("/admin/jobs");
+          router.push(`/admin/jobs/${job.id}`);
         }}
         rail={<StatusCard job={job} onError={setError} onChanged={reload} />}
       />
-      <QuizPreviewPanel jobId={job.id} />
     </section>
   );
 }

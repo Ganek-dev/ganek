@@ -2,17 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api, type JobOut } from "@/lib/api";
+import { api, questionnaires, questions, type JobOut } from "@/lib/api";
 
 import EditJobPage from "./page";
 
+const push = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   useParams: () => ({ id: "11111111-1111-1111-1111-111111111111" }),
-}));
-
-vi.mock("@/components/QuizPreviewPanel", () => ({
-  QuizPreviewPanel: () => <div>quiz preview</div>,
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -21,8 +18,16 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     api: {
       ...original.api,
-      jobs: { ...original.api.jobs, get: vi.fn(), publish: vi.fn(), close: vi.fn() },
+      jobs: {
+        ...original.api.jobs,
+        get: vi.fn(),
+        update: vi.fn(),
+        publish: vi.fn(),
+        close: vi.fn(),
+      },
     },
+    questionnaires: { ...original.questionnaires, list: vi.fn() },
+    questions: { ...original.questions, resolve: vi.fn() },
   };
 });
 
@@ -66,18 +71,36 @@ describe("EditJobPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedJobs.get.mockResolvedValue(makeJob({}));
+    vi.mocked(questionnaires.list).mockResolvedValue([]);
+    vi.mocked(questions.resolve).mockResolvedValue([]);
   });
 
-  it("renders breadcrumb, status pill and the status card", async () => {
+  it("renders breadcrumb with the edit segment, status pill and the status card", async () => {
     render(<EditJobPage />);
     expect(
       await screen.findByRole("heading", { name: "Senior Frontend Engineer" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/senior-frontend-engineer/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "senior-frontend-engineer" })).toHaveAttribute(
+      "href",
+      "/admin/jobs/11111111-1111-1111-1111-111111111111",
+    );
+    expect(screen.getByText(/\/ edit$/)).toBeInTheDocument();
     expect(screen.getAllByText("published").length).toBeGreaterThan(0);
     expect(screen.getByText(/Live since/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
-    expect(screen.getByText("quiz preview")).toBeInTheDocument();
+    expect(screen.queryByText("quiz preview")).not.toBeInTheDocument();
+  });
+
+  it("returns to the job overview after saving", async () => {
+    mockedJobs.update.mockResolvedValue(makeJob({ title: "Staff Frontend Engineer" }));
+    render(<EditJobPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(mockedJobs.update).toHaveBeenCalledWith(
+      "11111111-1111-1111-1111-111111111111",
+      expect.objectContaining({ title: "Senior Frontend Engineer" }),
+    );
+    expect(push).toHaveBeenCalledWith("/admin/jobs/11111111-1111-1111-1111-111111111111");
   });
 
   it("closes a published job from the status card and reloads", async () => {

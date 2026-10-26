@@ -24,8 +24,8 @@ export default function NewJobPage() {
       <JobForm
         submitLabel="Create job"
         onSubmit={async (values) => {
-          await api.jobs.create(values);
-          router.push("/admin/jobs");
+          const created = await api.jobs.create(values);
+          router.push(`/admin/jobs/${created.id}`);
         }}
       />
     </section>

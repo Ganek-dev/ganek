@@ -218,7 +218,7 @@ async def test_queue_published_job_without_quiz(
     assert [item["key"] for item in items] == [f"job-quiz:{job_id}"]
     assert items[0]["kind"] == "job-quiz"
     assert items[0]["title"] == "Add a quiz to Backend Engineer"
-    assert items[0]["href"] == f"/admin/jobs/{job_id}"
+    assert items[0]["href"] == f"/admin/jobs/{job_id}/edit"
 
     # a draft never nags; neither does a job once its quiz is on
     await db_session.execute(
