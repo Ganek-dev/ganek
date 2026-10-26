@@ -19,6 +19,18 @@ class UsageOut(BaseModel):
     warnings: list[str]
 
 
+class CompanySummary(BaseModel):
+    """What any signed-in user may know about their company: enough to build
+    the public careers and job URLs (slug + instance mode). The branding
+    and settings payload stays admin-only in ``CompanyOut``."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    name: str
+    mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
+
+
 class CompanyOut(BaseModel):
     """Admin view of the company (branding settings, screen 10)."""
 

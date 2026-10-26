@@ -1243,8 +1243,18 @@ export const webhooks = {
   deliveries: (id: string) => request<WebhookDelivery[]>(`/api/v1/webhooks/${id}/deliveries`),
 };
 
+/** Slug, name and instance mode for any role (GET /company/summary): what
+ * the job overview needs to build public job URLs and share links. The
+ * admin-only branding/settings view is `companyApi.get`. */
+export interface CompanySummary {
+  slug: string;
+  name: string;
+  mode: "single" | "multi";
+}
+
 export const companyApi = {
   get: () => request<CompanyAdmin>("/api/v1/company"),
+  summary: () => request<CompanySummary>("/api/v1/company/summary"),
   usage: () => request<UsageOut>("/api/v1/company/usage"),
   updateBranding: (patch: BrandingUpdate) =>
     request<CompanyAdmin>("/api/v1/company/branding", {

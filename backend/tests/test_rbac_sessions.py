@@ -157,3 +157,34 @@ async def test_account_lockout_after_repeated_failures(
     resp = await client.post("/api/v1/auth/login", json=creds)
     assert resp.status_code == 423
     await lockout.clear(creds["email"])
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_member_reads_the_company_summary_but_not_the_admin_view(
+    client: AsyncClient,
+) -> None:
+    """The job overview builds the public job URL and the share links from
+    the company slug and the instance mode; a member must get those without
+    the admin-only branding and settings payload."""
+    admin = await _register_admin(client)
+    member_pw = "member-password-1234"
+    member_email = f"member-{uuid4().hex[:8]}@ganek-ci.dev"
+    resp = await client.post(
+        "/api/v1/users", json={"email": member_email, "password": member_pw, "role": "member"}
+    )
+    assert resp.status_code == 201, resp.text
+    admin_view = (await client.get("/api/v1/company")).json()
+
+    await client.post("/api/v1/auth/logout")
+    assert (
+        await client.post("/api/v1/auth/login", json={"email": member_email, "password": member_pw})
+    ).status_code == 200
+    assert (await client.get("/api/v1/company")).status_code == 403
+    summary = await client.get("/api/v1/company/summary")
+    assert summary.status_code == 200, summary.text
+    assert summary.json() == {
+        "slug": admin_view["slug"],
+        "name": admin_view["name"],
+        "mode": "multi",
+    }
+    assert admin["email"]  # fixture used
