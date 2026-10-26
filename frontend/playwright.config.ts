@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 /** Browser e2e for the golden paths. Assumes a RUNNING stack (fresh compose,
  * or one previously initialized by this suite) at E2E_BASE_URL — see the
@@ -13,5 +13,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",
+    // headless Chromium announces itself as HeadlessChrome, which the job
+    // page's bot filter (lib/views.ts) rightly ignores; the suite plays a
+    // person, so it browses with a regular desktop UA
+    userAgent: devices["Desktop Chrome"].userAgent,
   },
 });
