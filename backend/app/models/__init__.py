@@ -12,6 +12,7 @@ from app.models.erasure_tombstone import ErasureTombstone
 from app.models.google_credential import UserGoogleCredential
 from app.models.interview import Interview, InterviewStatus
 from app.models.job import EmploymentType, Job, JobStatus, RemotePolicy, SalaryPeriod
+from app.models.job_view import JobView
 from app.models.question import (
     MAX_DIFFICULTY,
     MIN_DIFFICULTY,
@@ -51,6 +52,7 @@ __all__ = [
     "EmploymentType",
     "Job",
     "JobStatus",
+    "JobView",
     "Question",
     "Questionnaire",
     "Task",
