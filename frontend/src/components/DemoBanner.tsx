@@ -2,9 +2,11 @@ import { FlaskConical } from "lucide-react";
 
 /** Strip shown on every admin and public page of a demo instance (the
  * backend reports `demo: true` on /auth/providers). Candidate pages use the
- * brand variant so the strip follows the company theme; the admin shell uses
- * the neutral one. Never rendered on the quiz screen: that layout must not
- * shift mid-question. */
+ * brand variant so the strip follows the company theme, and invite the
+ * visitor to the recruiter side: the login page offers one-click sign-in as
+ * the demo admin, so no credential is ever printed here. The admin shell
+ * uses the neutral one. Never rendered on the quiz screen: that layout must
+ * not shift mid-question. */
 export function DemoBanner({ tone = "admin" }: { tone?: "admin" | "brand" }) {
   const brand = tone === "brand";
   return (
@@ -21,7 +23,16 @@ export function DemoBanner({ tone = "admin" }: { tone?: "admin" | "brand" }) {
       <FlaskConical aria-hidden className="h-[15px] w-[15px] shrink-0" />
       <span>
         <b className="font-semibold">Demo workspace.</b> Fictional data, resets nightly.
-        {brand ? " Nothing you type or upload here is kept." : ""}
+        {brand ? (
+          <>
+            {" "}
+            Nothing you type or upload here is kept. Curious about the recruiter side?{" "}
+            <a href="/login" className="font-semibold underline underline-offset-2">
+              Sign in with one click
+            </a>
+            .
+          </>
+        ) : null}
       </span>
     </div>
   );
