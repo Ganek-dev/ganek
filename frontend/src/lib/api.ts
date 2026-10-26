@@ -991,6 +991,8 @@ export interface JobStats {
   last_30_days: number;
   /** stage value -> count; stages with no applications are absent */
   by_stage: Partial<Record<ApplicationStage, number>>;
+  /** source label -> count ("direct" for applications without one) */
+  by_source: Record<string, number>;
   quiz: StatsOverview["quiz"];
   weekly: { week_start: string; count: number }[];
   /** null for drafts and for jobs closed before closed_at existed */

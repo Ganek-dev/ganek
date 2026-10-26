@@ -90,6 +90,7 @@ function makeStats(overrides: Partial<JobStats> = {}): JobStats {
     applications: { total: 5, new: 2, last_7_days: 3 },
     last_30_days: 3,
     by_stage: { new: 2, screening: 1, hired: 2 },
+    by_source: { linkedin: 3, direct: 2 },
     quiz: {
       attempts_total: 3,
       attempts_started: 3,
@@ -195,6 +196,7 @@ describe("JobOverviewPage", () => {
         applications: { total: 0, new: 0, last_7_days: 0 },
         last_30_days: 0,
         by_stage: {},
+        by_source: {},
         quiz: {
           attempts_total: 0,
           attempts_started: 0,

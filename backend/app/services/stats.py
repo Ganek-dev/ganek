@@ -244,10 +244,22 @@ async def job_stats(db: AsyncSession, company: Company, job: Job) -> JobStats:
         days_open = None if job.closed_at is None else (job.closed_at - job.published_at).days
     else:
         days_open = (now - job.published_at).days
+    source_rows = (
+        await db.execute(
+            select(Application.source, func.count())
+            .where(Application.company_id == company.id, Application.job_id == job.id)
+            .group_by(Application.source)
+        )
+    ).all()
+    by_source: dict[str, int] = {}
+    for source, count in source_rows:
+        label = source or "direct"
+        by_source[label] = by_source.get(label, 0) + count
     return JobStats(
         applications=ApplicationCounts(total=row[0], new=row[1], last_7_days=row[2]),
         last_30_days=row[3],
         by_stage=await applications_service.count_by_stage(db, company, job_id=job.id),
+        by_source=by_source,
         quiz=await _quiz_counts(db, company, job_id=job.id),
         weekly=await _weekly(db, company, job_id=job.id),
         days_open=days_open,
