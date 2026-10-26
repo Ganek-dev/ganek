@@ -5,6 +5,7 @@ import {
   REF_ROW_MIN_VIEWS,
   VIEWS_TOOLTIP,
   applyRate,
+  applyRateReason,
   formatCount,
   sourceRows,
 } from "./job-metrics";
@@ -15,6 +16,14 @@ describe("applyRate", () => {
     expect(applyRate(19, 5)).toBeNull();
     expect(applyRate(3, 1)).toBeNull();
     expect(applyRate(0, 0)).toBeNull();
+  });
+
+  it("is n/a when applications outnumber counted views (jobs older than the counter)", () => {
+    expect(applyRate(25, 40)).toBeNull();
+    expect(applyRateReason(25, 40)).toBe("applications outnumber counted views");
+    expect(applyRateReason(19, 5)).toBe("under 20 views");
+    expect(applyRateReason(100, 10)).toBeNull();
+    expect(applyRate(30, 30)).toBe("100%");
   });
 
   it("is applications over views, rounded, from the threshold on", () => {
@@ -54,9 +63,11 @@ describe("sourceRows", () => {
     expect(sourceRows({ xing: 1 }, {}).map((r) => r.source)).toEqual(["xing"]);
   });
 
-  it("carries the row apply rate under the same threshold", () => {
+  it("carries the row apply rate under the same rules", () => {
     const [row] = sourceRows({ linkedin: 40 }, { linkedin: 4 });
     expect(row.applyRate).toBe("10%");
+    const [legacy] = sourceRows({ linkedin: 25 }, { linkedin: 40 });
+    expect(legacy.applyRate).toBeNull();
   });
 });
 

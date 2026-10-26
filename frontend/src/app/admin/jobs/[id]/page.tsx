@@ -27,6 +27,7 @@ import {
   APPLY_RATE_TOOLTIP,
   VIEWS_TOOLTIP,
   applyRate,
+  applyRateReason,
   formatCount,
   sourceRows,
 } from "@/lib/job-metrics";
@@ -275,9 +276,8 @@ export default function JobOverviewPage() {
           value={stats && !draft ? (rate ?? "n/a") : "-"}
           hint={
             stats && !draft
-              ? rate === null
-                ? "under 20 views"
-                : `${plural(stats.last_30_days, "application")} / ${formatCount(views30)} views`
+              ? (applyRateReason(views30, stats.last_30_days) ??
+                `${plural(stats.last_30_days, "application")} / ${formatCount(views30)} views`)
               : undefined
           }
         />

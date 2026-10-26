@@ -13,8 +13,17 @@ export const VIEWS_TOOLTIP =
 
 export const APPLY_RATE_TOOLTIP = `Applications divided by views over the same period; shown from ${APPLY_RATE_MIN_VIEWS} views.`;
 
+/** Why the apply rate is not shown, or null when it is. Jobs that predate
+ * the counter carry applications with no matching views: a rate over 100%
+ * would read as a bug, so it stays hidden until views catch up. */
+export function applyRateReason(views: number, applications: number): string | null {
+  if (views < APPLY_RATE_MIN_VIEWS) return "under 20 views";
+  if (applications > views) return "applications outnumber counted views";
+  return null;
+}
+
 export function applyRate(views: number, applications: number): string | null {
-  if (views < APPLY_RATE_MIN_VIEWS) return null;
+  if (applyRateReason(views, applications) !== null) return null;
   return `${Math.round((100 * applications) / views)}%`;
 }
 

@@ -212,6 +212,15 @@ describe("JobOverviewPage", () => {
     expect(within(rateTile).getByText("n/a")).toBeInTheDocument();
     expect(within(rateTile).getByText("under 20 views")).toBeInTheDocument();
     cleanup();
+    // a job older than the counter: applications without matching views
+    mockedJobs.stats.mockResolvedValue(
+      makeStats({ views: { total: 25, last_30_days: 25 }, last_30_days: 40 }),
+    );
+    render(<JobOverviewPage />);
+    const legacy = (await screen.findByText("Apply rate · 30d")).closest("div")!;
+    expect(await within(legacy).findByText("n/a")).toBeInTheDocument();
+    expect(within(legacy).getByText("applications outnumber counted views")).toBeInTheDocument();
+    cleanup();
     mockedJobs.stats.mockResolvedValue(
       makeStats({ views: { total: 100, last_30_days: 100 }, last_30_days: 10 }),
     );
