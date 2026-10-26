@@ -203,6 +203,20 @@ describe("JobOverviewPage", () => {
     expect(document.body.textContent).not.toMatch(/visitor/i);
   });
 
+  it("offers tracked share links on a live job and asks a draft to publish first", async () => {
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("Share this job")).closest("div")!;
+    expect(
+      await within(card).findByText(/\/c\/acme\/jobs\/senior-frontend-engineer\?src=linkedin$/),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Copy LinkedIn link" })).toBeInTheDocument();
+    cleanup();
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "draft", published_at: null }));
+    render(<JobOverviewPage />);
+    const draftCard = (await screen.findByText("Share this job")).closest("div")!;
+    expect(within(draftCard).getByText("Publish to get share links.")).toBeInTheDocument();
+  });
+
   it("hides the apply rate under 20 views and shows it from there", async () => {
     mockedJobs.stats.mockResolvedValue(
       makeStats({ views: { total: 19, last_30_days: 19 }, last_30_days: 5 }),
