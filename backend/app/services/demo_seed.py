@@ -26,7 +26,7 @@ import os
 import random
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,7 @@ from app.models import (
     AttemptAnswer,
     Company,
     Job,
+    JobView,
     QuizAttempt,
     User,
     UserRole,
@@ -75,6 +76,7 @@ class SeedResult:
     company_id: uuid.UUID
     applications: int = 0
     attempts: int = 0
+    views: int = 0
 
 
 @dataclass(frozen=True)
@@ -139,6 +141,7 @@ class _Candidate:
     linkedin: str | None = None
     message: str | None = None
     flag: str | None = None  # "blur" or "fast": the two integrity stories
+    source: str = "direct"  # where they came from (core/sources.py grammar)
 
 
 CANDIDATES = (
@@ -149,30 +152,49 @@ CANDIDATES = (
         ApplicationStage.INTERVIEW,
         github="https://github.com/Ganek-dev",
         message="I ran the ingestion pipeline at a logistics startup for three years.",
+        source="linkedin",
     ),
-    _Candidate("Alex Brandt", 0, 7, ApplicationStage.SCREENING, flag="blur"),
-    _Candidate("Karol Zielinski", 0, 6, ApplicationStage.INTERVIEW),
+    _Candidate("Alex Brandt", 0, 7, ApplicationStage.SCREENING, flag="blur", source="google"),
+    _Candidate("Karol Zielinski", 0, 6, ApplicationStage.INTERVIEW),  # direct
     _Candidate(
         "Hanna Bergstrom",
         0,
         6,
         ApplicationStage.SCREENING,
         linkedin="https://www.linkedin.com/company/ganek-io",
+        source="linkedin",
     ),
-    _Candidate("Diego Alvarez", 0, 5, ApplicationStage.SCREENING),
-    _Candidate("Nina Lindqvist", 0, 5, ApplicationStage.NEW),
-    _Candidate("Pavel Horak", 0, 4, ApplicationStage.SCREENING),
-    _Candidate("Sofia Ricci", 0, 4, ApplicationStage.NEW),
-    _Candidate("Lucas Moreau", 0, 3, ApplicationStage.REJECTED),
-    _Candidate("Aisha Khan", 0, 3, ApplicationStage.NEW, flag="fast"),
-    _Candidate("Tomas Ferreira", 0, 2, ApplicationStage.REJECTED),
-    _Candidate("Ingrid Solberg", 0, None, ApplicationStage.NEW),  # invite still open
-    _Candidate("Marek Novak", 0, None, ApplicationStage.NEW),
-    _Candidate("Yuki Tanaka", 0, None, ApplicationStage.REJECTED),
-    _Candidate("Lena Fischer", 3, None, ApplicationStage.SCREENING),
-    _Candidate("Omar Haddad", 3, None, ApplicationStage.NEW),
-    _Candidate("Chloe Martin", 1, None, ApplicationStage.NEW),
+    _Candidate("Diego Alvarez", 0, 5, ApplicationStage.SCREENING, source="link:newsletter"),
+    _Candidate("Nina Lindqvist", 0, 5, ApplicationStage.NEW, source="google"),
+    _Candidate("Pavel Horak", 0, 4, ApplicationStage.SCREENING, source="linkedin"),
+    _Candidate("Sofia Ricci", 0, 4, ApplicationStage.NEW, source="ref:robotics-weekly.example"),
+    _Candidate("Lucas Moreau", 0, 3, ApplicationStage.REJECTED),  # direct
+    _Candidate("Aisha Khan", 0, 3, ApplicationStage.NEW, flag="fast", source="linkedin"),
+    _Candidate("Tomas Ferreira", 0, 2, ApplicationStage.REJECTED, source="google"),
+    _Candidate("Ingrid Solberg", 0, None, ApplicationStage.NEW, source="link:newsletter"),  # open
+    _Candidate("Marek Novak", 0, None, ApplicationStage.NEW, source="hn"),
+    _Candidate("Yuki Tanaka", 0, None, ApplicationStage.REJECTED),  # direct
+    _Candidate("Lena Fischer", 3, None, ApplicationStage.SCREENING, source="linkedin"),
+    _Candidate("Omar Haddad", 3, None, ApplicationStage.NEW),  # direct
+    _Candidate("Chloe Martin", 1, None, ApplicationStage.NEW, source="indeed"),
 )
+
+# Page views per job and day (spec job posts v2 5.5), by source, for the last
+# 30 days: base loads per weekday, a share per source, and one newsletter
+# send ten days ago that shows as a spike. Shares sum to 1.
+VIEW_BASE_PER_JOB = (28, 14, 10, 18)  # index into JOBS
+VIEW_SHARES = (
+    ("direct", 0.30),
+    ("linkedin", 0.25),
+    ("google", 0.18),
+    ("indeed", 0.08),
+    ("link:newsletter", 0.07),
+    ("website", 0.05),
+    ("hn", 0.04),
+    ("ref:robotics-weekly.example", 0.03),
+)
+NEWSLETTER_DAYS_AGO = 10
+VIEW_DAYS = 30
 
 NOTES = (
     (0, "erika", "Strong on the pipeline questions. Pair her with Jonas for the systems round."),
@@ -397,6 +419,7 @@ async def seed(
                 linkedin=cand.linkedin,
                 cv_object_key=key,
                 cv_filename=f"{cand.name.split()[-1].lower()}-cv.pdf",
+                source=cand.source,
             ),
         )
         attempt = await _take_quiz(db, company, application, job, cand, rng)
@@ -430,9 +453,41 @@ async def seed(
         days_ago = 20.0 - index * (19.0 / max(1, len(CANDIDATES) - 1)) + rng.uniform(-0.3, 0.3)
         await _backdate(db, application, timedelta(days=max(0.1, days_ago)))
 
+    views = await _seed_views(db, jobs, rng)
     return SeedResult(
-        created=True, company_id=company.id, applications=len(applications), attempts=attempts
+        created=True,
+        company_id=company.id,
+        applications=len(applications),
+        attempts=attempts,
+        views=views,
     )
+
+
+async def _seed_views(db: AsyncSession, jobs: list[Job], rng: random.Random) -> int:
+    """Daily page-view totals per job and source for the last VIEW_DAYS days,
+    so the overview's tiles, chart, Sources table and apply rates look like
+    a careers page people actually open. Aggregates only, like the real
+    counter: no visitor exists behind these numbers."""
+    today = datetime.now(UTC).date()
+    total = 0
+    rows: list[JobView] = []
+    for job, base in zip(jobs, VIEW_BASE_PER_JOB, strict=True):
+        for days_ago in range(VIEW_DAYS):
+            day = today - timedelta(days=days_ago)
+            weekend = 0.45 if day.weekday() >= 5 else 1.0
+            daily = base * weekend * rng.uniform(0.75, 1.25)
+            for source, share in VIEW_SHARES:
+                views = round(daily * share * rng.uniform(0.6, 1.4))
+                if source == "link:newsletter" and days_ago == NEWSLETTER_DAYS_AGO:
+                    views += round(base * 1.5)
+                if source in ("direct", "linkedin", "google"):
+                    views = max(1, views)
+                if views > 0:
+                    rows.append(JobView(job_id=job.id, day=day, source=source, views=views))
+                    total += views
+    db.add_all(rows)
+    await db.commit()
+    return total
 
 
 async def run(*, slug: str, password: str, reset: bool) -> None:
