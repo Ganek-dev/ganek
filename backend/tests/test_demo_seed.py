@@ -1,6 +1,7 @@
 """Demo seed: the ACME Ganek company for local dev, screenshots and the
 public demo. Built through the real service layer, idempotent, resettable."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -15,6 +16,7 @@ from app.models import (
     Company,
     Job,
     JobStatus,
+    JobView,
     QuizAttempt,
     User,
 )
@@ -95,6 +97,56 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
         ).all()
     }
     assert {"new", "screening", "interview", "rejected"} <= stages
+
+    # where the applicants came from: the overview's Sources table has rows
+    sources = {
+        row[0]
+        for row in (
+            await db_session.execute(
+                select(Application.source).where(Application.company_id == company.id)
+            )
+        ).all()
+    }
+    assert {
+        "direct",
+        "linkedin",
+        "google",
+        "link:newsletter",
+        "ref:robotics-weekly.example",
+    } <= sources
+
+    # 30 days of page views for every job, by source, so the tiles, the daily
+    # chart and the apply rates read like a live careers page
+    view_rows = (
+        await db_session.execute(
+            select(JobView.job_id, JobView.day, JobView.source, JobView.views)
+            .join(Job, Job.id == JobView.job_id)
+            .where(Job.company_id == company.id)
+        )
+    ).all()
+    today = datetime.now(UTC).date()
+    assert {row.job_id for row in view_rows} == {j.id for j in jobs}
+    assert {row.day for row in view_rows} == {today - timedelta(days=i) for i in range(30)}
+    assert {"direct", "linkedin", "google", "link:newsletter"} <= {row.source for row in view_rows}
+    assert all(row.views > 0 for row in view_rows)
+    assert result.views == sum(row.views for row in view_rows) > 1000
+    # apply rates stay under 100%: every source with applicants has more views
+    backend_job = next(j for j in jobs if j.title == "Backend Engineer (Python)")
+    apps_by_source = dict(
+        (
+            await db_session.execute(
+                select(Application.source, func.count())
+                .where(Application.job_id == backend_job.id)
+                .group_by(Application.source)
+            )
+        ).all()
+    )
+    views_by_source: dict[str, int] = {}
+    for row in view_rows:
+        if row.job_id == backend_job.id:
+            views_by_source[row.source] = views_by_source.get(row.source, 0) + row.views
+    for source, count in apps_by_source.items():
+        assert views_by_source.get(source, 0) > count, source
 
     # second run: exists, nothing added
     again = await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1")
