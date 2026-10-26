@@ -320,6 +320,8 @@ export interface ApplicationPayload {
   cv_filename?: string;
   /** solved proof-of-work payload; only when the instance renders the widget */
   altcha?: string | null;
+  /** where the candidate came from (lib/source.ts grammar); null when unknown */
+  source?: string | null;
 }
 
 export const publicApply = {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { ApplyForm } from "@/components/ApplyForm";
@@ -7,10 +8,15 @@ import { themeStyle } from "@/components/careers";
 import { DemoBanner } from "@/components/DemoBanner";
 import { PreviewBar } from "@/components/PreviewBar";
 import { demoRobots, fetchInstanceInfo, publicApi, resolveJobView } from "@/lib/public-api";
+import { resolveSource, websiteHostOf } from "@/lib/source";
 
 interface Props {
   params: Promise<{ jobSlug: string }>;
-  searchParams: Promise<{ preview?: string }>;
+  searchParams: Promise<{
+    preview?: string;
+    src?: string | string[];
+    utm_source?: string | string[];
+  }>;
 }
 
 const NOINDEX = { robots: { index: false, follow: false } } as const;
@@ -30,7 +36,12 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 }
 
 export default async function SingleModeJobPage({ params, searchParams }: Props) {
-  const [{ jobSlug }, { preview }] = await Promise.all([params, searchParams]);
+  const [{ jobSlug }, query, requestHeaders] = await Promise.all([
+    params,
+    searchParams,
+    headers(),
+  ]);
+  const { preview } = query;
   const [page, { job, previewing }, { demo }] = await Promise.all([
     publicApi.singleCompanyPage(),
     resolveJobView((token) => publicApi.singleCompanyJob(jobSlug, token), preview),
@@ -45,6 +56,14 @@ export default async function SingleModeJobPage({ params, searchParams }: Props)
       </main>
     );
   }
+
+  // where this visit came from (spec 5.4): src > utm_source > Referer > direct
+  const source = resolveSource({
+    src: query.src,
+    utm_source: query.utm_source,
+    referer: requestHeaders.get("referer"),
+    websiteHost: websiteHostOf(page.company.website),
+  });
 
   return (
     <main
@@ -78,6 +97,7 @@ export default async function SingleModeJobPage({ params, searchParams }: Props)
                 companyName={page.company.name}
                 demo={demo}
                 privacyHref="/privacy"
+                source={source}
               />
             </section>
           </>
