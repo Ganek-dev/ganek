@@ -13,6 +13,13 @@ export const VIEWS_TOOLTIP =
 
 export const APPLY_RATE_TOOLTIP = `Applications divided by views over the same period; shown from ${APPLY_RATE_MIN_VIEWS} views.`;
 
+/** The one window every "30d" tile describes: UTC calendar days, the same
+ * days as the daily chart, never a rolling now-minus-30-days. */
+export const WINDOW_30D = "Today and the 29 days before it (UTC).";
+
+export const APPLICATIONS_TOOLTIP =
+  "Applications received today and the 29 days before it (UTC), the same days as the chart.";
+
 /** Why the apply rate is not shown, or null when it is. Jobs that predate
  * the counter carry applications with no matching views: a rate over 100%
  * would read as a bug, so it stays hidden until views catch up. */

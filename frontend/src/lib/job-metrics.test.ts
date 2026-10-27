@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   APPLY_RATE_MIN_VIEWS,
   REF_ROW_MIN_VIEWS,
+  APPLICATIONS_TOOLTIP,
   VIEWS_TOOLTIP,
+  WINDOW_30D,
   applyRate,
   applyRateReason,
   formatCount,
@@ -81,5 +83,9 @@ describe("copy", () => {
     expect(VIEWS_TOOLTIP).toMatch(/Page loads by people/);
     expect(VIEWS_TOOLTIP).not.toMatch(/visitor/i);
     expect(VIEWS_TOOLTIP).not.toMatch(/[–—]/);
+    for (const copy of [WINDOW_30D, APPLICATIONS_TOOLTIP]) {
+      expect(copy).toMatch(/today and the 29 days before it \(UTC\)/i);
+      expect(copy).not.toMatch(/[–—]/);
+    }
   });
 });

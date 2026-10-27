@@ -1,7 +1,7 @@
 """Per-job stats endpoint (job overview card): applications by stage, quiz
 counts, weekly series and days open, always tenant- and job-scoped."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -311,3 +311,47 @@ async def test_per_job_views_are_tenant_scoped(
     theirs = (await client.get("/api/v1/stats/overview")).json()
     assert job["id"] not in [r["job_id"] for r in theirs["per_job"]]
     assert (await client.get(f"/api/v1/jobs/{job['id']}/stats")).status_code == 404
+
+
+def _end_of(day: date) -> datetime:
+    return datetime.combine(day, time(23, 59, 59), UTC)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_job_stats_windows_are_utc_calendar_days(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Card "Overview 30d windows": the tiles count today and the 29 (or 6)
+    UTC days before it, the same days as the daily series and the views,
+    never a rolling now-minus-30-days."""
+    ws = await _register(client)
+    job_id, today_id = await ws.published_job_with_applicant("Backend Engineer")
+    job = (await client.get(f"/api/v1/jobs/{job_id}")).json()
+    await ws.apply(job["slug"])
+    await ws.apply(job["slug"])
+    await ws.login()
+    page = (await client.get("/api/v1/applications", params={"job_id": job_id})).json()
+    older = [UUID(item["id"]) for item in page["items"] if item["id"] != today_id]
+    assert len(older) == 2
+    today = datetime.now(UTC).date()
+    # one at the last second of the day 30 days ago (outside), one 7 days ago (in 30d, not 7d)
+    for application_id, created_at in zip(
+        older,
+        (_end_of(today - timedelta(days=30)), _end_of(today - timedelta(days=7))),
+        strict=True,
+    ):
+        await db_session.execute(
+            update(Application)
+            .where(Application.id == application_id)
+            .values(created_at=created_at)
+        )
+    await db_session.commit()
+
+    stats = (await client.get(f"/api/v1/jobs/{job_id}/stats")).json()
+    assert stats["applications"]["total"] == 3
+    assert stats["applications"]["last_7_days"] == 1
+    assert stats["last_30_days"] == 2
+    daily = stats["daily"]
+    assert sum(point["applications"] for point in daily) == stats["last_30_days"]
+    assert daily[-1]["applications"] == 1
+    assert daily[29 - 7]["applications"] == 1
