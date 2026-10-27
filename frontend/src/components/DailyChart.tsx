@@ -33,6 +33,19 @@ function axisDay(iso: string): string {
 
 const CHART_HEIGHT = 80;
 
+const TITLE = "Views and applications, last 30 days";
+
+/** The chart's accessible name: what a screen reader gets instead of 30
+ * title tooltips (card "Overview accessibility"). */
+export function chartSummary(daily: Point[]): string {
+  if (daily.length === 0) return TITLE;
+  const views = daily.reduce((sum, p) => sum + p.views, 0);
+  const applications = daily.reduce((sum, p) => sum + p.applications, 0);
+  const first = shortDay(daily[0].day);
+  const last = shortDay(daily[daily.length - 1].day);
+  return `${TITLE}: ${plural(views, "view")} and ${plural(applications, "application")}, ${first} to ${last}.`;
+}
+
 function barHeight(value: number, max: number): number {
   if (value <= 0) return 0;
   return Math.max(2, (value / max) * CHART_HEIGHT);
@@ -44,9 +57,7 @@ export function DailyChart({ daily, empty }: { daily: Point[]; empty?: ReactNode
   return (
     <div className="card px-5 py-[18px]">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-heading text-[15px] font-semibold">
-          Views and applications, last 30 days
-        </h2>
+        <h2 className="font-heading text-[15px] font-semibold">{TITLE}</h2>
         <ul className="flex items-center gap-3 font-mono text-[11px] text-g500">
           <li className="flex items-center gap-1.5">
             <span
@@ -69,7 +80,7 @@ export function DailyChart({ daily, empty }: { daily: Point[]; empty?: ReactNode
       <div
         className="mt-3 flex h-28 items-end gap-[3px]"
         role="img"
-        aria-label="Views and applications, last 30 days"
+        aria-label={chartSummary(daily)}
       >
         {daily.map((point, i) => (
           <div

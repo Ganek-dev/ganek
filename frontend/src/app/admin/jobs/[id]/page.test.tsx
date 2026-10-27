@@ -1,5 +1,6 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import axe from "axe-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -208,8 +209,10 @@ describe("JobOverviewPage", () => {
     expect(within(rateTile).getByText("3 applications / 1,204 views")).toBeInTheDocument();
     expect(screen.queryByText("Days open")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "Views and applications, last 30 days" }),
-    ).toBeInTheDocument();
+      screen.getByRole("img", { name: /^Views and applications, last 30 days: / }),
+    ).toHaveAccessibleName(
+      "Views and applications, last 30 days: 435 views and 3 applications, Jul 1 to Jul 30.",
+    );
     expect(screen.getByText("quiz preview")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/visitor/i);
   });
@@ -221,7 +224,7 @@ describe("JobOverviewPage", () => {
       "title",
       "Applications received today and the 29 days before it (UTC), the same days as the chart.",
     );
-    const chart = screen.getByRole("img", { name: "Views and applications, last 30 days" });
+    const chart = screen.getByRole("img", { name: /^Views and applications, last 30 days/ });
     const charted = Array.from(chart.querySelectorAll<HTMLElement>("[title]")).reduce(
       (sum, bar) => sum + Number(/, (\d+) applications?$/.exec(bar.title)?.[1] ?? 0),
       0,
@@ -311,7 +314,7 @@ describe("JobOverviewPage", () => {
     const rateTile = screen.getByText("Apply rate · 30d").closest("div")!;
     expect(within(rateTile).getByText("-")).toBeInTheDocument();
     expect(
-      screen.queryByRole("img", { name: "Views and applications, last 30 days" }),
+      screen.queryByRole("img", { name: /^Views and applications, last 30 days/ }),
     ).not.toBeInTheDocument();
     const applicationsTile = screen.getByText("Applications · 30d").closest("div")!;
     expect(within(applicationsTile).getByText("-")).toBeInTheDocument();
@@ -414,7 +417,7 @@ describe("JobOverviewPage", () => {
 
   function chartCard(): HTMLElement {
     return screen
-      .getByRole("img", { name: "Views and applications, last 30 days" })
+      .getByRole("img", { name: /^Views and applications, last 30 days/ })
       .closest<HTMLElement>("div.card")!;
   }
 
@@ -468,6 +471,42 @@ describe("JobOverviewPage", () => {
     render(<JobOverviewPage />);
     const card = (await screen.findByText("Sources")).closest("div")!;
     expect(within(card).getByText("No views or applications yet.")).toBeInTheDocument();
+  });
+
+  it("says why share links are missing when the company summary fails, instead of a skeleton", async () => {
+    mockedCompany.summary.mockRejectedValue(new Error("network"));
+    render(<JobOverviewPage />);
+    expect(await screen.findByText("Public link loads with the company")).toBeInTheDocument();
+    expect(await screen.findByText("Share links load with the company.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Loading share links")).not.toBeInTheDocument();
+  });
+
+  it("says the same under the chart when a job with no views cannot build its links", async () => {
+    mockedCompany.summary.mockRejectedValue(new Error("network"));
+    mockedJobs.stats.mockResolvedValue(
+      noViews({
+        applications: { total: 0, new: 0, last_7_days: 0 },
+        last_30_days: 0,
+        by_source: {},
+        daily: makeStats().daily.map((point) => ({ ...point, views: 0, applications: 0 })),
+      }),
+    );
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("No views yet. Share it:")).closest<HTMLElement>("div.card")!;
+    expect(await within(card).findByText("Share links load with the company.")).toBeInTheDocument();
+    expect(within(card).queryByLabelText("Loading share links")).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /^Copy/ })).not.toBeInTheDocument();
+  });
+
+  it("passes axe on a live job with every card filled", async () => {
+    const { container } = render(<JobOverviewPage />);
+    await screen.findByRole("link", { name: "Marta Vidal" });
+    await screen.findByRole("button", { name: "Copy LinkedIn link" });
+    const results = await axe.run(container, {
+      // jsdom has no layout engine: contrast needs real rendering (CI e2e territory)
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
   });
 
   it("shows a skeleton, not an empty claim, while stats load", async () => {
