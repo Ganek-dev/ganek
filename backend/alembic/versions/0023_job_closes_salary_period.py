@@ -1,7 +1,7 @@
-"""jobs.closes_at + jobs.salary_period — honest Google Jobs JSON-LD (M5.7 H5)
+"""jobs.closes_at + jobs.salary_period - honest Google Jobs JSON-LD (M5.7 H5)
 
 closes_at is advisory (validThrough); it never auto-closes a posting.
-salary_period backfills to 'year' — the JSON-LD previously hardcoded MONTH,
+salary_period backfills to 'year' - the JSON-LD previously hardcoded MONTH,
 which misdeclared the (typical) annual salaries.
 
 Revision ID: 0023

@@ -60,7 +60,7 @@ questions:
     difficulty: 1
     prompt: "What is gofmt?"
     options:
-      a: "The canonical code formatter — one standard style for all Go code"
+      a: "The canonical code formatter - one standard style for all Go code"
       b: "Go's package manager"
       c: "A linter for bugs"
       d: "The Go compiler"
@@ -108,7 +108,7 @@ questions:
       d: "Only if the function panics"
     correct: a
     explanation: >
-      Defers stack up and run on function exit — including during panics,
+      Defers stack up and run on function exit - including during panics,
       which is why they're used for cleanup.
 
   - id: go-nil-map-1
@@ -116,7 +116,7 @@ questions:
     difficulty: 3
     prompt: "`var m map[string]int` (nil map). What happens on `m[\"a\"] = 1`?"
     options:
-      a: "A runtime panic — writes to nil maps are illegal"
+      a: "A runtime panic - writes to nil maps are illegal"
       b: "The map is auto-initialized"
       c: "The write is silently dropped"
       d: "A compile error"
@@ -186,14 +186,14 @@ questions:
     difficulty: 3
     prompt: "How does a type implement an interface in Go?"
     options:
-      a: "Implicitly — by having the right method set; no declaration needed"
+      a: "Implicitly - by having the right method set; no declaration needed"
       b: "With an `implements` clause"
       c: "By embedding the interface"
       d: "By registering in an interface table"
     correct: a
     explanation: >
       Structural satisfaction: if the methods match, it implements the
-      interface — enabling decoupled packages.
+      interface - enabling decoupled packages.
 
   - id: go-closed-channel-1
     tags: [backend]
@@ -240,11 +240,11 @@ questions:
   - id: go-goroutine-leak-1
     tags: [backend]
     difficulty: 4
-    prompt: "A goroutine blocked forever on a channel nobody will touch again is called what — and why does it matter?"
+    prompt: "A goroutine blocked forever on a channel nobody will touch again is called what - and why does it matter?"
     options:
-      a: "A goroutine leak — its stack and references are never freed"
-      b: "A deadlock — the whole program stops"
-      c: "Harmless — the GC collects blocked goroutines"
+      a: "A goroutine leak - its stack and references are never freed"
+      b: "A deadlock - the whole program stops"
+      c: "Harmless - the GC collects blocked goroutines"
       d: "A race condition"
     correct: a
     explanation: >

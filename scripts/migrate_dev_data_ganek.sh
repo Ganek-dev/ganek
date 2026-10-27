@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time dev-data migration for the vetd → ganek rename: copies the named
 # volumes to their new names, renames the postgres role/db and the minio
-# bucket inside the copies. The old vetd-* volumes are never modified — they
+# bucket inside the copies. The old vetd-* volumes are never modified - they
 # stay behind as backups until you `docker volume rm` them yourself.
 #
 # Usage: POSTGRES_PASSWORD=... scripts/migrate_dev_data_ganek.sh
@@ -61,10 +61,10 @@ if copy_volume "$MINIO_OLD" "$MINIO_NEW"; then
   echo "minio bucket renamed"
 fi
 
-echo "== done — next steps =="
+echo "== done - next steps =="
 echo "  1. update .env: VETD_* keys -> GANEK_*, bucket vetd-cvs -> ganek-cvs,"
 echo "     POSTGRES_PASSWORD to the value used above"
 echo "  2. docker compose up -d          # now runs as project 'ganek'"
 echo "  3. reattach helpers, e.g.: docker network connect ganek_default vetd-mailpit"
-echo "  old volumes kept as backup — remove later with:"
+echo "  old volumes kept as backup - remove later with:"
 echo "     docker volume rm $PG_OLD $MINIO_OLD"

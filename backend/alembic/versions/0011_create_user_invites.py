@@ -1,8 +1,8 @@
 """create user_invites table (D6 team invites)
 
 Pending email invites to join a company's team. Rows exist only while an
-invite is outstanding — accept creates the user and deletes the row,
-revoke deletes it outright — so the table doubles as the pending list.
+invite is outstanding - accept creates the user and deletes the row,
+revoke deletes it outright - so the table doubles as the pending list.
 
 Revision ID: 0011
 Revises: 0010

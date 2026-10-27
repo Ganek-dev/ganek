@@ -37,7 +37,7 @@ questions:
       a: "`/docs` (Swagger UI) and `/redoc`"
       b: "`/api-docs.pdf`"
       c: "`/openapi/ui` only"
-      d: "It doesn't — docs require a plugin"
+      d: "It doesn't - docs require a plugin"
     correct: a
     explanation: >
       The OpenAPI schema is generated from your routes and type hints and
@@ -138,7 +138,7 @@ questions:
       d: "Converts the response to XML"
     correct: a
     explanation: >
-      Output passes through the model: extra attributes are dropped —
+      Output passes through the model: extra attributes are dropped -
       which is also a data-leak guard.
 
   - id: fastapi-http-exception-1
@@ -180,7 +180,7 @@ questions:
       d: "Queues fn in Redis"
     correct: a
     explanation: >
-      Background tasks execute in-process after the response — good for
+      Background tasks execute in-process after the response - good for
       small side jobs like sending an email.
 
   - id: fastapi-router-1
@@ -202,7 +202,7 @@ questions:
     difficulty: 4
     prompt: "In a dependency written with `yield` (e.g. a DB session), when does the code after `yield` run?"
     options:
-      a: "After the response is delivered — it's the cleanup phase, like closing the session"
+      a: "After the response is delivered - it's the cleanup phase, like closing the session"
       b: "Before the handler starts"
       c: "Only when an exception occurs"
       d: "Never; code after yield is unreachable"
@@ -216,9 +216,9 @@ questions:
     difficulty: 4
     prompt: "Two dependencies in one request both depend on `get_db`. How many times does `get_db` run?"
     options:
-      a: "Once — resolved dependencies are cached within a request by default"
+      a: "Once - resolved dependencies are cached within a request by default"
       b: "Twice, once per dependent"
-      c: "Zero — FastAPI mocks it"
+      c: "Zero - FastAPI mocks it"
       d: "It's undefined behavior"
     correct: a
     explanation: >
@@ -236,7 +236,7 @@ questions:
       d: "Editing the OpenAPI schema"
     correct: a
     explanation: >
-      dependency_overrides maps the original callable to a replacement —
+      dependency_overrides maps the original callable to a replacement -
       the whole graph swaps without touching handlers.
 
   - id: fastapi-pydantic-config-1
@@ -251,14 +251,14 @@ questions:
     correct: a
     explanation: >
       from_attributes (Pydantic v2) lets response models read SQLAlchemy
-      objects directly — the ORM-to-schema bridge.
+      objects directly - the ORM-to-schema bridge.
 
   - id: fastapi-middleware-1
     tags: [python, backend]
     difficulty: 4
     prompt: "What can HTTP middleware do that a dependency cannot?"
     options:
-      a: "Wrap EVERY request/response — including 404s and other apps' routes — e.g. to add headers or timing"
+      a: "Wrap EVERY request/response - including 404s and other apps' routes - e.g. to add headers or timing"
       b: "Access the request body"
       c: "Raise HTTPException"
       d: "Read query parameters"

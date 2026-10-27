@@ -9,6 +9,9 @@
   restores it afterwards). Stage-selectable: `scripts/ci_local.sh
   --help`. Full run is ~6-7 minutes; run at least the stages your
   diff touches - runtime-dependency changes warrant the full run.
+- `no_dashes.py` - house-rule guard: fails on any em or en dash in a
+  tracked text file (lockfiles excluded). Runs from pre-commit, `ci_local.sh
+  questions` and the CI question-bank job.
 - `e2e_smoke.sh` - curl smoke suite against a running stack (used by
   CI and by `ci_local.sh`'s e2e stage).
 - `backup.sh [dir]` - Postgres custom-format dump + a tarball of the CV

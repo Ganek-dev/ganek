@@ -29,5 +29,5 @@ jobs:
           custom-notsigned-prcomment: >
             Thanks for the pull request! Before we can merge, we need you to
             sign the [Contributor License Agreement](https://github.com/Ganek-dev/ganek/blob/main/CLA.md)
-            — you keep your copyright, details in the document. Sign by
+            - you keep your copyright, details in the document. Sign by
             replying with the comment below.

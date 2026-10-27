@@ -12,7 +12,7 @@ questions:
       d: "Runtime type enforcement in the browser"
     correct: a
     explanation: >
-      Types exist only at build time — they're erased in the emitted
+      Types exist only at build time - they're erased in the emitted
       JavaScript; nothing is checked at runtime.
 
   - id: ts-annotation-1
@@ -32,7 +32,7 @@ questions:
     difficulty: 1
     prompt: "What is an `interface` for?"
     options:
-      a: "Describing the shape of an object — its properties and their types"
+      a: "Describing the shape of an object - its properties and their types"
       b: "Creating class instances"
       c: "Importing modules"
       d: "Declaring global variables"
@@ -51,7 +51,7 @@ questions:
       d: "Makes it read-only"
     correct: a
     explanation: >
-      any silences the checker — you can call/assign anything, errors
+      any silences the checker - you can call/assign anything, errors
       surface only at runtime. Prefer unknown.
 
   - id: ts-optional-1
@@ -106,7 +106,7 @@ questions:
     correct: a
     explanation: >
       unknown is the type-safe top type: assignable from anything, usable
-      only after a check — the checker stays on.
+      only after a check - the checker stays on.
 
   - id: ts-generics-1
     tags: [frontend]
@@ -127,13 +127,13 @@ questions:
     difficulty: 3
     prompt: "What does `readonly` on a property enforce?"
     options:
-      a: "No reassignment after initialization — checked at compile time only"
+      a: "No reassignment after initialization - checked at compile time only"
       b: "Deep runtime immutability"
       c: "The property is hidden from JSON"
       d: "The property must be a constant literal"
     correct: a
     explanation: >
-      It's a compile-time guarantee; the emitted JS has no protection —
+      It's a compile-time guarantee; the emitted JS has no protection -
       and nested objects remain mutable.
 
   - id: ts-literal-1
@@ -147,7 +147,7 @@ questions:
       d: "Two enum objects"
     correct: a
     explanation: >
-      String-literal unions make illegal values compile errors — a
+      String-literal unions make illegal values compile errors - a
       lightweight alternative to enums.
 
   - id: ts-strict-null-1
@@ -155,7 +155,7 @@ questions:
     difficulty: 3
     prompt: "What does `strictNullChecks` change?"
     options:
-      a: "null/undefined stop being assignable to every type — absence must be explicit"
+      a: "null/undefined stop being assignable to every type - absence must be explicit"
       b: "null becomes a syntax error"
       c: "All variables become optional"
       d: "Runtime null checks are inserted"
@@ -176,14 +176,14 @@ questions:
     correct: a
     explanation: >
       Unlike nominal systems (Java), an object literal with the same
-      members IS the type — duck typing, checked statically.
+      members IS the type - duck typing, checked statically.
 
   - id: ts-never-1
     tags: [frontend]
     difficulty: 3
     prompt: "What does the `never` type represent?"
     options:
-      a: "A value that cannot exist — functions that always throw, or exhausted unions"
+      a: "A value that cannot exist - functions that always throw, or exhausted unions"
       b: "A value that is null"
       c: "A function returning undefined"
       d: "A deprecated API"
@@ -203,7 +203,7 @@ questions:
       d: "The tuple [string, number]"
     correct: a
     explanation: >
-      keyof yields the property-name union — the foundation of typed
+      keyof yields the property-name union - the foundation of typed
       lookups like `<K extends keyof T>(obj: T, key: K): T[K]`.
 
   - id: ts-discriminated-1
@@ -218,4 +218,4 @@ questions:
     correct: a
     explanation: >
       The common literal tag lets control flow prove which variant you
-      hold — errors become impossible states, not runtime surprises.
+      hold - errors become impossible states, not runtime surprises.

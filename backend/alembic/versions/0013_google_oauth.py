@@ -25,7 +25,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # google-only accounts would violate NOT NULL — drop them rather than
+    # google-only accounts would violate NOT NULL - drop them rather than
     # leaving the table in an unloadable state
     op.execute("DELETE FROM users WHERE password_hash IS NULL")
     op.alter_column("users", "password_hash", existing_type=sa.String(200), nullable=False)

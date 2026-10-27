@@ -27,7 +27,7 @@ questions:
     correct: a
     explanation: >
       const bindings cannot be reassigned. Note the object a const points
-      to can still be mutated — the binding is constant, not the value.
+      to can still be mutated - the binding is constant, not the value.
 
   - id: js-typeof-null-1
     tags: [frontend]
@@ -72,13 +72,13 @@ questions:
     difficulty: 2
     prompt: "What does `[1, 2].push(3)` return?"
     options:
-      a: "`3` — the new length of the array"
+      a: "`3` - the new length of the array"
       b: "The array `[1, 2, 3]`"
       c: "The added element `3`... as an array"
       d: "undefined"
     correct: a
     explanation: >
-      push mutates the array and returns its new length, not the array —
+      push mutates the array and returns its new length, not the array -
       a classic source of chained-call bugs.
 
   - id: js-nan-compare-1
@@ -156,7 +156,7 @@ questions:
     difficulty: 3
     prompt: "What does `arr.map(fn)` do to `arr`?"
     options:
-      a: "Nothing — it returns a NEW array of the transformed elements"
+      a: "Nothing - it returns a NEW array of the transformed elements"
       b: "Replaces each element in place"
       c: "Removes elements where fn returns false"
       d: "Sorts the array by fn's result"
@@ -170,7 +170,7 @@ questions:
     difficulty: 3
     prompt: "After `const { name, age = 18 } = person`, what is `age` if `person.age` is undefined?"
     options:
-      a: "`18` — the destructuring default applies"
+      a: "`18` - the destructuring default applies"
       b: "`undefined`"
       c: "`null`"
       d: "A ReferenceError"
@@ -201,10 +201,10 @@ questions:
       a: "A new object; keys in overrides win over the same keys in defaults"
       b: "A deep merge of nested objects"
       c: "An array of both objects"
-      d: "A TypeError — spread only works on arrays"
+      d: "A TypeError - spread only works on arrays"
     correct: a
     explanation: >
-      Object spread copies own enumerable properties left to right —
+      Object spread copies own enumerable properties left to right -
       later spreads overwrite. One level only; nesting is shared.
 
   - id: js-tdz-1
@@ -215,7 +215,7 @@ questions:
       a: "It sits in the temporal dead zone: hoisted but uninitialized until the declaration runs"
       b: "let variables are not hoisted at all"
       c: "The parser removes the access"
-      d: "It returns undefined like var — no throw"
+      d: "It returns undefined like var - no throw"
     correct: a
     explanation: >
       let/const declarations are known to the scope from the start but
@@ -227,7 +227,7 @@ questions:
     difficulty: 4
     prompt: "How does `this` behave in an arrow function?"
     options:
-      a: "Lexically inherited from the enclosing scope — call site doesn't change it"
+      a: "Lexically inherited from the enclosing scope - call site doesn't change it"
       b: "Bound to the object the arrow is called on"
       c: "Always undefined"
       d: "Bound to the global object, always"
@@ -240,10 +240,10 @@ questions:
   - id: js-microtask-1
     tags: [frontend]
     difficulty: 4
-    prompt: "`setTimeout(f, 0)` and `Promise.resolve().then(g)` are both pending — which runs first?"
+    prompt: "`setTimeout(f, 0)` and `Promise.resolve().then(g)` are both pending - which runs first?"
     options:
-      a: "g — microtasks (promise callbacks) run before the next macrotask"
-      b: "f — timers have priority"
+      a: "g - microtasks (promise callbacks) run before the next macrotask"
+      b: "f - timers have priority"
       c: "Whichever was scheduled first"
       d: "They run in parallel threads"
     correct: a

@@ -12,7 +12,7 @@ questions:
     correct: a
     explanation: >
       Default argument values are evaluated once at function definition time,
-      so the same list object is reused across calls — a classic footgun.
+      so the same list object is reused across calls - a classic footgun.
 
   - id: py-gil-1
     difficulty: 2
@@ -58,7 +58,7 @@ questions:
 
   - id: py-list-alias-1
     difficulty: 2
-    prompt: "After `a = [1]`, `b = a`, `b.append(2)` — what is `a`?"
+    prompt: "After `a = [1]`, `b = a`, `b.append(2)` - what is `a`?"
     options:
       a: "`[1, 2]`"
       b: "`[1]`"
@@ -97,7 +97,7 @@ questions:
     difficulty: 1
     prompt: "What happens when you run `t = (1, 2)` then `t[0] = 3`?"
     options:
-      a: "A `TypeError` — tuples are immutable"
+      a: "A `TypeError` - tuples are immutable"
       b: "`t` becomes `(3, 2)`"
       c: "A new tuple is silently created"
       d: "A `KeyError`"
@@ -138,7 +138,7 @@ questions:
       a: "`3`"
       b: "`6`"
       c: "`2`"
-      d: "A `ValueError` — duplicate elements"
+      d: "A `ValueError` - duplicate elements"
     correct: a
     explanation: "Sets keep unique elements only: {1, 2, 3}."
 
@@ -157,13 +157,13 @@ questions:
     difficulty: 2
     prompt: "When does a `finally:` block run?"
     options:
-      a: "Always — even if the try block raises or returns"
+      a: "Always - even if the try block raises or returns"
       b: "Only when no exception occurred"
       c: "Only when an exception occurred"
       d: "Only if the exception was not caught"
     correct: a
     explanation: >
-      `finally` runs on every path out of the try statement — normal exit,
+      `finally` runs on every path out of the try statement - normal exit,
       exception, return, break or continue.
 
   - id: py-venv-purpose-1
@@ -235,7 +235,7 @@ questions:
     difficulty: 3
     prompt: "After `[x for x in range(3)]` at module level, is `x` defined?"
     options:
-      a: "No — comprehensions have their own scope in Python 3"
+      a: "No - comprehensions have their own scope in Python 3"
       b: "Yes, `x` is `2`"
       c: "Yes, `x` is `0`"
       d: "Only inside functions"
@@ -272,7 +272,7 @@ questions:
 
   - id: py-shallow-copy-1
     difficulty: 3
-    prompt: "`b = a.copy()` on a list of lists is a shallow copy — meaning?"
+    prompt: "`b = a.copy()` on a list of lists is a shallow copy - meaning?"
     options:
       a: "The outer list is new, but inner lists are shared with `a`"
       b: "Everything is duplicated recursively"
@@ -324,7 +324,7 @@ questions:
 
   - id: py-closure-late-binding-1
     difficulty: 5
-    prompt: "`funcs = [lambda: i for i in range(3)]` — what does `funcs[0]()` return?"
+    prompt: "`funcs = [lambda: i for i in range(3)]` - what does `funcs[0]()` return?"
     options:
       a: "`2`"
       b: "`0`"
@@ -372,14 +372,14 @@ questions:
       d: "The class can no longer be subclassed"
     correct: a
     explanation: >
-      __slots__ replaces the instance dict with fixed storage — lower
+      __slots__ replaces the instance dict with fixed storage - lower
       memory and faster attribute access, at the cost of dynamic attrs.
 
   - id: py-generator-exhaust-1
     difficulty: 4
-    prompt: "`g = (n for n in range(3))`, then `list(g)` twice — what does the second `list(g)` give?"
+    prompt: "`g = (n for n in range(3))`, then `list(g)` twice - what does the second `list(g)` give?"
     options:
-      a: "`[]` — the generator is exhausted"
+      a: "`[]` - the generator is exhausted"
       b: "`[0, 1, 2]` again"
       c: "A `StopIteration` escapes to the caller"
       d: "A `RuntimeError`"
@@ -392,7 +392,7 @@ questions:
     difficulty: 4
     prompt: "What happens when you use a list as a dict key, e.g. `{[1, 2]: 'x'}`?"
     options:
-      a: "A `TypeError` — lists are unhashable"
+      a: "A `TypeError` - lists are unhashable"
       b: "It works; the list is converted to a tuple"
       c: "A `KeyError`"
       d: "The dict silently stores it by identity"

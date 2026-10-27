@@ -44,7 +44,7 @@ questions:
     difficulty: 2
     prompt: 'What does `<meta name="viewport" content="width=device-width, initial-scale=1">` do?'
     options:
-      a: "Makes the layout use the device's real width — the basis of responsive design on mobile"
+      a: "Makes the layout use the device's real width - the basis of responsive design on mobile"
       b: "Locks the page orientation"
       c: "Enables fullscreen mode"
       d: "Disables zooming entirely"
@@ -101,7 +101,7 @@ questions:
     correct: a
     explanation: >
       rem is relative to <html>'s font size (em is relative to the current
-      context) — respecting user font-size settings.
+      context) - respecting user font-size settings.
 
   - id: fe-defer-1
     difficulty: 3
@@ -133,7 +133,7 @@ questions:
     difficulty: 3
     prompt: "The core defense against XSS when displaying user content?"
     options:
-      a: "Escaping/encoding output for its context (or safe framework defaults) — never inject raw HTML"
+      a: "Escaping/encoding output for its context (or safe framework defaults) - never inject raw HTML"
       b: "Validating input length"
       c: "Using HTTPS"
       d: "Obfuscating the JavaScript bundle"
@@ -165,14 +165,14 @@ questions:
       d: "It only works with jQuery"
     correct: a
     explanation: >
-      Bubbling means ancestor handlers fire for descendant events —
+      Bubbling means ancestor handlers fire for descendant events -
       fewer listeners, and dynamically added items just work.
 
   - id: fe-reflow-1
     difficulty: 4
     prompt: "Why does alternating style writes with reads like `offsetHeight` in a loop destroy performance?"
     options:
-      a: "Each read forces a synchronous layout (reflow) so the browser can answer accurately — layout thrashing"
+      a: "Each read forces a synchronous layout (reflow) so the browser can answer accurately - layout thrashing"
       b: "offsetHeight is O(n²) by itself"
       c: "Style writes are asynchronous and get lost"
       d: "It triggers garbage collection"
@@ -185,10 +185,10 @@ questions:
     difficulty: 4
     prompt: "What causes Cumulative Layout Shift (CLS), and a standard prevention?"
     options:
-      a: "Content jumping as late assets load — reserve space (width/height on images, skeletons)"
-      b: "Slow JavaScript — minify it"
-      c: "Large DOM trees — paginate"
-      d: "Unused CSS — purge it"
+      a: "Content jumping as late assets load - reserve space (width/height on images, skeletons)"
+      b: "Slow JavaScript - minify it"
+      c: "Large DOM trees - paginate"
+      d: "Unused CSS - purge it"
     correct: a
     explanation: >
       Dimensionless images, injected banners and web fonts shift layout;

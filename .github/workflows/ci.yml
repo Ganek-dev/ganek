@@ -20,6 +20,7 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install pyyaml jsonschema
       - run: python questions/validate.py
+      - run: python scripts/no_dashes.py
 
   backend:
     name: Backend lint + typecheck + test (py${{ matrix.python }})
@@ -49,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # GH service containers can't override the image command, and the
-      # bitnami env-configured image is gone from Docker Hub — plain docker run:
+      # bitnami env-configured image is gone from Docker Hub - plain docker run:
       - name: Start minio
         run: |
           docker run -d --name minio -p 9000:9000 \

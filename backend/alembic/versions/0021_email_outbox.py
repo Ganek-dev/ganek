@@ -1,4 +1,4 @@
-"""email_outbox table — queued outbound email with delivery state (M5.7 H4)
+"""email_outbox table - queued outbound email with delivery state (M5.7 H4)
 
 Revision ID: 0021
 Revises: 0020

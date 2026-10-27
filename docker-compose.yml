@@ -1,7 +1,7 @@
 # Ganek self-host stack. Copy .env.example to .env first.
 name: ganek
 
-# Bounded log retention (GDPR G4): access logs hold client IPs — without
+# Bounded log retention (GDPR G4): access logs hold client IPs - without
 # rotation, Docker's json-file driver keeps them forever.
 x-logging: &default-logging
   driver: json-file
@@ -71,7 +71,7 @@ services:
       context: ./frontend
       args:
         BACKEND_URL: http://backend:8000
-        # Baked into the CSP (connect-src) — must match what the backend
+        # Baked into the CSP (connect-src) - must match what the backend
         # signs upload URLs against, or browsers block the CV upload.
         GANEK_S3_PUBLIC_ENDPOINT_URL: ${GANEK_S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     environment:
@@ -149,7 +149,7 @@ services:
       retries: 20
       start_period: 10s
     # loopback-only: candidates only ever need the presigned-upload host you
-    # configured — never the MinIO API/console themselves (.env.example §prod)
+    # configured - never the MinIO API/console themselves (.env.example §prod)
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
 
 volumes:

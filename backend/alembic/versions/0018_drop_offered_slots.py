@@ -1,4 +1,4 @@
-"""drop interviews.offered_slots — slots are computed live (scheduling v2)
+"""drop interviews.offered_slots - slots are computed live (scheduling v2)
 
 Revision ID: 0018
 Revises: 0017

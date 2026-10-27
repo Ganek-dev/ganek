@@ -99,12 +99,12 @@ questions:
       d: "It requires authentication"
     correct: a
     explanation: >
-      PUT replaces state — N identical PUTs equal one. POST is typically
+      PUT replaces state - N identical PUTs equal one. POST is typically
       not idempotent (N creates).
 
   - id: be-stateless-1
     difficulty: 3
-    prompt: "HTTP is stateless — what follows for API design?"
+    prompt: "HTTP is stateless - what follows for API design?"
     options:
       a: "Each request must carry everything needed (auth, context); the server keeps no per-connection memory"
       b: "Servers cannot use databases"
@@ -112,7 +112,7 @@ questions:
       d: "Sessions are impossible"
     correct: a
     explanation: >
-      State lives in tokens/cookies/stores, not in the connection — which
+      State lives in tokens/cookies/stores, not in the connection - which
       is what makes horizontal scaling straightforward.
 
   - id: be-pagination-1
@@ -177,7 +177,7 @@ questions:
       d: "Preventing SQL injection"
     correct: a
     explanation: >
-      CORS is a browser mechanism relaxing the same-origin policy —
+      CORS is a browser mechanism relaxing the same-origin policy -
       irrelevant to curl or backend-to-backend calls.
 
   - id: be-optimistic-lock-1
@@ -216,14 +216,14 @@ questions:
       d: "Automatic schema migration"
     correct: a
     explanation: >
-      A queue buffers work and isolates failures — the trade is eventual
+      A queue buffers work and isolates failures - the trade is eventual
       processing and delivery-semantics complexity.
 
   - id: be-conn-pool-1
     difficulty: 4
     prompt: "Why do backends use database connection pools?"
     options:
-      a: "Connections are expensive to open and DBs cap them — reuse keeps latency low and load bounded"
+      a: "Connections are expensive to open and DBs cap them - reuse keeps latency low and load bounded"
       b: "Pools encrypt database traffic"
       c: "Each query legally requires its own connection"
       d: "Pools cache query results"
@@ -234,12 +234,12 @@ questions:
 
   - id: be-cache-stampede-1
     difficulty: 4
-    prompt: "A hot cache key expires and 1000 requests hit the DB at once. This is called — and mitigated by?"
+    prompt: "A hot cache key expires and 1000 requests hit the DB at once. This is called - and mitigated by?"
     options:
-      a: "Cache stampede — single-flight locks, staggered TTLs, or serving stale while revalidating"
-      b: "Cache poisoning — input validation"
-      c: "Thundering read — sharding"
-      d: "TTL inversion — longer TTLs everywhere"
+      a: "Cache stampede - single-flight locks, staggered TTLs, or serving stale while revalidating"
+      b: "Cache poisoning - input validation"
+      c: "Thundering read - sharding"
+      d: "TTL inversion - longer TTLs everywhere"
     correct: a
     explanation: >
       Letting one request rebuild while others wait (or get stale data)

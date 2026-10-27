@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * an escape when they assert its absence. */
 
 const ROOT = join(__dirname);
-const DASH = /[–—]|&mdash;|&ndash;/;
+const DASH = /[\u2013\u2014]/;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

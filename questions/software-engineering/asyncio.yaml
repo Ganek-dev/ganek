@@ -134,9 +134,9 @@ questions:
   - id: py-asyncio-race-1
     tags: [python]
     difficulty: 3
-    prompt: "asyncio runs in one thread — can two tasks still corrupt shared state?"
+    prompt: "asyncio runs in one thread - can two tasks still corrupt shared state?"
     options:
-      a: "Yes — interleaving at await points can produce lost updates between read and write"
+      a: "Yes - interleaving at await points can produce lost updates between read and write"
       b: "No, single-threaded code cannot have races"
       c: "Only when using threads too"
       d: "Only on multi-core machines"
@@ -213,14 +213,14 @@ questions:
     correct: a
     explanation: >
       TaskGroup implements structured concurrency: failure cancels the
-      siblings and re-raises grouped exceptions — unlike bare gather.
+      siblings and re-raises grouped exceptions - unlike bare gather.
 
   - id: py-asyncio-fire-forget-1
     tags: [python]
     difficulty: 4
     prompt: "Why is `asyncio.create_task(coro())` without keeping the returned Task risky?"
     options:
-      a: "The loop holds only a weak reference — the task can be garbage-collected mid-flight"
+      a: "The loop holds only a weak reference - the task can be garbage-collected mid-flight"
       b: "The task runs twice"
       c: "It blocks the event loop"
       d: "It leaks a thread per task"
@@ -248,10 +248,10 @@ questions:
     difficulty: 4
     prompt: "Why doesn't asyncio speed up CPU-bound work like hashing or parsing?"
     options:
-      a: "Everything runs in one thread — a computing task never yields, so nothing else runs either"
+      a: "Everything runs in one thread - a computing task never yields, so nothing else runs either"
       b: "The GIL disables the event loop"
       c: "asyncio only works with sockets"
-      d: "It does — tasks run on all cores"
+      d: "It does - tasks run on all cores"
     correct: a
     explanation: >
       async concurrency is cooperative I/O interleaving, not parallelism.

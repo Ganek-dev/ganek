@@ -18,7 +18,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # op.f() marks names as final — without it the naming convention
+    # op.f() marks names as final - without it the naming convention
     # double-prefixes to ck_questions_ck_questions_difficulty
     op.drop_constraint(op.f("ck_questions_difficulty"), "questions", type_="check")
     op.execute(
