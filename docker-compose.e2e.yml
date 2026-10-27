@@ -9,7 +9,7 @@
 #   docker compose -p ganek-e2e -f docker-compose.yml -f docker-compose.e2e.yml down -v
 #   docker compose up -d                      # your stack, data untouched
 #
-# CI does not use this file — each runner is fresh.
+# CI does not use this file - each runner is fresh.
 volumes:
   pgdata:
     name: ganek-e2e-postgres-data

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /** Browser e2e for the golden paths. Assumes a RUNNING stack (fresh compose,
- * or one previously initialized by this suite) at E2E_BASE_URL — see the
+ * or one previously initialized by this suite) at E2E_BASE_URL - see the
  * `browser` job in .github/workflows/e2e.yml. Not part of `pnpm test`. */
 export default defineConfig({
   testDir: "e2e",

@@ -11,7 +11,7 @@ questions:
       d: "A tag on the latest push"
     correct: a
     explanation: >
-      Commits are content snapshots linked into a history graph — diffs
+      Commits are content snapshots linked into a history graph - diffs
       are computed between them.
 
   - id: git-branch-1
@@ -81,7 +81,7 @@ questions:
     difficulty: 3
     prompt: "What is HEAD?"
     options:
-      a: "The pointer to your current checkout — usually the tip of the current branch"
+      a: "The pointer to your current checkout - usually the tip of the current branch"
       b: "The newest commit in the repository"
       c: "The default branch on the server"
       d: "The first commit ever made"
@@ -100,12 +100,12 @@ questions:
       d: "They produce identical history"
     correct: a
     explanation: >
-      Same end content, different history shape — and rebase creates new
+      Same end content, different history shape - and rebase creates new
       commits with new hashes.
 
   - id: git-revert-reset-1
     difficulty: 3
-    prompt: "On a shared branch, undo a bad commit with revert rather than reset — why?"
+    prompt: "On a shared branch, undo a bad commit with revert rather than reset - why?"
     options:
       a: "Revert adds a new inverse commit; reset rewrites history others already have"
       b: "Reset only works locally on new repos"
@@ -133,7 +133,7 @@ questions:
     difficulty: 3
     prompt: "What do `<<<<<<<`, `=======`, `>>>>>>>` markers in a file mean?"
     options:
-      a: "A merge conflict: both sides changed the region — edit to the desired result, then stage"
+      a: "A merge conflict: both sides changed the region - edit to the desired result, then stage"
       b: "Corrupted repository data"
       c: "Auto-resolved changes for review"
       d: "Comments added by the remote"
@@ -149,7 +149,7 @@ questions:
       a: "It can erase others' commits; --force-with-lease refuses if the remote moved since you fetched"
       b: "It deletes the remote branch first; --force-safe"
       c: "It bypasses CI; --force-verify"
-      d: "Nothing — force is required for every push"
+      d: "Nothing - force is required for every push"
     correct: a
     explanation: >
       Force overwrites the remote ref unconditionally; with-lease at
@@ -159,7 +159,7 @@ questions:
     difficulty: 4
     prompt: "Why must you not rebase commits that others have already based work on?"
     options:
-      a: "Rebase creates new hashes — the old commits live on in their branches, causing duplicates and painful merges"
+      a: "Rebase creates new hashes - the old commits live on in their branches, causing duplicates and painful merges"
       b: "Rebase deletes the reflog"
       c: "The server blocks it automatically"
       d: "Rebased commits lose their messages"
@@ -172,7 +172,7 @@ questions:
     difficulty: 4
     prompt: "You hard-reset away a commit you actually needed. Where can it usually still be found?"
     options:
-      a: "`git reflog` — the local log of where HEAD has been; the commit is recoverable until GC"
+      a: "`git reflog` - the local log of where HEAD has been; the commit is recoverable until GC"
       b: "Nowhere; hard reset is immediate deletion"
       c: "The remote keeps every local commit"
       d: "In .gitignore history"

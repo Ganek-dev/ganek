@@ -86,7 +86,7 @@ questions:
       d: "Containers cannot run Linux software"
     correct: a
     explanation: >
-      Kernel sharing makes containers start in ms and cost MBs — with
+      Kernel sharing makes containers start in ms and cost MBs - with
       weaker isolation than hardware virtualization.
 
   - id: devops-healthcheck-1
@@ -138,7 +138,7 @@ questions:
       d: "Rolling back after every deploy"
     correct: a
     explanation: >
-      Zero-downtime updates — which also means two versions run at once,
+      Zero-downtime updates - which also means two versions run at once,
       so changes (e.g. DB schema) must be compatible with both.
 
   - id: devops-reverse-proxy-1
@@ -151,14 +151,14 @@ questions:
       d: "Caches database queries"
     correct: a
     explanation: >
-      A forward proxy fronts clients; a REVERSE proxy fronts servers —
+      A forward proxy fronts clients; a REVERSE proxy fronts servers -
       the standard edge for web apps.
 
   - id: devops-secrets-1
     difficulty: 3
     prompt: "Why must secrets never be baked into Docker images?"
     options:
-      a: "Images are widely copied and layers are inspectable — anyone with the image has the secret"
+      a: "Images are widely copied and layers are inspectable - anyone with the image has the secret"
       b: "Secrets make images too large"
       c: "Docker refuses to build them"
       d: "Secrets expire when images are pushed"
@@ -184,20 +184,20 @@ questions:
     difficulty: 4
     prompt: "What does an orchestrator like Kubernetes fundamentally do?"
     options:
-      a: "Continuously reconciles declared desired state — scheduling, scaling, healing across a cluster"
+      a: "Continuously reconciles declared desired state - scheduling, scaling, healing across a cluster"
       b: "Builds container images faster"
       c: "Replaces the need for load balancers"
       d: "Runs containers with kernel-level isolation"
     correct: a
     explanation: >
-      You declare what should run; the control loop makes reality match —
+      You declare what should run; the control loop makes reality match -
       restarting, rescheduling and scaling as needed.
 
   - id: devops-immutable-1
     difficulty: 3
     prompt: "What is immutable infrastructure?"
     options:
-      a: "Servers/containers are never patched in place — changes ship as new images replacing old instances"
+      a: "Servers/containers are never patched in place - changes ship as new images replacing old instances"
       b: "Infrastructure that cannot be deleted"
       c: "Read-only file systems everywhere"
       d: "Hardware without firmware updates"

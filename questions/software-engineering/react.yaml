@@ -12,7 +12,7 @@ questions:
       d: "A JSON schema format"
     correct: a
     explanation: >
-      JSX is compiled (by Babel/TS/SWC) into createElement/jsx calls —
+      JSX is compiled (by Babel/TS/SWC) into createElement/jsx calls -
       browsers never see it.
 
   - id: react-component-return-1
@@ -34,7 +34,7 @@ questions:
     difficulty: 2
     prompt: "Can a component modify the props it receives?"
     options:
-      a: "No — props are read-only; data flows down, changes flow up via callbacks"
+      a: "No - props are read-only; data flows down, changes flow up via callbacks"
       b: "Yes, that's how state updates work"
       c: "Only inside event handlers"
       d: "Only class components can"
@@ -54,7 +54,7 @@ questions:
       d: "A ref object with .current"
     correct: a
     explanation: >
-      `const [count, setCount] = useState(0)` — calling the setter
+      `const [count, setCount] = useState(0)` - calling the setter
       triggers a re-render with the new value.
 
   - id: react-key-1
@@ -104,7 +104,7 @@ questions:
     difficulty: 3
     prompt: "What is the function returned from a useEffect callback for?"
     options:
-      a: "Cleanup — it runs before the effect re-runs and on unmount"
+      a: "Cleanup - it runs before the effect re-runs and on unmount"
       b: "It renders fallback UI"
       c: "It memoizes the effect"
       d: "It is called on every click"
@@ -118,7 +118,7 @@ questions:
     difficulty: 3
     prompt: "Right after calling `setCount(count + 1)`, what does `count` hold in that same function?"
     options:
-      a: "The old value — state updates apply on the next render"
+      a: "The old value - state updates apply on the next render"
       b: "The new value immediately"
       c: "undefined until React flushes"
       d: "It depends on the browser"
@@ -160,7 +160,7 @@ questions:
     difficulty: 3
     prompt: "Why must hooks be called at the top level, never inside conditions or loops?"
     options:
-      a: "React tracks hooks by call order — it must be identical every render"
+      a: "React tracks hooks by call order - it must be identical every render"
       b: "Conditional hooks are slower"
       c: "It's only a style convention"
       d: "Hooks inside conditions leak memory"
@@ -180,7 +180,7 @@ questions:
       d: "Scope CSS to its children"
     correct: a
     explanation: >
-      Fragments group children with zero DOM output — no more div soup
+      Fragments group children with zero DOM output - no more div soup
       just to satisfy the single-parent rule.
 
   - id: react-usememo-1
@@ -236,6 +236,6 @@ questions:
       d: "Nothing until they next receive props"
     correct: a
     explanation: >
-      All useContext readers of that provider update — which is why
+      All useContext readers of that provider update - which is why
       hot-changing values in one broad context cause churn; split
       contexts or memoize the value.

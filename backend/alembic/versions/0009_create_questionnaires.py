@@ -2,7 +2,7 @@
 
 Ordered, curator-authored sets of questions. ``question_refs`` stores
 string ids so open-bank slugs (``py-gil-1``) and company-question UUIDs
-share one column — matches the existing ``quiz_config.exclude_ids``
+share one column - matches the existing ``quiz_config.exclude_ids``
 convention on ``jobs``.
 
 Revision ID: 0009

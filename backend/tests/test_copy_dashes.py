@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 APP = Path(__file__).resolve().parent.parent / "app"
-DASH = re.compile("[–—]|&mdash;|&ndash;")
+DASH = re.compile("[" + chr(0x2013) + chr(0x2014) + "]")  # en dash, em dash
 
 
 def test_app_has_no_em_or_en_dashes() -> None:

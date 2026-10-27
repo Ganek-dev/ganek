@@ -27,7 +27,7 @@ step "backend health via frontend proxy"
 expect 200 "$BASE/api/health"
 
 step "wait for migrations (schema-backed endpoint stops 500ing)"
-# /api/health is DB-free, so "stack is up" can beat the migrate container —
+# /api/health is DB-free, so "stack is up" can beat the migrate container -
 # registering into a schemaless database 500s (bit ci_local twice 2026-08-17)
 for _ in $(seq 1 40); do
   schema_status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/v1/public/company")

@@ -5,7 +5,7 @@ const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
 const nextConfig: NextConfig = {
   output: "standalone",
   // next 16.3's standalone tracer ships only @swc/helpers' cjs/ files while
-  // the compiled server requires its esm/ paths at boot — force the whole
+  // the compiled server requires its esm/ paths at boot - force the whole
   // package in until the tracer is fixed upstream.
   outputFileTracingIncludes: {
     "**": ["./node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**"],
@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     // Policy is deliberately conservative; 'unsafe-inline' on styles is
     // required by Tailwind's runtime and Next's inline style attributes.
     // CVs PUT straight from the browser to a presigned S3 URL, so connect-src
-    // must also allow the storage origin (headers are baked at build time —
+    // must also allow the storage origin (headers are baked at build time -
     // compose passes GANEK_S3_PUBLIC_ENDPOINT_URL as a build arg).
     const cvUploadOrigin = new URL(
       process.env.GANEK_S3_PUBLIC_ENDPOINT_URL || "http://localhost:9000",

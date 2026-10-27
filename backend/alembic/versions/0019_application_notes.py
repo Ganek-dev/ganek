@@ -1,4 +1,4 @@
-"""application_notes table — recruiter-internal notes on an application
+"""application_notes table - recruiter-internal notes on an application
 
 Revision ID: 0019
 Revises: 0018

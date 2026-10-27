@@ -8,6 +8,7 @@ Exits non-zero on any error. Requires: pyyaml, jsonschema.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -21,6 +22,8 @@ validator = Draft202012Validator(schema)
 
 errors: list[str] = []
 all_ids: Counter[str] = Counter()
+# house rule: never an em or en dash in any copy, plain "-" only
+DASH = re.compile("[" + chr(0x2013) + chr(0x2014) + "]")  # en dash, em dash
 files = sorted(ROOT.glob("*/*.yaml"))
 
 if not files:
@@ -33,6 +36,10 @@ for path in files:
     except yaml.YAMLError as e:
         errors.append(f"{rel}: YAML parse error: {e}")
         continue
+
+    for number, line in enumerate(path.read_text().splitlines(), start=1):
+        if DASH.search(line):
+            errors.append(f"{rel}:{number}: em or en dash in copy; use a plain '-'")
 
     for err in validator.iter_errors(data):
         errors.append(f"{rel}: {'/'.join(map(str, err.path))}: {err.message}")

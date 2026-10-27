@@ -28,3 +28,9 @@ repos:
         additional_dependencies: [pyyaml, jsonschema]
         files: ^questions/
         pass_filenames: false
+      - id: no-em-or-en-dashes
+        name: no em or en dashes (house rule, plain "-" only)
+        entry: python scripts/no_dashes.py
+        language: python
+        pass_filenames: false
+        always_run: true

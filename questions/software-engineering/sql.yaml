@@ -78,7 +78,7 @@ questions:
   - id: sql-left-join-1
     tags: [backend]
     difficulty: 2
-    prompt: "INNER JOIN vs LEFT JOIN — the difference?"
+    prompt: "INNER JOIN vs LEFT JOIN - the difference?"
     options:
       a: "LEFT JOIN keeps unmatched left-side rows (with NULLs); INNER keeps only matches"
       b: "LEFT JOIN is faster INNER JOIN"
@@ -94,7 +94,7 @@ questions:
     difficulty: 3
     prompt: "Why does `WHERE deleted_at = NULL` match nothing?"
     options:
-      a: "Comparisons with NULL yield UNKNOWN — use IS NULL instead"
+      a: "Comparisons with NULL yield UNKNOWN - use IS NULL instead"
       b: "NULL must be quoted"
       c: "deleted_at cannot store NULL"
       d: "= only works on numbers"
@@ -111,7 +111,7 @@ questions:
       a: "One row per country with its user count"
       b: "All users sorted by country"
       c: "One row per user with a running total"
-      d: "A syntax error — COUNT needs HAVING"
+      d: "A syntax error - COUNT needs HAVING"
     correct: a
     explanation: >
       GROUP BY collapses rows sharing a value; aggregates compute per
@@ -156,7 +156,7 @@ questions:
       d: "Only storage cost, no performance impact"
     correct: a
     explanation: >
-      Every INSERT/UPDATE/DELETE must also maintain the index structure —
+      Every INSERT/UPDATE/DELETE must also maintain the index structure -
       index what you query, not everything.
 
   - id: sql-injection-1
@@ -164,7 +164,7 @@ questions:
     difficulty: 3
     prompt: "The correct defense against SQL injection?"
     options:
-      a: "Parameterized queries / prepared statements — never string-concatenate user input"
+      a: "Parameterized queries / prepared statements - never string-concatenate user input"
       b: "Escaping quotes with a regex"
       c: "Base64-encoding the input"
       d: "Hiding error messages"
@@ -184,7 +184,7 @@ questions:
       d: "Samples 10 random rows"
     correct: a
     explanation: >
-      Classic pagination (page 3 of size 10) — mind that large offsets
+      Classic pagination (page 3 of size 10) - mind that large offsets
       still scan the skipped rows.
 
   - id: sql-transaction-1
@@ -192,7 +192,7 @@ questions:
     difficulty: 4
     prompt: "Two UPDATEs run inside one transaction and the second fails; you ROLLBACK. What's the state?"
     options:
-      a: "Neither update is applied — atomicity restores the pre-transaction state"
+      a: "Neither update is applied - atomicity restores the pre-transaction state"
       b: "The first update persists"
       c: "Both persist but flagged dirty"
       d: "The table is locked until repaired"
@@ -206,7 +206,7 @@ questions:
     difficulty: 3
     prompt: "What is the N+1 query problem?"
     options:
-      a: "One query for a list, then one more per item for its relations — instead of a single join/batch"
+      a: "One query for a list, then one more per item for its relations - instead of a single join/batch"
       b: "A query that returns N+1 duplicate rows"
       c: "An off-by-one error in LIMIT"
       d: "Using N+1 indexes on one table"
@@ -220,7 +220,7 @@ questions:
     difficulty: 3
     prompt: "What does EXPLAIN show you?"
     options:
-      a: "The planner's execution plan — scans, index usage, join strategy, cost estimates"
+      a: "The planner's execution plan - scans, index usage, join strategy, cost estimates"
       b: "Documentation for the tables involved"
       c: "The query rewritten in standard SQL"
       d: "Which user last ran the query"
@@ -234,7 +234,7 @@ questions:
     difficulty: 4
     prompt: "Under READ COMMITTED, what can two identical SELECTs inside one transaction observe?"
     options:
-      a: "Different rows — other transactions' commits between them are visible (non-repeatable reads)"
+      a: "Different rows - other transactions' commits between them are visible (non-repeatable reads)"
       b: "Always identical results"
       c: "Uncommitted data from other transactions"
       d: "Only data older than the transaction"

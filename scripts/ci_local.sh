@@ -3,14 +3,14 @@
 # green on the first try. Stages run cheap-first, keep going on failure,
 # and end with a summary table:
 #
-#   questions — question-bank validation
-#   audit     — pip-audit + pnpm audit (advisory, like CI's continue-on-error)
-#   frontend  — pnpm lint / typecheck / test / build under Node 22 (via nvm)
+#   questions - question-bank validation
+#   audit - pip-audit + pnpm audit (advisory, like CI's continue-on-error)
+#   frontend - pnpm lint / typecheck / test / build under Node 22 (via nvm)
 #   docs      - Starlight build of docs/site under Node 22 (via nvm)
-#   backend   — ruff check/format + mypy + pytest on py3.12 AND py3.14,
+#   backend - ruff check/format + mypy + pytest on py3.12 AND py3.14,
 #               each leg against fresh throwaway postgres+minio containers
 #               (CI-faithful; never touches the dev stack or its data)
-#   e2e       — compose smoke + Playwright golden paths on a scratch
+#   e2e - compose smoke + Playwright golden paths on a scratch
 #               `-p ganek-e2e` stack with the mandatory volume override;
 #               stops a running dev stack first and restores it after
 #
@@ -76,7 +76,7 @@ node22_path() {
     export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
     corepack enable >/dev/null 2>&1 || true
   else
-    echo "WARN: nvm not found — using system $(node -v); CI runs Node $NODE_MAJOR"
+    echo "WARN: nvm not found - using system $(node -v); CI runs Node $NODE_MAJOR"
   fi
   echo "using node $(node -v)"
 }
@@ -116,7 +116,8 @@ start_backend_services() {
 
 # --- stages ----------------------------------------------------------------
 stage_questions() {
-  (cd backend && uv run --frozen python ../questions/validate.py)
+  (cd backend && uv run --frozen python ../questions/validate.py) \
+    && python3 scripts/no_dashes.py
 }
 
 stage_audit() {
@@ -136,7 +137,7 @@ stage_audit() {
     cd docs/site && pnpm audit --audit-level moderate
   ) || rc=1
   if [ "$rc" = 1 ]; then
-    echo "AUDIT: findings above (advisory — CI does not gate on this either)"
+    echo "AUDIT: findings above (advisory - CI does not gate on this either)"
     return 42 # distinct code: recorded as ADVISORY, not FAIL
   fi
 }
@@ -204,7 +205,7 @@ stage_e2e() {
       && COMPOSE_CMD="$E2E_COMPOSE" bash scripts/e2e_smoke.sh http://localhost:3000
   } || rc=1
   if [ "$rc" = 0 ]; then
-    # browser job runs on its own fresh stack in CI — recreate (images cached)
+    # browser job runs on its own fresh stack in CI - recreate (images cached)
     banner "e2e: playwright golden paths (fresh stack)"
     {
       $E2E_COMPOSE down -v >/dev/null 2>&1
