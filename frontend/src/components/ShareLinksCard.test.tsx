@@ -39,11 +39,33 @@ describe("ShareLinksCard", () => {
     expect(await window.navigator.clipboard.readText()).toBe(`${JOB_URL}?src=newsletter-q4`);
   });
 
-  it("maps a custom name that is a known bucket to that bucket", async () => {
+  it("flags a custom name that is a built-in source and still offers its link", async () => {
     const user = userEvent.setup();
     render(<ShareLinksCard jobUrl={JOB_URL} live />);
-    await user.type(screen.getByLabelText("Custom link name"), "linkedin");
-    expect(screen.getByText("appears as linkedin in Sources")).toBeInTheDocument();
+    const input = screen.getByLabelText("Custom link name");
+    await user.type(input, "google");
+    expect(
+      screen.getByText("already a built-in source, appears as google in Sources"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy custom link" })).toBeInTheDocument();
+    expect(screen.getByText("?src=google")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    await user.clear(input);
+    await user.type(input, "google_jobs"); // utm alias of the google bucket
+    expect(
+      screen.getByText("already a built-in source, appears as google in Sources"),
+    ).toBeInTheDocument();
+  });
+
+  it("withholds the link for direct: it could not be told apart from untracked traffic", async () => {
+    const user = userEvent.setup();
+    render(<ShareLinksCard jobUrl={JOB_URL} live />);
+    const input = screen.getByLabelText("Custom link name");
+    await user.type(input, "direct");
+    expect(screen.getByText(/^direct is the built-in name for untracked traffic/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy custom link" })).not.toBeInTheDocument();
+    expect(screen.queryByText("?src=direct")).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   it("refuses a name the page would drop, with the rule", async () => {

@@ -4,7 +4,7 @@ import {
   CUSTOM_NAME_HINT,
   EMBED_DOCS_URL,
   SHARE_PRESETS,
-  customShareName,
+  builtInSourceHint,
   shareUrl,
   sourceLabelFor,
 } from "./share-links";
@@ -17,22 +17,30 @@ describe("shareUrl", () => {
   });
 
   it("joins with & when the URL already has a query", () => {
-    expect(shareUrl("https://x.test/c/acme/jobs/dev?preview=t", "newsletter")).toBe(
-      "https://x.test/c/acme/jobs/dev?preview=t&src=newsletter",
+    expect(shareUrl("https://x.test/c/acme/jobs/dev?ref=a", "newsletter")).toBe(
+      "https://x.test/c/acme/jobs/dev?ref=a&src=newsletter",
     );
+  });
+
+  it("keeps a fragment after the query", () => {
+    expect(shareUrl("https://x.test/jobs/a#apply", "linkedin")).toBe(
+      "https://x.test/jobs/a?src=linkedin#apply",
+    );
+  });
+
+  it("replaces an existing src instead of adding a second one", () => {
+    expect(shareUrl("https://x.test/jobs/a?src=old", "x")).toBe("https://x.test/jobs/a?src=x");
   });
 });
 
-describe("customShareName", () => {
-  it.each([
-    ["LinkedIn Q4 push", null],
-    [" Newsletter-Q4 ", "newsletter-q4"],
-    ["q4_push", "q4_push"],
-    ["a".repeat(41), null],
-    ["", null],
-    ["linkedin", "linkedin"],
-  ])("%j -> %j", (raw, expected) => {
-    expect(customShareName(raw)).toBe(expected);
+describe("builtInSourceHint", () => {
+  it("says a known bucket is already built in, naming where it lands", () => {
+    expect(builtInSourceHint("google")).toBe("already a built-in source, appears as google in Sources");
+  });
+
+  it("refuses direct: it is the name of untracked traffic", () => {
+    expect(builtInSourceHint("direct")).toMatch(/^direct is the built-in name for untracked traffic/);
+    expect(builtInSourceHint("direct")).not.toMatch(/[–—]/);
   });
 });
 
