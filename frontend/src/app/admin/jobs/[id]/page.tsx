@@ -25,8 +25,10 @@ import {
 } from "@/lib/api";
 import { careersDisplay, careersUrl } from "@/lib/careers";
 import {
+  APPLICATIONS_TOOLTIP,
   APPLY_RATE_TOOLTIP,
   VIEWS_TOOLTIP,
+  WINDOW_30D,
   applyRate,
   applyRateReason,
   formatCount,
@@ -252,7 +254,7 @@ export default function JobOverviewPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile
           label="Views · 30d"
-          title={VIEWS_TOOLTIP}
+          title={`${VIEWS_TOOLTIP} ${WINDOW_30D}`}
           value={stats && !draft ? formatCount(views30) : "-"}
           hint={
             draft
@@ -264,6 +266,7 @@ export default function JobOverviewPage() {
         />
         <Tile
           label="Applications · 30d"
+          title={APPLICATIONS_TOOLTIP}
           value={stats && !draft ? String(stats.last_30_days) : "-"}
           hint={
             draft
@@ -275,7 +278,7 @@ export default function JobOverviewPage() {
         />
         <Tile
           label="Apply rate · 30d"
-          title={APPLY_RATE_TOOLTIP}
+          title={`${APPLY_RATE_TOOLTIP} ${WINDOW_30D}`}
           value={stats && !draft ? (rate ?? "n/a") : "-"}
           hint={
             stats && !draft

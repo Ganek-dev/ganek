@@ -37,8 +37,15 @@ RECENT = 5
 DAYS = 30  # "30d": today (UTC) and the 29 days before it
 
 
-def _window_start() -> date:
-    return utc_today() - timedelta(days=DAYS - 1)
+def _window_start(days: int = DAYS) -> date:
+    """First UTC calendar day of a "last N days" window: today and the N-1
+    days before it. Every tile, series and views number on the job overview
+    uses this, never a rolling now-minus-N-days (card "Overview 30d windows")."""
+    return utc_today() - timedelta(days=days - 1)
+
+
+def _window_start_at(days: int = DAYS) -> datetime:
+    return datetime.combine(_window_start(days), datetime.min.time(), UTC)
 
 
 def _week_start(moment: datetime) -> datetime:
@@ -277,7 +284,7 @@ async def _daily(db: AsyncSession, company: Company, job_id: uuid.UUID) -> list[
             .where(
                 Application.company_id == company.id,
                 Application.job_id == job_id,
-                Application.created_at >= datetime.combine(start, datetime.min.time(), UTC),
+                Application.created_at >= _window_start_at(),
             )
             .group_by(day_bucket)
         )
@@ -314,8 +321,8 @@ async def job_stats(db: AsyncSession, company: Company, job: Job) -> JobStats:
             select(
                 func.count(),
                 func.count().filter(Application.stage == ApplicationStage.NEW),
-                func.count().filter(Application.created_at >= now - timedelta(days=7)),
-                func.count().filter(Application.created_at >= now - timedelta(days=30)),
+                func.count().filter(Application.created_at >= _window_start_at(7)),
+                func.count().filter(Application.created_at >= _window_start_at()),
             ).where(Application.company_id == company.id, Application.job_id == job.id)
         )
     ).one()

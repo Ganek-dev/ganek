@@ -95,7 +95,7 @@ function makeStats(overrides: Partial<JobStats> = {}): JobStats {
     daily: Array.from({ length: 30 }, (_, i) => ({
       day: `2026-07-${String(i + 1).padStart(2, "0")}`,
       views: i,
-      applications: i % 7 === 0 ? 1 : 0,
+      applications: i % 10 === 9 ? 1 : 0,
     })),
     last_30_days: 3,
     by_stage: { new: 2, screening: 1, hired: 2 },
@@ -212,6 +212,28 @@ describe("JobOverviewPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("quiz preview")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/visitor/i);
+  });
+
+  it("counts the same UTC days in the Applications tile and the chart", async () => {
+    render(<JobOverviewPage />);
+    const applicationsTile = (await screen.findByText("Applications · 30d")).closest("div")!;
+    expect(applicationsTile).toHaveAttribute(
+      "title",
+      "Applications received today and the 29 days before it (UTC), the same days as the chart.",
+    );
+    const chart = screen.getByRole("img", { name: "Views and applications, last 30 days" });
+    const charted = Array.from(chart.querySelectorAll<HTMLElement>("[title]")).reduce(
+      (sum, bar) => sum + Number(/, (\d+) applications?$/.exec(bar.title)?.[1] ?? 0),
+      0,
+    );
+    expect(charted).toBe(3);
+    expect(within(applicationsTile).getByText(String(charted))).toBeInTheDocument();
+    for (const label of ["Views · 30d", "Apply rate · 30d"]) {
+      expect(screen.getByText(label).closest("div")).toHaveAttribute(
+        "title",
+        expect.stringMatching(/Today and the 29 days before it \(UTC\)\.$/),
+      );
+    }
   });
 
   it("offers tracked share links on a live job and asks a draft to publish first", async () => {

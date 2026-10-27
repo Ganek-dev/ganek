@@ -17,7 +17,7 @@ class JobCounts(BaseModel):
 class ApplicationCounts(BaseModel):
     total: int = 0
     new: int = 0  # stage == "new"
-    last_7_days: int = 0
+    last_7_days: int = 0  # per job: today and the 6 UTC days before it; dashboard: rolling
 
 
 class QuizCounts(BaseModel):
@@ -85,7 +85,7 @@ class JobStats(BaseModel):
     ranks, passes or recommends (rule 5)."""
 
     applications: ApplicationCounts
-    last_30_days: int
+    last_30_days: int  # today and the 29 UTC days before it: the same days as daily and views
     by_stage: dict[str, int]  # stage value -> count; stages with 0 are absent
     by_source: dict[str, int]  # source label -> count; NULL counts as "direct"
     quiz: QuizCounts  # attempts of this job's applications; rates None when none
