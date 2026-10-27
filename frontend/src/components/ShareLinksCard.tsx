@@ -9,10 +9,11 @@ import {
   CUSTOM_NAME_HINT,
   EMBED_DOCS_URL,
   SHARE_PRESETS,
-  customShareName,
+  builtInSourceHint,
   shareUrl,
   sourceLabelFor,
 } from "@/lib/share-links";
+import { normalizeLinkName } from "@/lib/source";
 
 /** "Share this job" rail card (spec job posts v2 5.2 item 5): one ready
  * URL per channel plus a custom name, each with Copy. Pure frontend: the
@@ -81,9 +82,20 @@ export function ShareLinksCard({
   urlFailed?: boolean;
 }) {
   const [custom, setCustom] = useState("");
-  const customName = customShareName(custom);
+  const customName = normalizeLinkName(custom);
   const typed = custom.trim() !== "";
-  const invalid = typed && customName === null;
+  const label = customName === null ? null : sourceLabelFor(customName);
+  // a label without the link: prefix is a built-in bucket (or a utm alias of one)
+  const builtIn = label !== null && !label.startsWith("link:");
+  const refused = label === "direct";
+  const invalid = typed && (customName === null || refused);
+  const status = !typed
+    ? ""
+    : customName === null
+      ? CUSTOM_NAME_HINT
+      : builtIn
+        ? builtInSourceHint(label)
+        : `appears as ${label} in Sources`;
 
   return (
     <div className="card px-5 py-[18px]">
@@ -131,11 +143,7 @@ export function ShareLinksCard({
               aria-live="polite"
               className="mt-1.5 min-h-[14px] font-mono text-[11px] text-g500"
             >
-              {!typed
-                ? ""
-                : customName === null
-                  ? CUSTOM_NAME_HINT
-                  : `appears as ${sourceLabelFor(customName)} in Sources`}
+              {status}
             </p>
           </div>
           <p className="mt-3 text-[11.5px] text-g500">

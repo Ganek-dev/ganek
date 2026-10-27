@@ -239,6 +239,16 @@ describe("JobOverviewPage", () => {
     }
   });
 
+  it("stacks the rail as Share, Status, Assessment, Sources", async () => {
+    render(<JobOverviewPage />);
+    const share = await screen.findByText("Share this job");
+    const rail = share.closest("div.card")!.parentElement!;
+    const headings = within(rail)
+      .getAllByText(/^(Share this job|Status|Assessment|Sources)$/)
+      .map((node) => node.textContent);
+    expect(headings).toEqual(["Share this job", "Status", "Assessment", "Sources"]);
+  });
+
   it("offers tracked share links on a live job and asks a draft to publish first", async () => {
     render(<JobOverviewPage />);
     const card = (await screen.findByText("Share this job")).closest("div")!;
