@@ -2,13 +2,15 @@
 5.5, decisions JP1/JP8): one row per (job, UTC day, source), bumped from
 the public job GET when the SSR sends the view headers. No identifiers."""
 
+import asyncio
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.models import Job, JobView
@@ -235,3 +237,38 @@ async def test_fold_never_swallows_known_buckets_or_direct(
     assert rows[(_today(), OTHER)] == 11
     named_links = [s for (_, s) in rows if s.startswith("link:")]
     assert len(named_links) == MAX_SOURCES_PER_DAY
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_concurrent_views_never_overshoot_the_source_budget(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Card "Views: atomic fold budget": the budget check and the upsert
+    serialise per (job, day), so twenty tasks racing at 49 names add exactly
+    one name and fold the other nineteen into 'other'."""
+    from app.services.views import MAX_SOURCES_PER_DAY, OTHER, record_view
+
+    await _register(client)
+    job = await _publish(client, "Raced Role")
+    job_id = UUID(job["id"])
+    for i in range(MAX_SOURCES_PER_DAY - 1):
+        assert await record_view(db_session, job_id, f"link:s{i}") == f"link:s{i}"
+
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def race(name: str) -> str:
+        async with factory() as db:
+            return await record_view(db, job_id, name)
+
+    try:
+        labels = await asyncio.gather(*(race(f"link:new{i}") for i in range(20)))
+    finally:
+        await engine.dispose()
+
+    assert labels.count(OTHER) == 19
+    assert len([label for label in labels if label.startswith("link:new")]) == 1
+    rows = await _rows(db_session, job["id"])
+    named = [s for (_, s) in rows if s.startswith("link:")]
+    assert len(named) == MAX_SOURCES_PER_DAY
+    assert rows[(_today(), OTHER)] == 19

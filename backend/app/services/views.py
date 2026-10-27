@@ -7,15 +7,17 @@ request headers on its backend fetch. This module turns that into one
 day, source). Advisory by decision: the headers are forgeable through the
 public API, so the source is re-validated against the one grammar and a
 (job, day) keeps at most 50 distinct sources; the rest fold into ``other``.
+The budget check and the upsert serialise per (job, day) under a
+transaction-scoped advisory lock, so racing tasks cannot overshoot it.
 Nothing per visitor is ever stored.
 """
 
 import logging
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date
 
 from fastapi import Request
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
@@ -24,6 +26,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
+from app.core.clock import utc_today
 from app.core.sources import normalize_source
 from app.models import JobView
 
@@ -47,10 +50,6 @@ def view_source(raw: str | None) -> str:
     return normalize_source(raw) or DIRECT
 
 
-def today() -> date:
-    return datetime.now(UTC).date()
-
-
 def is_open_ended(source: str) -> bool:
     """``link:<name>`` and ``ref:<host>`` are chosen by whoever sends them;
     only those count against the daily source budget."""
@@ -65,9 +64,15 @@ async def record_view(
     the day already holds ``MAX_SOURCES_PER_DAY`` distinct ones. ``direct``
     and the known buckets never fold: a spam run must not turn real
     traffic into ``other`` (review focus 2)."""
-    day = day or today()
+    day = day or utc_today()
     label = source
     if is_open_ended(source):
+        # Serialise the budget check with the upsert below: the lock is held
+        # until the commit, so N racing tasks at 49 names add exactly one.
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+            {"key": f"{job_id}:{day.isoformat()}"},
+        )
         existing = set(
             (
                 await db.execute(
