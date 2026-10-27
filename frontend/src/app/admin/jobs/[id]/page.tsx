@@ -132,6 +132,7 @@ export default function JobOverviewPage() {
   const [job, setJob] = useState<JobOut | null>(null);
   const [stats, setStats] = useState<JobStats | null>(null);
   const [company, setCompany] = useState<CompanySummary | null>(null);
+  const [companyFailed, setCompanyFailed] = useState(false);
   const [candidates, setCandidates] = useState<ApplicationOut[] | null>(null);
   const [stage, setStage] = useState<ApplicationStage | "all">("all");
   const [error, setError] = useState<string | null>(null);
@@ -148,8 +149,14 @@ export default function JobOverviewPage() {
     // for members and leave the public link and share links blank
     companyApi
       .summary()
-      .then(setCompany)
-      .catch(() => setCompany(null));
+      .then((summary) => {
+        setCompany(summary);
+        setCompanyFailed(false);
+      })
+      .catch(() => {
+        setCompany(null);
+        setCompanyFailed(true);
+      });
   }, [params.id]);
 
   useEffect(reload, [reload]);
@@ -296,7 +303,11 @@ export default function JobOverviewPage() {
       {stats && !draft ? (
         <DailyChart
           daily={stats.daily}
-          empty={emptyViews ? <ViewsEmptyState kind={emptyViews} jobUrl={jobUrl} /> : undefined}
+          empty={
+            emptyViews ? (
+              <ViewsEmptyState kind={emptyViews} jobUrl={jobUrl} urlFailed={companyFailed} />
+            ) : undefined
+          }
         />
       ) : null}
 
@@ -392,7 +403,7 @@ export default function JobOverviewPage() {
         </div>
 
         <div className="space-y-5">
-          <ShareLinksCard jobUrl={live ? jobUrl : null} live={live} />
+          <ShareLinksCard jobUrl={live ? jobUrl : null} live={live} urlFailed={companyFailed} />
           <JobStatusCard job={job} publicUrl={jobUrl} onError={setError} onChanged={reload} />
           <div className="card px-5 py-[18px]">
             <div className="flex items-center justify-between">

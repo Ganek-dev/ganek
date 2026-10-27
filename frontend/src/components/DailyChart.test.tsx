@@ -14,7 +14,11 @@ function series(overrides: Record<number, { views: number; applications: number 
 describe("DailyChart", () => {
   it("draws one column per day with a readable title", () => {
     render(<DailyChart daily={series({ 2: { views: 12, applications: 1 }, 29: { views: 3, applications: 2 } })} />);
-    expect(screen.getByRole("img", { name: "Views and applications, last 30 days" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", {
+        name: "Views and applications, last 30 days: 15 views and 3 applications, Oct 1 to Oct 30.",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getAllByTitle(/view/)).toHaveLength(30);
     expect(screen.getByTitle("Oct 3: 12 views, 1 application")).toBeInTheDocument();
     expect(screen.getByTitle("Oct 30: 3 views, 2 applications")).toBeInTheDocument();
@@ -36,5 +40,12 @@ describe("DailyChart", () => {
     render(<DailyChart daily={series()} />);
     expect(screen.getByText("views")).toBeInTheDocument();
     expect(screen.getByText("applications")).toBeInTheDocument();
+  });
+
+  it("sums the period into the accessible name, singulars included", () => {
+    render(<DailyChart daily={series({ 0: { views: 1, applications: 1 } })} />);
+    expect(screen.getByRole("img")).toHaveAccessibleName(
+      "Views and applications, last 30 days: 1 view and 1 application, Oct 1 to Oct 30.",
+    );
   });
 });

@@ -54,6 +54,33 @@ describe("ShareLinksCard", () => {
     expect(screen.queryByRole("button", { name: "Copy custom link" })).not.toBeInTheDocument();
   });
 
+  it("labels the custom input with one visible label and describes it by its status line", async () => {
+    const user = userEvent.setup();
+    render(<ShareLinksCard jobUrl={JOB_URL} live />);
+    const input = screen.getByLabelText("Custom link name");
+    expect(screen.getByText("Custom link name").tagName).toBe("LABEL");
+    expect(input).not.toHaveAttribute("aria-label");
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    const status = document.getElementById(input.getAttribute("aria-describedby")!.split(" ")[0])!;
+    expect(status).toHaveAttribute("aria-live", "polite");
+    await user.type(input, "Q4 push");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(status).toHaveTextContent("letters, digits, - or _ only, up to 40");
+    await user.clear(input);
+    await user.type(input, "q4-push");
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    expect(status).toHaveTextContent("appears as link:q4-push in Sources");
+    expect(input.getAttribute("aria-describedby")!.split(" ")).toContain(
+      screen.getByText("?src=q4-push").closest("ul")!.id,
+    );
+  });
+
+  it("says why there are no links when the company could not be loaded", () => {
+    render(<ShareLinksCard jobUrl={null} live urlFailed />);
+    expect(screen.getByText("Share links load with the company.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Loading share links")).not.toBeInTheDocument();
+  });
+
   it("tells a draft to publish first and offers no input", () => {
     render(<ShareLinksCard jobUrl={null} live={false} />);
     expect(screen.getByText("Publish to get share links.")).toBeInTheDocument();
