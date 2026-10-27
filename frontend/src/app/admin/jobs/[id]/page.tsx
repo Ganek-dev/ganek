@@ -13,6 +13,7 @@ import { AssessmentChip, StatusPill } from "@/components/JobStatus";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
 import { ShareLinksCard } from "@/components/ShareLinksCard";
+import { ViewsEmptyState } from "@/components/ViewsEmptyState";
 import {
   api,
   applications,
@@ -33,6 +34,7 @@ import {
   applyRateReason,
   formatCount,
   sourceRows,
+  viewsEmptyState,
 } from "@/lib/job-metrics";
 import { relativeTime } from "@/lib/time";
 
@@ -191,6 +193,7 @@ export default function JobOverviewPage() {
   const views30 = stats?.views.last_30_days ?? 0;
   const rate = stats && !draft ? applyRate(views30, stats.last_30_days) : null;
   const sources = stats ? sourceRows(stats.views_by_source, stats.by_source) : null;
+  const emptyViews = stats ? viewsEmptyState(job.status, stats.views.total, total) : null;
 
   return (
     <section className="space-y-5">
@@ -290,7 +293,12 @@ export default function JobOverviewPage() {
         <Tile label="Quiz completion" value={quiz?.value ?? "-"} hint={quiz?.hint} />
       </div>
 
-      {stats && !draft ? <DailyChart daily={stats.daily} /> : null}
+      {stats && !draft ? (
+        <DailyChart
+          daily={stats.daily}
+          empty={emptyViews ? <ViewsEmptyState kind={emptyViews} jobUrl={jobUrl} /> : undefined}
+        />
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="card overflow-visible">
@@ -417,7 +425,11 @@ export default function JobOverviewPage() {
                 ))}
               </div>
             ) : sources.length === 0 ? (
-              <p className="mt-3 text-sm text-g500">No views or applications yet.</p>
+              <p className="mt-3 text-sm text-g500">
+                {job.status === "closed"
+                  ? "No views or applications were counted."
+                  : "No views or applications yet."}
+              </p>
             ) : (
               <table className="mt-3 w-full text-[12px]">
                 <thead>

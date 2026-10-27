@@ -1,8 +1,12 @@
+import type { ReactNode } from "react";
+
 import type { JobStats } from "@/lib/api";
 
 /** Views and applications per day, last 30 days (spec job posts v2 5.2
  * item 3), in the dashboard's bar style: accent bars, title tooltips, no
- * animation, nothing that shifts while numbers load. Counts only. */
+ * animation, nothing that shifts while numbers load. Counts only. The
+ * chart claims nothing about why a series is empty: the page hands it the
+ * right empty state (`ViewsEmptyState`) for the job's situation. */
 
 type Point = JobStats["daily"][number];
 
@@ -34,9 +38,8 @@ function barHeight(value: number, max: number): number {
   return Math.max(2, (value / max) * CHART_HEIGHT);
 }
 
-export function DailyChart({ daily }: { daily: Point[] }) {
+export function DailyChart({ daily, empty }: { daily: Point[]; empty?: ReactNode }) {
   const max = Math.max(1, ...daily.map((p) => Math.max(p.views, p.applications)));
-  const empty = daily.every((p) => p.views === 0);
   const last = daily.length - 1;
   return (
     <div className="card px-5 py-[18px]">
@@ -96,11 +99,7 @@ export function DailyChart({ daily }: { daily: Point[] }) {
           </div>
         ))}
       </div>
-      {empty ? (
-        <p className="mt-3 text-sm text-g500">
-          No views yet. Share the public link to start counting.
-        </p>
-      ) : null}
+      {empty ? <div className="mt-3">{empty}</div> : null}
     </div>
   );
 }
