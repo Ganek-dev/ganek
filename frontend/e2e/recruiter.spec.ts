@@ -67,9 +67,11 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
   });
 
   await test.step("the candidate's visit was counted, the recruiter's is not", async () => {
-    const viewsValue = page.locator("div.card", { hasText: "Views · 30d" }).first().locator("p").nth(1);
-    await expect(viewsValue).toHaveText(/^[\d,]+$/);
-    const before = Number((await viewsValue.textContent())!.replace(/,/g, ""));
+    const viewsValue = () =>
+      page.locator("div.card", { hasText: "Views · 30d" }).first().locator("p").nth(1);
+    const viewsNow = async () => Number((await viewsValue().textContent())!.replace(/,/g, ""));
+    await expect(viewsValue()).toHaveText(/^[\d,]+$/);
+    const before = await viewsNow();
     expect(before, "candidate.spec loaded the job page once as a person").toBeGreaterThanOrEqual(1);
     const sourceRow = page
       .locator("div.card", { hasText: "Sources" })
@@ -83,10 +85,13 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     const overviewUrl = page.url();
     await page.goto(`/jobs/${QUIZ_JOB_SLUG}`);
     await expect(page.getByRole("heading", { name: QUIZ_JOB_TITLE }).first()).toBeVisible();
+    // the counter writes in a background task after the response: let a
+    // wrongly counted view land before reading, then read until the tile
+    // has loaded; a read taken straight after the visit would pass either way
+    await page.waitForTimeout(1500);
     await page.goto(overviewUrl);
-    await expect(
-      page.locator("div.card", { hasText: "Views · 30d" }).first().locator("p").nth(1),
-    ).toHaveText(before.toLocaleString("en-US"));
+    await expect(viewsValue()).toHaveText(/^[\d,]+$/);
+    await expect.poll(viewsNow, { timeout: 10_000 }).toBe(before);
   });
 
   await test.step("a tracked share link lands in the sources table under its name", async () => {

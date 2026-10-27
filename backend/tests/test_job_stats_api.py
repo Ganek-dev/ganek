@@ -299,7 +299,9 @@ async def test_job_stats_include_views_sources_and_daily_series(
 async def test_per_job_views_are_tenant_scoped(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    await _register(client)
+    """Views join jobs on the company (stats._per_job): another company's
+    views must neither appear in nor change this company's per-job totals."""
+    ws_a = await _register(client)
     job = (await client.post("/api/v1/jobs", json={"title": "Viewed Role"})).json()
     assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
     for _ in range(3):
@@ -308,9 +310,18 @@ async def test_per_job_views_are_tenant_scoped(
     assert [r["views_30d"] for r in mine["per_job"] if r["job_id"] == job["id"]] == [3]
 
     await _register(client)  # a second company, now signed in
+    other = (await client.post("/api/v1/jobs", json={"title": "Their Role"})).json()
+    assert (await client.post(f"/api/v1/jobs/{other['id']}/publish")).status_code == 200
+    for _ in range(5):
+        await record_view(db_session, UUID(other["id"]), "linkedin")
     theirs = (await client.get("/api/v1/stats/overview")).json()
-    assert job["id"] not in [r["job_id"] for r in theirs["per_job"]]
+    assert [(r["job_id"], r["views_30d"]) for r in theirs["per_job"]] == [(other["id"], 5)]
     assert (await client.get(f"/api/v1/jobs/{job['id']}/stats")).status_code == 404
+
+    await ws_a.login()
+    mine = (await client.get("/api/v1/stats/overview")).json()
+    assert [(r["job_id"], r["views_30d"]) for r in mine["per_job"]] == [(job["id"], 3)]
+    assert sum(r["views_30d"] for r in mine["per_job"]) == 3
 
 
 def _end_of(day: date) -> datetime:

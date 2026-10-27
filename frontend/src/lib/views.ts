@@ -7,7 +7,14 @@
  * user agent. Pure module so the matcher is unit-testable; the e2e stack
  * has no bots. */
 
-export const BOT_UA = /bot|crawl|spider|slurp|facebookexternalhit|headless|preview|lighthouse/i;
+/** "bot" counts only where crawlers put it: before a version (`Googlebot/2.1`),
+ * a separator (`PetalBot;`, `TwitterBot)`), a hyphen (`AdsBot-Google`,
+ * `Slackbot-LinkExpanding`), a comma or the end of the string. A phone brand
+ * such as CUBOT ("CUBOT X30 Build/...") has a space after it and stays a
+ * person. "crawl" and "spider" stay substrings: `Baiduspider` and
+ * `Bytespider` carry no boundary before them and no device name has them. */
+export const BOT_UA =
+  /bot(?:[/;)\-,]|$)|crawl|spider|slurp|facebookexternalhit|headless|preview|lighthouse/i;
 
 export interface ViewSignals {
   userAgent: string | null;
