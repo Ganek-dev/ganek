@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import ColumnElement, Date, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import utc_today
 from app.models import (
     Application,
     ApplicationStage,
@@ -36,12 +37,8 @@ RECENT = 5
 DAYS = 30  # "30d": today (UTC) and the 29 days before it
 
 
-def _today() -> date:
-    return datetime.now(UTC).date()
-
-
 def _window_start() -> date:
-    return _today() - timedelta(days=DAYS - 1)
+    return utc_today() - timedelta(days=DAYS - 1)
 
 
 def _week_start(moment: datetime) -> datetime:
