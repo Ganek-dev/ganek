@@ -4,8 +4,10 @@ import {
   APPLY_RATE_MIN_VIEWS,
   REF_ROW_MIN_VIEWS,
   APPLICATIONS_TOOLTIP,
+  VIEWS_EMPTY_COPY,
   VIEWS_TOOLTIP,
   WINDOW_30D,
+  viewsEmptyState,
   applyRate,
   applyRateReason,
   formatCount,
@@ -85,6 +87,36 @@ describe("copy", () => {
     expect(VIEWS_TOOLTIP).not.toMatch(/[–—]/);
     for (const copy of [WINDOW_30D, APPLICATIONS_TOOLTIP]) {
       expect(copy).toMatch(/today and the 29 days before it \(UTC\)/i);
+      expect(copy).not.toMatch(/[–—]/);
+    }
+  });
+});
+
+describe("viewsEmptyState", () => {
+  it("is null once any view was counted", () => {
+    expect(viewsEmptyState("published", 1, 0)).toBeNull();
+    expect(viewsEmptyState("closed", 1, 5)).toBeNull();
+  });
+
+  it("invites sharing on a live job with nothing counted yet", () => {
+    expect(viewsEmptyState("published", 0, 0)).toBe("share");
+  });
+
+  it("stays neutral on a closed job: nothing left to share", () => {
+    expect(viewsEmptyState("closed", 0, 0)).toBe("closed");
+    expect(viewsEmptyState("closed", 0, 5)).toBe("closed");
+  });
+
+  it("explains the counter's start when applications predate it", () => {
+    expect(viewsEmptyState("published", 0, 5)).toBe("pre-counter");
+  });
+
+  it("keeps the three copies free of visitors and dashes", () => {
+    expect(VIEWS_EMPTY_COPY.share).toBe("No views yet. Share it:");
+    expect(VIEWS_EMPTY_COPY.closed).toBe("No views were counted.");
+    expect(VIEWS_EMPTY_COPY["pre-counter"]).toMatch(/counted from the 0\.4\.0 update/);
+    for (const copy of Object.values(VIEWS_EMPTY_COPY)) {
+      expect(copy).not.toMatch(/visitor/i);
       expect(copy).not.toMatch(/[–—]/);
     }
   });

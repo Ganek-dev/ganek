@@ -20,6 +20,30 @@ export const WINDOW_30D = "Today and the 29 days before it (UTC).";
 export const APPLICATIONS_TOOLTIP =
   "Applications received today and the 29 days before it (UTC), the same days as the chart.";
 
+/** Why a job has no views at all (spec section 7 empty states):
+ * `share` on a live job with nothing counted, `closed` when there is nothing
+ * left to share, `pre-counter` when applications came in before page views
+ * existed (v0.4.0), so a share prompt would be the wrong answer. */
+export type ViewsEmptyKind = "share" | "closed" | "pre-counter";
+
+export const VIEWS_EMPTY_COPY: Record<ViewsEmptyKind, string> = {
+  share: "No views yet. Share it:",
+  closed: "No views were counted.",
+  "pre-counter":
+    "No views counted yet. Page views are counted from the 0.4.0 update on; earlier applications have none beside them.",
+};
+
+export function viewsEmptyState(
+  status: "draft" | "published" | "closed",
+  viewsTotal: number,
+  applicationsTotal: number,
+): ViewsEmptyKind | null {
+  if (viewsTotal > 0) return null;
+  if (status === "closed") return "closed";
+  if (applicationsTotal > 0) return "pre-counter";
+  return "share";
+}
+
 /** Why the apply rate is not shown, or null when it is. Jobs that predate
  * the counter carry applications with no matching views: a rate over 100%
  * would read as a bug, so it stays hidden until views catch up. */

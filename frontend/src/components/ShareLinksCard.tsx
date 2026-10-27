@@ -44,6 +44,23 @@ function LinkRow({ label, url, copyLabel }: { label: string; url: string; copyLa
   );
 }
 
+/** The preset rows alone: the rail card and the chart's "No views yet.
+ * Share it:" state render the same links. */
+export function ShareLinkRows({ jobUrl, className }: { jobUrl: string; className: string }) {
+  return (
+    <ul className={className}>
+      {SHARE_PRESETS.map((preset) => (
+        <LinkRow
+          key={preset.name}
+          label={preset.label}
+          url={shareUrl(jobUrl, preset.name)}
+          copyLabel={`Copy ${preset.label} link`}
+        />
+      ))}
+    </ul>
+  );
+}
+
 export function ShareLinksCard({ jobUrl, live }: { jobUrl: string | null; live: boolean }) {
   const [custom, setCustom] = useState("");
   const customName = customShareName(custom);
@@ -61,16 +78,7 @@ export function ShareLinksCard({ jobUrl, live }: { jobUrl: string | null; live: 
         </div>
       ) : (
         <>
-          <ul className="mt-3 space-y-2">
-            {SHARE_PRESETS.map((preset) => (
-              <LinkRow
-                key={preset.name}
-                label={preset.label}
-                url={shareUrl(jobUrl, preset.name)}
-                copyLabel={`Copy ${preset.label} link`}
-              />
-            ))}
-          </ul>
+          <ShareLinkRows jobUrl={jobUrl} className="mt-3 space-y-2" />
           <div className="mt-3 border-t border-divider pt-3">
             <label className="block text-[12.5px] font-medium text-g700">
               Custom name

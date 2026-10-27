@@ -403,6 +403,66 @@ describe("JobOverviewPage", () => {
     expect(within(card).queryByText("ref:tiny.example")).not.toBeInTheDocument();
   });
 
+  function noViews(overrides: Partial<JobStats> = {}): JobStats {
+    return makeStats({
+      views: { total: 0, last_30_days: 0 },
+      views_by_source: {},
+      daily: makeStats().daily.map((point) => ({ ...point, views: 0 })),
+      ...overrides,
+    });
+  }
+
+  function chartCard(): HTMLElement {
+    return screen
+      .getByRole("img", { name: "Views and applications, last 30 days" })
+      .closest<HTMLElement>("div.card")!;
+  }
+
+  it("asks a live job with no views to share it, with the preset links right there", async () => {
+    mockedJobs.stats.mockResolvedValue(
+      noViews({
+        applications: { total: 0, new: 0, last_7_days: 0 },
+        last_30_days: 0,
+        by_source: {},
+        daily: makeStats().daily.map((point) => ({ ...point, views: 0, applications: 0 })),
+      }),
+    );
+    render(<JobOverviewPage />);
+    const card = (await screen.findByText("No views yet. Share it:")).closest<HTMLElement>("div.card")!;
+    expect(card).toBe(chartCard());
+    expect(await within(card).findByRole("button", { name: "Copy LinkedIn link" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Copy Newsletter link" })).toBeInTheDocument();
+    expect(within(card).getByText(/src=linkedin$/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/visitor/i);
+    expect(document.body.textContent).not.toMatch(/[–—]/);
+  });
+
+  it("stays neutral on a closed job with no views: nothing to share, no Copy button", async () => {
+    mockedJobs.get.mockResolvedValue(makeJob({ status: "closed", closed_at: "2026-08-20T00:00:00Z" }));
+    mockedJobs.stats.mockResolvedValue(noViews({ by_source: {}, days_open: 41 }));
+    render(<JobOverviewPage />);
+    expect(await screen.findByText("No views were counted.")).toBeInTheDocument();
+    await screen.findByText("Closed after 41 days");
+    expect(screen.queryByText(/Share it/)).not.toBeInTheDocument();
+    // the status card's preview-link Copy stays (a closed job is no longer public);
+    // no share link is offered anywhere
+    expect(
+      screen.queryAllByRole("button", { name: /^Copy (LinkedIn|Indeed|X|Newsletter|custom) link$/ }),
+    ).toHaveLength(0);
+    const sources = screen.getByText("Sources").closest("div")!;
+    expect(within(sources).getByText("No views or applications were counted.")).toBeInTheDocument();
+  });
+
+  it("explains the counter's start on a job whose applications predate it", async () => {
+    mockedJobs.stats.mockResolvedValue(noViews());
+    render(<JobOverviewPage />);
+    const line = await screen.findByText(/^No views counted yet\. .*counted from the 0\.4\.0 update/);
+    expect(line.closest("div.card")).toBe(chartCard());
+    expect(within(chartCard()).queryByText(/Share it/)).not.toBeInTheDocument();
+    expect(within(chartCard()).queryByRole("button", { name: /^Copy/ })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/[–—]/);
+  });
+
   it("says when nothing was viewed or applied for yet", async () => {
     mockedJobs.stats.mockResolvedValue(makeStats({ by_source: {}, views_by_source: {} }));
     render(<JobOverviewPage />);

@@ -21,16 +21,15 @@ describe("DailyChart", () => {
     expect(screen.getByTitle("Oct 1: 0 views, 0 applications")).toBeInTheDocument();
   });
 
-  it("invites sharing when nothing was viewed yet", () => {
-    const { container } = render(<DailyChart daily={series()} />);
-    expect(screen.getByText(/No views yet\. Share the public link to start counting\./)).toBeInTheDocument();
-    expect(container.textContent).not.toMatch(/visitor/i);
-    expect(container.textContent).not.toMatch(/[–—]/);
+  it("renders the empty state the page hands it under the bars", () => {
+    render(<DailyChart daily={series()} empty={<p>No views were counted.</p>} />);
+    expect(screen.getByText("No views were counted.")).toBeInTheDocument();
+    expect(screen.getAllByTitle(/view/)).toHaveLength(30);
   });
 
-  it("drops the empty-state line once a view exists", () => {
-    render(<DailyChart daily={series({ 5: { views: 1, applications: 0 } })} />);
-    expect(screen.queryByText(/No views yet/)).not.toBeInTheDocument();
+  it("claims nothing about views on its own", () => {
+    const { container } = render(<DailyChart daily={series()} />);
+    expect(container.textContent).not.toMatch(/No views/);
   });
 
   it("labels the legend with views and applications", () => {
