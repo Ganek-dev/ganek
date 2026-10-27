@@ -44,7 +44,7 @@ async def test_scopes_are_independent(client: AsyncClient) -> None:
 
 
 async def test_disabled_by_conftest_default(client: AsyncClient) -> None:
-    # suite default: limits off — repeated calls never 429
+    # suite default: limits off - repeated calls never 429
     for _ in range(6):
         resp = await client.post(
             "/api/v1/auth/login",

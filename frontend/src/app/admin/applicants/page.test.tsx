@@ -311,7 +311,7 @@ describe("ApplicantsPage", () => {
     expect(within(wrongRow).getByText("useState")).toBeInTheDocument();
     expect(within(wrongRow).getByText("left the tab 12.0s")).toBeInTheDocument();
     // timed-out row
-    expect(screen.getByText("time ran out — no answer")).toBeInTheDocument();
+    expect(screen.getByText("time ran out - no answer")).toBeInTheDocument();
     // score strip totals
     expect(screen.getByLabelText(/2 correct, 1 wrong, 1 timed out/)).toBeInTheDocument();
     // integrity card summary pill
@@ -619,7 +619,7 @@ describe("ApplicantsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Yes, erase" }));
     expect(
       await screen.findByText(
-        "Candidate data erased — 1 calendar event(s) could not be removed",
+        "Candidate data erased - 1 calendar event(s) could not be removed",
       ),
     ).toBeInTheDocument();
   });

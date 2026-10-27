@@ -1,7 +1,7 @@
 """Candidate erasure (Art. 17) + email rectification (Art. 16).
 
 Erasure must be fail-closed on storage (no rows disappear if S3 cleanup
-fails — the cv_object_key pointer is the only way to find the object) and
+fails - the cv_object_key pointer is the only way to find the object) and
 best-effort on Google Calendar (events live on the recruiter's personal
 calendar; a failure is reported, never blocking).
 """
@@ -132,7 +132,7 @@ async def test_erase_invalidates_status_tokens(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_erase_scrubs_privacy_request_tasks(client: AsyncClient) -> None:
     """The system-created request tasks name the candidate on purpose; they
-    must not survive the erasure that fulfils them — open OR already done.
+    must not survive the erasure that fulfils them - open OR already done.
     A human task, even one shaped exactly like a request task, stays."""
     email, status_tokens = await _company_with_applications(client, n_jobs=1)
     app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
@@ -151,13 +151,13 @@ async def test_erase_scrubs_privacy_request_tasks(client: AsyncClient) -> None:
     resp = await client.patch(f"/api/v1/tasks/{data_task['id']}", json={"done": True})
     assert resp.status_code == 200, resp.text
 
-    # a recruiter's own note about the person — survives, whatever it says.
+    # a recruiter's own note about the person - survives, whatever it says.
     # Created AFTER the requests: its request-shaped title would otherwise
     # trip the endpoint's open-task dedupe and suppress the system task.
     human = await client.post(
         "/api/v1/tasks",
         json={
-            "title": "Privacy: deletion request — Erika Applicant",
+            "title": "Privacy: deletion request - Erika Applicant",
             "note": f"Erika Applicant ({email}) asked me over the phone",
         },
     )
@@ -188,7 +188,7 @@ async def test_scrub_matches_email_literally(db_session: AsyncSession) -> None:
         return Task(
             company_id=company_id,
             created_by=None,
-            title=f"Privacy: deletion request — {name}",
+            title=f"Privacy: deletion request - {name}",
             note=f"{name} ({email}) asked via their status page (Role).",
         )
 
@@ -313,7 +313,7 @@ async def test_erase_fail_closed_when_storage_down(
     with pytest.raises(RuntimeError, match="storage down"):
         await client.post(f"/api/v1/applications/{app_id}/erase-candidate")
 
-    # nothing was committed — the application (and its cv pointer) survive
+    # nothing was committed - the application (and its cv pointer) survive
     assert (await client.get(f"/api/v1/applications/{app_id}")).status_code == 200
 
 

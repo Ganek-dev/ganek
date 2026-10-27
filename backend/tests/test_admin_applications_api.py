@@ -338,7 +338,7 @@ async def test_stage_change_emails_candidate_only_when_asked(
     assert resp.status_code == 200
     assert len(advances) == 1 and len(rejections) == 1
 
-    # re-picking the CURRENT stage never re-sends — parity with bulk-reject,
+    # re-picking the CURRENT stage never re-sends - parity with bulk-reject,
     # which silently skips already-rejected rows (M5.7 H5 ledger item)
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
     assert resp.status_code == 200
@@ -391,7 +391,7 @@ async def test_remind_409s_without_pending_attempt(
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_list_paginates_and_counts_stages(client: AsyncClient) -> None:
-    """M5.7 H4: limit/offset windows plus whole-set stage counts — the old
+    """M5.7 H4: limit/offset windows plus whole-set stage counts - the old
     endpoint materialized every row per visit."""
     creds = {
         "email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev",

@@ -2,7 +2,7 @@
 
 Slots are always computed live from the interviewer's saved availability
 (``effective_availability``) plus Google free/busy plus ganek's own booked
-interviews — never frozen on the interview row. Booking re-checks the
+interviews - never frozen on the interview row. Booking re-checks the
 chosen slot against live free/busy before creating the calendar event.
 """
 
@@ -55,7 +55,7 @@ def effective_availability(user: User) -> tuple[str | None, dict[str, tuple[time
 
 
 def summarize_availability(windows: dict[str, tuple[time, time]]) -> str:
-    """Compact human summary, compressing runs of identical windows: "Mon–Fri 09:00–17:00"."""
+    """Compact human summary, compressing runs of identical windows: "Mon-Fri 09:00-17:00"."""
     if not windows:
         return "no hours set"
     runs: list[tuple[int, int, tuple[time, time]]] = []
@@ -69,8 +69,8 @@ def summarize_availability(windows: dict[str, tuple[time, time]]) -> str:
             runs.append((index, index, window))
     parts = []
     for first, last, (start, end) in runs:
-        label = DAY_LABELS[first] if first == last else f"{DAY_LABELS[first]}–{DAY_LABELS[last]}"
-        parts.append(f"{label} {start:%H:%M}–{end:%H:%M}")
+        label = DAY_LABELS[first] if first == last else f"{DAY_LABELS[first]}-{DAY_LABELS[last]}"
+        parts.append(f"{label} {start:%H:%M}-{end:%H:%M}")
     return " · ".join(parts)
 
 
@@ -100,7 +100,7 @@ class SlotUnavailableError(Exception):
 async def _booked_windows(
     db: AsyncSession, interviewer_id: uuid.UUID, window_start: datetime, window_end: datetime
 ) -> list[tuple[datetime, datetime]]:
-    """Busy windows from ganek's own BOOKED interviews — freebusy-lag insurance."""
+    """Busy windows from ganek's own BOOKED interviews - freebusy-lag insurance."""
     rows = (
         (
             await db.execute(
@@ -270,7 +270,7 @@ async def cancel_interview(
 
 
 async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Interview | None:
-    """Token-authenticated candidate lookup — the signed token IS the scope."""
+    """Token-authenticated candidate lookup - the signed token IS the scope."""
     return (
         await db.execute(
             select(Interview)
@@ -332,7 +332,7 @@ async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
     """T-24h candidate reminder; the job re-validates, so stale ones no-op."""
     fire_at = start - timedelta(hours=24)
     if fire_at <= datetime.now(UTC):
-        return None  # booked within 24h of the slot — no reminder needed
+        return None  # booked within 24h of the slot - no reminder needed
     job_id = f"iv-{interview.id}-{int(start.timestamp())}"
     queued = await queue.enqueue(
         "send_interview_reminder",
@@ -347,7 +347,7 @@ async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
 async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
     """Candidate picks a slot: re-check live free/busy, create the Meet event.
 
-    Google emails the calendar invite (sendUpdates=all) — that is the
+    Google emails the calendar invite (sendUpdates=all) - that is the
     design's "invite lands in your inbox".
     """
     if interview.status is InterviewStatus.BOOKED:
@@ -360,7 +360,7 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     await _lock_interviewer(db, interview.interviewer_user_id)
     # authoritative re-check: another request may have booked this same
     # interview between our load and acquiring the lock (double-submit /
-    # two tabs) — `interview` is stale in-memory (expire_on_commit=False).
+    # two tabs) - `interview` is stale in-memory (expire_on_commit=False).
     await db.refresh(interview, attribute_names=["status"])
     status_after_lock: InterviewStatus = interview.status
     if status_after_lock is InterviewStatus.BOOKED:
@@ -370,7 +370,7 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     event_id, meet_url = await google_calendar.create_meet_event(
         db,
         interview.interviewer,
-        summary=f"{interview.title} — {candidate.name}",
+        summary=f"{interview.title} - {candidate.name}",
         description=interview.description,
         start=start,
         end=start + timedelta(minutes=interview.duration_minutes),
@@ -394,7 +394,7 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
         await db.commit()
     except Exception:
         # the Meet event exists (Google already emailed the invite) but the
-        # booking never landed — best-effort delete so the candidate isn't
+        # booking never landed - best-effort delete so the candidate isn't
         # left holding a phantom invite; sendUpdates=all emails the removal
         await db.rollback()
         try:

@@ -18,7 +18,7 @@ const inputCls =
 
 const OAUTH_ERRORS: Record<string, string> = {
   "use-password":
-    "An account with this email already exists — log in with your password below.",
+    "An account with this email already exists - log in with your password below.",
   "account-disabled": "Your account is deactivated. Contact your workspace admin.",
   "google-failed": "Google sign-in didn't complete. Please try again.",
 };
@@ -46,7 +46,7 @@ function LoginForm() {
         setDemoLogin(p.demo && p.demo_login ? p.demo_login : null);
       })
       .catch(() => {
-        /* flag stays false — password login is unaffected */
+        /* flag stays false - password login is unaffected */
       });
     return () => {
       cancelled = true;

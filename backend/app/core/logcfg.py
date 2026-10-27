@@ -35,7 +35,7 @@ class AccessLogScrubber(logging.Filter):
     """Rewrites the request-path arg of uvicorn.access records.
 
     Uvicorn logs access lines as
-    ``'%s - "%s %s HTTP/%s" %d' % (addr, method, path, http, status)`` —
+    ``'%s - "%s %s HTTP/%s" %d' % (addr, method, path, http, status)`` -
     the path is ``args[2]``. Anything else passes through untouched.
     """
 

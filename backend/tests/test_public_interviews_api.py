@@ -100,7 +100,7 @@ async def _booking_token(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[str, list[str]]:
     """Admin sets up company/job/applicant/interview; returns (token, slots)
-    — the currently live-offered slots — logged OUT so subsequent calls are
+    - the currently live-offered slots - logged OUT so subsequent calls are
     anonymous candidate traffic."""
     from app.services import email as email_service
 
@@ -171,7 +171,7 @@ async def test_booked_ganek_interview_blocks_second_booking_despite_freebusy_lag
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     """Two candidates, same interviewer, same slot; Google freebusy stays empty
-    (simulating propagation lag) — the ganek-side booked row must still win."""
+    (simulating propagation lag) - the ganek-side booked row must still win."""
     interviewer, company, application_one, application_two = await _two_applications(
         client, db_session
     )
@@ -218,7 +218,7 @@ async def test_book_rechecks_status_under_lock_against_concurrent_commit(
     """Double-submit / two-tabs race: a concurrent session books the
     interview and commits AFTER our caller loaded `interview` (which is
     stale in-memory, expire_on_commit=False) but BEFORE `book()` runs. The
-    post-lock re-read must catch this — no second Meet event, no
+    post-lock re-read must catch this - no second Meet event, no
     overwritten scheduled_start/google_event_id."""
     interviewer, company, application_one, _ = await _two_applications(client, db_session)
     interview = await interviews_service.create_interview(
@@ -239,7 +239,7 @@ async def test_book_rechecks_status_under_lock_against_concurrent_commit(
     assert stale_view.status is InterviewStatus.PENDING  # loaded before the concurrent write
 
     # A different request, on a different DB connection, already booked
-    # this exact interview and committed — simulating the losing tab of a
+    # this exact interview and committed - simulating the losing tab of a
     # double-submit that got there first.
     other_engine = create_async_engine(settings.database_url, poolclass=NullPool)
     other_factory = async_sessionmaker(other_engine, expire_on_commit=False)
@@ -287,7 +287,7 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
 ) -> None:
     """Genuine two-session race: two DIFFERENT applications with the SAME
     interviewer both try to book the SAME target slot via `asyncio.gather`,
-    each on its own DB connection — nothing but `pg_advisory_xact_lock`
+    each on its own DB connection - nothing but `pg_advisory_xact_lock`
     inside `_lock_interviewer` can serialize this (unlike the two tests
     above, both of which drive their two `book()` calls sequentially and so
     never actually contend on the lock).
@@ -352,7 +352,7 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
     other_factory = async_sessionmaker(other_engine, expire_on_commit=False)
 
     async def _book_on(session: AsyncSession, interview_id: uuid.UUID) -> Interview:
-        # each session loads its OWN Interview instance — book() mutates
+        # each session loads its OWN Interview instance - book() mutates
         # in-memory attributes, so sharing one ORM object across sessions
         # would mask the very race this test exists to exercise.
         view = await interviews_service.get_by_id_public(session, interview_id)
@@ -547,7 +547,7 @@ async def test_public_get_survives_calendar_outage(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A candidate opening the booking page must still get a 200 with an
-    empty slot list when Google is down — not a 503 (live_slots swallows it)."""
+    empty slot list when Google is down - not a 503 (live_slots swallows it)."""
     token, _ = await _booking_token(client, db_session, monkeypatch)
 
     async def boom(*args: object, **kwargs: object) -> None:
@@ -566,7 +566,7 @@ async def test_bad_token_404s(client: AsyncClient) -> None:
 
 @pytest.mark.usefixtures("migrated_db")
 async def test_lock_timeout_fails_fast_as_lock_busy(monkeypatch: pytest.MonkeyPatch) -> None:
-    """M5.7 H4: the booking lock is held across the Google HTTP call — a
+    """M5.7 H4: the booking lock is held across the Google HTTP call - a
     hung holder must produce a fast retryable error, not park every waiter."""
     monkeypatch.setattr(interviews_service, "LOCK_TIMEOUT_MS", 150)
     interviewer_id = uuid.uuid4()

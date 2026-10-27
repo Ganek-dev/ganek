@@ -10,7 +10,7 @@ import { relativeTime } from "@/lib/time";
 /** Internal recruiter notes on an applicant (screen 11 detail panel, below
  * the Integrity card). Self-contained: fetches its own note list + the
  * current user (for delete visibility) once per applicant. Notes are
- * always company-authored — every row gets the same "internal" blue tint. */
+ * always company-authored - every row gets the same "internal" blue tint. */
 
 function authorLabel(email: string | null): string {
   return email ? email.split("@")[0] : "former teammate";

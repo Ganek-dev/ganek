@@ -313,7 +313,7 @@ async def test_multi_mode_signup_requires_email_verification(
     assert len(captured_verification) == 1
     assert captured_verification[0]["to"] == payload["email"]
 
-    # right password, unverified: a 403 that says what to do — not a bare 401
+    # right password, unverified: a 403 that says what to do - not a bare 401
     login = await client.post(
         "/api/v1/auth/login", json={"email": payload["email"], "password": payload["password"]}
     )
@@ -377,7 +377,7 @@ async def test_single_mode_signup_stays_immediate(
     captured_verification: list[dict[str, object]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Single mode closes after the first company — verification would only
+    """Single mode closes after the first company - verification would only
     add friction to the self-hoster's one-time setup."""
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")  # smtp alone must not gate
     payload = _register_payload()

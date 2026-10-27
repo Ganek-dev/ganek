@@ -31,7 +31,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   ]);
   if (!page || !job) return {};
   return {
-    title: `${job.title} — ${page.company.name}`,
+    title: `${job.title} - ${page.company.name}`,
     ...(previewing ? NOINDEX : demoRobots(demo)),
   };
 }
@@ -70,7 +70,7 @@ export default async function CompanyJobPage({ params, searchParams }: Props) {
     fetchInstanceInfo(),
   ]);
   if (!job) {
-    // screen 27a: job gone, company still live — themed, with a way back
+    // screen 27a: job gone, company still live - themed, with a way back
     return (
       <main style={themeStyle(page.company)}>
         <JobGone

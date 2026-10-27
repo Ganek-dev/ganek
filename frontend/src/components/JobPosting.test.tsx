@@ -40,7 +40,7 @@ describe("JobHero", () => {
       "href",
       "/c/acme",
     );
-    for (const chip of ["Warsaw", "Hybrid", "Full-time", "15,000–25,000 PLN/yr"]) {
+    for (const chip of ["Warsaw", "Hybrid", "Full-time", "15,000-25,000 PLN/yr"]) {
       expect(screen.getByText(chip)).toBeInTheDocument();
     }
     expect(screen.getByText(/^Posted .+ ago$|^Posted today$/)).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("JobPosting", () => {
     expect(screen.getByText("FastAPI").tagName).toBe("CODE");
   });
 
-  it("never renders markdown images — a remote img would leak visitor IPs", () => {
+  it("never renders markdown images - a remote img would leak visitor IPs", () => {
     const tracked: PublicJobDetail = {
       ...job,
       description_md:

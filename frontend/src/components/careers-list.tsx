@@ -9,7 +9,7 @@ import { jobMetaLine } from "@/components/careers";
 import type { PublicJobSummary } from "@/lib/public-api";
 
 /** Screen 01: filter pill row + bordered job cards with brand arrow.
- * Client component for the pill filtering only — the initial list is still
+ * Client component for the pill filtering only - the initial list is still
  * server-rendered (SSR hard rule), and links stay plain <a> for crawlers.
  */
 
@@ -67,7 +67,7 @@ export function JobList({
   const filters = useMemo(() => buildFilters(jobs), [jobs]);
 
   if (jobs.length === 0) {
-    return <p className="py-8 text-g500">No open positions right now — check back soon.</p>;
+    return <p className="py-8 text-g500">No open positions right now - check back soon.</p>;
   }
 
   const filter = filters.find((f) => f.key === active) ?? filters[0];

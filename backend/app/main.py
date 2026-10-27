@@ -42,7 +42,7 @@ init_sentry(dsn=settings.sentry_dsn, component="backend")
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.secret_key == "change-me":  # noqa: S105
         message = (
-            "GANEK_SECRET_KEY is the default value — sessions and quiz tokens are "
+            "GANEK_SECRET_KEY is the default value - sessions and quiz tokens are "
             "forgeable. Set a real secret: openssl rand -hex 32"
         )
         if settings.mode == "multi":

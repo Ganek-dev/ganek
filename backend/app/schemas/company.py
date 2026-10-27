@@ -44,10 +44,10 @@ class CompanyOut(BaseModel):
     socials: dict[str, Any]
     theme: dict[str, Any]
     settings: dict[str, Any]
-    # not a column — the instance's deployment mode, so admin surfaces can
+    # not a column - the instance's deployment mode, so admin surfaces can
     # render the real careers URL (single mode serves it at the root)
     mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
-    # not a column — whether outbound email can be delivered at all (any
+    # not a column - whether outbound email can be delivered at all (any
     # provider, the key name predates GANEK_EMAIL_PROVIDER); the admin
     # banner ("candidates are NOT receiving email") keys off this
     smtp_configured: bool = Field(default_factory=email_providers.configured)
@@ -56,7 +56,7 @@ class CompanyOut(BaseModel):
 class BrandingUpdate(BaseModel):
     """Branding-only patch; omitted fields stay untouched, null resets.
 
-    Logo upload arrives with its own storage flow in a follow-up — the
+    Logo upload arrives with its own storage flow in a follow-up - the
     theme keys here are what candidate surfaces consume today.
     """
 

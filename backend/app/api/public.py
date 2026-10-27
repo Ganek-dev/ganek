@@ -595,10 +595,10 @@ async def quiz_request_reissue(
     """Expired-link screen (27c): ask for a fresh assessment link.
 
     Company setting ``quiz_expired_reissue`` decides: 'auto' re-issues a
-    fresh attempt once (email delivery only — the new token is never
+    fresh attempt once (email delivery only - the new token is never
     returned to the caller of an old link); 'manual' (default) records
     the request for the team to act on. The lateness stays visible either
-    way — the fresh attempt carries reason='expired', the manual request
+    way - the fresh attempt carries reason='expired', the manual request
     lands in the expired attempt's integrity.
     """
     attempt = await _attempt_or_404(db, token)
@@ -610,7 +610,7 @@ async def quiz_request_reissue(
     if attempt.status is AttemptStatus.INVALIDATED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A new link was already issued — check your inbox",
+            detail="A new link was already issued - check your inbox",
         )
     if attempt.status is not AttemptStatus.EXPIRED:
         raise HTTPException(
@@ -622,7 +622,7 @@ async def quiz_request_reissue(
     if latest is not None and latest.id != attempt.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A new link was already issued — check your inbox",
+            detail="A new link was already issued - check your inbox",
         )
 
     mode = (company.settings or {}).get("quiz_expired_reissue", "manual")
@@ -738,11 +738,11 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
 async def _record_privacy_request(db: DbSession, application: Application, *, kind: str) -> None:
     """Notify-only (G0 decision): a Task for the team + an activity entry.
 
-    The task title/note name the candidate on purpose — the task IS the
+    The task title/note name the candidate on purpose - the task IS the
     request and the admin needs to know who to act for. Repeat clicks
     don't stack open tasks; the activity trail keeps every request."""
     candidate = application.candidate
-    title = f"Privacy: {'data' if kind == 'data' else 'deletion'} request — {candidate.name}"
+    title = f"Privacy: {'data' if kind == 'data' else 'deletion'} request - {candidate.name}"
     open_exists = (
         await db.execute(
             select(Task.id)
@@ -785,7 +785,7 @@ async def _record_privacy_request(db: DbSession, application: Application, *, ki
 )
 async def request_application_data(token: str, db: DbSession) -> PrivacyRequestReceipt:
     """Art. 15 route for candidates: asks the company, never serves the bundle
-    itself — a leaked magic link must not become a full-PII download."""
+    itself - a leaked magic link must not become a full-PII download."""
     application = await _application_by_status_token_or_404(db, token)
     await _record_privacy_request(db, application, kind="data")
     return PrivacyRequestReceipt(status="received")
@@ -911,7 +911,7 @@ async def interview_context(token: str, db: DbSession) -> InterviewPublicOut:
 def _scheduling_unavailable() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Scheduling is temporarily unavailable — please try again later",
+        detail="Scheduling is temporarily unavailable - please try again later",
     )
 
 

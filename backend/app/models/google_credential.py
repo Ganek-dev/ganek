@@ -22,6 +22,6 @@ class UserGoogleCredential(TimestampMixin, Base):
     refresh_token_encrypted: Mapped[str] = mapped_column(String(1000))
     google_email: Mapped[str] = mapped_column(String(320))
     connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    # set when a refresh grant fails (revoked/expired consent) — drives the
+    # set when a refresh grant fails (revoked/expired consent) - drives the
     # Account card's "reconnect" state instead of silent breakage
     last_refresh_error: Mapped[str | None] = mapped_column(String(200))

@@ -40,7 +40,7 @@ const feed: JobsFeed = {
     {
       title: "Senior Frontend Engineer",
       slug: "senior-frontend-engineer",
-      location: "Remote — Europe",
+      location: "Remote - Europe",
       remote_policy: "remote",
       employment_type: "full_time",
       tags: ["react", "typescript"],

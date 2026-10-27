@@ -89,7 +89,7 @@ function SlugPreview({ slug }: { slug: string }) {
   return (
     <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-g600">
       <Check aria-hidden className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-      <span>{careersSlugPreview(slug)} — your careers page</span>
+      <span>{careersSlugPreview(slug)} - your careers page</span>
     </p>
   );
 }
@@ -203,7 +203,7 @@ function SetupForm() {
           onClick={() => {
             setResent(true);
             void api.resendVerification({ email: pendingEmail }).catch(() => {
-              /* quiet by design — reveals nothing about which signups exist */
+              /* quiet by design - reveals nothing about which signups exist */
             });
           }}
           className="inline-flex h-9 items-center justify-center rounded-md border-[1.5px] border-edge px-4 text-[13.5px] font-semibold hover:border-accent hover:text-accent disabled:opacity-50"

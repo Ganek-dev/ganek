@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class ActivityLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Append-only feed of tenant events (dashboard 06; Slack webhooks later).
 
-    Rows are written inside the transaction that caused them — a rolled-back
+    Rows are written inside the transaction that caused them - a rolled-back
     action leaves no trace. actor is NULL for candidate-initiated events.
     """
 

@@ -21,7 +21,7 @@ import {
  * search on the right with +Add / added indicators. Timing is deferred to
  * the attached job's quiz_config (there is no per-questionnaire time field
  * in the model), so the segmented control from the mock is intentionally
- * omitted here — the job form still owns it. */
+ * omitted here - the job form still owns it. */
 
 const LIBRARY_PAGE_SIZE = 25;
 const SAVE_DEBOUNCE_MS = 600;
@@ -34,7 +34,7 @@ function stemFor(prompt: string): string {
 }
 
 function totalTimeLabel(seconds: number): string {
-  if (seconds <= 0) return "—";
+  if (seconds <= 0) return "-";
   const minutes = Math.floor(seconds / 60);
   const rest = seconds - minutes * 60;
   if (minutes === 0) return `${seconds}s`;
@@ -52,7 +52,7 @@ function MixBar({ items }: { items: ResolvedQuestion[] }) {
   if (total === 0) {
     return (
       <p className="font-mono text-[10.5px] text-g500">
-        empty — add questions from the library on the right.
+        empty - add questions from the library on the right.
       </p>
     );
   }
@@ -173,7 +173,7 @@ function BuilderRow({
           </div>
         ) : (
           <p className="mt-1 font-mono text-[10.5px] text-amber-700 dark:text-amber-400">
-            not visible to this workspace — remove to clean up
+            not visible to this workspace - remove to clean up
           </p>
         )}
       </div>
@@ -233,7 +233,7 @@ export default function QuestionnaireBuilderPage() {
 
   // Resolve the currently-referenced questions whenever refs change; keep a
   // cache so scrubbing through drag-to-reorder doesn't re-fetch each move.
-  // Refs we already asked about (whether found or not) are skipped — we mark
+  // Refs we already asked about (whether found or not) are skipped - we mark
   // "not found" as `null` in the cache so the effect can't infinite-loop.
   useEffect(() => {
     const missing = refs.filter((ref) => !(ref in resolved));
@@ -255,7 +255,7 @@ export default function QuestionnaireBuilderPage() {
       })
       .catch(() => {
         if (cancelled) return;
-        // best-effort — mark as tried so we don't retry-loop
+        // best-effort - mark as tried so we don't retry-loop
         setResolved((prev) => {
           const next = { ...prev };
           for (const ref of missing) {
@@ -277,7 +277,7 @@ export default function QuestionnaireBuilderPage() {
   }, [libraryQuery]);
   useEffect(reloadLibrary, [reloadLibrary]);
 
-  // Debounced save — snapshot the last committed state so we don't PATCH
+  // Debounced save - snapshot the last committed state so we don't PATCH
   // no-op updates. Runs whenever name/shuffle/refs change post-load.
   useEffect(() => {
     if (questionnaire === null) return;
@@ -482,7 +482,7 @@ export default function QuestionnaireBuilderPage() {
             )}
             {refs.length > 0 ? (
               <p className="border-t border-divider py-3 text-center font-mono text-[11px] text-g400">
-                drag to reorder — order is what candidates see unless shuffled
+                drag to reorder - order is what candidates see unless shuffled
               </p>
             ) : null}
           </div>

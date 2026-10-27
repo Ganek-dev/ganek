@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const page = await publicApi.singleCompanyPage();
   if (page === null) return {};
   return {
-    title: `${page.company.name} — Careers`,
+    title: `${page.company.name} - Careers`,
     description: page.company.description || `Open positions at ${page.company.name}`,
     ...demoRobots(demo),
   };

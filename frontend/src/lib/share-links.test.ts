@@ -40,7 +40,7 @@ describe("builtInSourceHint", () => {
 
   it("refuses direct: it is the name of untracked traffic", () => {
     expect(builtInSourceHint("direct")).toMatch(/^direct is the built-in name for untracked traffic/);
-    expect(builtInSourceHint("direct")).not.toMatch(/[–—]/);
+    expect(builtInSourceHint("direct")).not.toMatch(/[\u2013\u2014]/);
   });
 });
 
@@ -68,6 +68,6 @@ describe("constants", () => {
   it("points at the embed docs and explains the name rule without dashes", () => {
     expect(EMBED_DOCS_URL).toBe("https://ganek.dev/api-embed/");
     expect(CUSTOM_NAME_HINT).toBe("letters, digits, - or _ only, up to 40");
-    expect(CUSTOM_NAME_HINT).not.toMatch(/[–—]/);
+    expect(CUSTOM_NAME_HINT).not.toMatch(/[\u2013\u2014]/);
   });
 });

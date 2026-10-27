@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-/** Single-mode twin of /c/[slug]/privacy — the instance's one company.
+/** Single-mode twin of /c/[slug]/privacy - the instance's one company.
  * The backend 404s this route on multi-tenant instances. */
 export default async function PrivacyPage() {
   const notice = await publicApi.singlePrivacy();

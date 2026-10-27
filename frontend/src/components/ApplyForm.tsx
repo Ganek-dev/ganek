@@ -28,7 +28,7 @@ function formatMB(bytes: number): string {
 }
 
 const ASSESSMENT_FACTS: [string, string][] = [
-  ["1×", "one attempt — no going back between questions"],
+  ["1×", "one attempt - no going back between questions"],
   ["0:00", "each question locks itself when its time is up"],
   ["24h", "start any time in the next 24 hours"],
 ];
@@ -98,7 +98,7 @@ export function ApplyForm({
         input.value = "";
         setCv({ status: "empty" });
         setError(
-          err instanceof Error ? err.message : "CV upload failed — please try again",
+          err instanceof Error ? err.message : "CV upload failed - please try again",
         );
       }
     }
@@ -140,7 +140,7 @@ export function ApplyForm({
         statusToken: received.status_token,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Something went wrong — please try again";
+      const message = err instanceof Error ? err.message : "Something went wrong - please try again";
       const captcha = isCaptchaError(message);
       setCaptchaError(captcha);
       if (!captcha) setError(message);
@@ -174,7 +174,7 @@ export function ApplyForm({
           <>
             <p className="mx-auto mt-3 max-w-[420px] text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
               One step left: a short skills assessment. It&apos;s how this team
-              shortlists — your CV alone won&apos;t be filtered out by keywords.
+              shortlists - your CV alone won&apos;t be filtered out by keywords.
             </p>
             <div className="mx-auto mt-7 max-w-[440px] rounded-xl border border-edge p-5 text-left sm:p-[22px]">
               <span className="font-heading text-[16px] font-semibold">
@@ -199,7 +199,7 @@ export function ApplyForm({
               <p className="mt-2.5 text-center text-[13px] text-g500">
                 {demo
                   ? "On the demo your link appears here instead of in an inbox:"
-                  : "or later — save your personal link:"}
+                  : "or later - save your personal link:"}
               </p>
               <input
                 readOnly
@@ -210,12 +210,12 @@ export function ApplyForm({
               />
             </div>
             <p className="mt-6 font-mono text-[11px] text-g400">
-              Find a quiet 10 minutes — tab switches, pastes &amp; resizes are recorded
+              Find a quiet 10 minutes - tab switches, pastes &amp; resizes are recorded
             </p>
           </>
         ) : (
           <p className="mx-auto mt-3 max-w-[420px] text-[15px] leading-[23px] text-g600">
-            Thanks for applying — the team will be in touch.
+            Thanks for applying - the team will be in touch.
           </p>
         )}
         {done.statusToken ? (
@@ -226,7 +226,7 @@ export function ApplyForm({
             >
               Track your application
             </Link>{" "}
-            — private link, no account needed.
+            - private link, no account needed.
           </p>
         ) : null}
       </div>
@@ -239,7 +239,7 @@ export function ApplyForm({
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-[560px]">
       <h2 className="font-heading text-[26px] leading-[1.2] font-semibold tracking-[-0.01em]">
-        Apply{jobTitle ? ` — ${jobTitle}` : " for this position"}
+        Apply{jobTitle ? ` - ${jobTitle}` : " for this position"}
       </h2>
       <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600">
         {demo ? "Two fields, about one minute." : "Three fields, about two minutes."}
@@ -298,7 +298,7 @@ export function ApplyForm({
                   <div className="truncate text-sm font-medium">{cv.file.name}</div>
                   <div className="mt-0.5 font-mono text-[11px] text-g500">
                     {uploading
-                      ? `uploading — ${pct}% of ${formatMB(cv.file.size)}`
+                      ? `uploading - ${pct}% of ${formatMB(cv.file.size)}`
                       : `uploaded · ${formatMB(cv.file.size)}`}
                   </div>
                 </div>
@@ -349,9 +349,9 @@ export function ApplyForm({
             maxLength={5000}
             className="w-full rounded-md border-[1.5px] border-edge bg-transparent px-3.5 py-2.5 text-[15px] text-foreground focus:border-brand focus:outline-none"
           />
-          {/* Art. 9 minimization nudge — special-category data is not sought */}
+          {/* Art. 9 minimization nudge - special-category data is not sought */}
           <span className="block text-[12.5px] leading-[18px] text-g500">
-            Please leave out sensitive personal details (health, beliefs, family situation) —
+            Please leave out sensitive personal details (health, beliefs, family situation) -
             they play no part in the review.
           </span>
         </label>
@@ -367,7 +367,7 @@ export function ApplyForm({
 
       {privacyHref ? (
         // Art. 13 short layer at the point of collection. Deliberately a
-        // notice, not a consent checkbox — the basis is 6(1)(b).
+        // notice, not a consent checkbox - the basis is 6(1)(b).
         <p className="mt-6 text-[12.5px] leading-[18px] text-g500">
           By applying, {companyName ?? "the company"} processes your details to consider
           you for this role. How it&apos;s handled, how long it&apos;s kept, and your

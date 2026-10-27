@@ -64,7 +64,7 @@ class QuizConfig:
     difficulties: list[int] = field(default_factory=list)  # 1-5; empty = all
     exclude_ids: list[str] = field(default_factory=list)
     # When set, the referenced Questionnaire's ordered question_refs replace
-    # tag-auto selection — tags and question_count no longer influence pool
+    # tag-auto selection - tags and question_count no longer influence pool
     # composition (they may still be edited but are ignored on attempt).
     questionnaire_id: uuid.UUID | None = None
 
@@ -130,7 +130,7 @@ async def _question_pool(
     """Eligible questions for a job's quiz.
 
     ``apply_exclusions=False`` returns the pool ignoring per-job excludes and
-    the company blocklist — the preview endpoint uses it so recruiters can see
+    the company blocklist - the preview endpoint uses it so recruiters can see
     (and un-exclude) what they filtered out.
     """
     query = select(Question).where(
@@ -169,7 +169,7 @@ async def _resolve_questionnaire_pool(
     questionnaire: Questionnaire,
 ) -> list[Question]:
     """Load active + tenant-visible Question rows for a questionnaire's refs,
-    preserving the curated order. Missing/retired refs are silently skipped —
+    preserving the curated order. Missing/retired refs are silently skipped -
     the recruiter sees the difference in the preview endpoint."""
     if not questionnaire.question_refs:
         return []
@@ -282,7 +282,7 @@ async def reissue_attempt(
 
     Fresh selection avoids every question served on prior attempts, topping
     up from the full pool only when it runs dry. Questionnaire-attached jobs
-    re-serve the curated set (fresh order when shuffled) — the set IS the
+    re-serve the curated set (fresh order when shuffled) - the set IS the
     quiz. The superseded attempt keeps its data: completed/pending runs are
     marked invalidated, expired ones stay expired; either way the new row's
     ``integrity.reissue`` records where it came from, who did it, and why.
@@ -363,7 +363,7 @@ async def reissue_attempt(
 
 async def record_reissue_request(db: AsyncSession, attempt: QuizAttempt) -> QuizAttempt:
     """Candidate asked for a new link (27c, manual mode): surface it to the
-    team on the expired attempt. Idempotent — repeats bump a count."""
+    team on the expired attempt. Idempotent - repeats bump a count."""
     integrity = dict(attempt.integrity)
     request = dict(integrity.get("reissue_requested") or {})
     request["at"] = request.get("at") or _now().isoformat()
@@ -413,7 +413,7 @@ _COUNTED_EVENTS = {"blur", "paste", "resize"}
 async def record_events(
     db: AsyncSession, attempt: QuizAttempt, events: list[dict[str, int | str | None]]
 ) -> None:
-    """Record client integrity telemetry. Informational only — never scores.
+    """Record client integrity telemetry. Informational only - never scores.
 
     Each event may carry the question that was open when it happened, so
     recruiters can see exactly where in the quiz something occurred.
@@ -477,7 +477,7 @@ def _integrity_flags(
                 "summary": f"left the tab {blur_count}x (~{seconds}s)",
                 "detail": (
                     f"The quiz tab was hidden {blur_count} time(s) for about {seconds}s "
-                    "total while a question was open — consistent with switching to "
+                    "total while a question was open - consistent with switching to "
                     "another window (search, notes, chat). Can also be a notification "
                     "or an accidental switch; check which questions were affected."
                     + (f" Occurred during {where}." if where else "")
@@ -520,7 +520,7 @@ def _integrity_flags(
                     "code": "very_fast",
                     "summary": f"answered very fast (avg {avg:.1f}s)",
                     "detail": (
-                        f"Every question was answered, averaging {avg:.1f}s — near the "
+                        f"Every question was answered, averaging {avg:.1f}s - near the "
                         "floor of reading time. Plausible for strong recall on easy "
                         "questions, but combined with a low score it suggests guessing; "
                         "combined with tab-switching it suggests a second screen."
@@ -666,7 +666,7 @@ async def build_quiz_preview(
     """What this job's quiz would look like right now.
 
     Returns (config, full pool WITHOUT exclusions applied, eligible ids after
-    exclusions, sample question ids drawn like a real attempt). Preview only —
+    exclusions, sample question ids drawn like a real attempt). Preview only -
     never persisted; every call redraws the sample.
     """
     config = parse_quiz_config(job)
@@ -784,7 +784,7 @@ async def submit_answer(
 async def get_attempt_by_application(
     db: AsyncSession, application_id: uuid.UUID
 ) -> QuizAttempt | None:
-    """Latest attempt by created_at — mirrors Application.quiz_attempt; older
+    """Latest attempt by created_at - mirrors Application.quiz_attempt; older
     rows are re-issue history (attempts are 1..N per application since 0012)."""
     return (
         (
@@ -823,7 +823,7 @@ async def get_attempt_by_id(db: AsyncSession, attempt_id: uuid.UUID) -> QuizAtte
 async def attempt_context(
     db: AsyncSession, attempt: QuizAttempt
 ) -> tuple[Application, Company, Job]:
-    """The application (with candidate), company and job behind an attempt —
+    """The application (with candidate), company and job behind an attempt -
     the start-gate intro (screen 18) renders from these."""
     application = (
         await db.execute(

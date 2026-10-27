@@ -179,16 +179,16 @@ describe("QuestionnaireBuilderPage", () => {
     mockedQnr.get.mockResolvedValueOnce(
       baseQuestionnaire({ question_refs: ["py-gil-1", "ghost-ref"] }),
     );
-    // Only py-gil-1 resolves — ghost-ref stays missing after the promise settles.
+    // Only py-gil-1 resolves - ghost-ref stays missing after the promise settles.
     mockedQ.resolve.mockResolvedValueOnce([RESOLVED[0]]);
     render(<QuestionnaireBuilderPage />);
 
     // Poll until exactly one "missing" warning is present (py-gil-1 has
-    // resolved, ghost-ref hasn't) — waiting on `findByText` for the GIL prompt
+    // resolved, ghost-ref hasn't) - waiting on `findByText` for the GIL prompt
     // is not enough because the library sidebar also renders that prompt.
     await waitFor(() =>
       expect(
-        screen.queryAllByText(/not visible to this workspace — remove to clean up/),
+        screen.queryAllByText(/not visible to this workspace - remove to clean up/),
       ).toHaveLength(1),
     );
     expect(screen.getByText("Missing question ghost-ref")).toBeInTheDocument();

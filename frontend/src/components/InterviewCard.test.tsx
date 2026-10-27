@@ -66,7 +66,7 @@ describe("InterviewCard", () => {
       },
     ]);
     mockedInterviews.preview.mockResolvedValue({
-      schedule_summary: "Mon–Fri 09:00–17:00",
+      schedule_summary: "Mon-Fri 09:00-17:00",
       open_slot_count: 23,
     });
     mockedInterviews.create.mockResolvedValue(interview());
@@ -75,7 +75,7 @@ describe("InterviewCard", () => {
 
   it("shows the availability summary once an interviewer is picked", async () => {
     mockedInterviews.preview.mockResolvedValue({
-      schedule_summary: "Mon–Fri 09:00–17:00",
+      schedule_summary: "Mon-Fri 09:00-17:00",
       open_slot_count: 23,
     });
     await openDialog();
@@ -85,7 +85,7 @@ describe("InterviewCard", () => {
     expect(select).toHaveValue("u1");
     expect(screen.queryByText("gone@acme.dev")).not.toBeInTheDocument();
 
-    expect(await screen.findByText(/Mon–Fri 09:00–17:00.*23 open times/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Mon-Fri 09:00-17:00.*23 open times/i)).toBeInTheDocument();
     expect(mockedInterviews.preview).toHaveBeenCalledWith(
       "app1",
       expect.objectContaining({ interviewer_user_id: "u1", duration_minutes: 45 }),
@@ -94,7 +94,7 @@ describe("InterviewCard", () => {
 
   it("disables Send when there are no open times", async () => {
     mockedInterviews.preview.mockResolvedValue({
-      schedule_summary: "Mon–Fri 09:00–17:00",
+      schedule_summary: "Mon-Fri 09:00-17:00",
       open_slot_count: 0,
     });
     await openDialog();

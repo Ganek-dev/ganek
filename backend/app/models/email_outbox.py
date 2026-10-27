@@ -22,12 +22,12 @@ class EmailStatus(enum.StrEnum):
 
 
 class EmailOutbox(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """One queued/sent/failed outbound email (M5.7 H4 — kills the
+    """One queued/sent/failed outbound email (M5.7 H4 - kills the
     fire-and-forget failure mode of the core loop).
 
     The row is written in the request that decided to email someone; an arq
     job delivers it with retry. `payload` holds the sender's kwargs verbatim
-    (datetimes ISO-wrapped) — it contains recipient PII and capability URLs
+    (datetimes ISO-wrapped) - it contains recipient PII and capability URLs
     on purpose, which is why rows cascade away with their application and
     terminal rows are swept by the nightly retention job.
     """

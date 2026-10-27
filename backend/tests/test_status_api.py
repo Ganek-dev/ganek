@@ -163,7 +163,7 @@ async def test_request_data_creates_task_and_activity(client: AsyncClient) -> No
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     tasks = (await client.get("/api/v1/tasks")).json()
-    matching = [t for t in tasks if t["title"] == "Privacy: data request — Marta Vidal"]
+    matching = [t for t in tasks if t["title"] == "Privacy: data request - Marta Vidal"]
     assert len(matching) == 1
     assert "within one month" in matching[0]["note"]
     assert "marta-" in matching[0]["note"]  # candidate email so the admin can act
@@ -189,7 +189,7 @@ async def test_request_deletion_dedupes_open_task(client: AsyncClient) -> None:
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     tasks = (await client.get("/api/v1/tasks")).json()
-    matching = [t for t in tasks if t["title"] == "Privacy: deletion request — Marta Vidal"]
+    matching = [t for t in tasks if t["title"] == "Privacy: deletion request - Marta Vidal"]
     assert len(matching) == 1  # second click did not stack a duplicate
 
     # ... but the activity trail keeps every request

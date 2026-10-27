@@ -12,7 +12,7 @@ import { brandStyle } from "@/lib/brand";
  * Calendly-style day strip (role="tablist") + wrapped time-pill list for the
  * active day (selected = brand fill) + confirm bar. Booked state offers
  * reschedule (same picker) and a two-step cancel. All times render in the
- * CANDIDATE's browser timezone — selecting a time triggers a silent
+ * CANDIDATE's browser timezone - selecting a time triggers a silent
  * refetch so a just-taken slot is caught before confirm. The calendar
  * invite Google sends after booking still uses the interview's stored
  * timezone server-side. */
@@ -80,7 +80,7 @@ function DayPicker({
       grouped.set(key, [...(grouped.get(key) ?? []), iso]);
     }
     // No cap here: HORIZON_DAYS interviewer-tz days can group into one MORE
-    // candidate-local day at the DST/date-line edges — slicing would
+    // candidate-local day at the DST/date-line edges - slicing would
     // silently drop a day that still holds bookable slots. The strip is
     // horizontally scrollable already.
     return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
@@ -94,7 +94,7 @@ function DayPicker({
   if (days.length === 0) {
     return (
       <p className="rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[13px] text-g500">
-        No open times right now — please check back soon, or reply to the hiring team&apos;s
+        No open times right now - please check back soon, or reply to the hiring team&apos;s
         email.
       </p>
     );
@@ -185,7 +185,7 @@ export default function InterviewBookingPage() {
 
   // Mirrors `selected` into a ref so `load()` (memoized on `token` only) can
   // read the latest selection inside its promise handler without going
-  // stale — state updates from a fetch stay inside the resolve callback
+  // stale - state updates from a fetch stay inside the resolve callback
   // rather than a bare effect (react-hooks/set-state-in-effect).
   const selectedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -198,7 +198,7 @@ export default function InterviewBookingPage() {
   // newer book/reschedule/cancel response can stomp the freshly-booked
   // state back to a stale pre-booking snapshot. Every state-writing request
   // bumps this counter and captures its own value; a `.then`/`.catch` only
-  // applies its result if the counter hasn't moved on since — i.e. no
+  // applies its result if the counter hasn't moved on since - i.e. no
   // newer request has started.
   const requestSeq = useRef(0);
 
@@ -210,12 +210,12 @@ export default function InterviewBookingPage() {
         if (seq !== requestSeq.current) return; // superseded by a newer request
         setInterview(data);
         // Select re-check: if a silent refetch (triggered by selecting a
-        // time) shows the picked slot is gone, someone else just took it —
+        // time) shows the picked slot is gone, someone else just took it -
         // clear the selection and surface the same copy the confirm-time
         // 409 path uses, instead of only discovering it at confirm.
         if (selectedRef.current && !data.available_slots.includes(selectedRef.current)) {
           setSelected(null);
-          setError("That time was just taken — please pick another.");
+          setError("That time was just taken - please pick another.");
         }
       })
       .catch((err: unknown) => {
@@ -229,7 +229,7 @@ export default function InterviewBookingPage() {
 
   function selectSlot(iso: string) {
     // Belt-and-braces alongside DayPicker's `disabled={busy}`: a write in
-    // flight must not be raced by a fresh selection — see the
+    // flight must not be raced by a fresh selection - see the
     // request-generation guard above for why that would drop the write's
     // own response.
     if (busy) return;
@@ -255,11 +255,11 @@ export default function InterviewBookingPage() {
     } catch (err) {
       if (seq !== requestSeq.current) return; // superseded by a newer request
       if (err instanceof ApiError && err.detail === "slot-taken") {
-        setError("That time was just taken — please pick another.");
+        setError("That time was just taken - please pick another.");
         setSelected(null);
         load();
       } else if (err instanceof ApiError && err.status === 503) {
-        setError("Scheduling is temporarily unavailable — please try again in a bit.");
+        setError("Scheduling is temporarily unavailable - please try again in a bit.");
       } else {
         setError(err instanceof Error ? err.message : "Something went wrong");
       }
@@ -363,12 +363,12 @@ export default function InterviewBookingPage() {
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Video aria-hidden className="h-3.5 w-3.5" />
-                    Google Meet — invite lands in your inbox
+                    Google Meet - invite lands in your inbox
                   </span>
                 </p>
               </div>
               <span className="rounded-full border border-edge px-2.5 py-1 font-mono text-[11px] text-g500">
-                Times shown in {localZone} — your local time
+                Times shown in {localZone} - your local time
               </span>
               {interview.description ? (
                 <p className="w-full border-t border-edge pt-3 text-[13px] text-g600 italic">
@@ -378,7 +378,7 @@ export default function InterviewBookingPage() {
               {/* Art. 13 recipients disclosure at the touchpoint (M5.6 G1) */}
               <p className="w-full border-t border-edge pt-3 text-[12px] leading-[17px] text-g500">
                 Booking adds a calendar event with your name and email to {interview.company_name}
-                &apos;s Google Calendar — the invite email comes from Google.
+                &apos;s Google Calendar - the invite email comes from Google.
               </p>
             </div>
 
@@ -389,7 +389,7 @@ export default function InterviewBookingPage() {
                   {interview.scheduled_start
                     ? `${dayLabel(interview.scheduled_start, localZone).weekday}, ${
                         dayLabel(interview.scheduled_start, localZone).date
-                      } · ${timeLabel(interview.scheduled_start, localZone)}–${endTime(
+                      } · ${timeLabel(interview.scheduled_start, localZone)}-${endTime(
                         interview.scheduled_start,
                         interview.duration_minutes,
                         localZone,
@@ -451,7 +451,7 @@ export default function InterviewBookingPage() {
               <div className="card mt-4 p-5">
                 {rescheduling ? (
                   <p className="mb-4 text-[13px] text-g500">
-                    Pick a new time — your current slot stays until you confirm.
+                    Pick a new time - your current slot stays until you confirm.
                   </p>
                 ) : null}
                 <DayPicker
@@ -467,7 +467,7 @@ export default function InterviewBookingPage() {
                       <span className="font-semibold">
                         {dayLabel(selected, localZone).weekday},{" "}
                         {dayLabel(selected, localZone).date} ·{" "}
-                        {timeLabel(selected, localZone)}–
+                        {timeLabel(selected, localZone)}-
                         {endTime(selected, interview.duration_minutes, localZone)}
                       </span>{" "}
                       <span className="font-mono text-[11.5px] text-g500">

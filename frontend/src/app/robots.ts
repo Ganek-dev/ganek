@@ -13,7 +13,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     rules: [
       {
         userAgent: "*",
-        // Admin plus every tokened candidate surface — those URLs are
+        // Admin plus every tokened candidate surface - those URLs are
         // capability links and must never end up in a search index.
         disallow: [
           "/admin",

@@ -447,7 +447,7 @@ describe("JobOverviewPage", () => {
     expect(within(card).getByRole("button", { name: "Copy Newsletter link" })).toBeInTheDocument();
     expect(within(card).getByText(/src=linkedin$/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/visitor/i);
-    expect(document.body.textContent).not.toMatch(/[–—]/);
+    expect(document.body.textContent).not.toMatch(/[\u2013\u2014]/);
   });
 
   it("stays neutral on a closed job with no views: nothing to share, no Copy button", async () => {
@@ -473,7 +473,7 @@ describe("JobOverviewPage", () => {
     expect(line.closest("div.card")).toBe(chartCard());
     expect(within(chartCard()).queryByText(/Share it/)).not.toBeInTheDocument();
     expect(within(chartCard()).queryByRole("button", { name: /^Copy/ })).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/[–—]/);
+    expect(document.body.textContent).not.toMatch(/[\u2013\u2014]/);
   });
 
   it("says when nothing was viewed or applied for yet", async () => {

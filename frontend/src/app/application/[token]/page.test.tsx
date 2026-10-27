@@ -100,7 +100,7 @@ describe("StatusPage", () => {
     mocked.status.mockResolvedValue(makeStatus({ stage: "rejected" }));
     render(<StatusPage />);
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
-    expect(screen.getByText(/Decision made — check your email/)).toBeInTheDocument();
+    expect(screen.getByText(/Decision made - check your email/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw application" })).toBeNull();
   });
 

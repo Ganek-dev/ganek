@@ -104,7 +104,7 @@ describe("QuestionsPage", () => {
   it("defaults to the bank tab with filters and blocks a question", async () => {
     render(<QuestionsPage />);
     expect(await screen.findByText("What does the GIL prevent?")).toBeInTheDocument();
-    expect(screen.getByText("1–1 of 42")).toBeInTheDocument();
+    expect(screen.getByText("1-1 of 42")).toBeInTheDocument();
 
     // 5-dot scale + Source pill replace the old options list
     expect(screen.getByRole("img", { name: "Difficulty 3 of 5" })).toBeInTheDocument();

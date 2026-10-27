@@ -1,7 +1,7 @@
 """Email outbox (M5.7 H4): queue-then-deliver replaces fire-and-forget.
 
 The request that decides to email someone writes an ``email_outbox`` row
-and enqueues an arq delivery job. Redis being down only delays delivery —
+and enqueues an arq delivery job. Redis being down only delays delivery -
 the sweeper re-enqueues stuck rows. The worker retries transport failures
 with backoff and parks the row as ``failed`` after MAX_ATTEMPTS, which the
 applicant panel surfaces instead of silence.
@@ -36,7 +36,7 @@ EAGER_DELIVERY_FOR_TESTS = False
 
 # Registry of queueable senders, by attribute name so monkeypatching
 # email_service in tests keeps working. The worker's own scheduled jobs
-# (interview reminder, quiz nudge) stay direct — they are already queued
+# (interview reminder, quiz nudge) stay direct - they are already queued
 # and self-validating.
 SENDER_NAMES: dict[str, str] = {
     "application_received": "send_application_received",

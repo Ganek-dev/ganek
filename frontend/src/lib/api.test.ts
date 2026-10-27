@@ -28,7 +28,7 @@ describe("request error mapping", () => {
   });
 
   it("surfaces the first message of a validation-error list, not the status text", async () => {
-    // FastAPI 422 shape — the setup form used to show "Unprocessable Content"
+    // FastAPI 422 shape - the setup form used to show "Unprocessable Content"
     mockFetch(422, {
       detail: [
         {
@@ -75,7 +75,7 @@ describe("401 interceptor", () => {
     expect(assign).toHaveBeenCalledWith("/login");
   });
 
-  it("leaves non-admin surfaces alone — a failed login is not a redirect", async () => {
+  it("leaves non-admin surfaces alone - a failed login is not a redirect", async () => {
     const assign = stubLocation("/login");
     mockFetch(401, { detail: "Invalid email or password" });
     await expect(

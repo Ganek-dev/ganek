@@ -39,13 +39,13 @@ describe("TodayPanel", () => {
       events: [
         {
           start: "2026-08-08T11:00:00+02:00",
-          summary: "Intro call — Marta Vidal",
+          summary: "Intro call - Marta Vidal",
           hangout_link: "https://meet.google.com/abc",
         },
       ],
     });
     render(<TodayPanel />);
-    expect(await screen.findByText("Intro call — Marta Vidal")).toBeInTheDocument();
+    expect(await screen.findByText("Intro call - Marta Vidal")).toBeInTheDocument();
     expect(screen.getByText("Google Calendar")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Meet/ })).toHaveAttribute(
       "href",
@@ -207,7 +207,7 @@ describe("ActivityPanel", () => {
     ]);
     render(<ActivityPanel />);
     expect(
-      await screen.findByText("Marta Vidal applied — Backend Engineer"),
+      await screen.findByText("Marta Vidal applied - Backend Engineer"),
     ).toBeInTheDocument();
     expect(
       screen.getByText("grumpy@acme.dev moved a candidate new → screening"),

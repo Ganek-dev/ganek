@@ -1,5 +1,5 @@
 """Email outbox (M5.7 H4): queue-then-deliver with retry, sweep, and the
-admin surfaces. The conftest eager mode is switched OFF here — these tests
+admin surfaces. The conftest eager mode is switched OFF here - these tests
 exercise the real worker path.
 """
 
@@ -164,7 +164,7 @@ async def test_deliver_retries_then_parks_as_failed(
         assert fresh.attempts == attempt
         assert "boom" in (fresh.last_error or "")
 
-    # third strike parks the row — no Retry raised, arq is done with it
+    # third strike parks the row - no Retry raised, arq is done with it
     await deliver_email(ctx, str(row_id))
     db_session.expire_all()
     fresh = (
@@ -231,7 +231,7 @@ async def test_stuck_rows_finds_only_old_queued(db_session: AsyncSession) -> Non
         .values(created_at=datetime.now(UTC) - timedelta(minutes=30))
     )
     await db_session.commit()
-    assert fresh is not None  # young queued row — must not be swept yet
+    assert fresh is not None  # young queued row - must not be swept yet
 
     stuck = await outbox_service.stuck_rows(
         db_session, older_than=datetime.now(UTC) - timedelta(minutes=5)
@@ -324,7 +324,7 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def no_verification(monkeypatch: pytest.MonkeyPatch) -> None:
     """These flows have SMTP patched in, which would trigger multi-mode
-    signup verification (H4 item 12) — out of scope for outbox tests."""
+    signup verification (H4 item 12) - out of scope for outbox tests."""
     from app.services import auth as auth_service
 
     monkeypatch.setattr(auth_service, "verification_required", lambda: False)

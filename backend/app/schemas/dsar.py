@@ -1,9 +1,9 @@
-"""DSAR export bundle (Art. 15/20) — admin-mediated, candidate-destined.
+"""DSAR export bundle (Art. 15/20) - admin-mediated, candidate-destined.
 
 Everything here ends up in the candidate's hands: recruiter identifiers
 (note authors, reissue/review user ids, actor emails) are third-party data
 and stay out; bank secrets (correct_key) must never appear. Activity rows
-are type+timestamp only — payloads can embed other people's identifiers.
+are type+timestamp only - payloads can embed other people's identifiers.
 """
 
 from datetime import datetime

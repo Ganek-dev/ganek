@@ -13,7 +13,7 @@ export const DEFAULT_BRAND = "#18181b";
 const DARK_TEXT = "#18181b";
 const LIGHT_TEXT = "#ffffff";
 
-/** Parse #rgb / #rrggbb into [r, g, b] (0–255). Null when malformed. */
+/** Parse #rgb / #rrggbb into [r, g, b] (0-255). Null when malformed. */
 export function parseHex(color: string): [number, number, number] | null {
   const match = /^#(?:([0-9a-f]{3})|([0-9a-f]{6}))$/i.exec(color.trim());
   if (!match) return null;
@@ -22,7 +22,7 @@ export function parseHex(color: string): [number, number, number] | null {
   return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }
 
-/** WCAG relative luminance, 0 (black) – 1 (white). */
+/** WCAG relative luminance, 0 (black) - 1 (white). */
 export function relativeLuminance(color: string): number | null {
   const rgb = parseHex(color);
   if (!rgb) return null;
@@ -40,7 +40,7 @@ export function brandForeground(color: string): string {
   return luminance > 0.45 ? DARK_TEXT : LIGHT_TEXT;
 }
 
-/** WCAG contrast ratio (1–21) between two hex colors. Null when malformed. */
+/** WCAG contrast ratio (1-21) between two hex colors. Null when malformed. */
 export function contrastRatio(a: string, b: string): number | null {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);

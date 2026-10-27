@@ -1,7 +1,7 @@
 import { Wordmark } from "@/components/Wordmark";
 
 /** Centered 360px auth column from handoff screen 13. Used by login,
- * signup and reset — anything the wordmark should crown. */
+ * signup and reset - anything the wordmark should crown. */
 export function AuthShell({
   title,
   subtitle,

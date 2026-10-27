@@ -13,7 +13,7 @@ export const DRAFT_JOB_TITLE = "E2E Draft Role";
 export const QUIZ_QUESTION_COUNT = 3;
 
 export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void> {
-  // /api/health is DB-free, so a "healthy" stack can still be mid-migration —
+  // /api/health is DB-free, so a "healthy" stack can still be mid-migration -
   // wait until a schema-backed endpoint stops 500ing before registering
   for (let i = 0; i < 40; i += 1) {
     const probe = await api.get("/api/v1/public/company");
@@ -24,13 +24,13 @@ export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void>
     data: { company_name: COMPANY_NAME, email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   if (register.status() === 409) {
-    // single mode already has a company — it must be ours (fresh-stack suite)
+    // single mode already has a company - it must be ours (fresh-stack suite)
     const login = await api.post("/api/v1/auth/login", {
       data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
     });
     expect(
       login.ok(),
-      "stack already has a company that is not the e2e one — run against a fresh stack",
+      "stack already has a company that is not the e2e one - run against a fresh stack",
     ).toBe(true);
   } else {
     expect(register.status(), "first-run registration should succeed").toBe(201);

@@ -9,7 +9,7 @@ import {
   QUIZ_QUESTION_COUNT,
 } from "./stack";
 
-/** Golden path 2 — the recruiter: login UI → applicants review → open the
+/** Golden path 2 - the recruiter: login UI → applicants review → open the
  * candidate that candidate.spec created earlier in this run → score +
  * answers + integrity visible → advance the stage → sign out. Runs after
  * candidate.spec (alphabetical, workers=1). */
@@ -34,7 +34,7 @@ test("recruiter logs in, reviews the applicant, and advances the stage", async (
     const row = page.getByText(CANDIDATE_NAME).first();
     await expect(
       row,
-      "no applicant from candidate.spec — this spec must run after it against the same stack",
+      "no applicant from candidate.spec - this spec must run after it against the same stack",
     ).toBeVisible();
     await row.click();
   });

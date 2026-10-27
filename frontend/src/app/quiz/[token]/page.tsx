@@ -18,14 +18,14 @@ import { brandStyle } from "@/lib/brand";
 import { Captcha, isCaptchaError } from "@/components/Captcha";
 
 /** Quiz exam surface (screens 05 / 26b): countdown ring above the stem,
- * A–D option cards, explicit lock step, keyboard controls. Layout is fixed
- * per question — integrity telemetry records resize, so nothing may shift
+ * A-D option cards, explicit lock step, keyboard controls. Layout is fixed
+ * per question - integrity telemetry records resize, so nothing may shift
  * mid-question. Client timers are cosmetic; the server owns deadlines. */
 
 const RED = "var(--danger)";
 
 function useCountdownMs(deadline: string | null): number | null {
-  // remaining time is derived at render from a ticking clock — no state
+  // remaining time is derived at render from a ticking clock - no state
   // writes inside effects, and no bogus initial value racing the timer
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -131,7 +131,7 @@ function useIntegrityTelemetry(token: string, active: boolean, questionId: strin
   useEffect(() => {
     if (!active) return;
     const onPageHide = () => {
-      // close an open blur segment — on tab close, visibilitychange→hidden
+      // close an open blur segment - on tab close, visibilitychange→hidden
       // fires first and would otherwise leave the segment dangling
       if (blurStarted.current !== null) {
         queue.current.push({
@@ -172,7 +172,7 @@ export default function QuizPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // acknowledgment of integrity monitoring — a transparency safeguard,
+  // acknowledgment of integrity monitoring - a transparency safeguard,
   // deliberately NOT consent (processing rests on necessity, so it must
   // not be framed as withdrawable permission)
   const [acknowledged, setAcknowledged] = useState(false);
@@ -274,18 +274,18 @@ export default function QuizPage() {
           await publicQuiz.answer(token, question.id, key);
           recorded = true;
         } catch (err) {
-          // the server spoke (late/already-resolved) — its ruling stands;
+          // the server spoke (late/already-resolved) - its ruling stands;
           // only network-level failures are worth retrying
           if (err instanceof ApiError) recorded = true;
         }
       }
       // a dropped network must not silently score a miss: keep the question
-      // open so the candidate can lock again — unless the deadline is gone
+      // open so the candidate can lock again - unless the deadline is gone
       // (the server resolves it either way) or this is the 0:00 auto-lock
       const deadlinePassed = new Date(question.deadline_at).getTime() <= Date.now();
       if (!recorded && !forced && !deadlinePassed) {
         setError(
-          "We couldn't reach the server to record your answer — check your connection and lock again.",
+          "We couldn't reach the server to record your answer - check your connection and lock again.",
         );
         setBusy(false);
         return;
@@ -316,7 +316,7 @@ export default function QuizPage() {
     }
   }, [phase, question, remainingMs, selected, lock, advance]);
 
-  // keyboard: A–D (or beyond) selects, Enter locks
+  // keyboard: A-D (or beyond) selects, Enter locks
   useEffect(() => {
     if (phase !== "question" || question === null) return;
     const onKey = (event: KeyboardEvent) => {
@@ -388,20 +388,20 @@ export default function QuizPage() {
           </h1>
           <p className="mx-auto mt-2.5 max-w-[420px] text-[14.5px] leading-[22px] text-g600 [text-wrap:pretty]">
             Links are valid for 24 hours after applying, and this one ran out. Your
-            application itself was received — the team can still review it.
+            application itself was received - the team can still review it.
           </p>
           {reissueState === "emailed" ? (
             <p role="status" className="mx-auto mt-5 max-w-[420px] text-[14px] font-medium">
-              A fresh link is on its way — check your inbox.
+              A fresh link is on its way - check your inbox.
             </p>
           ) : reissueState === "notified" ? (
             <p role="status" className="mx-auto mt-5 max-w-[420px] text-[14px] font-medium">
-              The hiring team has been notified — if they re-issue the assessment,
+              The hiring team has been notified - if they re-issue the assessment,
               you&apos;ll get a new link by email.
             </p>
           ) : reissueState === "already" ? (
             <p role="status" className="mx-auto mt-5 max-w-[420px] text-[14px] font-medium">
-              A new link was already issued — check your inbox.
+              A new link was already issued - check your inbox.
             </p>
           ) : (
             <>
@@ -423,7 +423,7 @@ export default function QuizPage() {
     );
   }
   if (phase === "done") {
-    // screen 20 — no score shown, ever
+    // screen 20 - no score shown, ever
     return (
       <main
         className="flex min-h-screen flex-col bg-surface text-foreground"
@@ -458,7 +458,7 @@ export default function QuizPage() {
               </div>
             </div>
             <h1 className="mt-6 text-center font-heading text-[24px] leading-[1.2] font-semibold tracking-[-0.005em] sm:text-[28px]">
-              That&apos;s it — submitted
+              That&apos;s it - submitted
             </h1>
             <p className="mt-3 max-w-[420px] text-center text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
               Your answers went straight to the hiring team, alongside your application.
@@ -487,7 +487,7 @@ export default function QuizPage() {
                 >
                   Track your application
                 </a>{" "}
-                — private link, no account needed.
+                - private link, no account needed.
               </p>
             ) : null}
             <p className="mt-4 font-mono text-[11px] text-g400">You can close this tab now.</p>
@@ -497,7 +497,7 @@ export default function QuizPage() {
     );
   }
   if (phase === "intro" && state !== null) {
-    // screen 18 — the rules gate; the timer only runs once they start
+    // screen 18 - the rules gate; the timer only runs once they start
     const firstName = state.candidate_name.split(" ")[0] || state.candidate_name;
     const estimatedMinutes =
       state.seconds_per_question === null
@@ -508,19 +508,19 @@ export default function QuizPage() {
       day: "numeric",
     });
     const rules: [React.ReactNode, string][] = [
-      [state.total, "questions — single choice, some with code"],
+      [state.total, "questions - single choice, some with code"],
       ...(state.seconds_per_question !== null
         ? ([
             [
               `${state.seconds_per_question}s`,
-              "per question — it locks automatically at 0:00",
+              "per question - it locks automatically at 0:00",
             ],
           ] as [React.ReactNode, string][])
         : []),
-      ["1×", "one shot — once you lock an answer there's no going back"],
+      ["1×", "one shot - once you lock an answer there's no going back"],
       [
         <Eye key="eye" aria-hidden className="h-4 w-4 text-g500" />,
-        "we record tab switches (and how long), pastes, and window resizes, tied to the question on screen — people review them, nothing auto-rejects. Stay here and you're fine.",
+        "we record tab switches (and how long), pastes, and window resizes, tied to the question on screen - people review them, nothing auto-rejects. Stay here and you're fine.",
       ],
     ];
     return (
@@ -546,7 +546,7 @@ export default function QuizPage() {
               Ready when you are, {firstName}
             </h1>
             <p className="mx-auto mt-2.5 max-w-[460px] text-center text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
-              This is a timed assessment. Read the rules once — there&apos;s no pause button.
+              This is a timed assessment. Read the rules once - there&apos;s no pause button.
             </p>
             <div className="mt-6 rounded-[14px] border border-edge px-5 py-1">
               {rules.map(([marker, rule], index) => (
@@ -564,7 +564,7 @@ export default function QuizPage() {
                 </div>
               ))}
             </div>
-            {/* active acknowledgment before anything runs — affirms the
+            {/* active acknowledgment before anything runs - affirms the
                 disclosure above; monitoring itself never expands past
                 focus/paste/resize */}
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[14px] border border-edge px-4 py-3.5 text-[13.5px] leading-5 text-g600">
@@ -576,7 +576,7 @@ export default function QuizPage() {
               />
               <span>
                 I have read and understood how integrity monitoring works during this
-                assessment — tab/window focus, paste events, and window resizing.
+                assessment - tab/window focus, paste events, and window resizing.
                 Nothing else: no webcam, no screen recording, no keystroke contents.{" "}
                 <a
                   href={state.privacy_url}
@@ -614,9 +614,9 @@ export default function QuizPage() {
                 starts immediately
               </p>
             ) : null}
-            {/* the objection route the telemetry LIA relies on — skipping is a real option */}
+            {/* the objection route the telemetry LIA relies on - skipping is a real option */}
             <p className="mt-3 text-center text-[13px] text-g500">
-              Not now — come back with the same link. Or skip the assessment: your
+              Not now - come back with the same link. Or skip the assessment: your
               application still stands, just without a score.
             </p>
             {error ? (
@@ -635,7 +635,7 @@ export default function QuizPage() {
     );
   }
   if (phase === "practice" && state !== null && practiceQ !== null) {
-    // screen 19 — unlimited unrecorded practice; nothing leaves the browser
+    // screen 19 - unlimited unrecorded practice; nothing leaves the browser
     const practiceMs = practiceRemaining ?? practiceQ.time_limit_seconds * 1000;
     return (
       <main
@@ -649,7 +649,7 @@ export default function QuizPage() {
             </span>
             <span className="hidden text-sm font-medium sm:inline">{state.company_name}</span>
             <span className="overline inline-flex h-[22px] items-center rounded-full border border-dashed border-g400 bg-muted-fill px-2.5 text-[11px] text-g600">
-              Practice — not recorded
+              Practice - not recorded
             </span>
           </div>
           <span className="font-mono text-xs text-g600 sm:text-[13px]">
@@ -705,7 +705,7 @@ export default function QuizPage() {
                     </span>
                     {isSelected && practiceLocked ? (
                       <span className="ml-auto shrink-0 font-mono text-[11px] text-g500">
-                        your answer — locked
+                        your answer - locked
                       </span>
                     ) : null}
                   </button>
@@ -714,7 +714,7 @@ export default function QuizPage() {
             </div>
             <div className="mt-5 flex w-full items-center gap-2.5 rounded-[10px] border border-edge px-3.5 py-3 text-[13px] leading-[19px] text-g600">
               <span>
-                Practice works exactly like the real thing — you pick, it locks, you move on.
+                Practice works exactly like the real thing - you pick, it locks, you move on.
                 Correct answers are never revealed, in practice or in the real run.
               </span>
             </div>
@@ -733,7 +733,7 @@ export default function QuizPage() {
                 disabled={busy}
                 className="flex h-11 items-center justify-center rounded-[10px] bg-brand px-5 text-[15px] font-semibold text-brand-foreground hover:brightness-[0.94] disabled:bg-muted-fill disabled:text-g500"
               >
-                {busy ? "…" : "I'm ready — start the real assessment"}
+                {busy ? "…" : "I'm ready - start the real assessment"}
               </button>
             </div>
             {error ? (
@@ -745,7 +745,7 @@ export default function QuizPage() {
         </div>
         <footer className="flex h-11 shrink-0 flex-wrap items-center justify-center gap-x-6 font-mono text-[11px] text-g400">
           <span>practice as many times as you like</span>
-          <span>sample questions only — never from the real quiz</span>
+          <span>sample questions only - never from the real quiz</span>
         </footer>
       </main>
     );
@@ -833,7 +833,7 @@ export default function QuizPage() {
               >
                 <span className={missWarning ? "" : "text-g400"}>
                   {missWarning
-                    ? "no answer selected — locks as missed at 0:00"
+                    ? "no answer selected - locks as missed at 0:00"
                     : "Locks automatically at 0:00"}
                 </span>
               </span>
@@ -873,19 +873,19 @@ export default function QuizPage() {
           >
             <span className={missWarning ? "" : "text-g400"}>
               {missWarning
-                ? "no answer selected — locks as missed at 0:00"
-                : "one shot — locks automatically at 0:00"}
+                ? "no answer selected - locks as missed at 0:00"
+                : "one shot - locks automatically at 0:00"}
             </span>
           </p>
-          {/* monitoring disclosure — desktop shows it in the footer; static, no layout shift */}
+          {/* monitoring disclosure - desktop shows it in the footer; static, no layout shift */}
           <p className="mt-1 text-center font-mono text-[10px] text-g400">
             tab switches, pastes &amp; resizes are recorded
           </p>
         </div>
 
         <footer className="hidden h-11 shrink-0 items-center justify-center gap-6 font-mono text-[11px] text-g400 sm:flex">
-          <span>A–D to select · Enter to lock</span>
-          <span>one shot — no going back</span>
+          <span>A-D to select · Enter to lock</span>
+          <span>one shot - no going back</span>
           <span>tab switches, pastes &amp; resizes are recorded</span>
         </footer>
       </main>

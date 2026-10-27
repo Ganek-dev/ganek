@@ -1,6 +1,6 @@
 export type InstanceMode = "single" | "multi";
 
-/** The careers-page URL this deployment actually serves — single mode at the
+/** The careers-page URL this deployment actually serves - single mode at the
  * instance root, multi mode under /c/{slug}. Never a ganek.dev domain: those
  * don't exist for self-hosted instances. Origin resolves in the browser; the
  * callers are client components that render after data fetches. */
@@ -16,7 +16,7 @@ export function careersDisplay(mode: InstanceMode, slug: string): string {
 
 /** Slug-bearing preview for the setup form, before a company exists. The
  * /c/{slug} route resolves in both modes, and keeping the slug visible is
- * the point of the live preview — the canonical share URL (host in single
+ * the point of the live preview - the canonical share URL (host in single
  * mode) is what the checklist and branding surfaces show instead. */
 export function careersSlugPreview(slug: string): string {
   return careersDisplay("multi", slug);

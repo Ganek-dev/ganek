@@ -18,7 +18,7 @@ class AttemptStatus(enum.StrEnum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     EXPIRED = "expired"
-    # superseded by a re-issued attempt — kept as audit history, excluded
+    # superseded by a re-issued attempt - kept as audit history, excluded
     # from scores and candidate access
     INVALIDATED = "invalidated"
 

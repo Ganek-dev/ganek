@@ -36,7 +36,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # bumped on password change / forced logout — embedded in the session
+    # bumped on password change / forced logout - embedded in the session
     # token; a mismatch invalidates every session issued before the bump
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     # what teammates and candidates see (card D14); NULL falls back to the

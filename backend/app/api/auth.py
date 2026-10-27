@@ -82,7 +82,7 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
         ) from None
     if not user.is_active:
         # multi-mode signup awaiting verification: no session until the
-        # inbox click — the company is inert and sweepable meanwhile
+        # inbox click - the company is inert and sweepable meanwhile
         await _queue_verification_email(db, user)
         out = UserOut.model_validate(user)
         out.pending_verification = True
@@ -126,7 +126,7 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Use
     except auth_service.EmailUnverifiedError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Verify your email first — check your inbox for the activation link",
+            detail="Verify your email first - check your inbox for the activation link",
         ) from None
     if user is None:
         raise HTTPException(
@@ -295,7 +295,7 @@ async def verify_email(payload: VerifyEmailRequest, response: Response, db: DbSe
                 return user
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail="This verification link is invalid or has expired — request a new one",
+        detail="This verification link is invalid or has expired - request a new one",
     )
 
 
@@ -305,7 +305,7 @@ async def verify_email(payload: VerifyEmailRequest, response: Response, db: DbSe
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
 async def resend_verification(payload: ForgotPasswordRequest, db: DbSession) -> None:
-    """Always 204 — reveals nothing about which signups exist."""
+    """Always 204 - reveals nothing about which signups exist."""
     user = (await db.execute(select(User).where(User.email == payload.email))).scalar_one_or_none()
     if user is None or user.is_active or not await auth_service.is_pending_verification(db, user):
         return
@@ -321,7 +321,7 @@ async def resend_verification(payload: ForgotPasswordRequest, db: DbSession) -> 
     ],
 )
 async def forgot_password(payload: ForgotPasswordRequest, db: DbSession) -> None:
-    """Always 204 — the response must not reveal whether an account exists.
+    """Always 204 - the response must not reveal whether an account exists.
 
     The one true dropped ball of D5 (13c): until now a locked-out
     single-mode admin had no recovery but SQL.
@@ -367,7 +367,7 @@ async def reset_password(payload: ResetPasswordRequest, response: Response, db: 
             return user
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail="This reset link is invalid or has expired — request a new one",
+        detail="This reset link is invalid or has expired - request a new one",
     )
 
 

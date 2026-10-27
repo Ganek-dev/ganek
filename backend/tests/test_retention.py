@@ -3,7 +3,7 @@ company window are erased via the G2 primitives, orphaned candidates and
 expired invites are swept, and abandoned CV uploads are garbage-collected.
 
 `now` is injected everywhere so window math and the 24 h upload grace are
-deterministic — no sleeping, no clock games.
+deterministic - no sleeping, no clock games.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -277,7 +277,7 @@ def _request_task(company_id: object, name: str, email: str, **overrides: object
     fields: dict[str, object] = {
         "company_id": company_id,
         "created_by": None,
-        "title": f"Privacy: deletion request — {name}",
+        "title": f"Privacy: deletion request - {name}",
         "note": f"{name} ({email}) asked via their status page (Role). "
         "GDPR clock: respond within one month.",
     }

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // A gN utility class whose token is missing from the @theme block renders
-// NOTHING — the class silently emits no CSS. That shipped once as invisible
+// NOTHING - the class silently emits no CSS. That shipped once as invisible
 // light-mode timeline bars on the integrity screen (bg-g300/70 with no
 // --color-g300 mapping), so this scan locks every used gray to a mapping.
 

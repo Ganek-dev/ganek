@@ -60,7 +60,7 @@ describe("BrandingPage", () => {
 
   it("loads company branding, shows domain and preview", async () => {
     render(<BrandingPage />);
-    // multi mode: careers live under /c/{slug} on this host — never ganek.dev
+    // multi mode: careers live under /c/{slug} on this host - never ganek.dev
     expect(
       await screen.findByText(`${window.location.host}/c/acme`),
     ).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe("BrandingPage", () => {
   });
 
   it("warns when the brand color misses AA contrast", async () => {
-    // mid gray pairs with white text at ~3.9:1 — under the 4.5 AA bar
+    // mid gray pairs with white text at ~3.9:1 - under the 4.5 AA bar
     mocked.get.mockResolvedValue(makeCompany({ theme: { primary_color: "#808080" } }));
     render(<BrandingPage />);
     expect(await screen.findByText("contrast below AA")).toBeInTheDocument();

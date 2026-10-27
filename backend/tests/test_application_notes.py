@@ -141,7 +141,7 @@ async def test_notes_roundtrip_and_order(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_notes_stable_order_on_created_at_tie(client: AsyncClient) -> None:
     """Two notes sharing a created_at (concurrent adds) must still sort the
-    same way on every GET — break the tie on id, not left to Postgres's
+    same way on every GET - break the tie on id, not left to Postgres's
     whim."""
     from sqlalchemy import update
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine

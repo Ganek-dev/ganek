@@ -107,7 +107,7 @@ async def test_reissue_supersedes_attempt_with_fresh_questions(
     assert new_attempt["status"] == "pending"
     new_ids = set(new_attempt["question_ids"])
     assert len(new_ids) == len(old_ids)
-    # the python pool is far larger than 2×2 — fresh selection avoids repeats
+    # the python pool is far larger than 2×2 - fresh selection avoids repeats
     assert not (new_ids & old_ids)
     reissue = new_attempt["integrity"]["reissue"]
     assert reissue["reason"] == "integrity"
@@ -290,7 +290,7 @@ async def test_quiz_answers_review_survives_reissue(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Regression: the recruiter answers/integrity review must read the LATEST
-    attempt — with 1..N rows per application (0012), scalar_one_or_none()
+    attempt - with 1..N rows per application (0012), scalar_one_or_none()
     raised MultipleResultsFound (a 500) for every re-issued applicant."""
     sent: list[dict[str, object]] = []
     monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: sent.append(kwargs))
@@ -375,7 +375,7 @@ async def test_reissue_tops_up_from_history_when_fresh_pool_runs_dry(
 async def test_reissue_reserves_curated_questionnaire_set(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Questionnaire-attached jobs re-serve the curated set in curated order —
+    """Questionnaire-attached jobs re-serve the curated set in curated order -
     the set IS the quiz (the questionnaire branch of re-issue)."""
     monkeypatch.setattr(email_service, "send_quiz_invite", lambda **kwargs: None)
     creds, slug = await _register_admin(client)

@@ -54,7 +54,7 @@ def redirect_uri() -> str:
     return urls.google_oauth_redirect_uri()
 
 
-# events CRUD alone does NOT cover freebusy.query — that needs its own
+# events CRUD alone does NOT cover freebusy.query - that needs its own
 # granular scope (Google's freebusy reference lists calendar.freebusy;
 # calendar.events is absent from its authorization list)
 CALENDAR_SCOPES = (

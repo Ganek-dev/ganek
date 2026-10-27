@@ -122,7 +122,7 @@ export default function StatusPage() {
           This status link is not valid
         </h1>
         <p className="mt-2 text-[15px] leading-[23px] text-g600">
-          Double-check the link from your application confirmation — status links also
+          Double-check the link from your application confirmation - status links also
           expire after a while.
         </p>
       </main>
@@ -225,7 +225,7 @@ export default function StatusPage() {
         ? {
             key: "decision",
             state: "done",
-            title: "Decision made — check your email",
+            title: "Decision made - check your email",
             detail: null,
           }
         : {
@@ -296,7 +296,7 @@ export default function StatusPage() {
 
         <div className="mt-9 flex items-center justify-between border-t border-edge pt-5">
           <span className="font-mono text-[11px] text-g400">
-            This link is private to you — no account needed.
+            This link is private to you - no account needed.
           </span>
           {withdrawn || decided ? null : confirming ? (
             <div className="flex items-center gap-3">

@@ -72,7 +72,7 @@ async def remove_logo(db: DbSession, company: CurrentCompany, _admin: AdminUser)
 
 @router.post("/test-email", response_model=dict[str, bool])
 async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str, bool]:
-    """Prove the email pipe end to end (M5.7 H4). Synchronous ON PURPOSE —
+    """Prove the email pipe end to end (M5.7 H4). Synchronous ON PURPOSE -
     the admin clicked a button and wants the transport error, not a row
     parked in the outbox."""
     if not email_service.configured():
@@ -84,7 +84,7 @@ async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str
     try:
         email_service.send_email(
             to=admin.email,
-            subject=f"Ganek test email — {company.name}",
+            subject=f"Ganek test email - {company.name}",
             body=(
                 "This is the test email from your Ganek settings page.\n"
                 "If you can read this, candidate email delivery works.\n"

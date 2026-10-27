@@ -1,6 +1,6 @@
 """The retention clock (G3): decided_at stamps on terminal stages, clears on
 reopening. Stage history lives only in activity_log, so the purge needs this
-column — migration 0020."""
+column - migration 0020."""
 
 from uuid import uuid4
 
@@ -64,7 +64,7 @@ async def _company_with_applications(
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     apps = (await client.get("/api/v1/applications")).json()["items"]
     assert len(apps) == n_candidates
-    # the list endpoint's ordering is not apply order — pair via candidate email
+    # the list endpoint's ordering is not apply order - pair via candidate email
     return [
         {
             "application_id": app["id"],
@@ -96,7 +96,7 @@ async def test_stage_changes_stamp_and_clear_decided_at(
     assert (await client.patch(url, json={"stage": "rejected"})).status_code == 200
     assert await _decided_at(db_session, app_id) is not None
 
-    # reopening clears the clock — a re-considered candidate must not be purged
+    # reopening clears the clock - a re-considered candidate must not be purged
     assert (await client.patch(url, json={"stage": "screening"})).status_code == 200
     assert await _decided_at(db_session, app_id) is None
 

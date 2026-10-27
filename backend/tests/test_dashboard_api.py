@@ -142,13 +142,13 @@ async def test_today_prefers_google_when_connected(
     )
 
     async def fake_today(db: AsyncSession, u: User, *, tz: str) -> list[dict[str, object]]:
-        return [{"start": "2026-08-08T11:00:00+02:00", "summary": "Intro call — Marta"}]
+        return [{"start": "2026-08-08T11:00:00+02:00", "summary": "Intro call - Marta"}]
 
     monkeypatch.setattr(google_calendar, "list_today_events", fake_today)
     resp = await client.get("/api/v1/stats/today?tz=Europe/Berlin")
     body = resp.json()
     assert body["source"] == "google"
-    assert body["events"][0]["summary"] == "Intro call — Marta"
+    assert body["events"][0]["summary"] == "Intro call - Marta"
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
@@ -171,7 +171,7 @@ async def test_today_falls_back_to_ganek_interviews(
         timezone="UTC",
         status=InterviewStatus.BOOKED,
         # keep the slot inside TODAY in UTC even when the suite runs near
-        # midnight — now+2h would flake past 22:00 UTC otherwise
+        # midnight - now+2h would flake past 22:00 UTC otherwise
         scheduled_start=max(
             min(
                 datetime.now(UTC) + timedelta(hours=2),

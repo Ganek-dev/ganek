@@ -62,5 +62,5 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     @property
     def quiz_attempt(self) -> "QuizAttempt | None":
-        """The attempt that counts — the latest; older rows are re-issue history."""
+        """The attempt that counts - the latest; older rows are re-issue history."""
         return self.quiz_attempts[-1] if self.quiz_attempts else None

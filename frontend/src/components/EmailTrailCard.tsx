@@ -7,7 +7,7 @@ import { relativeTime } from "@/lib/time";
 
 /** Delivery trail for an applicant (M5.7 H4): the emails this application
  * depends on and whether they actually went out. Renders nothing while the
- * trail is empty — most panels predate the outbox and silence beats an
+ * trail is empty - most panels predate the outbox and silence beats an
  * empty card. */
 
 const KIND_LABELS: Record<string, string> = {
@@ -91,8 +91,8 @@ export function EmailTrailCard({ applicationId }: { applicationId: string }) {
           {rows.some((row) => row.status === "bounced" || row.status === "complained")
             ? "The provider reported a bounce or a spam complaint - that address is now skipped. Reach the candidate another way."
             : rows.find((row) => row.status === "failed")?.last_error === "Email not configured"
-            ? "Email is not configured on this instance — nothing is being delivered."
-            : "Delivery failed after retries — check your email settings and use the test send on Settings → Privacy."}
+            ? "Email is not configured on this instance - nothing is being delivered."
+            : "Delivery failed after retries - check your email settings and use the test send on Settings → Privacy."}
         </p>
       ) : null}
     </div>

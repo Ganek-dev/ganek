@@ -1,16 +1,16 @@
-"""Candidate erasure (GDPR Art. 17). One service, several triggers — the
+"""Candidate erasure (GDPR Art. 17). One service, several triggers - the
 admin action, the G3 retention purge, a candidate request flow later.
 
 Ordering is deliberate, per application:
-1. S3 CV object first, fail-closed — a storage error aborts before any row
+1. S3 CV object first, fail-closed - a storage error aborts before any row
    disappears, because ``applications.cv_object_key`` is the only pointer to
    the object and the row cascade would strand it forever.
-2. Google Calendar events best-effort — they live on the recruiter's
+2. Google Calendar events best-effort - they live on the recruiter's
    personal calendar; failures are logged and reported, never blocking.
 3. A Core ``DELETE`` so the Postgres cascades take the child rows
    (an ORM delete would try to NULL NOT NULL FKs).
 
-``erase_application`` is the per-application primitive (no commit — the
+``erase_application`` is the per-application primitive (no commit - the
 caller owns the transaction); ``erase_candidate`` wraps it for the whole
 person, scrubs the system-created privacy-request tasks naming them, and
 writes the anonymized ``candidate.erased`` receipt with
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # create (see api/public.py _record_privacy_request). The scrub below and the
 # nightly done-task sweep both match on it; test_erasure pins the coupling by
 # creating the task through the real endpoint.
-PRIVACY_TASK_TITLE_LIKE = "Privacy: %request — %"
+PRIVACY_TASK_TITLE_LIKE = "Privacy: %request - %"
 
 
 @dataclass
@@ -58,7 +58,7 @@ async def scrub_privacy_request_tasks(
     """Delete the system-created privacy-request tasks naming a candidate.
 
     Those tasks carry the candidate's name+email on purpose (the task IS the
-    request) — but they must not outlive the person they name. Matching is
+    request) - but they must not outlive the person they name. Matching is
     deliberately narrow: system-created only (created_by NULL), the request
     title shape, and the "(email)" the note carries. A task a human typed
     that merely mentions the candidate is the recruiter's own record and
@@ -82,7 +82,7 @@ async def erase_application(db: AsyncSession, application: Application) -> tuple
     """Erase ONE application: S3 fail-closed, Google best-effort, row delete.
 
     Returns (google_events_attempted, google_events_failed). No commit, no
-    receipt — callers (admin erase, retention purge) own transaction and
+    receipt - callers (admin erase, retention purge) own transaction and
     bookkeeping.
     """
     if application.cv_object_key:

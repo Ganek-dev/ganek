@@ -1,4 +1,4 @@
-"""Google OAuth endpoints. Google's HTTP surface is monkeypatched throughout —
+"""Google OAuth endpoints. Google's HTTP surface is monkeypatched throughout -
 these tests exercise our flow handling, linking rules, and cookie handling."""
 
 import time
@@ -124,7 +124,7 @@ async def test_start_redirects_to_google_with_flow_cookie(client: AsyncClient) -
     query = parse_qs(location.query)
     assert query["code_challenge_method"] == ["S256"]
     assert query["prompt"] == ["select_account"]
-    # G4 minimization: only sub/email are ever read — no `profile` scope
+    # G4 minimization: only sub/email are ever read - no `profile` scope
     assert query["scope"] == ["openid email"]
     assert GOOGLE_FLOW_COOKIE_NAME in resp.cookies
 
@@ -154,7 +154,7 @@ async def test_callback_unknown_identity_goes_to_setup(
     _arm_flow(client)
     resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
     assert resp.status_code == 302
-    # G4: sub+email ride the httponly cookie — the redirect URL carries no PII
+    # G4: sub+email ride the httponly cookie - the redirect URL carries no PII
     assert resp.headers["location"] == "/setup?google=pending"
     assert GOOGLE_SIGNUP_COOKIE_NAME in resp.cookies
     set_cookie = "; ".join(resp.headers.get_list("set-cookie"))

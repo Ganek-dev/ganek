@@ -5,7 +5,7 @@ import type { PublicPrivacyNotice } from "@/lib/public-api";
 
 /** Candidate privacy notice (M5.6 G1): the Art. 13 full layer, rendered from
  * platform truth + the company's privacy settings. Every claim here must
- * stay in sync with what the code actually does — the integrity-signal list
+ * stay in sync with what the code actually does - the integrity-signal list
  * (blur/paste/resize), the no-cookies line, and the no-auto-reject guarantee
  * are audited facts, not boilerplate. */
 
@@ -72,7 +72,7 @@ export function PrivacyNotice({
             rel="noreferrer"
             className="mt-4 block rounded-lg border-[1.5px] border-edge px-4 py-3.5 text-[14px] font-medium hover:bg-muted-fill"
           >
-            {notice.company_name} also maintains its own privacy policy — read it here.
+            {notice.company_name} also maintains its own privacy policy - read it here.
             <span className="mt-0.5 block text-[12.5px] font-normal text-g500">
               The points below cover what happens on this careers site specifically.
             </span>
@@ -83,23 +83,23 @@ export function PrivacyNotice({
           <h2 className={h2Cls}>What this site collects</h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5">
             <li className={liCls}>
-              <span className={termCls}>Your application</span> — name, email, CV file, and
+              <span className={termCls}>Your application</span> - name, email, CV file, and
               the optional links and message you choose to add. Please don&apos;t include
               sensitive personal details (health, beliefs, and similar) in your CV or
-              message — they aren&apos;t asked for or wanted.
+              message - they aren&apos;t asked for or wanted.
             </li>
             <li className={liCls}>
-              <span className={termCls}>Assessment answers</span> — if this role includes a
+              <span className={termCls}>Assessment answers</span> - if this role includes a
               screening assessment: your answers, per-question response times, and score.
             </li>
             <li className={liCls}>
-              <span className={termCls}>Assessment integrity signals</span> — during a timed
+              <span className={termCls}>Assessment integrity signals</span> - during a timed
               assessment only: tab switches (with how long you were away), pastes, and
-              window resizes, each tied to the question that was open. Nothing else — no
+              window resizes, each tied to the question that was open. Nothing else - no
               keystrokes, no screen contents, no location.
             </li>
             <li className={liCls}>
-              <span className={termCls}>Interview scheduling</span> — if you&apos;re
+              <span className={termCls}>Interview scheduling</span> - if you&apos;re
               invited: the time slot you pick.
             </li>
           </ul>
@@ -109,17 +109,17 @@ export function PrivacyNotice({
           <h2 className={h2Cls}>Why, and on what legal basis</h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5">
             <li className={liCls}>
-              <span className={termCls}>Considering your application</span> — the steps you
+              <span className={termCls}>Considering your application</span> - the steps you
               ask for by applying (GDPR art. 6(1)(b)). No consent checkbox is needed for
               this, and none is asked.
             </li>
             <li className={liCls}>
-              <span className={termCls}>Keeping assessments fair</span> — integrity signals
+              <span className={termCls}>Keeping assessments fair</span> - integrity signals
               are collected on legitimate-interest grounds (art. 6(1)(f)). People review
               them; they never change your score and never reject anyone automatically.
             </li>
             <li className={liCls}>
-              <span className={termCls}>After a decision</span> — applications are kept for
+              <span className={termCls}>After a decision</span> - applications are kept for
               a limited period (below) so hiring decisions can be reviewed and defended
               (art. 6(1)(f)).
             </li>
@@ -133,14 +133,14 @@ export function PrivacyNotice({
               The {notice.company_name} hiring team, on this platform.
             </li>
             <li className={liCls}>
-              The infrastructure this site runs on — servers, file storage for CVs, and the
+              The infrastructure this site runs on - servers, file storage for CVs, and the
               email delivery service.
             </li>
             <li className={liCls}>
-              <span className={termCls}>Google (Calendar &amp; Meet)</span> — only if an
+              <span className={termCls}>Google (Calendar &amp; Meet)</span> - only if an
               interview is scheduled: your name and email go into the calendar event, and
               Google emails you the invite. Google is a US company; the transfer relies on
-              the EU–US Data Privacy Framework and Google&apos;s standard data-protection
+              the EU-US Data Privacy Framework and Google&apos;s standard data-protection
               terms.
             </li>
           </ul>
@@ -187,18 +187,18 @@ export function PrivacyNotice({
           <h2 className={h2Cls}>What this site doesn&apos;t do</h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5">
             <li className={liCls}>
-              <span className={termCls}>No automated decisions</span> — scores and
+              <span className={termCls}>No automated decisions</span> - scores and
               integrity signals inform people; no one is rejected by a machine.
             </li>
             <li className={liCls}>
-              <span className={termCls}>No trackers</span> — this careers site sets no
+              <span className={termCls}>No trackers</span> - this careers site sets no
               cookies and runs no analytics.
               {notice.captcha_enabled
                 ? " Before a form submits, a short automated check (ALTCHA proof-of-work) runs in your browser to keep bots out; it is self-hosted, uses no cookies and sends nothing to a third party."
                 : null}
             </li>
             <li className={liCls}>
-              <span className={termCls}>No silent deletion of your say</span> — withdrawing
+              <span className={termCls}>No silent deletion of your say</span> - withdrawing
               your application (from your status page) stops it being considered; the data
               still follows the retention period above unless you request deletion sooner.
             </li>

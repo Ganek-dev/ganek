@@ -338,7 +338,7 @@ export default function TeamPage() {
                   {confirmAnonymizeId === user.id ? (
                     <div className="flex w-full flex-wrap items-center gap-3 rounded-md border border-edge bg-muted-fill p-2.5">
                       <span className="text-[12.5px] text-g700">
-                        {`Remove ${user.email}? Their account is wiped and deactivated — this cannot be undone.`}
+                        {`Remove ${user.email}? Their account is wiped and deactivated - this cannot be undone.`}
                       </span>
                       <button
                         type="button"
@@ -403,10 +403,10 @@ export default function TeamPage() {
 
       <div className="flex flex-wrap gap-5 text-[12.5px] leading-[19px] text-g500">
         <span>
-          <b className="font-semibold text-g700">Admin</b> — jobs, questions, team, branding
+          <b className="font-semibold text-g700">Admin</b> - jobs, questions, team, branding
         </span>
         <span>
-          <b className="font-semibold text-g700">Member</b> — day-to-day recruiting, applicant
+          <b className="font-semibold text-g700">Member</b> - day-to-day recruiting, applicant
           review
         </span>
       </div>

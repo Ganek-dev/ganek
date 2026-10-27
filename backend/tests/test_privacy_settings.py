@@ -100,7 +100,7 @@ async def test_privacy_settings_validation(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
 async def test_privacy_notice_defaults_and_no_settings_leak(client: AsyncClient) -> None:
     name, slug = await _register_admin(client)
-    # internal settings key set — must never surface publicly
+    # internal settings key set - must never surface publicly
     resp = await client.patch("/api/v1/company/settings", json={"quiz_expired_reissue": "auto"})
     assert resp.status_code == 200
 

@@ -12,7 +12,7 @@ import { careersDisplay, careersUrl } from "@/lib/careers";
 /** First-run checklist, handoff screen 14: lives on the dashboard until all
  * steps are done (five, six in multi mode), then disappears for good. Completion is derived from
  * live data (no stored flags): branding theme, first job, first assessment,
- * team size/invites. Admin-only — the data it needs is admin-scoped, and
+ * team size/invites. Admin-only - the data it needs is admin-scoped, and
  * onboarding is the workspace owner's job. Any load error renders nothing:
  * onboarding must never break the dashboard. */
 
@@ -64,7 +64,7 @@ export function OnboardingChecklist() {
           ...verify,
           {
             title: "Brand your careers page",
-            hint: "logo, color, corner radius — ~1 min",
+            hint: "logo, color, corner radius - ~1 min",
             done:
               Boolean(theme.primary_color) ||
               Boolean(theme.radius) ||
@@ -73,7 +73,7 @@ export function OnboardingChecklist() {
           },
           {
             title: "Post your first job",
-            hint: "title, tags, description — draft is fine",
+            hint: "title, tags, description - draft is fine",
             done: jobs.length > 0,
             cta: { label: "Create job", href: "/admin/jobs/new" },
           },
@@ -91,7 +91,7 @@ export function OnboardingChecklist() {
           },
         ]);
       } catch {
-        // leave steps null — the dashboard renders fine without the checklist
+        // leave steps null - the dashboard renders fine without the checklist
       }
     })();
     return () => {
@@ -169,7 +169,7 @@ export function OnboardingChecklist() {
           <ArrowUpRight aria-hidden className="h-3 w-3" />
         </a>
         <p className="ml-auto text-[12px] text-g400">
-          You can skip any step — this checklist stays here until it&apos;s done.
+          You can skip any step - this checklist stays here until it&apos;s done.
         </p>
       </div>
     </div>

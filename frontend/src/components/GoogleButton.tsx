@@ -1,5 +1,5 @@
 /** "Continue with Google" per Google's branding spec: four-color G, approved
- * text, light/dark fills from the official guidelines. A plain link — the
+ * text, light/dark fills from the official guidelines. A plain link - the
  * backend drives the whole OAuth redirect dance. */
 
 export function GoogleButton({

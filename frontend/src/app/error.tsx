@@ -2,7 +2,7 @@
 
 import { Wordmark } from "@/components/Wordmark";
 
-/** Styled catch-all for uncaught render errors (M5.7 H4) — replaces Next's
+/** Styled catch-all for uncaught render errors (M5.7 H4) - replaces Next's
  * unbranded default. Client component by contract; receives reset() to
  * re-render the segment. */
 export default function ErrorPage({ reset }: { error: Error; reset: () => void }) {
@@ -14,7 +14,7 @@ export default function ErrorPage({ reset }: { error: Error; reset: () => void }
           Something broke
         </h1>
         <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600 [text-wrap:pretty]">
-          The page hit an unexpected error. It&apos;s been nothing you did — try again,
+          The page hit an unexpected error. It&apos;s been nothing you did - try again,
           and if it keeps happening the instance logs will say why.
         </p>
         <div className="mt-[22px] flex items-center justify-center">

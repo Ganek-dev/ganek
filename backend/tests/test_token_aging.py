@@ -2,7 +2,7 @@
 
 The 30-day status TTL is a published GDPR promise (G0 decision, disclosed
 in the privacy notice) and the interview 60-day TTL is disclosed alongside
-it — until now none of the seven families had expiry coverage.
+it - until now none of the seven families had expiry coverage.
 
 Seam: itsdangerous stamps tokens via ``time.time()`` looked up through its
 ``timed`` module, so minting inside a patched-module context produces a
@@ -107,7 +107,7 @@ def test_token_rejected_past_max_age(
 
 
 def test_published_ttls_stay_pinned() -> None:
-    """These numbers are promises made outside the codebase — the privacy
+    """These numbers are promises made outside the codebase - the privacy
     notice, the self-hosting guide, and the G0 minimization decision all
     state them. Changing one is a compliance-copy change, not a tweak."""
     assert security.STATUS_TOKEN_MAX_AGE_SECONDS == 30 * DAY

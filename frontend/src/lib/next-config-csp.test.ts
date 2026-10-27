@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /** CVs upload straight from the browser to a presigned S3 URL, which is a
- * different origin than the app — connect-src must allow it or the PUT is
+ * different origin than the app - connect-src must allow it or the PUT is
  * CSP-blocked (the bug: `connect-src 'self'` killed every CV upload). */
 
 async function cspFor(env: Record<string, string | undefined>): Promise<string> {

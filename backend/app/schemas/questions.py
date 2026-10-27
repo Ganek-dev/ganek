@@ -72,7 +72,7 @@ class QuestionOut(BaseModel):
 
 
 class BankQuestionOut(BaseModel):
-    """Open-bank question as recruiters browse it. Admin-side only — the bank
+    """Open-bank question as recruiters browse it. Admin-side only - the bank
     is public content, but this schema must never be reused candidate-facing."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -108,7 +108,7 @@ class QuestionStatsOut(BaseModel):
 
 
 class ResolvedQuestion(BaseModel):
-    """Question metadata resolved from a ref id — same shape whether it comes
+    """Question metadata resolved from a ref id - same shape whether it comes
     from the open bank or a company-private set. Used by the questionnaire
     builder to render rows and compute the difficulty mix + total time."""
 

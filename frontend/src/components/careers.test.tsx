@@ -71,7 +71,7 @@ describe("job list", () => {
     render(<JobList jobs={[job]} hrefPrefix="/jobs" />);
     const link = screen.getByRole("link", { name: /Senior Python Developer/ });
     expect(link).toHaveAttribute("href", "/jobs/senior-python-developer");
-    expect(link).toHaveTextContent(/Warsaw · Hybrid · Full-time · 15,000–25,000 PLN\/yr/);
+    expect(link).toHaveTextContent(/Warsaw · Hybrid · Full-time · 15,000-25,000 PLN\/yr/);
   });
 
   it("carries the source suffix on every job link (careers-list hop)", () => {
@@ -137,7 +137,7 @@ describe("meta helpers", () => {
 
   it("joins the meta line and skips missing parts", () => {
     const now = new Date("2026-07-24T12:00:00Z");
-    expect(jobMetaLine(job, now)).toBe("Warsaw · Hybrid · Full-time · 15,000–25,000 PLN/yr · 3d ago");
+    expect(jobMetaLine(job, now)).toBe("Warsaw · Hybrid · Full-time · 15,000-25,000 PLN/yr · 3d ago");
     expect(jobMetaLine(designJob, now)).toBe("London · Remote · Full-time");
   });
 });

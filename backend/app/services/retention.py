@@ -1,25 +1,25 @@
-"""Nightly retention purge (M5.6 G3) — Art. 5(1)(e) storage limitation,
+"""Nightly retention purge (M5.6 G3) - Art. 5(1)(e) storage limitation,
 ON by default (Art. 25): the company can raise `settings.retention_months`
-(1–24, default 6) but not silently disable deletion.
+(1-24, default 6) but not silently disable deletion.
 
 Semantics:
 - Eligibility is per APPLICATION: stage rejected/withdrawn AND
-  `decided_at` older than the company window. `hired` is excluded —
+  `decided_at` older than the company window. `hired` is excluded -
   that record transitions to employee context, out of ATS scope.
 - Months are counted as 31 days so the purge never fires EARLIER than
   the privacy notice's "kept for N months" promise.
 - Each application goes through the G2 erasure primitive (S3 fail-closed,
-  Google best-effort); a storage failure skips just that application —
+  Google best-effort); a storage failure skips just that application -
   it is retried the next night.
 - Candidates keep existing while they still have any application; the
   orphan delete afterwards is what finally removes the person.
 - One PII-free `retention.purged` receipt per company per run (counts
   only), only when something was actually removed.
 - Sweeps: multi-mode companies still pending email verification after
-  7 days (never activated — the signup was abandoned or abusive; users
+  7 days (never activated - the signup was abandoned or abusive; users
   cascade); expired `user_invites`; unreferenced `cvs/**` objects older
   than 24 h (upload-then-abandon on the apply form); terminal (sent/failed)
-  `email_outbox` rows after 30 days — their payload stores recipient PII
+  `email_outbox` rows after 30 days - their payload stores recipient PII
   and capability URLs, which only need to live as long as the delivery
   question does (stated in the records template); DONE privacy-request
   tasks 90 days after completion (the note names the candidate on purpose;
@@ -153,8 +153,8 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
     total_apps = 0
     total_candidates = 0
     total_google_failures = 0
-    # only visit tenants with potential work — candidate purges (terminal apps
-    # with a ticking clock) or orphaned candidate rows — so the nightly run is
+    # only visit tenants with potential work - candidate purges (terminal apps
+    # with a ticking clock) or orphaned candidate rows - so the nightly run is
     # O(actual work), not O(all companies ever created
     with_terminal = select(Application.company_id).where(
         Application.stage.in_(PURGEABLE_STAGES), Application.decided_at.is_not(None)

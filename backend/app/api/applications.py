@@ -152,7 +152,7 @@ async def bulk_reject_applications(
     company: CurrentCompany,
     user: CurrentUser,
 ) -> BulkRejectOut:
-    # literal path — must stay declared before /{application_id} routes,
+    # literal path - must stay declared before /{application_id} routes,
     # which would otherwise shadow it (FastAPI matches in declaration order)
     rejected = await applications_service.bulk_reject(
         db, company, payload.application_ids, actor_user_id=user.id
@@ -224,9 +224,9 @@ async def erase_candidate(
     company: CurrentCompany,
     admin: AdminUser,
 ) -> EraseCandidateOut:
-    """Art. 17: erases the whole CANDIDATE — every application they hold with
+    """Art. 17: erases the whole CANDIDATE - every application they hold with
     this company, their CVs in storage and (best-effort) their calendar
-    events — not just the application the panel happened to be showing."""
+    events - not just the application the panel happened to be showing."""
     application = await _get_or_404(db, company, application_id)
     summary = await erasure_service.erase_candidate(
         db, company, application.candidate_id, actor_user_id=admin.id
@@ -245,7 +245,7 @@ async def dsar_export(
     company: CurrentCompany,
     admin: AdminUser,
 ) -> DsarBundle:
-    """Art. 15/20: the full bundle for the CANDIDATE behind this application —
+    """Art. 15/20: the full bundle for the CANDIDATE behind this application -
     all their applications with this company, admin-mediated by design."""
     application = await _get_or_404(db, company, application_id)
     await access_log.record(
@@ -527,7 +527,7 @@ async def interview_slot_preview(
     db: DbSession,
     company: CurrentCompany,
 ) -> SlotPreviewOut:
-    """Availability summary + open slot count for the modal — nothing is persisted."""
+    """Availability summary + open slot count for the modal - nothing is persisted."""
     await _get_or_404(db, company, application_id)
     interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
     saved_tz, windows = interviews_service.effective_availability(interviewer)
@@ -548,7 +548,7 @@ async def interview_slot_preview(
             detail="Interviewer has not connected Google Calendar",
         ) from None
     # Same resolution generate_slots uses: the interviewer's saved zone wins,
-    # otherwise the request's fallback — recruiters need to know whose clock
+    # otherwise the request's fallback - recruiters need to know whose clock
     # the bare hours are in.
     zone = saved_tz or payload.timezone
     return SlotPreviewOut(
@@ -647,7 +647,7 @@ async def cancel_interview(
     except interviews_service.LockBusyError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Scheduling is busy — try again in a moment",
+            detail="Scheduling is busy - try again in a moment",
         ) from None
     await outbox_service.queue_email(
         db,

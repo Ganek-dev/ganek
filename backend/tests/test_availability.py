@@ -16,7 +16,7 @@ from tests.db import database_reachable
 
 def _user(availability: dict | None) -> User:
     return User(
-        company_id=None,  # never flushed — pure object
+        company_id=None,  # never flushed - pure object
         email="dana@x.dev",
         password_hash="x",
         role=UserRole.MEMBER,
@@ -70,9 +70,9 @@ def test_effective_availability_skips_malformed_days() -> None:
 
 def test_summarize_availability_compresses_runs() -> None:
     _, windows = interviews_service.effective_availability(_user(None))
-    assert interviews_service.summarize_availability(windows) == "Mon–Fri 09:00–17:00"
+    assert interviews_service.summarize_availability(windows) == "Mon-Fri 09:00-17:00"
     ragged = {"mon": (time(9, 0), time(17, 0)), "fri": (time(9, 0), time(12, 0))}
-    assert interviews_service.summarize_availability(ragged) == "Mon 09:00–17:00 · Fri 09:00–12:00"
+    assert interviews_service.summarize_availability(ragged) == "Mon 09:00-17:00 · Fri 09:00-12:00"
     assert interviews_service.summarize_availability({}) == "no hours set"
 
 

@@ -1,8 +1,8 @@
-/* Ganek jobs widget — drop your open roles into any site.
+/* Ganek jobs widget - drop your open roles into any site.
  *
  * <script src="https://YOUR-GANEK/embed/jobs.js" data-workspace="acmelabs"></script>
  *
- * Attributes: data-workspace (required — your careers slug),
+ * Attributes: data-workspace (required - your careers slug),
  * data-theme "auto" | "light" | "dark" (default auto),
  * data-tags "false" to hide tag chips.
  *

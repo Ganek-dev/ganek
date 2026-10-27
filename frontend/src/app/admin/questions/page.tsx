@@ -119,7 +119,7 @@ function BulkActionBar({
       );
       setFlash(
         added === 0
-          ? `Already in "${updated.name}" — no changes`
+          ? `Already in "${updated.name}" - no changes`
           : `Added ${added} question${added === 1 ? "" : "s"} to "${updated.name}"`,
       );
     } catch (err) {
@@ -477,7 +477,7 @@ function BankBrowser() {
                     <td className="px-3 py-3 align-middle whitespace-nowrap font-mono text-[11.5px] text-g500">
                       {usage[question.id]
                         ? `${usage[question.id]} questionnaire${usage[question.id] === 1 ? "" : "s"}`
-                        : "—"}
+                        : "-"}
                     </td>
                     <td className="px-3 py-3 text-right align-middle">
                       <button
@@ -496,7 +496,7 @@ function BankBrowser() {
           </div>
           <div className="flex items-center justify-between text-sm text-g500">
             <span className="font-mono text-[11.5px]">
-              {`${offset + 1}–${offset + page.items.length} of ${page.total}`}
+              {`${offset + 1}-${offset + page.items.length} of ${page.total}`}
             </span>
             <div className="flex gap-2">
               <button
@@ -599,7 +599,7 @@ function CompanyQuestions() {
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-g500">
           Private to your company; mixed into quizzes whose tags match. The open-source bank
-          covers general topics — add questions about your stack and domain here.
+          covers general topics - add questions about your stack and domain here.
         </p>
         <button
           type="button"
@@ -749,7 +749,7 @@ function CompanyQuestions() {
                   <td className="px-3 py-3 align-middle whitespace-nowrap font-mono text-[11.5px] text-g500">
                     {usage[question.id]
                       ? `${usage[question.id]} questionnaire${usage[question.id] === 1 ? "" : "s"}`
-                      : "—"}
+                      : "-"}
                   </td>
                   <td className="px-3 py-3 text-right align-middle">
                     {question.status === "active" ? (
