@@ -46,7 +46,7 @@ describe("sitemap", () => {
     expect(entries[2].lastModified).toBe("2026-07-21T12:00:00Z");
   });
 
-  it("is empty in multi mode — tenant slugs are not enumerable", async () => {
+  it("is empty in multi mode - tenant slugs are not enumerable", async () => {
     fetchInstanceMode.mockResolvedValue("multi");
     expect(await sitemap()).toEqual([]);
     expect(singleCompanyPage).not.toHaveBeenCalled();

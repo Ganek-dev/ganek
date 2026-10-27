@@ -27,7 +27,7 @@ async def today(
 ) -> TodayOut:
     """Dashboard Today panel: the signed-in user's Google Calendar when
     connected; their booked ganek interviews otherwise. Never 500s on a
-    weird browser timezone — falls back to UTC."""
+    weird browser timezone - falls back to UTC."""
     try:
         ZoneInfo(tz)
     except (ZoneInfoNotFoundError, ValueError):
@@ -75,7 +75,7 @@ async def today(
         events=[
             TodayEvent(
                 start=iv.scheduled_start.isoformat() if iv.scheduled_start else None,
-                summary=f"{iv.title} — {iv.application.candidate.name}",
+                summary=f"{iv.title} - {iv.application.candidate.name}",
                 hangout_link=iv.meet_url,
             )
             for iv in interviews

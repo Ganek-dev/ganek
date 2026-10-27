@@ -174,7 +174,7 @@ async def _pending_attempt(db: AsyncSession, *, expires: datetime) -> QuizAttemp
 
 @pytest.mark.usefixtures("migrated_db")
 async def test_quiz_nudge_sends_for_pending_attempt(db_session: AsyncSession, ctx: Any) -> None:
-    """The nudge emails candidates unsupervised at night — it needs the same
+    """The nudge emails candidates unsupervised at night - it needs the same
     self-validation coverage as the interview reminder."""
     attempt = await _pending_attempt(db_session, expires=datetime.now(UTC) + timedelta(days=2))
     await send_quiz_nudge(ctx, str(attempt.id))

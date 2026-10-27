@@ -20,7 +20,7 @@ _invite_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-tea
 # internal, not a candidate-facing promise
 _preview_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-job-preview")
 PREVIEW_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
-# generous signature window — the invite row's expires_at is the real
+# generous signature window - the invite row's expires_at is the real
 # deadline (resend pushes it forward without re-emailing a new token)
 INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
@@ -95,7 +95,7 @@ GOOGLE_FLOW_COOKIE_NAME = "ganek_google_flow"
 _google_signup_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-google-signup")
 # window to type a company name on /setup after Google authenticated the user
 GOOGLE_SIGNUP_MAX_AGE_SECONDS = 60 * 15
-# the signup token carries sub+email (PII) — it rides an httponly cookie,
+# the signup token carries sub+email (PII) - it rides an httponly cookie,
 # never a URL (browser history / proxy logs), per GDPR G4
 GOOGLE_SIGNUP_COOKIE_NAME = "ganek_google_signup"
 

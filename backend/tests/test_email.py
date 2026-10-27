@@ -64,7 +64,7 @@ def test_sends_via_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(FakeSMTP.sent) == 1
     message = FakeSMTP.sent[0]
     assert message["To"] == "jane@example.com"
-    assert message["Subject"] == "Application received — Backend Engineer at Acme"
+    assert message["Subject"] == "Application received - Backend Engineer at Acme"
     assert "Hi Jane," in message.get_content()
     assert "Backend Engineer position at Acme" in message.get_content()
     assert FakeSMTP.logins == [("mailer", "hunter2")]
@@ -105,7 +105,7 @@ def test_quiz_invite_renders_link_details_and_branding(
     assert len(FakeSMTP.sent) == 1
     message = FakeSMTP.sent[0]
     assert message["To"] == "marta@example.com"
-    assert message["Subject"] == "Your ACME Ganek assessment — one step left"
+    assert message["Subject"] == "Your ACME Ganek assessment - one step left"
     text, html = _sent_parts(message)
     for part in (text, html):
         assert "https://jobs.example.com/quiz/tok123" in part
@@ -170,7 +170,7 @@ def test_privacy_footer_absent_when_not_wired(monkeypatch: pytest.MonkeyPatch) -
 def test_quiz_invite_transport_errors_propagate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Since the outbox (M5.7 H4) senders RAISE — the worker owns retry."""
+    """Since the outbox (M5.7 H4) senders RAISE - the worker owns retry."""
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
 
     class ExplodingSMTP(FakeSMTP):
@@ -201,7 +201,7 @@ def test_quiz_reminder_renders_expiry_and_link(monkeypatch: pytest.MonkeyPatch) 
     assert message["Subject"] == "Your assessment link expires in 2 days"
     text, html = _sent_parts(message)
     for part in (text, html):
-        assert "Still in — 2 days left" in part
+        assert "Still in - 2 days left" in part
         assert "Senior Frontend Engineer" in part
         assert "https://jobs.example.com/quiz/tok123" in part
         assert "Jul 31" in part
@@ -227,7 +227,7 @@ def test_quiz_reminder_singular_day(monkeypatch: pytest.MonkeyPatch) -> None:
     message = FakeSMTP.sent[0]
     assert message["Subject"] == "Your assessment link expires in 1 day"
     text, _ = _sent_parts(message)
-    assert "Still in — 1 day left" in text
+    assert "Still in - 1 day left" in text
 
 
 def test_stage_advance_renders_branding_and_team_signoff(
@@ -301,7 +301,7 @@ def test_rejection_renders_neutral_with_assessment_line(
         assert "won't be moving forward" in part
         assert "a real person reviewed it" in part
         assert "https://jobs.example.com/c/acme" in part
-    # neutral gray top bar — a rejection never carries brand accents
+    # neutral gray top bar - a rejection never carries brand accents
     assert "#d4d4d8" in html
 
 
@@ -358,7 +358,7 @@ def test_transport_failure_logs_nothing_here(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """M5.6 G4 continues to hold under the outbox: this module no longer
-    logs failures at all (nothing to leak an address into) — the worker's
+    logs failures at all (nothing to leak an address into) - the worker's
     failure line carries the outbox row id, never the recipient."""
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
 

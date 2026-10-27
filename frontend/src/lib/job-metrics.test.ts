@@ -84,10 +84,10 @@ describe("copy", () => {
   it("says views, never visitors", () => {
     expect(VIEWS_TOOLTIP).toMatch(/Page loads by people/);
     expect(VIEWS_TOOLTIP).not.toMatch(/visitor/i);
-    expect(VIEWS_TOOLTIP).not.toMatch(/[–—]/);
+    expect(VIEWS_TOOLTIP).not.toMatch(/[\u2013\u2014]/);
     for (const copy of [WINDOW_30D, APPLICATIONS_TOOLTIP]) {
       expect(copy).toMatch(/today and the 29 days before it \(UTC\)/i);
-      expect(copy).not.toMatch(/[–—]/);
+      expect(copy).not.toMatch(/[\u2013\u2014]/);
     }
   });
 });
@@ -117,7 +117,7 @@ describe("viewsEmptyState", () => {
     expect(VIEWS_EMPTY_COPY["pre-counter"]).toMatch(/counted from the 0\.4\.0 update/);
     for (const copy of Object.values(VIEWS_EMPTY_COPY)) {
       expect(copy).not.toMatch(/visitor/i);
-      expect(copy).not.toMatch(/[–—]/);
+      expect(copy).not.toMatch(/[\u2013\u2014]/);
     }
   });
 });

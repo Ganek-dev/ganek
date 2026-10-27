@@ -38,7 +38,7 @@ from app.services import storage
 
 
 def _scrub_integrity(integrity: dict[str, Any] | None) -> dict[str, Any]:
-    """Deep-copy minus recruiter identifiers — the reissue/review history is
+    """Deep-copy minus recruiter identifiers - the reissue/review history is
     the candidate's data (Art. 15), but by_user_id is a third party's."""
     data = copy.deepcopy(integrity or {})
     for section in ("reissue", "review"):

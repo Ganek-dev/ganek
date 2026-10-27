@@ -30,7 +30,7 @@ CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke"
 
 # M5.7 H4 perf caches, both in-process (api and worker each keep their own).
-# Access tokens are good for ~an hour — refreshing per call added a token-
+# Access tokens are good for ~an hour - refreshing per call added a token-
 # endpoint roundtrip in front of EVERY freebusy/event request. Free/busy is
 # cached briefly per interviewer (SECURITY_REVIEW #5 mitigation: one hammered
 # public booking link no longer burns per-client Google quota; book() also
@@ -54,7 +54,7 @@ class GoogleCalendarError(Exception):
 
 
 class NeedsReconnectError(GoogleCalendarError):
-    """No usable credential — the user must (re)connect their calendar."""
+    """No usable credential - the user must (re)connect their calendar."""
 
 
 async def get_credential(db: AsyncSession, user: User) -> UserGoogleCredential | None:
@@ -99,7 +99,7 @@ async def remove_credentials(db: AsyncSession, user: User) -> None:
 
 
 async def access_token(db: AsyncSession, user: User) -> str:
-    """The user's Google access token — cached in-process until shortly
+    """The user's Google access token - cached in-process until shortly
     before expiry, refreshed via the stored refresh token otherwise."""
     cached = _token_cache.get(user.id)
     if cached is not None and monotonic() < cached[1]:
@@ -172,7 +172,7 @@ async def freebusy(
     Cached briefly per user: the query window is padded so the cached range
     keeps covering follow-up requests whose "now"-anchored horizon slid
     forward within the TTL. Extra windows outside the asked range are
-    harmless — every caller intersects.
+    harmless - every caller intersects.
     """
     start = start.astimezone(UTC)
     end = end.astimezone(UTC)
@@ -292,7 +292,7 @@ async def delete_event(db: AsyncSession, user: User, event_id: str) -> None:
         f"{CALENDAR_API}/calendars/primary/events/{event_id}",
         params={"sendUpdates": "all"},
     )
-    # already gone is fine — cancelling twice must not error
+    # already gone is fine - cancelling twice must not error
     if resp.status_code not in (204, 200, 404, 410):
         raise GoogleCalendarError(f"event delete failed with {resp.status_code}")
     _freebusy_cache.pop(user.id, None)  # the calendar just changed

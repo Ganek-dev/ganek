@@ -151,7 +151,7 @@ describe("IntegrityReviewPage", () => {
   it("dismisses flags", async () => {
     render(<IntegrityReviewPage />);
     await userEvent.click(
-      await screen.findByRole("button", { name: "Dismiss flags — looks fine" }),
+      await screen.findByRole("button", { name: "Dismiss flags - looks fine" }),
     );
     await waitFor(() => expect(mocked.dismissFlags).toHaveBeenCalledWith("a1"));
   });
@@ -180,7 +180,7 @@ describe("IntegrityReviewPage", () => {
     expect(mocked.reissueQuiz).not.toHaveBeenCalled();
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Confirm — invalidate this attempt and email a fresh quiz",
+        name: "Confirm - invalidate this attempt and email a fresh quiz",
       }),
     );
     await waitFor(() => expect(mocked.reissueQuiz).toHaveBeenCalledWith("a1"));
@@ -203,7 +203,7 @@ describe("IntegrityReviewPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Grant extra time" }));
     expect(mocked.grantExtraTime).not.toHaveBeenCalled();
     await userEvent.click(
-      screen.getByRole("button", { name: "Confirm — give 2x time and email the candidate" }),
+      screen.getByRole("button", { name: "Confirm - give 2x time and email the candidate" }),
     );
     await waitFor(() => expect(mocked.grantExtraTime).toHaveBeenCalledWith("a1", 2));
     expect(await screen.findByRole("status")).toHaveTextContent(

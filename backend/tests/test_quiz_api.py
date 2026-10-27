@@ -42,7 +42,7 @@ async def _apply_with_quiz(client: AsyncClient, *, quiz_config: dict | None = No
         )
     ).json()
     if quiz_config is not None:
-        # quiz_config is not exposed via the API yet — set it directly
+        # quiz_config is not exposed via the API yet - set it directly
         from sqlalchemy import update
         from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
         from sqlalchemy.pool import NullPool
@@ -257,7 +257,7 @@ async def test_practice_serves_sample_questions_without_recording(client: AsyncC
     assert state["status"] == "pending"
     assert state["answered"] == 0
 
-    # the real run never serves a practice-served question? No — practice
+    # the real run never serves a practice-served question? No - practice
     # questions are excluded FROM the real set, so collect the real ids
     # and assert practice never overlapped them.
     practice_ids = set()

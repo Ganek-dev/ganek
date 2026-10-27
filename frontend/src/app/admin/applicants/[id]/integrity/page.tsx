@@ -16,7 +16,7 @@ import {
 
 /** Integrity review, handoff screen 24: telemetry stat cards, session
  * timeline, per-question event log, flag callouts, and the three decisions
- * — dismiss, invalidate & re-invite, reject. Flags inform humans; nothing
+ * - dismiss, invalidate & re-invite, reject. Flags inform humans; nothing
  * here auto-rejects. */
 
 function formatMinSec(ms: number): string {
@@ -301,7 +301,7 @@ export default function IntegrityReviewPage() {
         <p className="text-[13.5px] font-semibold">How to read this</p>
         <ul className="mt-2 space-y-1 text-[13px] leading-[20px] text-g600">
           <li>
-            · A blur can be an alt-tab, a notification, or a second-monitor glance — count alone
+            · A blur can be an alt-tab, a notification, or a second-monitor glance - count alone
             isn&apos;t proof.
           </li>
           <li>· Resizes at question boundaries often mean window snapping (side-by-side reference).</li>
@@ -348,8 +348,8 @@ export default function IntegrityReviewPage() {
               className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-[13px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
             >
               {Number(chosenMultiplier) > 1
-                ? `Confirm — give ${chosenMultiplier}x time and email the candidate`
-                : "Confirm — remove extra time and email the candidate"}
+                ? `Confirm - give ${chosenMultiplier}x time and email the candidate`
+                : "Confirm - remove extra time and email the candidate"}
             </button>
           ) : (
             <button
@@ -373,7 +373,7 @@ export default function IntegrityReviewPage() {
             onClick={() => act(() => applications.dismissFlags(app.id), "Flags dismissed")}
             className="inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
           >
-            {reviewed ? "Flags dismissed" : "Dismiss flags — looks fine"}
+            {reviewed ? "Flags dismissed" : "Dismiss flags - looks fine"}
           </button>
           {confirming === "reissue" ? (
             <button
@@ -387,7 +387,7 @@ export default function IntegrityReviewPage() {
               }
               className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-[13px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
             >
-              Confirm — invalidate this attempt and email a fresh quiz
+              Confirm - invalidate this attempt and email a fresh quiz
             </button>
           ) : (
             <button

@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.main import app
 
-# the whole suite shares one client IP — blanket limits would flake tests;
+# the whole suite shares one client IP - blanket limits would flake tests;
 # the dedicated rate-limit tests re-enable explicitly
 settings.rate_limit_enabled = False
 

@@ -10,7 +10,7 @@ describe("mdToHtml", () => {
     expect(html).toContain("<li>one</li>");
   });
 
-  it("replaces images with their alt text (G4 — no tracking pixels)", () => {
+  it("replaces images with their alt text (G4 - no tracking pixels)", () => {
     const html = mdToHtml("Before ![our office](https://tracker.example/p.png) after");
     expect(html).not.toContain("<img");
     expect(html).toContain("our office");

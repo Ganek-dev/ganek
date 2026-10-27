@@ -76,7 +76,7 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         _str_enum(SalaryPeriod), default=SalaryPeriod.YEAR, server_default="year"
     )
     # Advisory application deadline: surfaces as JSON-LD validThrough for Google
-    # Jobs; never auto-closes the posting (rule 5 — the tool decides nothing).
+    # Jobs; never auto-closes the posting (rule 5 - the tool decides nothing).
     closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
     status: Mapped[JobStatus] = mapped_column(_str_enum(JobStatus), default=JobStatus.DRAFT)

@@ -46,7 +46,7 @@ function InviteAcceptForm() {
         if (!cancelled) setGoogle(p.google);
       })
       .catch(() => {
-        /* flag stays false — password accept is unaffected */
+        /* flag stays false - password accept is unaffected */
       });
     return () => {
       cancelled = true;
@@ -90,7 +90,7 @@ function InviteAcceptForm() {
         title={dead === "expired" ? "This invite has expired" : "Invite not found"}
         subtitle={
           dead === "expired"
-            ? "Ask the person who invited you to resend it — invites stop working after 7 days."
+            ? "Ask the person who invited you to resend it - invites stop working after 7 days."
             : "This invite link is not valid anymore. It may have been revoked or already used."
         }
       >

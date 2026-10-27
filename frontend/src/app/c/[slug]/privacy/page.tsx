@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const notice = await publicApi.companyPrivacy(slug);
   if (!notice) return {};
   return {
-    title: `Privacy notice — ${notice.company_name}`,
+    title: `Privacy notice - ${notice.company_name}`,
     robots: { index: false },
   };
 }

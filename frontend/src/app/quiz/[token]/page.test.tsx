@@ -90,15 +90,15 @@ describe("QuizPage", () => {
     render(<QuizPage />);
     expect(await screen.findByText("Ready when you are, Jane")).toBeInTheDocument();
     expect(screen.getByText(/no pause button/)).toBeInTheDocument();
-    expect(screen.getByText(/questions — single choice/)).toBeInTheDocument();
+    expect(screen.getByText(/questions - single choice/)).toBeInTheDocument();
     expect(screen.getByText(/locks automatically at 0:00/)).toBeInTheDocument();
-    // complete monitoring disclosure — pastes included (M5.6 G1 transparency fix)
+    // complete monitoring disclosure - pastes included (M5.6 G1 transparency fix)
     expect(
       screen.getByText(/tab switches \(and how long\), pastes, and window resizes/),
     ).toBeInTheDocument();
     expect(screen.getByText(/nothing auto-rejects/)).toBeInTheDocument();
     expect(screen.getByText("Quiz Co")).toBeInTheDocument();
-    // postpone AND skip are both stated — the LIA's objection route (M5.6 G5)
+    // postpone AND skip are both stated - the LIA's objection route (M5.6 G5)
     expect(
       screen.getByText(/come back with the same link.*application still stands/),
     ).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("QuizPage", () => {
     await startRealAssessment();
     expect(await screen.findByText(/Question 1/)).toBeInTheDocument();
     expect(screen.getByText("What does the GIL prevent?")).toBeInTheDocument();
-    // options rendered in served order, lettered A–D
+    // options rendered in served order, lettered A-D
     const optionA = screen.getByRole("button", { name: /Any use of threads/ });
     expect(optionA).toHaveTextContent(/^A/);
     expect(screen.getByLabelText("time remaining")).toBeInTheDocument();
@@ -168,7 +168,7 @@ describe("QuizPage", () => {
 
   it("carries the company brand through the exam and finished screens", async () => {
     // the timer ring and lock CTA derive from --brand-primary; intro/practice
-    // always had it — the question and done phases silently dropped it
+    // always had it - the question and done phases silently dropped it
     mocked.next
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
@@ -185,7 +185,7 @@ describe("QuizPage", () => {
     expect(doneMain.style.getPropertyValue("--brand-primary")).toBe("#3d5afe");
   });
 
-  it("supports A–D selection and Enter to lock", async () => {
+  it("supports A-D selection and Enter to lock", async () => {
     mocked.next
       .mockResolvedValueOnce({ done: false, question })
       .mockResolvedValueOnce({ done: true, question: null });
@@ -216,7 +216,7 @@ describe("QuizPage", () => {
       await screen.findByText(/couldn't reach the server/, {}, { timeout: 4000 }),
     ).toBeInTheDocument();
     expect(mocked.answer).toHaveBeenCalledTimes(3); // two quick retries first
-    expect(mocked.next).toHaveBeenCalledTimes(1); // the initial serve only — no advance
+    expect(mocked.next).toHaveBeenCalledTimes(1); // the initial serve only - no advance
     expect(lockButton()).toBeEnabled(); // the candidate can lock again
   });
 
@@ -231,7 +231,7 @@ describe("QuizPage", () => {
     await userEvent.click(lockButton());
 
     expect(await screen.findByText(/submitted/)).toBeInTheDocument();
-    expect(mocked.answer).toHaveBeenCalledTimes(1); // the server spoke — no retries
+    expect(mocked.answer).toHaveBeenCalledTimes(1); // the server spoke - no retries
   });
 
   it("flushes queued telemetry via sendBeacon when the page unloads", async () => {
@@ -271,18 +271,18 @@ describe("QuizPage", () => {
     expect(screen.getByText(/application itself was received/)).toBeInTheDocument();
   });
 
-  it("requests a new link — auto mode confirms the email", async () => {
+  it("requests a new link - auto mode confirms the email", async () => {
     mocked.state.mockResolvedValue(makeState({ status: "expired" }));
     mocked.requestReissue.mockResolvedValue({ reissued: true });
     render(<QuizPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Request a new link" }));
     await waitFor(() => expect(mocked.requestReissue).toHaveBeenCalledWith("tok-123", null));
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "A fresh link is on its way — check your inbox.",
+      "A fresh link is on its way - check your inbox.",
     );
   });
 
-  it("requests a new link — manual mode says the team was notified", async () => {
+  it("requests a new link - manual mode says the team was notified", async () => {
     mocked.state.mockResolvedValue(makeState({ status: "expired" }));
     mocked.requestReissue.mockResolvedValue({ reissued: false });
     render(<QuizPage />);
@@ -298,7 +298,7 @@ describe("QuizPage", () => {
     render(<QuizPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Request a new link" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "A new link was already issued — check your inbox.",
+      "A new link was already issued - check your inbox.",
     );
   });
 });
@@ -338,13 +338,13 @@ describe("practice run", () => {
 
     await userEvent.click(screen.getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", { name: /Try a practice run first/ }));
-    expect(await screen.findByText("Practice — not recorded")).toBeInTheDocument();
+    expect(await screen.findByText("Practice - not recorded")).toBeInTheDocument();
     expect(screen.getByText("Which array method returns a new array?")).toBeInTheDocument();
     expect(screen.getByText(/never revealed/)).toBeInTheDocument();
 
-    // picking locks immediately — and never calls the real answer endpoint
+    // picking locks immediately - and never calls the real answer endpoint
     await userEvent.click(screen.getByRole("button", { name: /toSorted/ }));
-    expect(await screen.findByText(/your answer — locked/)).toBeInTheDocument();
+    expect(await screen.findByText(/your answer - locked/)).toBeInTheDocument();
     expect(mocked.answer).not.toHaveBeenCalled();
     expect(mocked.events).not.toHaveBeenCalled();
 
@@ -354,7 +354,7 @@ describe("practice run", () => {
 
     // and the real assessment can start from here
     await userEvent.click(
-      screen.getByRole("button", { name: /I'm ready — start the real assessment/ }),
+      screen.getByRole("button", { name: /I'm ready - start the real assessment/ }),
     );
     expect(await screen.findByText(/Question 1/)).toBeInTheDocument();
     expect(mocked.next).toHaveBeenCalledTimes(1);

@@ -29,10 +29,10 @@ class EmailUnverifiedError(Exception):
 
 def verification_required() -> bool:
     """Multi-mode signups verify their email BEFORE the company activates
-    (M5.7 H4 — open signup on an exposed instance could mint companies and
+    (M5.7 H4 - open signup on an exposed instance could mint companies and
     send branded email). Requires email for two reasons: without it the
-    verification link could never arrive, and the abuse this closes —
-    sending branded email — needs a provider anyway. Single mode closes after
+    verification link could never arrive, and the abuse this closes -
+    sending branded email - needs a provider anyway. Single mode closes after
     the first company and stays untouched."""
     return settings.mode == "multi" and email_service.configured()
 
@@ -164,7 +164,7 @@ async def password_reset_target(db: AsyncSession, *, email: str) -> tuple[User, 
 
 
 async def set_password(db: AsyncSession, user: User, *, new_password: str) -> None:
-    """Reset-flow companion to change_password: no current-password check —
+    """Reset-flow companion to change_password: no current-password check -
     the signed reset token was the proof. Bumps token_version, which both
     kills existing sessions and single-uses every outstanding reset link
     (they carry the version they were issued against)."""

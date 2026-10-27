@@ -110,7 +110,7 @@ async def anonymize_user(
     interviews.interviewer_user_id has no ondelete, so a hard DELETE is
     FK-blocked for anyone who ever interviewed. Instead: tombstone the
     email, drop every credential, wipe the availability pattern and
-    deactivate — the row survives for the FK, the person is gone.
+    deactivate - the row survives for the FK, the person is gone.
     """
     if (
         user.is_active

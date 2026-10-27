@@ -93,7 +93,7 @@ def client_ip(request: Request) -> str:
 
     In the standard deployment browser traffic arrives via the Next.js
     proxy, so the direct peer address would lump all users together.
-    Note: XFF is spoofable when the backend port is directly reachable —
+    Note: XFF is spoofable when the backend port is directly reachable -
     front it with a trusted proxy in production.
     """
     if settings.trust_proxy_headers:
@@ -117,7 +117,7 @@ async def check_rate_limit(request: Request, scope: str, per_minute: int) -> Non
         retry_after = max(1, int((window + 1) * seconds - now))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many requests — please slow down",
+            detail="Too many requests - please slow down",
             headers={"Retry-After": str(retry_after)},
         )
 

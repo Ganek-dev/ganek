@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 
 /** Small copy-to-clipboard button with a 1.5s "copied" confirmation. The
- * clipboard call failing is silent by default — every call site keeps the
+ * clipboard call failing is silent by default - every call site keeps the
  * text visible and selectable right next to the button. */
 export function CopyButton({
   text,

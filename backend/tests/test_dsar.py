@@ -2,7 +2,7 @@
 
 The bundle is destined FOR the candidate, so recruiter identifiers are
 third-party data and must be scrubbed (reissue/review by_user_id, note
-authors) — and bank secrets (correct_key) must never appear.
+authors) - and bank secrets (correct_key) must never appear.
 """
 
 import json

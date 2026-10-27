@@ -7,7 +7,7 @@ import { Suspense, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { api } from "@/lib/api";
 
-/** Reset password, handoff screen 13c (M5.7 H4 — the real flow at last).
+/** Reset password, handoff screen 13c (M5.7 H4 - the real flow at last).
  * Without ?token= this asks for an email and always claims success (the
  * backend never reveals whether an account exists); with ?token= it sets
  * the new password and the backend logs the user straight in. */

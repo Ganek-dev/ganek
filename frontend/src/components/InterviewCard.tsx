@@ -57,7 +57,7 @@ function ScheduleDialogBody({
   const [busy, setBusy] = useState(false);
 
   // Preview result keyed by the (interviewer, duration) it answers, so a
-  // change in selection is "loading" for free — no synchronous setState at
+  // change in selection is "loading" for free - no synchronous setState at
   // the top of the effect body is needed (lint rule
   // `react-hooks/set-state-in-effect`; see JobForm.tsx for the same pattern).
   const [previewResult, setPreviewResult] = useState<{
@@ -187,14 +187,14 @@ function ScheduleDialogBody({
         <div className="h-4 w-2/3 animate-pulse rounded bg-muted-fill" />
       ) : preview !== null ? (
         <p className="text-[12.5px] text-g500">
-          Uses {interviewerEmail.split("@")[0]}&apos;s availability ({preview.schedule_summary}) —{" "}
+          Uses {interviewerEmail.split("@")[0]}&apos;s availability ({preview.schedule_summary}) - {" "}
           {preview.open_slot_count} open times in the next 2 weeks
         </p>
       ) : null}
 
       {noOpenTimes ? (
         <p className="text-[12.5px] text-amber-600 dark:text-amber-400">
-          No open times in the next 2 weeks — ask them to clear some calendar space or widen
+          No open times in the next 2 weeks - ask them to clear some calendar space or widen
           their availability.
         </p>
       ) : null}
@@ -231,7 +231,7 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // State resets between applicants via the key on the usage site — the
+  // State resets between applicants via the key on the usage site - the
   // effect itself must stay side-effect-only (react-hooks lint).
   const load = useCallback(() => {
     interviews
@@ -305,7 +305,7 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
               <span className="font-mono">
                 {interview.scheduled_start
                   ? fmt(interview.scheduled_start, interview.timezone)
-                  : "—"}
+                  : "-"}
               </span>
               <span className="text-g500">
                 {interview.duration_minutes}m · {interview.interviewer_email}

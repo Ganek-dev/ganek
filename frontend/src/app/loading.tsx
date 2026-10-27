@@ -1,5 +1,5 @@
 /** Route-transition skeleton (M5.7 H4): a quiet centered pulse instead of
- * a blank white flash. Segment-level loading states stay where they are —
+ * a blank white flash. Segment-level loading states stay where they are -
  * this only covers routes without their own. */
 export default function Loading() {
   return (

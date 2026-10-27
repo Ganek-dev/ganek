@@ -30,7 +30,7 @@ class Questionnaire(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str] = mapped_column(String(500), default="")
     shuffle: Mapped[bool] = mapped_column(default=False)
     question_refs: Mapped[list[str]] = mapped_column(ARRAY(String(100)), default=list)
-    # Free-form curator metadata (badges, notes for the builder) — kept
+    # Free-form curator metadata (badges, notes for the builder) - kept
     # opt-in so schema evolutions don't need a migration each time.
     meta: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
 

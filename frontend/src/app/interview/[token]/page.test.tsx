@@ -69,7 +69,7 @@ function withSlots(slots: string[]): InterviewPublic {
 }
 
 /** A promise plus its own resolver, so a test can control exactly when a
- * mocked request settles — needed to reproduce request races (a stale
+ * mocked request settles - needed to reproduce request races (a stale
  * re-check GET resolving after a newer book/reschedule/cancel response). */
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
@@ -121,7 +121,7 @@ describe("InterviewBookingPage", () => {
   });
 
   it("renders every day with slots, even past the old 14-day cap", async () => {
-    // 15 distinct interviewer-tz days, one slot each — the day strip used to
+    // 15 distinct interviewer-tz days, one slot each - the day strip used to
     // slice to MAX_DAY_CHIPS (14), silently dropping the 15th.
     const fifteenDays = Array.from(
       { length: 15 },
@@ -144,7 +144,7 @@ describe("InterviewBookingPage", () => {
     );
     render(<InterviewBookingPage />);
     await userEvent.click(await screen.findByRole("button", { name: "14:00" }));
-    expect(screen.getByText(/14:00–14:45/)).toBeInTheDocument();
+    expect(screen.getByText(/14:00-14:45/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Confirm interview" }));
     await waitFor(() => expect(mocked.book).toHaveBeenCalledWith("iv-tok", SLOT_B));
     expect(await screen.findByRole("heading", { name: "You're booked in" })).toBeInTheDocument();
@@ -178,7 +178,7 @@ describe("InterviewBookingPage", () => {
     const staleGet = deferred<InterviewPublic>();
     mocked.get
       .mockResolvedValueOnce(interview()) // initial mount load
-      .mockImplementationOnce(() => staleGet.promise); // re-check GET from selecting the slot — left pending
+      .mockImplementationOnce(() => staleGet.promise); // re-check GET from selecting the slot - left pending
     mocked.book.mockResolvedValue(
       interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),
     );
@@ -189,7 +189,7 @@ describe("InterviewBookingPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm interview" }));
     expect(await screen.findByRole("heading", { name: "You're booked in" })).toBeInTheDocument();
 
-    // the stale re-check GET — started before booking — resolves last, with
+    // the stale re-check GET - started before booking - resolves last, with
     // a pre-booking snapshot. It must not be allowed to revert the UI.
     await act(async () => {
       staleGet.resolve(interview());
@@ -209,7 +209,7 @@ describe("InterviewBookingPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm interview" })); // book() now in flight
 
     // While the book POST is in flight, day-tab and time-pill controls must
-    // be disabled — a fresh selection here would bump requestSeq past this
+    // be disabled - a fresh selection here would bump requestSeq past this
     // write's, causing its own (about-to-land) response to be discarded.
     const otherTime = screen.getByRole("button", { name: "14:00" });
     const otherDay = screen.getByRole("tab", { name: /wed/i });

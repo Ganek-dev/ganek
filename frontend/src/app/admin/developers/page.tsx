@@ -12,7 +12,7 @@ import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
 
 /** Developers page, handoff screen 25: the public jobs API (no auth, CORS,
  * cached 60s) and the embed widget snippet with a live preview. Careers
- * pages on Ganek stay SSR with Google Jobs structured data — the widget is
+ * pages on Ganek stay SSR with Google Jobs structured data - the widget is
  * for the company's own marketing site. */
 
 type WidgetTheme = "auto" | "light" | "dark";
@@ -26,7 +26,7 @@ function sampleJson(slug: string, origin: string): string {
         {
           title: "Senior Frontend Engineer",
           slug: "senior-frontend-engineer",
-          location: "Remote — Europe",
+          location: "Remote - Europe",
           remote_policy: "remote",
           employment_type: "full_time",
           tags: ["react", "typescript", "senior"],
@@ -175,7 +175,7 @@ export default function DevelopersPage() {
               </label>
             </div>
             <p className="mt-3 text-[12px] leading-[18px] text-g400">
-              Careers pages on Ganek stay SSR with Google Jobs structured data — the widget is
+              Careers pages on Ganek stay SSR with Google Jobs structured data - the widget is
               for your marketing site.
             </p>
           </div>
@@ -185,7 +185,7 @@ export default function DevelopersPage() {
         </div>
 
         <aside aria-label="Widget preview" className="space-y-2">
-          <p className="font-mono text-[11px] text-g400">Widget preview — your live roles</p>
+          <p className="font-mono text-[11px] text-g400">Widget preview - your live roles</p>
           <div className="card overflow-hidden" data-testid="widget-preview">
             <div className="flex items-baseline justify-between border-b border-divider px-4 py-3">
               <span className="text-[14px] font-semibold">Open positions</span>

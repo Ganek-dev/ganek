@@ -86,7 +86,7 @@ describe("ResetPasswordPage", () => {
   it("surfaces an expired-link error with a way to start over", async () => {
     search = new URLSearchParams({ token: "tok-old" });
     mocked.resetPassword.mockRejectedValueOnce(
-      new Error("This reset link is invalid or has expired — request a new one"),
+      new Error("This reset link is invalid or has expired - request a new one"),
     );
     render(<ResetPasswordPage />);
     await userEvent.type(screen.getByLabelText("New password"), "a-brand-new-password");

@@ -143,12 +143,12 @@ export function JobHero({
   );
 }
 
-/** Numbered hiring-steps card (screen 02). Copy stays platform-generic —
+/** Numbered hiring-steps card (screen 02). Copy stays platform-generic -
  * quiz settings are per-job and not exposed on the public API. */
 export function HowWeHire() {
   const steps = [
-    "Apply — three fields, about two minutes",
-    "A short skills assessment for most roles — timed, one shot",
+    "Apply - three fields, about two minutes",
+    "A short skills assessment for most roles - timed, one shot",
     "Interviews with the team",
   ];
   return (
@@ -171,7 +171,7 @@ export function HowWeHire() {
   );
 }
 
-/** Screen 27a — the posting is gone but the company still exists. Rendered
+/** Screen 27a - the posting is gone but the company still exists. Rendered
  * inside the company theme, with a way back to the open positions. */
 export function JobGone({
   company,

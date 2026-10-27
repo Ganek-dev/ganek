@@ -36,7 +36,7 @@ async def list_bank_questions(
     if difficulty:
         conditions.append(Question.difficulty == difficulty)
     if search:
-        # `%`/`_` are ilike wildcards — searches must match them literally
+        # `%`/`_` are ilike wildcards - searches must match them literally
         escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         conditions.append(Question.prompt_md.ilike(f"%{escaped}%", escape="\\"))
     total = (
@@ -141,7 +141,7 @@ async def questionnaire_usage_counts(
     if not unique_ids:
         return {}
     # unnest is a set-returning function, so it can't be filtered in
-    # HAVING — unnest in a subquery and filter with a plain WHERE.
+    # HAVING - unnest in a subquery and filter with a plain WHERE.
     refs = (
         select(func.unnest(Questionnaire.question_refs).label("ref"))
         .where(Questionnaire.company_id == company.id)
@@ -154,12 +154,12 @@ async def questionnaire_usage_counts(
     )
     rows = (await db.execute(query)).all()
     counts = {row.ref: int(row.n) for row in rows}
-    # 0 counts stay implicit — the frontend treats a missing key as zero
+    # 0 counts stay implicit - the frontend treats a missing key as zero
     return counts
 
 
 async def resolve_questions(db: AsyncSession, company: Company, ids: list[str]) -> list[Question]:
-    """Fetch Question rows visible to this workspace for the given ids —
+    """Fetch Question rows visible to this workspace for the given ids -
     bank rows and this company's own questions (active OR retired), in
     the order requested. Missing / cross-tenant refs are silently
     omitted; the caller can diff against its ref list to spot gaps and

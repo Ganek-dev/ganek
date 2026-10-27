@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = publicBaseUrl();
   const mode = await fetchInstanceMode();
-  // Multi mode has no public tenant enumeration (by design — company slugs
+  // Multi mode has no public tenant enumeration (by design - company slugs
   // are only discoverable via their own links), so there is nothing to list.
   if (mode === "multi") return [];
 

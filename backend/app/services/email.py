@@ -4,7 +4,7 @@ Logged no-op while no provider is configured.
 Senders RAISE on transport errors since M5.7 H4: every send goes through
 the email outbox (services/outbox.py), whose worker job owns retry with
 backoff and records the failure on the row. Never call a sender directly
-from a request path — queue it.
+from a request path - queue it.
 """
 
 import logging
@@ -80,7 +80,7 @@ def send_application_received(
     company_name: str,
     privacy_url: str | None = None,
 ) -> None:
-    subject = f"Application received — {job_title} at {company_name}"
+    subject = f"Application received - {job_title} at {company_name}"
     body = (
         f"Hi {candidate_name},\n"
         f"\n"
@@ -88,7 +88,7 @@ def send_application_received(
         f"Your application and CV were received; the team will review them and\n"
         f"get back to you.\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     send_email(to=to, subject=subject, body=body, ref=ref)
 
@@ -118,23 +118,23 @@ def send_quiz_invite(
     safe_company = escape(company_name)
     brand_fg = _brand_foreground(brand)
     valid_until = f"{expires_at:%a}, {expires_at:%b} {expires_at.day}"
-    subject = f"Your {company_name} assessment — one step left"
+    subject = f"Your {company_name} assessment - one step left"
 
     detail_rows: list[tuple[str, str]] = [
         (str(question_count), "questions, single choice"),
     ]
     if seconds_per_question is not None:
         detail_rows.append(
-            (f"{seconds_per_question}s", "per question — each locks when time runs out")
+            (f"{seconds_per_question}s", "per question - each locks when time runs out")
         )
-    detail_rows.append(("1×", "one attempt — find a quiet 10 minutes"))
+    detail_rows.append(("1×", "one attempt - find a quiet 10 minutes"))
 
     text_details = "\n".join(f"  {figure:>4}  {label}" for figure, label in detail_rows)
     body = (
         f"Hi {candidate_name},\n"
         f"\n"
         f"Thanks for applying to {job_title} at {company_name}. To be shortlisted,\n"
-        f"take the short skills assessment — it's how we make sure your application\n"
+        f"take the short skills assessment - it's how we make sure your application\n"
         f"is judged on skill, not keywords.\n"
         f"\n"
         f"{text_details}\n"
@@ -143,7 +143,7 @@ def send_quiz_invite(
         f"\n"
         f"Link valid until {valid_until} · works on any device\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
 
     html_details = "".join(
@@ -158,7 +158,7 @@ def send_quiz_invite(
         f"One step left, {safe_candidate}</h1>"
         f'<p style="margin: 12px 0 0; font-size: 14.5px; line-height: 22px; color: #3f3f46;">'
         f'Thanks for applying to <b style="font-weight: 600;">{safe_job}</b>. To be shortlisted, '
-        f"take the short skills assessment — it's how we make sure your application is judged "
+        f"take the short skills assessment - it's how we make sure your application is judged "
         f"on skill, not keywords.</p>"
         f'<div style="margin-top: 20px; border: 1px solid #e4e4e7; border-radius: 10px; '
         f'padding: 16px 18px;">{html_details}</div>'
@@ -196,7 +196,7 @@ def _card_html(
     """Shared email card (handoff 17/22): top bar, logo chip, content, footer.
 
     The footer names the data controller (legal name when the company set
-    one — M5.6 G1) and links their privacy notice on candidate-facing mail.
+    one - M5.6 G1) and links their privacy notice on candidate-facing mail.
     """
     footer = f"Sent by Ganek on behalf of {safe_controller or safe_company}"
     if privacy_url:
@@ -255,7 +255,7 @@ def send_quiz_reminder(
 ) -> None:
     """Assessment reminder (design 17b), sent manually by a recruiter.
 
-    Never claims the application auto-closes — only the link expires.
+    Never claims the application auto-closes - only the link expires.
     """
     brand = brand_primary or DEFAULT_BRAND_PRIMARY
     brand_fg = _brand_foreground(brand)
@@ -273,7 +273,7 @@ def send_quiz_reminder(
         window = f"in {days_left} days"
         heading_tail = f"{days_left} days left"
     subject = f"Your assessment link expires {window}"
-    heading = f"Still in — {heading_tail}"
+    heading = f"Still in - {heading_tail}"
 
     body = (
         f"Hi {candidate_name},\n"
@@ -285,7 +285,7 @@ def send_quiz_reminder(
         f"\n"
         f"Take it now: {quiz_url}\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -300,7 +300,7 @@ def send_quiz_reminder(
         + f'<a href="{quiz_url}" style="margin-top: 20px; display: block; text-align: center; '
         f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
         f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
-        f"Take it now — ~10 min</a>"
+        f"Take it now - ~10 min</a>"
     )
     html = _card_html(
         bar_color=brand,
@@ -336,7 +336,7 @@ def send_stage_advance(
     subject = f"Next step: interviews at {company_name}"
 
     body = (
-        f"Good news, {candidate_name} — let's talk.\n"
+        f"Good news, {candidate_name} - let's talk.\n"
         f"\n"
         f"Your application for {job_title} stood out, and we'd like to\n"
         f"move you to interviews. We'll follow up shortly with scheduling details.\n"
@@ -347,7 +347,7 @@ def send_stage_advance(
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
-        f"Good news, {safe_candidate} — let's talk</h1>"
+        f"Good news, {safe_candidate} - let's talk</h1>"
         + _paragraph(
             f'Your application for <b style="font-weight: 600;">{safe_job}</b> stood out, '
             f"and we'd like to move you to interviews. We'll follow up shortly with "
@@ -396,7 +396,7 @@ def send_rejection(
     subject = f"Your application to {company_name}"
 
     assessment_line = (
-        " We were glad you took the time to complete the assessment — "
+        " We were glad you took the time to complete the assessment - "
         "a real person reviewed it, not a filter."
         if completed_assessment
         else ""
@@ -447,7 +447,7 @@ def send_rejection(
 
 
 # Matches the team page's role select labels (Owner/Recruiter naming is
-# still an open design decision — the shipped UI says Member).
+# still an open design decision - the shipped UI says Member).
 ROLE_LABELS = {"admin": "Admin", "member": "Member"}
 
 
@@ -481,7 +481,7 @@ def send_team_invite(
         f"\n"
         f"Invite valid until {valid_until}.\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n"
+        f"- {company_name} (via Ganek)\n"
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -531,7 +531,7 @@ def send_email_verification(
         f"The link works for {expires_days} days; unverified workspaces are\n"
         f"removed after a week. If you didn't sign up, ignore this email.\n"
         f"\n"
-        f"— Ganek\n"
+        f"- Ganek\n"
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -579,10 +579,10 @@ def send_password_reset(
         f"\n"
         f"{reset_url}\n"
         f"\n"
-        f"If it wasn't you, ignore this email — your password is unchanged\n"
+        f"If it wasn't you, ignore this email - your password is unchanged\n"
         f"and the link expires on its own.\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n"
+        f"- {company_name} (via Ganek)\n"
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -590,7 +590,7 @@ def send_password_reset(
         + _paragraph(
             f"Someone asked to reset the password for your {safe_company} workspace "
             f"account. If that was you, set a new one below; if not, ignore this "
-            f"email — your password is unchanged."
+            f"email - your password is unchanged."
         )
         + f'<a href="{reset_url}" style="margin-top: 22px; display: block; text-align: center; '
         f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
@@ -609,7 +609,7 @@ def send_password_reset(
 def send_google_linked(*, to: str, company_name: str, ref: str | None = None) -> None:
     """Security notice: a Google identity was just linked to an existing account.
 
-    Mitigates silent pre-registration takeovers — the legitimate owner
+    Mitigates silent pre-registration takeovers - the legitimate owner
     learns immediately if someone else's Google sign-in claimed their email.
     """
     safe_company = escape(company_name)
@@ -623,7 +623,7 @@ def send_google_linked(*, to: str, company_name: str, ref: str | None = None) ->
         f"If you did not just sign in with Google, change your password\n"
         f"in Settings -> Account right away.\n"
         f"\n"
-        f"— Ganek\n"
+        f"- Ganek\n"
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -667,7 +667,7 @@ def send_interview_invite(
     safe_candidate = escape(candidate_name)
     safe_job = escape(job_title)
     safe_company = escape(company_name)
-    subject = f"Pick a time — interview for {job_title} at {company_name}"
+    subject = f"Pick a time - interview for {job_title} at {company_name}"
 
     body = (
         f"Hi {candidate_name},\n"
@@ -680,7 +680,7 @@ def send_interview_invite(
         f"Once you confirm, a calendar invite with the meeting link lands\n"
         f"in your inbox. You can reschedule or cancel from the same page.\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
@@ -725,7 +725,7 @@ def send_interview_cancelled(
     safe_candidate = escape(candidate_name)
     safe_job = escape(job_title)
     safe_company = escape(company_name)
-    subject = f"Interview cancelled — {job_title} at {company_name}"
+    subject = f"Interview cancelled - {job_title} at {company_name}"
 
     body = (
         f"Hi {candidate_name},\n"
@@ -734,13 +734,13 @@ def send_interview_cancelled(
         f"{company_name} has been cancelled. If a new time is needed,\n"
         f"you'll receive a fresh scheduling link.\n"
         f"\n"
-        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
         "Interview cancelled</h1>"
         + _paragraph(
-            f"Hi {safe_candidate} — the scheduled interview for the "
+            f"Hi {safe_candidate} - the scheduled interview for the "
             f'<b style="font-weight: 600;">{safe_job}</b> position at {safe_company} has '
             f"been cancelled."
         )
@@ -793,7 +793,7 @@ def send_interview_reminder(
         f"A quick reminder about your {job_title} interview at\n"
         f"{company_name}: {when} ({timezone}).\n"
         f"\n" + (f"Join via Google Meet: {meet_url}\n\n" if meet_url else "") + f"Good luck!\n"
-        f"— {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
         f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'

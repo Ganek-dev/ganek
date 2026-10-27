@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Design tokens — source: design_handoff_vetd_redesign/README.md (§Design tokens).
+/* Design tokens - source: design_handoff_vetd_redesign/README.md (§Design tokens).
    Light values in :root, dark values swapped via prefers-color-scheme. */
 
 :root {
@@ -32,7 +32,7 @@
   --accent: #7e14ff;
   --accent-soft: oklch(from #7e14ff calc(l + 0.25) c h);
 
-  /* semantic status hues (chips, alerts, quiz states) — single source for
+  /* semantic status hues (chips, alerts, quiz states) - single source for
      what was scattered per-file oklch literals before M5.7 H5 */
   --ok: oklch(0.37 0.084 168);
   --ok-soft: oklch(0.95 0.052 163);
@@ -41,7 +41,7 @@
   --danger: oklch(0.45 0.12 25);
   --danger-soft: oklch(0.96 0.03 25);
 
-  /* per-company brand (candidate surfaces) — set at runtime via brandStyle() */
+  /* per-company brand (candidate surfaces) - set at runtime via brandStyle() */
   --brand-primary: #18181b;
   --brand-primary-foreground: #ffffff;
 }
@@ -212,7 +212,7 @@ h4 {
   font-size: 0.85em;
 }
 
-/* honor the OS motion preference everywhere — skeleton pulses, transitions,
+/* honor the OS motion preference everywhere - skeleton pulses, transitions,
    the quiz timer ring all collapse to their final state */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -225,7 +225,7 @@ h4 {
   }
 }
 
-/* mono overline — 11px uppercase tracked label used across the design */
+/* mono overline - 11px uppercase tracked label used across the design */
 .overline {
   font-family: var(--font-mono);
   font-size: 11px;

@@ -41,7 +41,7 @@ class QuizConfigSchema(BaseModel):
     questionnaire_id: uuid.UUID | None = Field(
         default=None,
         description=(
-            "Attach a curated questionnaire — its ordered question_refs replace "
+            "Attach a curated questionnaire - its ordered question_refs replace "
             "tag-auto selection; tags and question_count are ignored while attached."
         ),
     )

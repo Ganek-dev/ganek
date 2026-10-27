@@ -19,9 +19,9 @@ import { relativeTime } from "@/lib/time";
  * manual tasks), Activity feed. Each panel fetches its own data. */
 
 function timeOf(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—"; // all-day events come as bare dates
+  if (Number.isNaN(d.getTime())) return "-"; // all-day events come as bare dates
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
@@ -213,7 +213,7 @@ export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
           </li>
         ))}
         {tasks !== null && openCount === 0 ? (
-          <li className="text-[12.5px] text-g500">All clear — nothing waiting on you.</li>
+          <li className="text-[12.5px] text-g500">All clear - nothing waiting on you.</li>
         ) : null}
       </ul>
       <form onSubmit={add} className="mt-auto flex items-center gap-1.5 pt-3">
@@ -241,11 +241,11 @@ function activityCopy(item: ActivityItem): string {
   const p = item.payload;
   switch (item.type) {
     case "application.received":
-      return `${String(p.candidate ?? "Someone")} applied — ${String(p.job ?? "a job")}`;
+      return `${String(p.candidate ?? "Someone")} applied - ${String(p.job ?? "a job")}`;
     case "stage.changed":
       return `${item.actor_email ?? "Someone"} moved a candidate ${String(p.from)} → ${String(p.to)}`;
     case "quiz.finished": {
-      const score = typeof p.score === "number" ? ` — ${Math.round(p.score * 100)}%` : "";
+      const score = typeof p.score === "number" ? ` - ${Math.round(p.score * 100)}%` : "";
       return `Assessment completed${score}`;
     }
     case "quiz.reissued":

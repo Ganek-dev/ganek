@@ -57,7 +57,7 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
   if (!preview.enabled) {
     return (
       <p className="text-sm text-g500">
-        Quiz is disabled for this job — enable it above to preview questions.
+        Quiz is disabled for this job - enable it above to preview questions.
       </p>
     );
   }
@@ -103,7 +103,7 @@ export function QuizPreviewPanel({ jobId }: { jobId: string }) {
 
       {preview.eligible_count === 0 ? (
         <p className="text-sm text-warn">
-          No eligible questions — loosen the difficulty filter, add tags, or un-exclude questions.
+          No eligible questions - loosen the difficulty filter, add tags, or un-exclude questions.
         </p>
       ) : null}
 

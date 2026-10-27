@@ -22,7 +22,7 @@ class InterviewStatus(enum.StrEnum):
 class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One interview request per application (single-round v1).
 
-    Slots are never frozen on the row — both the candidate's picker and the
+    Slots are never frozen on the row - both the candidate's picker and the
     booking re-check compute them live from the interviewer's saved
     availability + Google free/busy (``services.interviews.live_slots``).
     Cancelled rows stay as history; the partial unique index allows a fresh

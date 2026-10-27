@@ -303,7 +303,7 @@ describe("JobsPage", () => {
     const row = (await screen.findByText("Live role")).closest("tr")!;
     // applicants and views cells both fall back to a plain dash
     expect(within(row).getAllByText("-").length).toBeGreaterThanOrEqual(2);
-    expect(within(row).queryByText("—")).not.toBeInTheDocument();
+    expect(within(row).queryByText("\u2014")).not.toBeInTheDocument();
   });
 
   it("shows counted views for the last 30 days per job", async () => {

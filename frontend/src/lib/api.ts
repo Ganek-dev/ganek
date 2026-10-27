@@ -55,7 +55,7 @@ export interface QuizConfig {
   difficulties: Difficulty[] | null;
   /** Question ids excluded from this job's quiz. */
   exclude_ids: string[];
-  /** Attached questionnaire — its ordered refs replace tag-auto selection. */
+  /** Attached questionnaire - its ordered refs replace tag-auto selection. */
   questionnaire_id: string | null;
 }
 
@@ -119,7 +119,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       if (typeof body.detail === "string") {
         detail = body.detail;
       } else if (Array.isArray(body.detail)) {
-        // FastAPI validation errors (422) arrive as a list — surface the
+        // FastAPI validation errors (422) arrive as a list - surface the
         // first message instead of the bare "Unprocessable Content"
         const first = body.detail[0] as { msg?: unknown } | undefined;
         if (typeof first?.msg === "string") detail = first.msg;
@@ -150,7 +150,7 @@ export interface DayWindow {
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
 export interface Availability {
-  /** "" when the recruiter hasn't set one — falls back to the company/UTC default. */
+  /** "" when the recruiter hasn't set one - falls back to the company/UTC default. */
   timezone: string;
   days: Partial<Record<DayKey, DayWindow>>;
   is_default: boolean;
@@ -522,7 +522,7 @@ export const accessLogApi = {
 export interface ApplicationPage {
   items: ApplicationOut[];
   total: number;
-  /** Whole job-filtered set — the stage filter never narrows these. */
+  /** Whole job-filtered set - the stage filter never narrows these. */
   stage_counts: Partial<Record<ApplicationStage, number>>;
 }
 
@@ -798,12 +798,12 @@ export const publicApplications = {
     request<{ withdrawn: boolean }>(`/api/v1/public/applications/${token}/withdraw`, {
       method: "POST",
     }),
-  /** Art. 15: asks the company for a copy — notify-only, never a download. */
+  /** Art. 15: asks the company for a copy - notify-only, never a download. */
   requestData: (token: string) =>
     request<{ status: string }>(`/api/v1/public/applications/${token}/request-data`, {
       method: "POST",
     }),
-  /** Art. 17: asks the company to delete — notify-only, the controller decides. */
+  /** Art. 17: asks the company to delete - notify-only, the controller decides. */
   requestDeletion: (token: string) =>
     request<{ status: string }>(`/api/v1/public/applications/${token}/request-deletion`, {
       method: "POST",

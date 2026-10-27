@@ -1,4 +1,4 @@
-/** "Ganek." wordmark — logo direction 8d from the design handoff.
+/** "Ganek." wordmark - logo direction 8d from the design handoff.
  *  Pure type: Space Grotesk 600, the "G" and "." in the Ganek accent.
  *  On dark constant surfaces (sidebar) pass `accentClassName="text-accent-soft"`. */
 export function Wordmark({

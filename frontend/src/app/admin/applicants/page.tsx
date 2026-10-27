@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
-/** Applicant review, handoff screen 11: split view — a 360px list of
+/** Applicant review, handoff screen 11: split view - a 360px list of
  * candidates (score chips, flag dots, stage chip) beside a detail panel
  * with a score strip, per-question answers, an integrity card, and internal
  * notes. The "top N%" percentile stat needs a backend field still on a
@@ -119,7 +119,7 @@ function ScoreStrip({
     <div className="mt-5 flex items-center gap-7 rounded-lg border border-divider px-5 py-4">
       <div>
         <div className={`font-heading text-4xl leading-none font-semibold ${tone.text}`}>
-          {percent ?? "—"}
+          {percent ?? "-"}
           {percent === null ? null : <span className="text-lg text-g500">%</span>}
         </div>
         <div className="mt-1.5 font-mono text-[10.5px] text-g500">
@@ -275,7 +275,7 @@ function BulkRejectBar({
               </button>
               {selected.size > 100 ? (
                 <span className="text-[11.5px] text-warn">
-                  Up to 100 at a time — narrow the selection.
+                  Up to 100 at a time - narrow the selection.
                 </span>
               ) : null}
             </>
@@ -322,7 +322,7 @@ function AnswerRow({ index, review }: { index: number; review: QuizAnswerReview 
     review.answer_key === null ? null : review.options[review.answer_key];
   const timedOut = review.answer_key === null;
   const seconds =
-    review.response_ms !== null ? formatDuration(review.response_ms / 1000) : "—";
+    review.response_ms !== null ? formatDuration(review.response_ms / 1000) : "-";
 
   const Icon = review.is_correct ? Check : timedOut ? Clock : X;
   const iconTone = review.is_correct
@@ -340,7 +340,7 @@ function AnswerRow({ index, review }: { index: number; review: QuizAnswerReview 
           {review.prompt_md}
         </p>
         {timedOut ? (
-          <p className="mt-1 text-xs text-g400">time ran out — no answer</p>
+          <p className="mt-1 text-xs text-g400">time ran out - no answer</p>
         ) : review.is_correct ? (
           <p className="mt-1 text-[12.5px] text-g600">
             answered: <span className="font-medium">{candidate}</span>
@@ -399,7 +399,7 @@ function IntegrityCard({ result, applicationId }: { result: QuizResult; applicat
       </div>
       {result.integrity.reissue_requested ? (
         <p className="mt-2.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-          Candidate&apos;s link expired — they requested a new one
+          Candidate&apos;s link expired - they requested a new one
           {result.integrity.reissue_requested.count > 1
             ? ` (×${result.integrity.reissue_requested.count})`
             : ""}
@@ -408,7 +408,7 @@ function IntegrityCard({ result, applicationId }: { result: QuizResult; applicat
       ) : null}
       {result.integrity.reissue ? (
         <p className="mt-2.5 text-[12px] text-g500">
-          Fresh quiz — re-issued after{" "}
+          Fresh quiz - re-issued after{" "}
           {result.integrity.reissue.reason === "expired"
             ? "the previous link expired"
             : result.integrity.reissue.reason === "accommodation"
@@ -622,7 +622,7 @@ function DetailPanel({
       {confirmingErase ? (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-edge bg-muted-fill p-3">
           <span className="max-w-prose text-[12.5px] text-g700">
-            {`Erase ${app.candidate.name}'s data? This permanently removes all their applications with your company — CV files, assessment results, notes and calendar events. It cannot be undone.`}
+            {`Erase ${app.candidate.name}'s data? This permanently removes all their applications with your company - CV files, assessment results, notes and calendar events. It cannot be undone.`}
           </span>
           <button
             type="button"
@@ -940,7 +940,7 @@ function ApplicantsContent() {
       const result = await applications.eraseCandidate(id);
       setNotice(
         result.google_event_failures > 0
-          ? `Candidate data erased — ${result.google_event_failures} calendar event(s) could not be removed`
+          ? `Candidate data erased - ${result.google_event_failures} calendar event(s) could not be removed`
           : "Candidate data erased",
       );
       setChecked(new Map());
@@ -1073,7 +1073,7 @@ function ApplicantsContent() {
                         : "border-l-[3px] border-l-transparent hover:bg-hover-fill"
                     }`}
                   >
-                    {/* sibling of the row button — a checkbox nested inside a
+                    {/* sibling of the row button - a checkbox nested inside a
                         button is invalid and unreachable for AT (H5 ledger) */}
                     <input
                       type="checkbox"
@@ -1142,7 +1142,7 @@ function ApplicantsContent() {
           <DetailPanel
             key={selected.id}
             app={selected}
-            jobTitle={jobLookup[selected.job_id] ?? "—"}
+            jobTitle={jobLookup[selected.job_id] ?? "-"}
             answers={answersById[selected.id] ?? null}
             onStage={(stage, notify) => changeStage(selected.id, stage, notify)}
             onDownloadCv={() => downloadCv(selected.id)}

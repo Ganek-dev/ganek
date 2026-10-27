@@ -134,7 +134,7 @@ describe("ApplyForm", () => {
   });
 
   it("surfaces upload errors and lets the candidate retry", async () => {
-    mocked.uploadCv.mockRejectedValueOnce(new Error("CV upload failed — please try again"));
+    mocked.uploadCv.mockRejectedValueOnce(new Error("CV upload failed - please try again"));
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
     const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
     await fillAndUpload(file);
@@ -145,7 +145,7 @@ describe("ApplyForm", () => {
     expect(await screen.findByText(/uploaded · /)).toBeInTheDocument();
   });
 
-  it("shows the privacy notice line above submit — a link, never a checkbox", () => {
+  it("shows the privacy notice line above submit - a link, never a checkbox", () => {
     render(
       <ApplyForm
         apiBasePath="/api/v1/public/company/jobs/dev"
@@ -158,7 +158,7 @@ describe("ApplyForm", () => {
       "href",
       "/privacy",
     );
-    // the basis is art. 6(1)(b) — there must be no consent checkbox
+    // the basis is art. 6(1)(b) - there must be no consent checkbox
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 

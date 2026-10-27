@@ -132,13 +132,13 @@ export function AvailabilityCard() {
         </div>
         <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-edge px-2.5 text-[11px] font-medium text-g500">
           <span className="font-mono text-g600">{browserZone}</span>
-          &nbsp;— your timezone
+          &nbsp; - your timezone
         </span>
       </div>
 
       {isDefault ? (
         <p className="mt-3 rounded-md border border-edge bg-muted-fill/40 px-3 py-2 text-[12.5px] text-g500">
-          Using default hours — Mon–Fri 9:00–17:00.
+          Using default hours - Mon-Fri 9:00-17:00.
         </p>
       ) : null}
 
@@ -175,7 +175,7 @@ export function AvailabilityCard() {
                 ))}
               </select>
               <span aria-hidden className="text-g500">
-                –
+                -
               </span>
               <select
                 aria-label={`${day.label} end time`}

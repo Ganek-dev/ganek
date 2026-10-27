@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Wordmark } from "@/components/Wordmark";
 
-/** Global 404 (screen 27b): ganek-branded — used when there is no company
+/** Global 404 (screen 27b): ganek-branded - used when there is no company
  * context to theme with (unknown workspace, unknown path). */
 export default function NotFound() {
   return (
@@ -13,7 +13,7 @@ export default function NotFound() {
           Page not found
         </h1>
         <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600 [text-wrap:pretty]">
-          There&apos;s nothing at this address. Check the link — paths and subdomains
+          There&apos;s nothing at this address. Check the link - paths and subdomains
           are exact.
         </p>
         <div className="mt-[22px] flex items-center justify-center">

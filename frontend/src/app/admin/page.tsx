@@ -17,7 +17,7 @@ import { stats, type StatsOverview } from "@/lib/api";
 const GREEN = "var(--ok)";
 const GREEN_BG = "var(--ok-soft)";
 const AMBER = "var(--warn)";
-const PASS_LINE = 0.6; // where the dashed "pass" marker is drawn — never a filter
+const PASS_LINE = 0.6; // where the dashed "pass" marker is drawn - never a filter
 
 function greeting(now: Date): string {
   const hour = now.getHours();
@@ -113,7 +113,7 @@ function ScoreDistribution({ quiz }: { quiz: StatsOverview["quiz"] }) {
             {dist.map((count, index) => (
               <div
                 key={index}
-                title={`${index * 10}–${index * 10 + 10}: ${count}`}
+                title={`${index * 10}-${index * 10 + 10}: ${count}`}
                 className="flex-1 rounded-t-[3px]"
                 style={{
                   height: count === 0 ? "2px" : `${Math.max(6, (count / max) * 100)}%`,
@@ -135,13 +135,13 @@ function ScoreDistribution({ quiz }: { quiz: StatsOverview["quiz"] }) {
           </div>
           <div className="mt-3.5 flex gap-5 font-mono text-[11px] text-g600">
             <span>
-              median <b className="font-semibold text-strong">{median ?? "—"}</b>
+              median <b className="font-semibold text-strong">{median ?? "-"}</b>
             </span>
             <span>
-              pass rate <b className="font-semibold text-strong">{passRate ?? "—"}%</b>
+              pass rate <b className="font-semibold text-strong">{passRate ?? "-"}%</b>
             </span>
             <span>
-              avg time <b className="font-semibold text-strong">{avgTime ?? "—"}</b>
+              avg time <b className="font-semibold text-strong">{avgTime ?? "-"}</b>
             </span>
           </div>
         </>
@@ -284,12 +284,12 @@ export default function AdminDashboard() {
         />
         <StatCard
           label="Median quiz score"
-          value={medianPercent === null ? "—" : `${medianPercent}%`}
+          value={medianPercent === null ? "-" : `${medianPercent}%`}
           hint={avgPercent === null ? "no completed quizzes yet" : `avg ${avgPercent}%`}
         />
         <StatCard
           label="Quiz completion"
-          value={completionPercent === null ? "—" : `${completionPercent}%`}
+          value={completionPercent === null ? "-" : `${completionPercent}%`}
           hint={`${data.quiz.attempts_completed} of ${data.quiz.attempts_total} attempts`}
         />
       </div>
@@ -310,7 +310,7 @@ export default function AdminDashboard() {
           </div>
           {data.per_job.length === 0 ? (
             <p className="mt-2 text-sm text-g500">
-              No jobs yet —{" "}
+              No jobs yet - {" "}
               <Link href="/admin/jobs/new" className="text-accent underline">
                 create your first
               </Link>

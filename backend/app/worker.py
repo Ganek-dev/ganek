@@ -2,7 +2,7 @@
 
 Run with: arq app.worker.WorkerSettings
 
-Every job is self-validating — it was scheduled against a snapshot of
+Every job is self-validating - it was scheduled against a snapshot of
 state (the booked start, a pending attempt) and quietly no-ops when the
 world moved on (reschedule, cancel, completion). That is what lets the
 web side enqueue-and-forget without abort machinery.
@@ -111,7 +111,7 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 async def send_interview_reminder(
     ctx: dict[str, Any], interview_id: str, expected_start_iso: str
 ) -> None:
-    """T-24h candidate reminder. The interviewer is deliberately not emailed —
+    """T-24h candidate reminder. The interviewer is deliberately not emailed -
     their own Google Calendar event already carries native reminders."""
     async with ctx["session_factory"]() as db:
         interview = (
@@ -128,7 +128,7 @@ async def send_interview_reminder(
             return
         start = interview.scheduled_start
         if start is None or start.isoformat() != expected_start_iso:
-            return  # rescheduled — the new booking queued its own reminder
+            return  # rescheduled - the new booking queued its own reminder
         if start <= datetime.now(UTC):
             return
         company = (
@@ -189,7 +189,7 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
 
 
 async def purge_retention(ctx: dict[str, Any]) -> None:
-    """Nightly Art. 5(1)(e) enforcement — the notice's retention promise,
+    """Nightly Art. 5(1)(e) enforcement - the notice's retention promise,
     kept. Per-company windows, hired excluded, failures retried next night.
     Runs once per day across however many workers are up."""
     now = datetime.now(UTC)
@@ -234,7 +234,7 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
 
     Retry policy lives HERE, not in arq's max_tries: each transport failure
     is recorded on the row, retried with backoff via Retry, and parked as
-    `failed` after outbox.MAX_ATTEMPTS — visible on the applicant panel
+    `failed` after outbox.MAX_ATTEMPTS - visible on the applicant panel
     instead of vanishing into a log.
     """
     async with ctx["session_factory"]() as db:

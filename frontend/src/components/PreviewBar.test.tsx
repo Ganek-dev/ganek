@@ -11,6 +11,6 @@ describe("PreviewBar", () => {
     expect(strip).toHaveTextContent("Candidates cannot see this page until the job is published.");
     expect(strip.className).toContain("bg-brand");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(strip.textContent).not.toMatch(/[–—]/);
+    expect(strip.textContent).not.toMatch(/[\u2013\u2014]/);
   });
 });

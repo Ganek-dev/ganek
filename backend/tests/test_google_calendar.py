@@ -1,4 +1,4 @@
-"""google_calendar service tests — Google's HTTP surface is faked throughout."""
+"""google_calendar service tests - Google's HTTP surface is faked throughout."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -278,7 +278,7 @@ async def test_freebusy_is_cached_within_ttl(
     )
     first = await google_calendar.freebusy(db_session, user, start, end)
     assert len(first) == 1
-    # a moment later the horizon slid forward — the padded cache still covers
+    # a moment later the horizon slid forward - the padded cache still covers
     second = await google_calendar.freebusy(
         db_session, user, start + _td(seconds=20), end + _td(seconds=20)
     )

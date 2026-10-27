@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 
 import { COMPANY_NAME, QUIZ_JOB_SLUG, QUIZ_JOB_TITLE, QUIZ_QUESTION_COUNT } from "./stack";
 
-/** Golden path 1 — the candidate: careers page → job detail → apply with a
+/** Golden path 1 - the candidate: careers page → job detail → apply with a
  * CV → assessment invite → rules gate → answer every question → finished
  * screen → status page. Runs first (alphabetical, workers=1); the recruiter
  * spec reviews the applicant this test creates. */
@@ -80,7 +80,7 @@ test("candidate applies, takes the quiz, and lands on the status page", async ({
         .filter({ visible: true })
         .click();
     }
-    await expect(page.getByText(/That's it — submitted/)).toBeVisible();
+    await expect(page.getByText(/That's it - submitted/)).toBeVisible();
   });
 
   await test.step("status page shows the timeline and the data block", async () => {

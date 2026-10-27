@@ -105,7 +105,7 @@ export function JobForm({
   >({});
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load the list once the assessment section is expanded — populates the picker
+  // Load the list once the assessment section is expanded - populates the picker
   // and lets us look up the attached one by name without another fetch.
   useEffect(() => {
     if (!quizEnabled || availableQuestionnaires !== null) return;
@@ -143,7 +143,7 @@ export function JobForm({
         }));
       })
       .catch(() => {
-        // best-effort — the card falls back to the "no mix yet" branch
+        // best-effort - the card falls back to the "no mix yet" branch
       });
     return () => {
       cancelled = true;
@@ -344,7 +344,7 @@ export function JobForm({
               className={inputCls}
             />
             <span className="text-xs text-g500">
-              Optional. Tells search engines when the posting expires — it never
+              Optional. Tells search engines when the posting expires - it never
               closes the job for you.
             </span>
           </label>
@@ -496,7 +496,7 @@ export function JobForm({
                     </>
                   ) : (
                     <p className="mt-2 font-mono text-[10.5px] text-amber-700 dark:text-amber-400">
-                      empty questionnaire — no quiz will be served until it has questions
+                      empty questionnaire - no quiz will be served until it has questions
                     </p>
                   )}
                   <div className="mt-3 flex gap-1.5">
@@ -540,7 +540,7 @@ export function JobForm({
                     }
                     className={inputCls}
                   >
-                    <option value="">— tag-auto (default) —</option>
+                    <option value="">- tag-auto (default) - </option>
                     {availableQuestionnaires.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.name} ({option.question_refs.length}q)

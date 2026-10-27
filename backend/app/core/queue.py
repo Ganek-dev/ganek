@@ -1,7 +1,7 @@
 """Best-effort arq enqueue. Redis being down must never break a request flow.
 
 Jobs are self-validating (they re-check the DB at fire time), so callers
-never need to abort or reschedule queued jobs — stale ones no-op.
+never need to abort or reschedule queued jobs - stale ones no-op.
 """
 
 import logging

@@ -86,7 +86,7 @@ class ApplicationOut(BaseModel):
 
 class ApplicationPage(BaseModel):
     """One page of the pipeline (M5.7 H4). `stage_counts` covers the whole
-    job-filtered set — the stage pills are how you switch stages, so the
+    job-filtered set - the stage pills are how you switch stages, so the
     stage filter never narrows them."""
 
     items: list[ApplicationOut]
@@ -116,7 +116,7 @@ class BulkRejectOut(BaseModel):
 class EmailDeliveryOut(BaseModel):
     """One outbox row for the applicant panel's delivery trail (M5.7 H4).
 
-    Deliberately WITHOUT the payload — the panel needs kind + state, not
+    Deliberately WITHOUT the payload - the panel needs kind + state, not
     the stored kwargs (which carry capability URLs)."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -164,7 +164,7 @@ class NoteOut(BaseModel):
 class QuizAnswerReview(BaseModel):
     """One answered (or timed-out) question, recruiter-facing.
 
-    correct_key IS present — recruiters review answers. The hard rule
+    correct_key IS present - recruiters review answers. The hard rule
     forbids it in candidate-facing schemas only.
     """
 

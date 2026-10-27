@@ -1,6 +1,6 @@
 """Tenant activity feed (dashboard 06).
 
-record() only stages the row — it joins the caller's transaction and
+record() only stages the row - it joins the caller's transaction and
 commits with it, so a rolled-back action never leaves a phantom event.
 """
 

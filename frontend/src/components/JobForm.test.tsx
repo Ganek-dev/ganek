@@ -74,7 +74,7 @@ function makeJob(overrides: Partial<JobOut>): JobOut {
     slug: "senior-frontend-engineer",
     title: "Senior Frontend Engineer",
     description_md: "",
-    location: "Remote — Europe",
+    location: "Remote - Europe",
     remote_policy: "remote",
     employment_type: "full_time",
     salary_min: null,

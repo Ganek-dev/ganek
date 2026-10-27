@@ -58,7 +58,7 @@ class PublicPrivacyNotice(BaseModel):
 
     The notice text itself is platform truth rendered by the frontend; this
     payload carries only the company-specific values, with fallbacks already
-    applied server-side. Never serializes the settings JSONB wholesale —
+    applied server-side. Never serializes the settings JSONB wholesale -
     internal keys stay server-side.
     """
 
@@ -74,7 +74,7 @@ class PublicPrivacyNotice(BaseModel):
 
 
 class JobsFeedItem(BaseModel):
-    """One role in the public jobs feed (screen 25) — third-party friendly."""
+    """One role in the public jobs feed (screen 25) - third-party friendly."""
 
     title: str
     slug: str
@@ -228,7 +228,7 @@ class QuizNextOut(BaseModel):
 
 class PracticeQuestionOut(BaseModel):
     """Practice question (screen 19). correct_key/explanation MUST never appear
-    here either — practice never reveals answers."""
+    here either - practice never reveals answers."""
 
     id: str
     prompt_md: str

@@ -9,7 +9,7 @@ import { ClipboardList, Plus } from "lucide-react";
 import { questionnaires, type QuestionnaireOut } from "@/lib/api";
 import { relativeTime } from "@/lib/time";
 
-/** Questionnaire index — the D4 companion to the question library. Rows link
+/** Questionnaire index - the D4 companion to the question library. Rows link
  * into the builder (screen 16). Row-level actions are intentionally minimal
  * here; edit lives in the builder itself. */
 

@@ -1,4 +1,4 @@
-"""Tenancy resolution — the single place a request is bound to a company.
+"""Tenancy resolution - the single place a request is bound to a company.
 
 Hard rule: routers never hand-write ``WHERE company_id = ...``; they take a
 ``Company`` from one of these dependencies and pass it to services.
@@ -31,7 +31,7 @@ async def get_current_user(request: Request, db: DbSession) -> User:
     user = await db.get(User, user_id)
     if user is None or not user.is_active or user.token_version != token_version:
         # unknown, deactivated, or a session predating a password change /
-        # forced logout — all rejected as unauthenticated
+        # forced logout - all rejected as unauthenticated
         raise _UNAUTHENTICATED
     return user
 

@@ -37,7 +37,7 @@ export function formatSalary(job: PublicJobSummary): string | null {
   const period = SALARY_PERIOD_LABELS[job.salary_period] ?? "";
   const fmt = (n: number) => n.toLocaleString("en-US");
   if (job.salary_min !== null && job.salary_max !== null) {
-    return `${fmt(job.salary_min)}–${fmt(job.salary_max)} ${currency}${period}`.trim();
+    return `${fmt(job.salary_min)}-${fmt(job.salary_max)} ${currency}${period}`.trim();
   }
   const bound = job.salary_min ?? job.salary_max;
   return bound === null ? null : `from ${fmt(bound)} ${currency}${period}`.trim();

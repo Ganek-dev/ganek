@@ -8,7 +8,7 @@ import { SettingsTabs } from "@/components/SettingsTabs";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { api, type UserOut } from "@/lib/api";
 
-/** Account settings, handoff screen 15 — restyled Profile + Password cards
+/** Account settings, handoff screen 15 - restyled Profile + Password cards
  * against the current data model. Email notifications, Google connection
  * and the danger-zone self-delete need models scheduled for D5/D6 and are
  * intentionally omitted here. */
@@ -192,7 +192,7 @@ function AccountContent() {
           <div className="flex flex-col gap-1.5">
             <span className={labelCls}>Role</span>
             <p className="rounded-md border border-edge bg-muted-fill/40 px-3 py-2 text-[12.5px] text-g500 capitalize">
-              {user?.role ?? "—"} · assigned by workspace admin
+              {user?.role ?? "-"} · assigned by workspace admin
             </p>
           </div>
         </div>
@@ -211,7 +211,7 @@ function AccountContent() {
         </div>
         {user && !user.has_password ? (
           <p className="mt-4 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[12.5px] text-g500">
-            You sign in with Google — this account has no password.
+            You sign in with Google - this account has no password.
           </p>
         ) : demo ? (
           <p
@@ -305,7 +305,7 @@ function AccountContent() {
           </div>
           {calendar?.connected && calendar.needs_reconnect ? (
             <p className="mt-3 rounded-md border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400">
-              Calendar access expired or was revoked —{" "}
+              Calendar access expired or was revoked - {" "}
               <a href="/api/v1/auth/google/calendar/connect" className="font-medium underline">
                 reconnect
               </a>{" "}

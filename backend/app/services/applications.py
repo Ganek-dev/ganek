@@ -19,7 +19,7 @@ TERMINAL_STAGES = frozenset(
 
 def stamp_decision(application: Application, stage: ApplicationStage) -> None:
     """The retention clock (G3): a terminal stage starts it, reopening clears
-    it — a re-considered candidate must never be purged from a stale clock."""
+    it - a re-considered candidate must never be purged from a stale clock."""
     application.decided_at = datetime.now(UTC) if stage in TERMINAL_STAGES else None
 
 
@@ -38,7 +38,7 @@ async def _validated_cv(company: Company, object_key: str) -> storage.ObjectStat
         raise InvalidCvError("CV reference does not belong to this company")
     stat = await storage.stat_object(object_key)
     if stat is None:
-        raise InvalidCvError("CV upload not found — upload the file first")
+        raise InvalidCvError("CV upload not found - upload the file first")
     if stat.size > settings.cv_max_size_mb * 1024 * 1024:
         raise InvalidCvError(f"CV exceeds the {settings.cv_max_size_mb} MB limit")
     if stat.content_type != storage.CV_CONTENT_TYPE:
@@ -112,7 +112,7 @@ async def list_applications(
     """One page of the pipeline plus the total the filters match.
 
     M5.7 H4: the old version materialized every row (candidate + all quiz
-    attempts + integrity JSONB) per visit — the first scale cliff.
+    attempts + integrity JSONB) per visit - the first scale cliff.
     """
     conditions = [Application.company_id == company.id]
     if job_id is not None:
@@ -218,7 +218,7 @@ async def count_by_stage(
     db: AsyncSession, company: Company, *, job_id: uuid.UUID | None = None
 ) -> dict[str, int]:
     """Pipeline pill counts for the WHOLE filtered set (stage filter never
-    applies — the pills are how you switch stages)."""
+    applies - the pills are how you switch stages)."""
     conditions = [Application.company_id == company.id]
     if job_id is not None:
         conditions.append(Application.job_id == job_id)
@@ -245,7 +245,7 @@ async def get_application(
 
 
 async def get_application_by_id(db: AsyncSession, application_id: uuid.UUID) -> Application | None:
-    """Token-authenticated candidate lookup (status page) — no tenancy scope;
+    """Token-authenticated candidate lookup (status page) - no tenancy scope;
     the signed status token is the authorization."""
     return (
         await db.execute(
@@ -300,7 +300,7 @@ async def update_candidate_email(
     *,
     actor_user_id: uuid.UUID | None = None,
 ) -> Application:
-    """Art. 16 rectification — the address is the delivery channel for every
+    """Art. 16 rectification - the address is the delivery channel for every
     quiz/status/booking link and has no other correction path (a re-apply
     with a new address creates a new candidate row). The value arrives
     EmailStr-validated and is stored verbatim, mirroring the apply flow."""
@@ -339,7 +339,7 @@ async def bulk_reject(
     """Reject every listed application that's still open.
 
     Already-rejected/withdrawn rows, ids from another tenant, and unknown
-    ids are silently excluded from the result rather than erroring — the
+    ids are silently excluded from the result rather than erroring - the
     route derives `skipped` from the count difference. One activity entry
     covers the whole call (only recorded when something was rejected).
     """

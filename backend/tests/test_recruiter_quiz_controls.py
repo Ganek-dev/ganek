@@ -186,7 +186,7 @@ async def test_bank_browse_filters_and_tenancy(client: AsyncClient) -> None:
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "multi_mode")
 async def test_bank_search_treats_wildcards_literally(client: AsyncClient) -> None:
-    """`%`/`_` are ilike wildcards — unescaped, `q=%%%%%%%` matched the whole
+    """`%`/`_` are ilike wildcards - unescaped, `q=%%%%%%%` matched the whole
     bank. Searches must only ever match the literal characters typed."""
     await _register(client)
     assert (await client.get("/api/v1/questions/bank")).json()["total"] > 0
@@ -303,7 +303,7 @@ async def test_stats_score_distribution_median_and_duration(db_session: AsyncSes
         db_session, {"enabled": False, "tags": ["python"]}
     )
     now = datetime.now(UTC)
-    # scores are 0–1 fractions, exactly as the quiz engine stores them
+    # scores are 0-1 fractions, exactly as the quiz engine stores them
     scores = [0.0, 0.35, 0.55, 0.60, 0.825, 1.0]
 
     applications = [first_app]

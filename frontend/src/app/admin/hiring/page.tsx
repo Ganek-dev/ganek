@@ -16,7 +16,7 @@ const OPTIONS: { value: ReissueMode; title: string; description: string }[] = [
     value: "manual",
     title: "Ask the team first",
     description:
-      "Requests show up on the applicant for a recruiter to re-issue — nothing goes out automatically.",
+      "Requests show up on the applicant for a recruiter to re-issue - nothing goes out automatically.",
   },
   {
     value: "auto",

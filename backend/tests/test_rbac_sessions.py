@@ -153,7 +153,7 @@ async def test_account_lockout_after_repeated_failures(
             "/api/v1/auth/login", json={"email": creds["email"], "password": "wrong-pw-here"}
         )
         assert resp.status_code == 401
-    # now locked — even the CORRECT password is refused with 423
+    # now locked - even the CORRECT password is refused with 423
     resp = await client.post("/api/v1/auth/login", json=creds)
     assert resp.status_code == 423
     await lockout.clear(creds["email"])

@@ -12,7 +12,7 @@ RETENTION_DEFAULT_MONTHS = 6
 """Post-decision retention window when a company hasn't set one.
 
 Chosen to be defensible in the strictest mainstream EU regimes (Germany ~6
-months AGG practice; CNIL caps at 2 years) — see GDPR research notes. The
+months AGG practice; CNIL caps at 2 years) - see GDPR research notes. The
 privacy notice renders this value and the retention purge will enforce it.
 """
 
@@ -93,7 +93,7 @@ def logo_digest(data: bytes) -> str:
 
 def sniff_logo(data: bytes, declared_type: str) -> str:
     """Validate a logo upload by content, not extension. Returns the canonical
-    content type or raises. SVGs additionally reject embedded scripting —
+    content type or raises. SVGs additionally reject embedded scripting -
     the serving endpoint's CSP already blocks execution, this is belt and
     braces for anyone hotlinking the file elsewhere."""
     if len(data) > storage.LOGO_MAX_BYTES:

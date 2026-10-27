@@ -139,7 +139,7 @@ LOGO_MAX_BYTES = 2 * 1024 * 1024  # matches the branding card copy (max 2 MB)
 
 
 def build_logo_key(company_id: UUID) -> str:
-    """Stable key — replacing a logo overwrites in place; the served URL's
+    """Stable key - replacing a logo overwrites in place; the served URL's
     version query param handles cache busting."""
     return f"logos/{company_id}"
 
@@ -184,7 +184,7 @@ def _list_cv_objects() -> list[tuple[str, datetime]]:
 
 
 async def list_cv_objects() -> list[tuple[str, datetime]]:
-    """(key, last_modified) for every stored CV — the G3 orphan sweep's view."""
+    """(key, last_modified) for every stored CV - the G3 orphan sweep's view."""
     return await anyio.to_thread.run_sync(_list_cv_objects)
 
 

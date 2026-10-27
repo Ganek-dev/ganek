@@ -124,6 +124,6 @@ describe("ShareLinksCard", () => {
       "https://ganek.dev/api-embed/",
     );
     expect(screen.getByText("Name links after channels, never after a person.")).toBeInTheDocument();
-    expect(container.textContent).not.toMatch(/[–—]/);
+    expect(container.textContent).not.toMatch(/[\u2013\u2014]/);
   });
 });

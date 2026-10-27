@@ -59,7 +59,7 @@ describe("SetupPage", () => {
     expect(screen.getByText(/your careers page URL will show here/)).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs!");
-    // slug-bearing /c/ path — resolves on any deployment, unlike a ganek.dev
+    // slug-bearing /c/ path - resolves on any deployment, unlike a ganek.dev
     // subdomain a self-hosted instance doesn't have
     expect(screen.getByText(new RegExp(`${window.location.host}/c/acme-labs`))).toBeInTheDocument();
   });
@@ -201,7 +201,7 @@ describe("SetupPage", () => {
 
     it("shows the restart path when the pending session already expired", async () => {
       mocked.googleSignupPending.mockRejectedValueOnce(
-        new ApiError(410, "This Google signup session has expired — sign in with Google again"),
+        new ApiError(410, "This Google signup session has expired - sign in with Google again"),
       );
       render(<SetupPage />);
 
@@ -216,7 +216,7 @@ describe("SetupPage", () => {
 
     it("shows the restart path when the session expires at submit time", async () => {
       mocked.googleSignup.mockRejectedValueOnce(
-        new Error("This Google signup session has expired — sign in with Google again"),
+        new Error("This Google signup session has expired - sign in with Google again"),
       );
       render(<SetupPage />);
       await userEvent.type(screen.getByLabelText("Company name"), "Acme Labs");

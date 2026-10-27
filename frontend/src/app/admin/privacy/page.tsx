@@ -10,7 +10,7 @@ import { companyApi, healthApi, type CompanyAdmin } from "@/lib/api";
 import { relativeTime } from "@/lib/time";
 
 /** Privacy settings (M5.6 G1): the per-company variables the candidate
- * privacy notice renders — controller identity, rights contact, retention
+ * privacy notice renders - controller identity, rights contact, retention
  * window, optional own-policy link. The notice itself lives on the public
  * careers site; this tab only feeds it. */
 
@@ -41,7 +41,7 @@ export default function PrivacySettingsPage() {
     setTestBusy(true);
     try {
       await companyApi.testEmail();
-      setTestResult({ ok: true, message: "Sent — check your inbox." });
+      setTestResult({ ok: true, message: "Sent - check your inbox." });
     } catch (err) {
       setTestResult({
         ok: false,
@@ -171,7 +171,7 @@ export default function PrivacySettingsPage() {
           />
           <p className={`mt-1 ${hintCls}`}>
             Where candidates send data requests (access, correction, deletion). Shown on the
-            notice — set one before going live.
+            notice - set one before going live.
           </p>
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function PrivacySettingsPage() {
             }
             className="h-9 rounded-md border border-edge bg-surface px-3 text-[13.5px] outline-none focus:border-g400"
           >
-            <option value="">Default — {RETENTION_DEFAULT} months</option>
+            <option value="">Default - {RETENTION_DEFAULT} months</option>
             {Array.from({ length: 24 }, (_, i) => i + 1).map((months) => (
               <option key={months} value={months}>
                 {months} {months === 1 ? "month" : "months"}
@@ -249,8 +249,8 @@ export default function PrivacySettingsPage() {
           <p className={labelCls}>Email delivery</p>
           <p className={hintCls}>
             {company.smtp_configured
-              ? "SMTP is configured. Send yourself a test email to prove the pipe end to end — failed candidate emails also show on each applicant."
-              : "SMTP is NOT configured — candidates receive no invites or updates. Set the GANEK_SMTP_* variables and restart, then test here."}
+              ? "SMTP is configured. Send yourself a test email to prove the pipe end to end - failed candidate emails also show on each applicant."
+              : "SMTP is NOT configured - candidates receive no invites or updates. Set the GANEK_SMTP_* variables and restart, then test here."}
           </p>
         </div>
         <div className="flex items-center gap-3">

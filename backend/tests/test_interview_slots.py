@@ -198,7 +198,7 @@ async def test_slots_respect_one_hour_lead_time(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Spec §3 promises >=1h lead time. A saved window covering midnight
-    means "tomorrow" can start within a minute of now — those near-term
+    means "tomorrow" can start within a minute of now - those near-term
     slots must still be excluded, not just anything before "now"."""
     user = await _interviewer(db_session)
     all_day_window = {"start": "00:00", "end": "23:30"}
@@ -234,7 +234,7 @@ async def test_failed_booking_commit_compensates_the_created_event(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """If the DB commit dies after the Meet event was created, the event is
-    best-effort deleted — otherwise the candidate holds a calendar invite
+    best-effort deleted - otherwise the candidate holds a calendar invite
     for a booking Ganek never recorded (and the slot stays double-bookable)."""
     user = await _interviewer(db_session)
     monkeypatch.setattr(interviews_service.google_calendar, "freebusy", _fake_freebusy([]))

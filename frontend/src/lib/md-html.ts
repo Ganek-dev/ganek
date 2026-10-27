@@ -11,7 +11,7 @@ interface HastNode {
   children?: HastNode[];
 }
 
-/** Mirror the on-page policy (G4): markdown images never render as <img> —
+/** Mirror the on-page policy (G4): markdown images never render as <img> -
  * their alt text survives as plain text, alt-less images vanish. */
 function imagesToAltText() {
   const walk = (node: HastNode): void => {

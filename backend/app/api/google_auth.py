@@ -1,4 +1,4 @@
-"""Google sign-in endpoints. Browser redirects are relative paths — the
+"""Google sign-in endpoints. Browser redirects are relative paths - the
 browser talks to us through the Next proxy, so /login etc. resolve to the
 frontend origin. See services/oauth_google.py for the flow's trust model."""
 
@@ -140,7 +140,7 @@ async def _connect_calendar_via_google(
     if user.google_sub is not None and user.google_sub != sub:
         return _redirect("/admin/account?calendar=wrong-account")
     if refresh_token is None:
-        # consent flow completed without offline grant — retry needs prompt=consent
+        # consent flow completed without offline grant - retry needs prompt=consent
         return _redirect("/admin/account?calendar=failed")
     if user.google_sub is None:
         sub_taken = (
@@ -230,7 +230,7 @@ async def google_callback(request: Request, db: DbSession) -> RedirectResponse:
     dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
 )
 async def google_signup_pending(request: Request) -> GoogleSignupPending:
-    """Which Google account the pending signup is for — /setup shows this
+    """Which Google account the pending signup is for - /setup shows this
     instead of decoding the token client-side (the token stays in the
     httponly cookie)."""
     _require_configured()
@@ -238,7 +238,7 @@ async def google_signup_pending(request: Request) -> GoogleSignupPending:
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="This Google signup session has expired — sign in with Google again",
+            detail="This Google signup session has expired - sign in with Google again",
         )
     return GoogleSignupPending(email=data[1])
 
@@ -257,7 +257,7 @@ async def google_signup(
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="This Google signup session has expired — sign in with Google again",
+            detail="This Google signup session has expired - sign in with Google again",
         )
     sub, email = data
     try:

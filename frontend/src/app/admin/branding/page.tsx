@@ -19,7 +19,7 @@ import {
 
 /** Branding settings, handoff screen 10: brand color with AA check, corner
  * radius picker, careers domain, and a live candidate-surface preview.
- * Logo upload needs its own storage flow — the card ships with Replace
+ * Logo upload needs its own storage flow - the card ships with Replace
  * disabled until that lands. */
 
 const RADIUS_OPTIONS: { value: BrandRadius; label: string }[] = [
@@ -286,7 +286,7 @@ export default function BrandingPage() {
         </div>
 
         <aside aria-label="Live preview" className="space-y-2">
-          <p className="font-mono text-[11px] text-g400">Live preview — what candidates see</p>
+          <p className="font-mono text-[11px] text-g400">Live preview - what candidates see</p>
           <div
             style={brandStyle(previewColor, radius)}
             className="card space-y-4 p-5"

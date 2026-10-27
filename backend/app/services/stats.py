@@ -78,7 +78,7 @@ async def _application_counts(db: AsyncSession, company: Company) -> Application
     return ApplicationCounts(total=row[0], new=row[1], last_7_days=row[2])
 
 
-SCORE_BUCKETS = 10  # 10-point-wide histogram buckets over 0–100
+SCORE_BUCKETS = 10  # 10-point-wide histogram buckets over 0-100
 
 
 def _attempt_scope(company: Company, job_id: uuid.UUID | None) -> list[ColumnElement[bool]]:
@@ -121,7 +121,7 @@ async def _quiz_counts(
     ).one()
     total, started, completed, avg_score, median_score, avg_duration = row
 
-    # histogram of completed scores (stored as 0–1 fractions); a perfect 1.0
+    # histogram of completed scores (stored as 0-1 fractions); a perfect 1.0
     # folds into the top bucket
     bucket = func.least(func.width_bucket(QuizAttempt.score, 0, 1, SCORE_BUCKETS), SCORE_BUCKETS)
     bucket_rows = (

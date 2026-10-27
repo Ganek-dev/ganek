@@ -118,7 +118,7 @@ async def test_slot_preview_returns_summary(client: AsyncClient) -> None:
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["schedule_summary"] == "Mon–Fri 09:00–17:00 (Europe/Berlin)"
+    assert body["schedule_summary"] == "Mon-Fri 09:00-17:00 (Europe/Berlin)"
     assert body["open_slot_count"] > 0
 
 
@@ -236,8 +236,8 @@ async def test_interview_endpoints_are_tenant_scoped(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The interviews admin API was the only tenant-owned family without a
-    cross-tenant test. A foreign company gets 404 on every endpoint — never
-    a 409 or data — and a foreign interviewer is invisible even on your own
+    cross-tenant test. A foreign company gets 404 on every endpoint - never
+    a 409 or data - and a foreign interviewer is invisible even on your own
     application."""
     from app.services import email as email_service
 
