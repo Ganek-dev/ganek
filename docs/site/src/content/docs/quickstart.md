@@ -34,7 +34,7 @@ Postgres and Redis are not published on the host.
 
 ## Pre-built images
 
-Every release publishes `ghcr.io/ganek-dev/ganek-backend` and `ghcr.io/ganek-dev/ganek-frontend` tagged with the version (`0.4.0`) and `latest`. Pin a version tag in production and read the [upgrade notes](/self-hosting/#upgrades) before moving.
+Every release publishes `ghcr.io/ganek-dev/ganek-backend` and `ghcr.io/ganek-dev/ganek-frontend` tagged with the version (`0.4.1`) and `latest`. Pin a version tag in production and read the [upgrade notes](/self-hosting/#upgrades) before moving.
 
 The images are self-contained: the backend image carries the open question bank, so a compose file that only references the published images seeds it without a repository checkout. The `./questions` bind mount in the bundled compose file is optional; it exists so a checkout can seed locally edited YAML.
 
