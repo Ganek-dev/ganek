@@ -79,10 +79,17 @@ describe("Captcha", () => {
     input.name = "altcha";
     input.value = "c29sdmVk";
     widget.appendChild(input);
-    act(() => {
-      widget.dispatchEvent(new CustomEvent("statechange", { detail: { state: "verified" } }));
+    // the component attaches its listeners in a passive effect that React
+    // flushes after the commit that rendered the widget, so an event fired
+    // straight after the element appears can beat the listener (the flake
+    // this card is about): fire until the handler answers, then assert on
+    // what it handed up
+    await waitFor(() => {
+      act(() => {
+        widget.dispatchEvent(new CustomEvent("statechange", { detail: { state: "verified" } }));
+      });
+      expect(onChange).toHaveBeenLastCalledWith("c29sdmVk");
     });
-    expect(onChange).toHaveBeenLastCalledWith("c29sdmVk");
 
     act(() => {
       widget.dispatchEvent(new CustomEvent("statechange", { detail: { state: "expired" } }));
