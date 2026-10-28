@@ -78,6 +78,9 @@ services:
       BACKEND_URL: http://backend:8000
       # absolute URLs in sitemap.xml / robots.txt / OG metadata
       GANEK_PUBLIC_BASE_URL: ${GANEK_PUBLIC_BASE_URL:-http://localhost:3000}
+      # optional shared secret on the page-view headers (.env.example); the
+      # backend reads the same value from .env
+      GANEK_SSR_SECRET: ${GANEK_SSR_SECRET:-}
       # Next's standalone server binds to $HOSTNAME, which Docker sets to the
       # container id, so nothing listens on 127.0.0.1 unless we say so
       HOSTNAME: 0.0.0.0

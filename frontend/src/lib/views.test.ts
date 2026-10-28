@@ -106,7 +106,19 @@ describe("shouldCountView", () => {
 
 describe("viewHeaders", () => {
   it("names the view and its source for the backend", () => {
-    expect(viewHeaders("linkedin")).toEqual({ "X-Ganek-View": "1", "X-Ganek-Source": "linkedin" });
-    expect(viewHeaders("link:newsletter")["X-Ganek-Source"]).toBe("link:newsletter");
+    expect(viewHeaders("linkedin", undefined)).toEqual({
+      "X-Ganek-View": "1",
+      "X-Ganek-Source": "linkedin",
+    });
+    expect(viewHeaders("link:newsletter", undefined)["X-Ganek-Source"]).toBe("link:newsletter");
+  });
+
+  it("adds the shared secret when the server has one, never an empty one", () => {
+    expect(viewHeaders("linkedin", "shared-with-the-backend")).toEqual({
+      "X-Ganek-View": "1",
+      "X-Ganek-Source": "linkedin",
+      "X-Ganek-SSR-Secret": "shared-with-the-backend",
+    });
+    expect(viewHeaders("linkedin", "")).not.toHaveProperty("X-Ganek-SSR-Secret");
   });
 });

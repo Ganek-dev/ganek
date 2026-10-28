@@ -272,3 +272,33 @@ async def test_concurrent_views_never_overshoot_the_source_budget(
     named = [s for (_, s) in rows if s.startswith("link:")]
     assert len(named) == MAX_SOURCES_PER_DAY
     assert rows[(_today(), OTHER)] == 19
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_ssr_secret_gates_counting_when_set(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Card "Hardening: optional GANEK_SSR_SECRET": with the secret set, a
+    request is served either way but counts only when it carries the secret."""
+    monkeypatch.setattr(settings, "ssr_secret", "shared-with-the-ssr")
+    slug = await _register(client)
+    job = await _publish(client, "Gated Role")
+    assert await _view(client, slug, job["slug"], VIEW) == 200
+    assert await _view(client, slug, job["slug"], {**VIEW, "X-Ganek-SSR-Secret": "wrong"}) == 200
+    assert await _rows(db_session, job["id"]) == {}
+    signed = {**VIEW, "X-Ganek-SSR-Secret": "shared-with-the-ssr", "X-Ganek-Source": "linkedin"}
+    assert await _view(client, slug, job["slug"], signed) == 200
+    assert await _rows(db_session, job["id"]) == {(_today(), "linkedin"): 1}
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_without_ssr_secret_the_header_is_ignored(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unset (the default): behaviour unchanged, a stray secret header is noise."""
+    monkeypatch.setattr(settings, "ssr_secret", None)
+    slug = await _register(client)
+    job = await _publish(client, "Open Role")
+    assert await _view(client, slug, job["slug"], {**VIEW, "X-Ganek-SSR-Secret": "anything"}) == 200
+    assert await _view(client, slug, job["slug"], VIEW) == 200
+    assert await _rows(db_session, job["id"]) == {(_today(), "direct"): 2}

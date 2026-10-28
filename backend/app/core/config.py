@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     captcha_secret: str | None = None
     captcha_max_number: int = 100_000  # widget brute-force ceiling (~fast on phones)
     captcha_ttl_seconds: int = 600
+    # Optional shared secret on the job page-view headers (services/views.py):
+    # set the same value on the frontend and only its server render can count
+    # a view. Unset = advisory counters, decision JP8.
+    ssr_secret: str | None = None
 
     rate_limit_enabled: bool = True
     trust_proxy_headers: bool = True  # browser traffic arrives via the Next proxy

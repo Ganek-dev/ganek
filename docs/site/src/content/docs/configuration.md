@@ -54,6 +54,12 @@ Emails are skipped with a warning while no provider is configured. The recruiter
 | `GANEK_CAPTCHA_ENABLED` | `false` | Self-hosted proof-of-work challenge (ALTCHA, no third party) on signup, apply and request-new-link. Only shown in `multi` mode. |
 | `GANEK_CAPTCHA_SECRET` | unset | HMAC key for the challenge; any long random string. Required when enabled. |
 
+## Job page views
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `GANEK_SSR_SECRET` | unset | Optional. Page views are counted when the frontend's server render says a load is one (no cookie, no script, no identifier; see the [GDPR guide](/compliance/self-hosting-gdpr-guide/)). Those headers can be sent by anyone who calls the API directly, so the counters are advisory. Set the same long random string on the backend and the frontend and only loads that carry it count; anything else is served as usual and not counted. |
+
 ## Logging and error reporting
 
 | Variable | Default | What it does |
