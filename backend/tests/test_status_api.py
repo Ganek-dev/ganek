@@ -1,11 +1,15 @@
 """Candidate status page (screen 21): magic-link status + withdraw."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.quiz import AttemptAnswer
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 
@@ -88,6 +92,7 @@ async def test_status_shows_quiz_progress(client: AsyncClient) -> None:
     assert body["quiz"] == {
         "status": "pending",
         "answered": 0,
+        "timed_out": 0,
         "total": 2,
         "completed_at": None,
     }
@@ -110,6 +115,53 @@ async def test_status_shows_quiz_progress(client: AsyncClient) -> None:
     assert body["quiz"]["completed_at"] is not None
     # candidate-facing: the score must never appear
     assert "score" not in str(body)
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_timed_out_questions_are_not_counted_as_answered(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Demo review 2026-10-28, bug 1: a missed question showed up as answered."""
+    received, _ = await _apply(client, with_quiz=True)
+    status_token = received["status_token"]
+    quiz_token = received["quiz_token"]
+    assert quiz_token
+
+    first = (await client.post(f"/api/v1/public/quiz/{quiz_token}/next")).json()
+    assert first["question"]["index"] == 1
+    # let the first question's deadline pass without an answer
+    await db_session.execute(
+        update(AttemptAnswer)
+        .where(AttemptAnswer.question_id == first["question"]["id"])
+        .values(deadline_at=datetime.now(UTC) - timedelta(seconds=1))
+    )
+    await db_session.commit()
+
+    second = (await client.post(f"/api/v1/public/quiz/{quiz_token}/next")).json()
+    assert second["done"] is False
+    assert second["question"]["id"] != first["question"]["id"]
+    # the missed question still takes its slot in the progression
+    assert second["question"]["index"] == 2
+    await client.post(
+        f"/api/v1/public/quiz/{quiz_token}/answer",
+        json={
+            "question_id": second["question"]["id"],
+            "answer_key": second["question"]["options"][0]["key"],
+        },
+    )
+    assert (await client.post(f"/api/v1/public/quiz/{quiz_token}/next")).json()["done"] is True
+
+    state = (await client.get(f"/api/v1/public/quiz/{quiz_token}")).json()
+    assert state["status"] == "completed"
+    assert state["answered"] == 1
+    assert state["timed_out"] == 1
+    assert state["total"] == 2
+
+    body = (await client.get(f"/api/v1/public/applications/{status_token}")).json()
+    assert body["quiz"]["status"] == "completed"
+    assert body["quiz"]["answered"] == 1
+    assert body["quiz"]["timed_out"] == 1
+    assert body["quiz"]["total"] == 2
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

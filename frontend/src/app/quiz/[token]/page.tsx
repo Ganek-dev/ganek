@@ -14,6 +14,7 @@ import {
   type QuizState,
 } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
+import { answeredSummary } from "@/lib/quiz-progress";
 
 import { Captcha, isCaptchaError } from "@/components/Captcha";
 
@@ -464,9 +465,7 @@ export default function QuizPage() {
               Your answers went straight to the hiring team, alongside your application.
             </p>
             {state ? (
-              <div className="mt-6 font-mono text-xs text-g600">
-                {state.answered} of {state.total} answered
-              </div>
+              <div className="mt-6 font-mono text-xs text-g600">{answeredSummary(state)}</div>
             ) : null}
             <div className="mt-6 w-full rounded-lg border border-edge px-5 py-[18px]">
               <div className="overline text-g500">What happens next</div>

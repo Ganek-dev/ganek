@@ -662,6 +662,7 @@ export interface QuizQuestion {
 export interface QuizState {
   status: "pending" | "in_progress" | "completed" | "expired";
   answered: number;
+  timed_out: number;
   total: number;
   candidate_name: string;
   company_name: string;
@@ -689,6 +690,7 @@ export interface QuizNext {
 export interface StatusQuiz {
   status: "pending" | "in_progress" | "completed" | "expired";
   answered: number;
+  timed_out: number;
   total: number;
   completed_at: string | null;
 }

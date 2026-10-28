@@ -7,6 +7,7 @@ import { Check } from "lucide-react";
 
 import { ApiError, publicApplications, type ApplicationStatus } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
+import { answeredSummary } from "@/lib/quiz-progress";
 
 /** Candidate status page, handoff screen 21: private magic-link page with a
  * vertical timeline (received → assessment → under review → decision) and a
@@ -176,7 +177,7 @@ export default function StatusPage() {
             detail: (
               <span className="font-mono text-[11.5px] text-g500">
                 {status.quiz.completed_at ? `${formatDateTime(status.quiz.completed_at)} · ` : ""}
-                {status.quiz.answered} of {status.quiz.total} answered
+                {answeredSummary(status.quiz)}
               </span>
             ),
           }
