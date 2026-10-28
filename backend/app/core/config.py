@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="GANEK_", env_file=".env", extra="ignore")
 
-    version: str = "0.4.0"  # the Sentry release tag; keep in step with the FastAPI title
+    version: str = "0.4.1"  # the Sentry release tag; keep in step with the FastAPI title
     mode: Literal["single", "multi"] = "single"
     secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
     # Separate key for encrypting stored third-party secrets (Google refresh
