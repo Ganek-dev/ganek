@@ -12,6 +12,7 @@ transaction-scoped advisory lock, so racing tasks cannot overshoot it.
 Nothing per visitor is ever stored.
 """
 
+import hmac
 import logging
 import uuid
 from datetime import date
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.clock import utc_today
+from app.core.config import settings
 from app.core.sources import normalize_source
 from app.models import JobView
 
@@ -34,14 +36,24 @@ log = logging.getLogger(__name__)
 
 VIEW_HEADER = "x-ganek-view"
 SOURCE_HEADER = "x-ganek-source"
+SECRET_HEADER = "x-ganek-ssr-secret"  # noqa: S105 - a header name, not a secret
 MAX_SOURCES_PER_DAY = 50
 OTHER = "other"
 DIRECT = "direct"
 
 
 def wants_view(request: Request) -> bool:
-    """The SSR marked this load as a countable view (exactly ``1``)."""
-    return request.headers.get(VIEW_HEADER) == "1"
+    """The SSR marked this load as a countable view (exactly ``1``) and, when
+    the instance set ``GANEK_SSR_SECRET``, proved it is the SSR by sending the
+    secret along. The headers travel through the public API, so without the
+    secret anyone can send them (advisory counters, decision JP8); with it,
+    a request that lacks or mistakes the secret is served but not counted."""
+    if request.headers.get(VIEW_HEADER) != "1":
+        return False
+    secret = settings.ssr_secret
+    if not secret:
+        return True
+    return hmac.compare_digest(request.headers.get(SECRET_HEADER, ""), secret)
 
 
 def view_source(raw: str | None) -> str:

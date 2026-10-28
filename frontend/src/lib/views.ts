@@ -44,6 +44,15 @@ export function shouldCountView(s: ViewSignals): boolean {
   return !isBotUserAgent(s.userAgent);
 }
 
-export function viewHeaders(source: string): Record<string, string> {
-  return { "X-Ganek-View": "1", "X-Ganek-Source": source };
+/** The two view headers, plus the shared secret when the operator set
+ * `GANEK_SSR_SECRET` on both sides: the backend then counts only loads
+ * whose render carried it. Read at call time so the standalone server
+ * picks the value up from its environment, not from the build. */
+export function viewHeaders(
+  source: string,
+  secret: string | undefined = process.env.GANEK_SSR_SECRET,
+): Record<string, string> {
+  const headers: Record<string, string> = { "X-Ganek-View": "1", "X-Ganek-Source": source };
+  if (secret) headers["X-Ganek-SSR-Secret"] = secret;
+  return headers;
 }
