@@ -457,8 +457,15 @@ async def _attempt_or_404(db: DbSession, token: str) -> "QuizAttempt":
     return attempt
 
 
-async def _answered_count(db: DbSession, attempt: "QuizAttempt") -> int:
-    return sum(1 for a in await quiz_service.resolved_answers(db, attempt) if a.answered_at)
+async def _progress(db: DbSession, attempt: "QuizAttempt") -> tuple[int, int]:
+    """(answered, timed_out) over the resolved questions of an attempt.
+
+    A resolved row without an answer key is a missed deadline; it must not
+    read as "answered" on any candidate-facing surface.
+    """
+    resolved = [a for a in await quiz_service.resolved_answers(db, attempt) if a.answered_at]
+    answered = sum(1 for a in resolved if a.answer_key is not None)
+    return answered, len(resolved) - answered
 
 
 @router.get(
@@ -472,9 +479,11 @@ async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
     practice_available = attempt.status is AttemptStatus.PENDING and bool(
         await quiz_service.practice_pool(db, attempt, company, job)
     )
+    answered, timed_out = await _progress(db, attempt)
     return QuizStateOut(
         status=attempt.status.value,
-        answered=await _answered_count(db, attempt),
+        answered=answered,
+        timed_out=timed_out,
         total=len(attempt.question_ids),
         candidate_name=application.candidate.name,
         company_name=company.name,
@@ -538,7 +547,7 @@ async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
     if served is None:
         return QuizNextOut(done=True)
     answer, question = served
-    answered = await _answered_count(db, attempt)
+    answered, timed_out = await _progress(db, attempt)
     return QuizNextOut(
         done=False,
         question=QuizQuestionOut(
@@ -550,7 +559,8 @@ async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
             ],
             time_limit_seconds=quiz_service.effective_time_limit(attempt, question),
             deadline_at=answer.deadline_at,
-            index=answered + 1,
+            # a missed question keeps its slot in the progression
+            index=answered + timed_out + 1,
             total=len(attempt.question_ids),
         ),
     )
@@ -690,10 +700,12 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         await db.execute(select(Company).where(Company.id == application.company_id))
     ).scalar_one()
     attempt = application.quiz_attempt
+    answered, timed_out = await _progress(db, attempt) if attempt is not None else (0, 0)
     quiz = (
         StatusQuizOut(
             status=attempt.status.value,
-            answered=await _answered_count(db, attempt),
+            answered=answered,
+            timed_out=timed_out,
             total=len(attempt.question_ids),
             completed_at=attempt.completed_at,
         )

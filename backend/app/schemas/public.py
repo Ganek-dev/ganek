@@ -162,6 +162,7 @@ class StatusQuizOut(BaseModel):
 
     status: str
     answered: int
+    timed_out: int
     total: int
     completed_at: datetime | None
 
@@ -207,6 +208,7 @@ class QuizStateOut(BaseModel):
 
     status: str
     answered: int
+    timed_out: int
     total: int
     candidate_name: str
     company_name: str

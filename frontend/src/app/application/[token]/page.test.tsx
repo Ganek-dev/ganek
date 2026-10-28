@@ -37,6 +37,7 @@ function makeStatus(overrides: Partial<ApplicationStatus> = {}): ApplicationStat
     quiz: {
       status: "completed",
       answered: 12,
+      timed_out: 0,
       total: 12,
       completed_at: "2026-07-24T15:12:00Z",
     },
@@ -73,6 +74,23 @@ describe("StatusPage", () => {
     expect(screen.getByText(/private to you/)).toBeInTheDocument();
     // no score anywhere on a candidate surface
     expect(screen.queryByText(/%|score/i)).toBeNull();
+  });
+
+  it("shows timed-out questions separately in the assessment step", async () => {
+    mocked.status.mockResolvedValue(
+      makeStatus({
+        quiz: {
+          status: "completed",
+          answered: 6,
+          timed_out: 2,
+          total: 8,
+          completed_at: "2026-07-24T15:12:00Z",
+        },
+      }),
+    );
+    render(<StatusPage />);
+    expect(await screen.findByText(/6 answered, 2 timed out/)).toBeInTheDocument();
+    expect(screen.queryByText(/8 of 8 answered/)).not.toBeInTheDocument();
   });
 
   it("skips the assessment step when the job had no quiz", async () => {

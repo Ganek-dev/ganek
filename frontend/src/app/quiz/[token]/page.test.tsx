@@ -52,6 +52,7 @@ function makeState(overrides: Partial<QuizState> = {}): QuizState {
   return {
     status: "pending",
     answered: 0,
+    timed_out: 0,
     total: 2,
     candidate_name: "Jane Applicant",
     company_name: "Quiz Co",
@@ -249,6 +250,17 @@ describe("QuizPage", () => {
     const [url, blob] = beacon.mock.calls[0];
     expect(url).toBe("/api/v1/public/quiz/tok-123/events");
     expect(await blob.text()).toContain('"type":"paste"');
+  });
+
+  it("counts timed-out questions separately on the done screen", async () => {
+    mocked.state.mockResolvedValue(
+      makeState({ status: "completed", answered: 6, timed_out: 2, total: 8 }),
+    );
+    render(<QuizPage />);
+    expect(await screen.findByText(/submitted/)).toBeInTheDocument();
+    expect(screen.getByText("6 answered, 2 timed out")).toBeInTheDocument();
+    expect(screen.queryByText(/8 of 8 answered/)).not.toBeInTheDocument();
+    expect(screen.getByText("6 / 8")).toBeInTheDocument();
   });
 
   it("shows the completed state directly for finished attempts", async () => {
