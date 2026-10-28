@@ -176,7 +176,12 @@ stage_backend() {
       # implicitly, and without it .python-version wins and silently
       # rebuilds the venv on the wrong interpreter
       export UV_PYTHON="$py"
-      export GANEK_DATABASE_URL="postgresql+asyncpg://ganek:ganek@localhost:$PG_PORT/ganek_test"
+      # ssl=disable: asyncpg otherwise opens every connection with an SSLRequest
+      # probe, and Docker Desktop's port proxy drops that first byte about once
+      # per 600 connections under load ("rejected SSL upgrade", one random test
+      # red per run). Plain TCP to localhost needs no probe; CI's service
+      # container is on 5432 without a proxy and keeps the plain URL.
+      export GANEK_DATABASE_URL="postgresql+asyncpg://ganek:ganek@localhost:$PG_PORT/ganek_test?ssl=disable"
       export GANEK_S3_ENDPOINT_URL="http://localhost:$MINIO_PORT"
       export GANEK_S3_BUCKET=ganek-cvs-test
       uv sync --python "$py" --frozen -q \
