@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,6 +44,7 @@ const question: QuizQuestion = {
   ],
   time_limit_seconds: 15,
   deadline_at: new Date(Date.now() + 17000).toISOString(),
+  server_now: new Date().toISOString(),
   index: 1,
   total: 2,
 };
@@ -84,6 +85,106 @@ describe("QuizPage", () => {
     mocked.state.mockResolvedValue(makeState());
     mocked.answer.mockResolvedValue({ recorded: true });
     mocked.events.mockResolvedValue({ recorded: true });
+  });
+
+  it("never shows more time than the server granted when the client clock is behind", async () => {
+    const serverNow = Date.now() + 30_000; // server runs 30 s ahead of this browser
+    mocked.next.mockResolvedValueOnce({
+      done: false,
+      question: {
+        ...question,
+        server_now: new Date(serverNow).toISOString(),
+        deadline_at: new Date(serverNow + 15_000).toISOString(),
+      },
+    });
+    render(<QuizPage />);
+    await startRealAssessment();
+    const ring = await screen.findByLabelText("time remaining");
+    // uncorrected the ring would read 0:45 for a 15 s question
+    expect(ring.textContent).toMatch(/^0:1[0-5]$/);
+  });
+
+  it("keeps the question open when the client clock runs ahead of the server", async () => {
+    const serverNow = Date.now() - 30_000; // server runs 30 s behind this browser
+    mocked.next.mockResolvedValueOnce({
+      done: false,
+      question: {
+        ...question,
+        server_now: new Date(serverNow).toISOString(),
+        deadline_at: new Date(serverNow + 15_000).toISOString(),
+      },
+    });
+    render(<QuizPage />);
+    await startRealAssessment();
+    const ring = await screen.findByLabelText("time remaining");
+    // uncorrected the ring would read 0:00 and the question would be skipped
+    expect(ring.textContent).toMatch(/^0:1[0-5]$/);
+    expect(mocked.next).toHaveBeenCalledTimes(1);
+  });
+
+  it("caps the ring at the question's limit", async () => {
+    mocked.next.mockResolvedValueOnce({
+      done: false,
+      question: { ...question, deadline_at: new Date(Date.now() + 22_000).toISOString() },
+    });
+    render(<QuizPage />);
+    await startRealAssessment();
+    const ring = await screen.findByLabelText("time remaining");
+    expect(ring.textContent).toBe("0:15");
+  });
+
+  it("says time ran out, then moves on, when the deadline passes unanswered", async () => {
+    mocked.next
+      .mockResolvedValueOnce({
+        done: false,
+        question: { ...question, deadline_at: new Date(Date.now() + 400).toISOString() },
+      })
+      .mockResolvedValueOnce({ done: true, question: null });
+    render(<QuizPage />);
+    await startRealAssessment();
+    expect(await screen.findByRole("status")).toHaveTextContent("Time ran out - moving on");
+    // the question is still on screen while the notice shows: no layout jump
+    expect(screen.getByText("What does the GIL prevent?")).toBeInTheDocument();
+    // a late click during the pause changes nothing: the server scored a miss
+    await userEvent.click(screen.getByRole("button", { name: /Multiple processes/ }));
+    expect(await screen.findByText(/submitted/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(mocked.answer).not.toHaveBeenCalled();
+    expect(mocked.next).toHaveBeenCalledTimes(2);
+  });
+
+  it("resumes on the server's question with the server's time after a throttled tab", async () => {
+    // the real clock advances while the interval is suppressed, as in a
+    // background tab; becoming visible again must resync at once
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const start = Date.now();
+      mocked.next
+        .mockResolvedValueOnce({
+          done: false,
+          question: {
+            ...question,
+            server_now: new Date(start).toISOString(),
+            deadline_at: new Date(start + 15_000).toISOString(),
+          },
+        })
+        .mockResolvedValueOnce({ done: true, question: null });
+      render(<QuizPage />);
+      await startRealAssessment();
+      const ring = await screen.findByLabelText("time remaining");
+      expect(ring.textContent).toBe("0:15");
+      vi.setSystemTime(start + 20_000);
+      expect(ring.textContent).toBe("0:15"); // stale: the tab was throttled
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(ring.textContent).toBe("0:00");
+      expect(screen.getByRole("status")).toHaveTextContent("Time ran out - moving on");
+      // the server resolves the miss and serves whatever comes next
+      expect(await screen.findByText(/submitted/, {}, { timeout: 3000 })).toBeInTheDocument();
+      expect(mocked.next).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the start gate with the rules, then serves a question", async () => {

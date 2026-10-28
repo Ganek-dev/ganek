@@ -559,6 +559,7 @@ async def quiz_next(token: str, db: DbSession) -> QuizNextOut:
             ],
             time_limit_seconds=quiz_service.effective_time_limit(attempt, question),
             deadline_at=answer.deadline_at,
+            server_now=datetime.now(UTC),
             # a missed question keeps its slot in the progression
             index=answered + timed_out + 1,
             total=len(attempt.question_ids),

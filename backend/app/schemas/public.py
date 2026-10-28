@@ -199,6 +199,8 @@ class QuizQuestionOut(BaseModel):
     options: list[QuizOptionOut]  # in served (shuffled) order
     time_limit_seconds: int
     deadline_at: datetime
+    # server clock at serve time: the client corrects its own clock skew with it
+    server_now: datetime
     index: int
     total: int
 

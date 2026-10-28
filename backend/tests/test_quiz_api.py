@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import uuid4
 
 import pytest
@@ -116,6 +117,10 @@ async def test_apply_issues_quiz_token_and_full_run(client: AsyncClient) -> None
         question = body["question"]
         assert question["index"] == expected_index
         assert question["total"] == 4
+        # the client corrects its clock against this stamp; it never trails the deadline
+        assert datetime.fromisoformat(question["server_now"]) <= datetime.fromisoformat(
+            question["deadline_at"]
+        )
         assert len(question["options"]) == 4
         seen.add(question["id"])
 

@@ -655,6 +655,9 @@ export interface QuizQuestion {
   options: QuizOption[];
   time_limit_seconds: number;
   deadline_at: string;
+  // server clock when this payload was built; the client measures its skew
+  // against it so the ring never shows time the server has already spent
+  server_now: string;
   index: number;
   total: number;
 }

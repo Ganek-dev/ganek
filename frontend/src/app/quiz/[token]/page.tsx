@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
 import { answeredSummary } from "@/lib/quiz-progress";
+import { clockOffsetMs, useCountdownMs } from "@/lib/use-countdown";
 
 import { Captcha, isCaptchaError } from "@/components/Captcha";
 
@@ -24,18 +25,8 @@ import { Captcha, isCaptchaError } from "@/components/Captcha";
  * mid-question. Client timers are cosmetic; the server owns deadlines. */
 
 const RED = "var(--danger)";
-
-function useCountdownMs(deadline: string | null): number | null {
-  // remaining time is derived at render from a ticking clock - no state
-  // writes inside effects, and no bogus initial value racing the timer
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(timer);
-  }, []);
-  if (!deadline) return null;
-  return Math.max(0, new Date(deadline).getTime() - now);
-}
+// how long "time ran out" stays on screen before the next question is served
+const TIMED_OUT_PAUSE_MS = 900;
 
 function CountdownRing({
   remainingMs,
@@ -184,8 +175,21 @@ export default function QuizPage() {
   const [altcha, setAltcha] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<ReturnType<typeof isCaptchaError>>(null);
   const advancedFor = useRef<string | null>(null);
+  // the deadline effect reads the selection through a ref: a click during
+  // the "time ran out" pause must not cancel the pending advance
+  const selectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  // client-minus-server skew, read from the serve response; the ring and
+  // the late-lock check both estimate the server clock through it
+  const [clockOffset, setClockOffset] = useState(0);
 
-  const remainingMs = useCountdownMs(question?.deadline_at ?? null);
+  const remainingMs = useCountdownMs(
+    question?.deadline_at ?? null,
+    clockOffset,
+    question ? question.time_limit_seconds * 1000 : undefined,
+  );
   const flushTelemetry = useIntegrityTelemetry(
     token,
     phase === "question",
@@ -225,6 +229,7 @@ export default function QuizPage() {
             .then(setState)
             .catch(() => {});
         } else {
+          setClockOffset(clockOffsetMs(next.question.server_now));
           setQuestion(next.question);
           setPhase("question");
         }
@@ -283,7 +288,8 @@ export default function QuizPage() {
       // a dropped network must not silently score a miss: keep the question
       // open so the candidate can lock again - unless the deadline is gone
       // (the server resolves it either way) or this is the 0:00 auto-lock
-      const deadlinePassed = new Date(question.deadline_at).getTime() <= Date.now();
+      const deadlinePassed =
+        new Date(question.deadline_at).getTime() <= Date.now() - clockOffset;
       if (!recorded && !forced && !deadlinePassed) {
         setError(
           "We couldn't reach the server to record your answer - check your connection and lock again.",
@@ -294,7 +300,7 @@ export default function QuizPage() {
       flushTelemetry();
       advance();
     },
-    [question, busy, token, flushTelemetry, advance],
+    [question, busy, token, clockOffset, flushTelemetry, advance],
   );
 
   // deadline hit → lock whatever is selected (server grace decides), else
@@ -308,14 +314,17 @@ export default function QuizPage() {
       advancedFor.current !== question.id
     ) {
       advancedFor.current = question.id;
-      const submit = selected;
-      const timer = setTimeout(() => {
-        if (submit !== null) void lock(submit, { forced: true });
-        else advance();
-      }, 0);
+      const submit = selectedRef.current;
+      if (submit !== null) {
+        const timer = setTimeout(() => void lock(submit, { forced: true }), 0);
+        return () => clearTimeout(timer);
+      }
+      // a missed question says so (see timedOut below) before the next one
+      // appears, instead of the screen silently swapping mid-read
+      const timer = setTimeout(advance, TIMED_OUT_PAUSE_MS);
       return () => clearTimeout(timer);
     }
-  }, [phase, question, remainingMs, selected, lock, advance]);
+  }, [phase, question, remainingMs, lock, advance]);
 
   // keyboard: A-D (or beyond) selects, Enter locks
   useEffect(() => {
@@ -752,6 +761,8 @@ export default function QuizPage() {
   if (phase === "question" && question !== null) {
     const ms = remainingMs ?? question.time_limit_seconds * 1000;
     const seconds = Math.ceil(ms / 1000);
+    // deadline gone with nothing locked: the server scored a miss already
+    const timedOut = ms === 0 && selected === null;
     const missWarning = seconds <= 5 && selected === null;
     return (
       <main
@@ -770,8 +781,14 @@ export default function QuizPage() {
         <div className="flex-1">
           <div className="mx-auto flex w-full max-w-[680px] flex-col items-center px-4 pt-6 pb-8 sm:px-6 sm:pt-9">
             <CountdownRing remainingMs={ms} limitSeconds={question.time_limit_seconds} />
-            <div className="overline mt-3.5 text-[10.5px] text-g500 sm:mt-5 sm:text-[11.5px]">
-              Single choice · {question.time_limit_seconds}s for this question
+            <div
+              role={timedOut ? "status" : undefined}
+              className="overline mt-3.5 text-[10.5px] text-g500 sm:mt-5 sm:text-[11.5px]"
+              style={timedOut ? { color: RED } : undefined}
+            >
+              {timedOut
+                ? "Time ran out - moving on"
+                : `Single choice · ${question.time_limit_seconds}s for this question`}
             </div>
             <h1 className="quiz-stem mt-2.5 text-center font-heading text-[19px] leading-[1.35] font-medium [text-wrap:pretty] sm:mt-3.5 sm:text-[25px] sm:tracking-[-0.005em]">
               <ReactMarkdown components={inlineMd}>{question.prompt_md}</ReactMarkdown>
