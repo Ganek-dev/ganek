@@ -536,8 +536,10 @@ async def bulk_reject(
 
     Already-rejected/withdrawn rows, ids from another tenant, and unknown
     ids are silently excluded from the result rather than erroring - the
-    route derives `skipped` from the count difference. One activity entry
-    covers the whole call (only recorded when something was rejected).
+    route derives `skipped` from the count difference. One summary activity
+    entry covers the whole call for the dashboard feed (only recorded when
+    something was rejected) plus one `stage.changed{bulk: true}` per row so
+    the applicant timeline shows who rejected whom.
     """
     applications = list(
         (
@@ -561,8 +563,17 @@ async def bulk_reject(
         .all()
     )
     for application in applications:
+        previous = application.stage
         stamp_decision(application, ApplicationStage.REJECTED)
         application.stage = ApplicationStage.REJECTED
+        activity.record(
+            db,
+            company_id=company.id,
+            type=activity.STAGE_CHANGED,
+            actor_user_id=actor_user_id,
+            application_id=application.id,
+            payload={"from": previous.value, "to": ApplicationStage.REJECTED.value, "bulk": True},
+        )
     if applications:
         activity.record(
             db,

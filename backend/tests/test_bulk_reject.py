@@ -206,3 +206,18 @@ async def test_bulk_reject_records_one_activity_entry(client: AsyncClient) -> No
     bulk_entries = [row for row in feed if row["type"] == "applications.bulk_rejected"]
     assert len(bulk_entries) == 1
     assert bulk_entries[0]["payload"] == {"count": 2}
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_bulk_reject_records_a_stage_change_per_row(client: AsyncClient) -> None:
+    """The applicant timeline reads per-row rows; the feed summary stays."""
+    applicants, _ = await _company_with_applicants(client, 2)
+    ids = await _ids_by_email(client)
+    a, b = (ids[app["email"]] for app in applicants)
+    resp = await client.post("/api/v1/applications/bulk-reject", json={"application_ids": [a, b]})
+    assert resp.status_code == 200
+
+    feed = (await client.get("/api/v1/activity")).json()
+    moves = [row for row in feed if row["type"] == "stage.changed"]
+    assert sorted(row["application_id"] for row in moves) == sorted([a, b])
+    assert all(row["payload"] == {"from": "new", "to": "rejected", "bulk": True} for row in moves)
