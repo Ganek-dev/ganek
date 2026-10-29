@@ -57,7 +57,7 @@ describe("TimelineCard", () => {
       "Quiz started50m ago",
       "Assessment link issued2h ago",
       "Erika Muster added a note3h ago",
-      "Applied via linkedin1d ago",
+      "Applied1d ago",
     ]);
   });
 

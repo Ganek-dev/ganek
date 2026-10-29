@@ -69,7 +69,8 @@ export function describeEvent(event: TimelineEvent): { text: string; tone: Tone 
   const p = event.payload;
   switch (event.kind) {
     case "applied":
-      return { text: p.source ? `Applied via ${String(p.source)}` : "Applied", tone: "neutral" };
+      // the source sits in the panel header; repeating it here doubled the text
+      return { text: "Applied", tone: "neutral" };
     case "stage.changed": {
       if (p.to === "withdrawn" && !event.actor_label && !event.actor_email) {
         return { text: "Candidate withdrew", tone: "stage" };
