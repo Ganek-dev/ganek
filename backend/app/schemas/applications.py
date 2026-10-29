@@ -86,12 +86,15 @@ class ApplicationOut(BaseModel):
 
 class ApplicationPage(BaseModel):
     """One page of the pipeline (M5.7 H4). `stage_counts` covers the whole
-    job-filtered set - the stage pills are how you switch stages, so the
-    stage filter never narrows them."""
+    set the other filters match - the stage pills are how you switch
+    stages, so the stage filter never narrows them."""
 
     items: list[ApplicationOut]
     total: int
     stage_counts: dict[str, int]
+    # source facet for the filter control: company-wide distinct values,
+    # NULL folded into "direct"
+    sources: list[str] = []
 
 
 class StageUpdate(BaseModel):

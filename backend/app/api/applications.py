@@ -83,22 +83,84 @@ async def _get_or_404(
     return application
 
 
+def _list_filters(
+    *,
+    job_id: uuid.UUID | None,
+    stage: ApplicationStage | None,
+    q: str | None,
+    score_min: int | None,
+    quiz: applications_service.QuizState | None,
+    source: str | None,
+    flagged: bool | None,
+    since_days: int | None,
+    ids: tuple[uuid.UUID, ...] = (),
+) -> applications_service.ListFilters:
+    return applications_service.ListFilters(
+        job_id=job_id,
+        stage=stage,
+        q=(q or "").strip() or None,
+        score_min=score_min,
+        quiz=quiz,
+        source=source,
+        flagged=flagged,
+        since_days=since_days,
+        ids=ids,
+    )
+
+
+def _parse_ids(raw: str | None) -> tuple[uuid.UUID, ...]:
+    """`ids=a,b,c` on the export: the bulk bar's selection, same cap as
+    bulk reject."""
+    if raw is None or raw.strip() == "":
+        return ()
+    parts = [part.strip() for part in raw.split(",") if part.strip()]
+    if len(parts) > applications_service.EXPORT_IDS_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Up to {applications_service.EXPORT_IDS_MAX} ids per export",
+        )
+    try:
+        return tuple(uuid.UUID(part) for part in parts)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="ids must be UUIDs"
+        ) from exc
+
+
 @router.get("", response_model=ApplicationPage)
 async def list_applications(
     db: DbSession,
     company: ApiCompany,
     job_id: uuid.UUID | None = None,
     stage: ApplicationStage | None = None,
+    q: str | None = Query(default=None, max_length=applications_service.SEARCH_MAX_LENGTH),
+    score_min: int | None = Query(default=None, ge=0, le=100),
+    quiz: applications_service.QuizState | None = None,
+    source: str | None = Query(default=None, max_length=100),
+    flagged: bool | None = None,
+    since_days: int | None = Query(default=None, ge=1, le=365),
+    sort: applications_service.SortKey = "applied_desc",
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> ApplicationPage:
+    filters = _list_filters(
+        job_id=job_id,
+        stage=stage,
+        q=q,
+        score_min=score_min,
+        quiz=quiz,
+        source=source,
+        flagged=flagged,
+        since_days=since_days,
+    )
     items, total = await applications_service.list_applications(
-        db, company, job_id=job_id, stage=stage, limit=limit, offset=offset
+        db, company, filters=filters, sort=sort, limit=limit, offset=offset
     )
     return ApplicationPage(
         items=[ApplicationOut.model_validate(item) for item in items],
         total=total,
-        stage_counts=await applications_service.count_by_stage(db, company, job_id=job_id),
+        stage_counts=await applications_service.count_by_stage(db, company, filters=filters),
+        sources=await applications_service.list_sources(db, company),
     )
 
 
@@ -110,12 +172,32 @@ async def export_applications(
     format: Literal["csv", "json"] = "csv",
     job_id: uuid.UUID | None = None,
     stage: ApplicationStage | None = None,
+    q: str | None = Query(default=None, max_length=applications_service.SEARCH_MAX_LENGTH),
+    score_min: int | None = Query(default=None, ge=0, le=100),
+    quiz: applications_service.QuizState | None = None,
+    source: str | None = Query(default=None, max_length=100),
+    flagged: bool | None = None,
+    since_days: int | None = Query(default=None, ge=1, le=365),
+    ids: str | None = None,
 ) -> Response:
     """The current filter as a file (card D9): flat rows, no internal ids,
     quiz columns at summary level. Admin only; one activity entry per
-    export names who pulled how many rows. Declared before the
-    /{application_id} routes so "export" is never parsed as an id."""
-    rows = await applications_service.export_applications(db, company, job_id=job_id, stage=stage)
+    export names who pulled how many rows. Takes every list filter plus
+    `ids` (the bulk bar's selection) so the file is always the rows on
+    screen. Declared before the /{application_id} routes so "export" is
+    never parsed as an id."""
+    filters = _list_filters(
+        job_id=job_id,
+        stage=stage,
+        q=q,
+        score_min=score_min,
+        quiz=quiz,
+        source=source,
+        flagged=flagged,
+        since_days=since_days,
+        ids=_parse_ids(ids),
+    )
+    rows = await applications_service.export_applications(db, company, filters=filters)
     actor = await _session_user_or_none(request, db)
     activity.record(
         db,
@@ -127,6 +209,11 @@ async def export_applications(
             "rows": len(rows),
             "stage": stage.value if stage is not None else None,
             "job_id": str(job_id) if job_id is not None else None,
+            "filtered": any(
+                value is not None
+                for value in (filters.q, score_min, quiz, source, flagged, since_days)
+            )
+            or bool(filters.ids),
         },
     )
     await db.commit()

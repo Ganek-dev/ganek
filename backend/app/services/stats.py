@@ -348,7 +348,9 @@ async def job_stats(db: AsyncSession, company: Company, job: Job) -> JobStats:
     return JobStats(
         applications=ApplicationCounts(total=row[0], new=row[1], last_7_days=row[2]),
         last_30_days=row[3],
-        by_stage=await applications_service.count_by_stage(db, company, job_id=job.id),
+        by_stage=await applications_service.count_by_stage(
+            db, company, filters=applications_service.ListFilters(job_id=job.id)
+        ),
         by_source=by_source,
         quiz=await _quiz_counts(db, company, job_id=job.id),
         weekly=await _weekly(db, company, job_id=job.id),
