@@ -82,6 +82,9 @@ async function startRealAssessment() {
 describe("QuizPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks keeps mockResolvedValueOnce queues: a test that fails
+    // before draining its queue would otherwise feed the next test
+    mocked.next.mockReset();
     mocked.state.mockResolvedValue(makeState());
     mocked.answer.mockResolvedValue({ recorded: true });
     mocked.events.mockResolvedValue({ recorded: true });
@@ -142,7 +145,10 @@ describe("QuizPage", () => {
       .mockResolvedValueOnce({ done: true, question: null });
     render(<QuizPage />);
     await startRealAssessment();
-    expect(await screen.findByRole("status")).toHaveTextContent("Time ran out - moving on");
+    // real 400 ms deadline plus a 200 ms tick: give a loaded CI runner room
+    expect(await screen.findByRole("status", {}, { timeout: 3000 })).toHaveTextContent(
+      "Time ran out - moving on",
+    );
     // the question is still on screen while the notice shows: no layout jump
     expect(screen.getByText("What does the GIL prevent?")).toBeInTheDocument();
     // a late click during the pause changes nothing: the server scored a miss
