@@ -1,14 +1,20 @@
 import uuid
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, SQLColumnExpression, cast, func, literal, or_, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from app.core.config import settings
 from app.core.sources import normalize_source
 from app.models import Application, ApplicationStage, Candidate, Company, Job
+from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
 from app.services import activity, storage, webhooks
 
@@ -100,12 +106,147 @@ async def submit_application(
     return application
 
 
+SortKey = Literal["applied_desc", "applied_asc", "score_desc", "score_asc", "name_asc"]
+QuizState = Literal["none", "pending", "in_progress", "completed", "expired"]
+
+SEARCH_MAX_LENGTH = 200
+EXPORT_IDS_MAX = 100
+
+
+@dataclass(frozen=True)
+class ListFilters:
+    """What the applicant list, its stage counts and its export share, so
+    the file a recruiter downloads is always the rows on screen.
+
+    `q` searches candidate name and email (substring, case-insensitive,
+    LIKE wildcards in the text are literal). `score_min` is a percent of the
+    latest attempt. `quiz` reads the latest attempt; a pending link past its
+    expiry counts as expired even before the candidate clicks it (the column
+    only flips on that visit). `source == "direct"` also matches NULL (an
+    application without a recorded source). `since_days` is a window on
+    `created_at`. `ids` restricts to a selection (bulk export).
+    """
+
+    job_id: uuid.UUID | None = None
+    stage: ApplicationStage | None = None
+    q: str | None = None
+    score_min: int | None = None
+    quiz: QuizState | None = None
+    source: str | None = None
+    flagged: bool | None = None
+    since_days: int | None = None
+    ids: tuple[uuid.UUID, ...] = ()
+
+
+def _latest_attempt_id() -> ScalarSelect[uuid.UUID]:
+    """The attempt that counts, matching `Application.quiz_attempt`: the
+    newest row; older ones are re-issue history."""
+    return (
+        select(QuizAttempt.id)
+        .where(QuizAttempt.application_id == Application.id)
+        .order_by(QuizAttempt.created_at.desc(), QuizAttempt.id.desc())
+        .limit(1)
+        .correlate(Application)
+        .scalar_subquery()
+    )
+
+
+def _escape_like(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _flag_count() -> ColumnElement[int]:
+    return func.jsonb_array_length(
+        func.coalesce(QuizAttempt.integrity["flags"], cast(literal("[]"), JSONB))
+    )
+
+
+def _conditions(
+    company: Company, filters: ListFilters, *, include_stage: bool
+) -> list[ColumnElement[bool]]:
+    conditions: list[ColumnElement[bool]] = [Application.company_id == company.id]
+    if filters.job_id is not None:
+        conditions.append(Application.job_id == filters.job_id)
+    if include_stage and filters.stage is not None:
+        conditions.append(Application.stage == filters.stage)
+    if filters.ids:
+        conditions.append(Application.id.in_(filters.ids))
+    if filters.q:
+        pattern = f"%{_escape_like(filters.q.strip())}%"
+        conditions.append(
+            or_(
+                Candidate.name.ilike(pattern, escape="\\"),
+                Candidate.email.ilike(pattern, escape="\\"),
+            )
+        )
+    if filters.score_min is not None:
+        conditions.append(QuizAttempt.score >= filters.score_min / 100)
+    if filters.quiz is not None:
+        now = datetime.now(UTC)
+        if filters.quiz == "none":
+            conditions.append(QuizAttempt.id.is_(None))
+        elif filters.quiz == "pending":
+            conditions.append(QuizAttempt.status == AttemptStatus.PENDING)
+            conditions.append(QuizAttempt.expires_at >= now)
+        elif filters.quiz == "expired":
+            conditions.append(
+                or_(
+                    QuizAttempt.status == AttemptStatus.EXPIRED,
+                    (QuizAttempt.status == AttemptStatus.PENDING) & (QuizAttempt.expires_at < now),
+                )
+            )
+        else:
+            conditions.append(QuizAttempt.status == AttemptStatus(filters.quiz))
+    if filters.source is not None:
+        if filters.source == "direct":
+            conditions.append(or_(Application.source.is_(None), Application.source == "direct"))
+        else:
+            conditions.append(Application.source == filters.source)
+    if filters.flagged is True:
+        conditions.append(_flag_count() > 0)
+    elif filters.flagged is False:
+        conditions.append(or_(QuizAttempt.id.is_(None), _flag_count() == 0))
+    if filters.since_days is not None:
+        conditions.append(
+            Application.created_at >= datetime.now(UTC) - timedelta(days=filters.since_days)
+        )
+    return conditions
+
+
+def _filtered(
+    company: Company, filters: ListFilters, *columns: Any, include_stage: bool = True
+) -> Select[Any]:
+    """A select over applications joined to the candidate and the latest
+    attempt, narrowed by the filters. Always joins: the planner skips the
+    unused ones cheaply and the ordering clauses need them anyway."""
+    return (
+        select(*columns)
+        .select_from(Application)
+        .join(Candidate, Candidate.id == Application.candidate_id)
+        .outerjoin(QuizAttempt, QuizAttempt.id == _latest_attempt_id())
+        .where(*_conditions(company, filters, include_stage=include_stage))
+    )
+
+
+def _order_by(sort: SortKey) -> list[SQLColumnExpression[Any]]:
+    newest: list[SQLColumnExpression[Any]] = [Application.created_at.desc(), Application.id]
+    if sort == "applied_asc":
+        return [Application.created_at.asc(), Application.id]
+    if sort == "score_desc":
+        return [QuizAttempt.score.desc().nulls_last(), *newest]
+    if sort == "score_asc":
+        return [QuizAttempt.score.asc().nulls_last(), *newest]
+    if sort == "name_asc":
+        return [func.lower(Candidate.name), *newest]
+    return newest
+
+
 async def list_applications(
     db: AsyncSession,
     company: Company,
     *,
-    job_id: uuid.UUID | None = None,
-    stage: ApplicationStage | None = None,
+    filters: ListFilters | None = None,
+    sort: SortKey = "applied_desc",
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[list[Application], int]:
@@ -114,26 +255,31 @@ async def list_applications(
     M5.7 H4: the old version materialized every row (candidate + all quiz
     attempts + integrity JSONB) per visit - the first scale cliff.
     """
-    conditions = [Application.company_id == company.id]
-    if job_id is not None:
-        conditions.append(Application.job_id == job_id)
-    if stage is not None:
-        conditions.append(Application.stage == stage)
-    total = (
-        await db.execute(select(func.count()).select_from(Application).where(*conditions))
-    ).scalar_one()
+    filters = filters or ListFilters()
+    total = (await db.execute(_filtered(company, filters, func.count()))).scalar_one()
     query = (
-        select(Application)
-        .where(*conditions)
+        _filtered(company, filters, Application)
         .options(
             selectinload(Application.candidate),
             selectinload(Application.quiz_attempts),
         )
-        .order_by(Application.created_at.desc(), Application.id)
+        .order_by(*_order_by(sort))
         .limit(limit)
         .offset(offset)
     )
     return list((await db.execute(query)).scalars().all()), total
+
+
+async def list_sources(db: AsyncSession, company: Company) -> list[str]:
+    """The source facet: every distinct value this company has seen, NULL
+    folded into "direct", sorted. Company-wide on purpose so an empty
+    result still offers the options."""
+    rows = await db.execute(
+        select(func.coalesce(Application.source, "direct"))
+        .where(Application.company_id == company.id)
+        .distinct()
+    )
+    return sorted(str(value) for (value,) in rows.all())
 
 
 EXPORT_COLUMNS = (
@@ -192,18 +338,11 @@ async def export_applications(
     db: AsyncSession,
     company: Company,
     *,
-    job_id: uuid.UUID | None = None,
-    stage: ApplicationStage | None = None,
+    filters: ListFilters | None = None,
 ) -> list[dict[str, str | int]]:
     """Every application the filters match, oldest first, as export rows."""
-    conditions = [Application.company_id == company.id]
-    if job_id is not None:
-        conditions.append(Application.job_id == job_id)
-    if stage is not None:
-        conditions.append(Application.stage == stage)
     query = (
-        select(Application)
-        .where(*conditions)
+        _filtered(company, filters or ListFilters(), Application)
         .options(
             selectinload(Application.candidate),
             selectinload(Application.job),
@@ -215,15 +354,14 @@ async def export_applications(
 
 
 async def count_by_stage(
-    db: AsyncSession, company: Company, *, job_id: uuid.UUID | None = None
+    db: AsyncSession, company: Company, *, filters: ListFilters | None = None
 ) -> dict[str, int]:
-    """Pipeline pill counts for the WHOLE filtered set (stage filter never
-    applies - the pills are how you switch stages)."""
-    conditions = [Application.company_id == company.id]
-    if job_id is not None:
-        conditions.append(Application.job_id == job_id)
+    """Pipeline pill counts for the WHOLE filtered set (the stage filter
+    never applies - the pills are how you switch stages)."""
     rows = await db.execute(
-        select(Application.stage, func.count()).where(*conditions).group_by(Application.stage)
+        _filtered(
+            company, filters or ListFilters(), Application.stage, func.count(), include_stage=False
+        ).group_by(Application.stage)
     )
     return {stage.value: count for stage, count in rows.all()}
 
