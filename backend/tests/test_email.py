@@ -439,3 +439,29 @@ def test_send_interview_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert len(FakeSMTP.sent) == 1
     assert "cancelled" in FakeSMTP.sent[0]["Subject"]
+
+
+def test_stage_senders_send_exactly_what_the_renderer_produces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The preview endpoint renders through email_render; the senders must
+    deliver the same bytes or the recruiter reads one email and the
+    candidate another."""
+    from app.services import email_render
+
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    kwargs = _invite_kwargs()
+    expected = email_render.render(
+        "quiz_invite",
+        email_render.BUILTIN["quiz_invite"],
+        {k: v for k, v in kwargs.items() if k not in ("to", "ref")},
+    )
+
+    email_service.send_quiz_invite(**kwargs)
+
+    message = FakeSMTP.sent[0]
+    text, html = _sent_parts(message)
+    assert message["Subject"] == expected.subject
+    assert text.rstrip("\n") == expected.text.rstrip("\n")
+    assert html.rstrip("\n") == expected.html.rstrip("\n")
