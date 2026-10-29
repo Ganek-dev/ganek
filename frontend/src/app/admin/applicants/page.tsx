@@ -40,8 +40,8 @@ import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/Applican
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
-import { EmailTrailCard } from "@/components/EmailTrailCard";
 import { NotesCard } from "@/components/NotesCard";
+import { TimelineCard } from "@/components/TimelineCard";
 import {
   Dialog,
   DialogContent,
@@ -521,6 +521,7 @@ function DetailPanel({
   onErase,
   onUpdateEmail,
   now,
+  trailTick,
 }: {
   app: ApplicationOut;
   jobTitle: string;
@@ -532,6 +533,7 @@ function DetailPanel({
   onErase: () => Promise<boolean>;
   onUpdateEmail: (email: string) => Promise<string | null>;
   now: Date;
+  trailTick: number;
 }) {
   const [notify, setNotify] = useState(false);
   const [reminded, setReminded] = useState(false);
@@ -809,7 +811,12 @@ function DetailPanel({
         </p>
       ) : null}
 
-      <EmailTrailCard key={`emails-${app.id}`} applicationId={app.id} />
+      <TimelineCard
+        key={`timeline-${app.id}`}
+        applicationId={app.id}
+        now={now}
+        refreshKey={trailTick}
+      />
       <AccessTrailCard key={`access-${app.id}`} applicationId={app.id} now={now} />
       <NotesCard key={app.id} applicationId={app.id} />
     </div>
@@ -841,6 +848,8 @@ function ApplicantsContent() {
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});
   const loadingAnswersFor = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // bumps after panel actions that write a timeline row, so the trail refetches
+  const [trailTick, setTrailTick] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -999,6 +1008,7 @@ function ApplicantsContent() {
     setError(null);
     try {
       await applications.setStage(id, stage, notify);
+      setTrailTick((tick) => tick + 1);
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stage change failed");
@@ -1009,6 +1019,7 @@ function ApplicantsContent() {
     setError(null);
     try {
       await applications.remind(id);
+      setTrailTick((tick) => tick + 1);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reminder failed");
@@ -1321,6 +1332,7 @@ function ApplicantsContent() {
             onErase={() => eraseCandidate(selected.id)}
             onUpdateEmail={(email) => updateCandidateEmail(selected.id, email)}
             now={now}
+            trailTick={trailTick}
           />
         ) : items === null ? (
           <div className="card h-[540px] animate-pulse" />
