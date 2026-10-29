@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -153,6 +153,19 @@ class BulkStageIn(BaseModel):
 class BulkStageOut(BaseModel):
     updated: int
     skipped: int
+
+
+EmailKind = Literal["quiz_invite", "quiz_reminder", "stage_advance", "rejection"]
+
+
+class EmailPreviewOut(BaseModel):
+    """A candidate stage mail rendered for one application: what the
+    recruiter reads in the preview and what the sender delivers."""
+
+    kind: EmailKind
+    subject: str
+    text: str
+    html: str
 
 
 class EmailDeliveryOut(BaseModel):
