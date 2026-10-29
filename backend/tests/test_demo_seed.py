@@ -21,7 +21,7 @@ from app.models import (
     QuizAttempt,
     User,
 )
-from app.services import demo_seed, storage
+from app.services import demo_seed, quiz, storage
 from tests.db import database_reachable, s3_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -84,6 +84,17 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
     assert len(completed) == 11
     assert all(a.score is not None and 0.0 < a.score < 1.0 for a in completed)
     assert any(a.integrity.get("flags") for a in completed)
+    # the blur story names its questions by serve order, the numbering the
+    # review page gives the event log, so the two can never disagree
+    blurred = next(
+        a for a in completed if any(f["code"] == "tab_hidden" for f in a.integrity["flags"])
+    )
+    flag = next(f for f in blurred.integrity["flags"] if f["code"] == "tab_hidden")
+    served = await quiz.resolved_answers(db_session, blurred)
+    assert [a.question_id for a in served] == blurred.question_ids  # taken in order
+    positions = [i + 1 for i, a in enumerate(served) if a.question_id in flag["question_ids"]]
+    assert positions == [3, 5]
+    assert flag["detail"].endswith("Occurred during Q3, Q5.")
     # a quiz nobody rushed: answers took seconds, not milliseconds
     assert all(a.integrity.get("avg_answer_ms", 0) > 2000 for a in completed)
     # a lived-in workspace, not one created this second

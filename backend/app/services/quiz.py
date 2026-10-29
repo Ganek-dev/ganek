@@ -452,17 +452,22 @@ def _events_by_type(integrity: dict[str, Any], kind: str) -> list[dict[str, Any]
     return [e for e in integrity.get("events", []) if e.get("type") == kind]
 
 
-def _question_positions(question_ids: list[str], attempt: QuizAttempt) -> str:
-    positions = sorted(
-        attempt.question_ids.index(qid) + 1 for qid in question_ids if qid in attempt.question_ids
-    )
+def _question_positions(question_ids: list[str], answers: list[AttemptAnswer]) -> str:
+    """ "Q3, Q5" by serve order: ``answers`` is sorted by served_at, the same
+    numbering the review page gives the event log and the session timeline,
+    so the flag text and the log can never name different questions."""
+    order = {answer.question_id: index + 1 for index, answer in enumerate(answers)}
+    positions = sorted(order[qid] for qid in question_ids if qid in order)
     return ", ".join(f"Q{p}" for p in positions)
 
 
 def _integrity_flags(
-    integrity: dict[str, Any], answers: list[AttemptAnswer], attempt: QuizAttempt
+    integrity: dict[str, Any], answers: list[AttemptAnswer]
 ) -> list[dict[str, Any]]:
-    """Structured flags: what was detected, why it was flagged, and where."""
+    """Structured flags: what was detected, why it was flagged, and where.
+
+    ``answers`` must be in serve order (see ``resolved_answers``).
+    """
     flags: list[dict[str, Any]] = []
 
     blur_events = _events_by_type(integrity, "blur")
@@ -470,7 +475,7 @@ def _integrity_flags(
     if blur_count:
         seconds = round(int(integrity.get("blur_total_ms", 0) or 0) / 1000)
         question_ids = sorted({e["question_id"] for e in blur_events if e.get("question_id")})
-        where = _question_positions(question_ids, attempt)
+        where = _question_positions(question_ids, answers)
         flags.append(
             {
                 "code": "tab_hidden",
@@ -490,7 +495,7 @@ def _integrity_flags(
     paste_count = int(integrity.get("paste_count", 0) or 0)
     if paste_count:
         question_ids = sorted({e["question_id"] for e in paste_events if e.get("question_id")})
-        where = _question_positions(question_ids, attempt)
+        where = _question_positions(question_ids, answers)
         flags.append(
             {
                 "code": "paste",
@@ -514,7 +519,7 @@ def _integrity_flags(
         integrity["avg_answer_ms"] = int(avg * 1000)
         if avg < 3 and len(timed) == len(answers):
             fast_ids = [a.question_id for a, seconds in timed if seconds < 3]
-            where = _question_positions(fast_ids, attempt)
+            where = _question_positions(fast_ids, answers)
             flags.append(
                 {
                     "code": "very_fast",
@@ -552,7 +557,7 @@ async def _finalize(db: AsyncSession, attempt: QuizAttempt) -> None:
     attempt.score = correct / total if total else 0.0
     attempt.per_tag_scores = per_tag
     integrity = dict(attempt.integrity)
-    integrity["flags"] = _integrity_flags(integrity, answers, attempt)
+    integrity["flags"] = _integrity_flags(integrity, answers)
     attempt.integrity = integrity
     attempt.status = AttemptStatus.COMPLETED
     attempt.completed_at = _now()
