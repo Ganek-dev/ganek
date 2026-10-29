@@ -582,6 +582,15 @@ function applicationParams(filters: ApplicationFilters | undefined): URLSearchPa
   return params;
 }
 
+export type EmailKind = "quiz_invite" | "quiz_reminder" | "stage_advance" | "rejection";
+
+export interface EmailPreview {
+  kind: EmailKind;
+  subject: string;
+  text: string;
+  html: string;
+}
+
 export const applications = {
   /** GET /applications/export as a plain download URL (card D9): a link
    * with the session cookie is enough, so no fetch and no blob juggling. */
@@ -602,6 +611,10 @@ export const applications = {
       method: "PATCH",
       body: JSON.stringify({ stage, notify_candidate: notifyCandidate }),
     }),
+  /** The stage mail rendered for this candidate, exactly what the sender
+   * delivers (card "Candidate emails"); nothing is queued. */
+  emailPreview: (id: string, kind: EmailKind) =>
+    request<EmailPreview>(`/api/v1/applications/${id}/email-preview?kind=${kind}`),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
   remind: (id: string) =>

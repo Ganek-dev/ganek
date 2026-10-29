@@ -3,7 +3,7 @@ import io
 import math
 import uuid
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
@@ -44,6 +44,8 @@ from app.schemas.applications import (
     CandidateEmailUpdate,
     CvDownload,
     EmailDeliveryOut,
+    EmailKind,
+    EmailPreviewOut,
     EraseCandidateOut,
     ExtraTimeIn,
     NoteCreate,
@@ -56,7 +58,7 @@ from app.schemas.applications import (
 )
 from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
-from app.services import access_log, activity, google_calendar, storage
+from app.services import access_log, activity, email_render, google_calendar, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
@@ -420,25 +422,35 @@ async def remind_candidate(
             status_code=status.HTTP_409_CONFLICT,
             detail="No pending assessment to remind about",
         )
-    days_left = max(0, math.ceil((attempt.expires_at - now).total_seconds() / 86400))
     await outbox_service.queue_email(
         db,
         kind="quiz_reminder",
         company_id=company.id,
         application_id=application.id,
-        to=application.candidate.email,
-        ref=str(application.id),
-        candidate_name=application.candidate.name,
-        job_title=application.job.title,
-        company_name=company.name,
-        brand_primary=(company.theme or {}).get("primary_color"),
-        quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
-        expires_at=attempt.expires_at,
-        days_left=days_left,
-        controller_name=company_service.controller_name(company),
-        privacy_url=urls.privacy_notice_url(company),
+        **_reminder_kwargs(company, application, attempt, now),
     )
     return {"sent": True}
+
+
+def _reminder_kwargs(
+    company: Company, application: Application, attempt: QuizAttempt, now: datetime
+) -> dict[str, Any]:
+    """Keyword arguments of ``email.send_quiz_reminder`` (17b): shared by the
+    remind endpoint and the preview so the two cannot drift."""
+    days_left = max(0, math.ceil((attempt.expires_at - now).total_seconds() / 86400))
+    return {
+        "to": application.candidate.email,
+        "ref": str(application.id),
+        "candidate_name": application.candidate.name,
+        "job_title": application.job.title,
+        "company_name": company.name,
+        "brand_primary": (company.theme or {}).get("primary_color"),
+        "quiz_url": urls.quiz_url(company, create_quiz_token(attempt.id)),
+        "expires_at": attempt.expires_at,
+        "days_left": days_left,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
 
 
 @router.get("/{application_id}/notes", response_model=list[NoteOut])
@@ -562,19 +574,28 @@ async def _queue_quiz_invite(
         kind="quiz_invite",
         company_id=company.id,
         application_id=application.id,
-        to=application.candidate.email,
-        ref=str(application.id),
-        candidate_name=application.candidate.name,
-        job_title=application.job.title,
-        company_name=company.name,
-        brand_primary=(company.theme or {}).get("primary_color"),
-        quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
-        question_count=len(attempt.question_ids),
-        seconds_per_question=quiz_service.seconds_per_question(attempt),
-        expires_at=attempt.expires_at,
-        controller_name=company_service.controller_name(company),
-        privacy_url=urls.privacy_notice_url(company),
+        **_quiz_invite_kwargs(company, application, attempt),
     )
+
+
+def _quiz_invite_kwargs(
+    company: Company, application: Application, attempt: QuizAttempt
+) -> dict[str, Any]:
+    """Keyword arguments of ``email.send_quiz_invite`` (17a)."""
+    return {
+        "to": application.candidate.email,
+        "ref": str(application.id),
+        "candidate_name": application.candidate.name,
+        "job_title": application.job.title,
+        "company_name": company.name,
+        "brand_primary": (company.theme or {}).get("primary_color"),
+        "quiz_url": urls.quiz_url(company, create_quiz_token(attempt.id)),
+        "question_count": len(attempt.question_ids),
+        "seconds_per_question": quiz_service.seconds_per_question(attempt),
+        "expires_at": attempt.expires_at,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
 
 
 @router.post("/{application_id}/quiz/extra-time", response_model=QuizResultOut)
@@ -792,24 +813,44 @@ async def _queue_rejection_email(
     db: DbSession, company: CurrentCompany, application: Application
 ) -> None:
     """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
-    candidate = application.candidate
-    job = application.job
-    attempt = application.quiz_attempt
     await outbox_service.queue_email(
         db,
         kind="rejection",
         company_id=company.id,
         application_id=application.id,
-        to=candidate.email,
-        ref=str(application.id),
-        candidate_name=candidate.name,
-        job_title=job.title,
-        company_name=company.name,
-        careers_url=urls.careers_url(company),
-        completed_assessment=attempt is not None and attempt.completed_at is not None,
-        controller_name=company_service.controller_name(company),
-        privacy_url=urls.privacy_notice_url(company),
+        **_rejection_kwargs(company, application),
     )
+
+
+def _rejection_kwargs(company: Company, application: Application) -> dict[str, Any]:
+    """Keyword arguments of ``email.send_rejection`` (22b)."""
+    attempt = application.quiz_attempt
+    return {
+        "to": application.candidate.email,
+        "ref": str(application.id),
+        "candidate_name": application.candidate.name,
+        "job_title": application.job.title,
+        "company_name": company.name,
+        "careers_url": urls.careers_url(company),
+        "completed_assessment": attempt is not None and attempt.completed_at is not None,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
+
+
+def _stage_advance_kwargs(company: Company, application: Application) -> dict[str, Any]:
+    """Keyword arguments of ``email.send_stage_advance`` (22a)."""
+    return {
+        "to": application.candidate.email,
+        "ref": str(application.id),
+        "candidate_name": application.candidate.name,
+        "job_title": application.job.title,
+        "company_name": company.name,
+        "brand_primary": (company.theme or {}).get("primary_color"),
+        "status_url": urls.status_url(company, create_status_token(application.id)),
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
 
 
 async def _queue_stage_email(
@@ -820,22 +861,12 @@ async def _queue_stage_email(
 ) -> None:
     """Queue 22a/22b for stages with a template; other stages are a no-op."""
     if stage is ApplicationStage.INTERVIEW:
-        candidate = application.candidate
-        job = application.job
         await outbox_service.queue_email(
             db,
             kind="stage_advance",
             company_id=company.id,
             application_id=application.id,
-            to=candidate.email,
-            ref=str(application.id),
-            candidate_name=candidate.name,
-            job_title=job.title,
-            company_name=company.name,
-            brand_primary=(company.theme or {}).get("primary_color"),
-            status_url=urls.status_url(company, create_status_token(application.id)),
-            controller_name=company_service.controller_name(company),
-            privacy_url=urls.privacy_notice_url(company),
+            **_stage_advance_kwargs(company, application),
         )
     elif stage is ApplicationStage.REJECTED:
         await _queue_rejection_email(db, company, application)
@@ -856,6 +887,52 @@ async def cv_download_url(
     return CvDownload(
         download_url=storage.presign_cv_download(application.cv_object_key, application.cv_filename)
     )
+
+
+@router.get("/{application_id}/email-preview", response_model=EmailPreviewOut)
+async def email_preview(
+    application_id: uuid.UUID, kind: EmailKind, db: DbSession, company: CurrentCompany
+) -> EmailPreviewOut:
+    """The stage mail as this candidate would receive it (card "Candidate
+    emails"): the same context the queue helpers build, rendered through the
+    same function the sender uses, so the recruiter reads what goes out.
+    Nothing is queued; works on a demo instance too."""
+    application = await _get_or_404(db, company, application_id)
+    attempt = application.quiz_attempt
+    now = datetime.now(UTC)
+    kwargs: dict[str, Any]
+    if kind == "rejection":
+        kwargs = _rejection_kwargs(company, application)
+    elif kind == "stage_advance":
+        kwargs = _stage_advance_kwargs(company, application)
+    elif kind == "quiz_invite":
+        if attempt is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_ASSESSMENT)
+        kwargs = _quiz_invite_kwargs(company, application, attempt)
+    else:
+        if (
+            attempt is None
+            or attempt.status is not AttemptStatus.PENDING
+            or attempt.expires_at <= now
+        ):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_ASSESSMENT)
+        kwargs = _reminder_kwargs(company, application, attempt, now)
+    context = {key: value for key, value in kwargs.items() if key not in ("to", "ref")}
+    # the status and quiz links carry the candidate's signed token (withdraw,
+    # request data, take the assessment); the recruiter sees the link shape
+    # with a placeholder instead, never the capability itself
+    if "status_url" in context:
+        context["status_url"] = urls.status_url(company, PREVIEW_LINK_PLACEHOLDER)
+    if "quiz_url" in context:
+        context["quiz_url"] = urls.quiz_url(company, PREVIEW_LINK_PLACEHOLDER)
+    rendered = email_render.render(kind, email_render.BUILTIN[kind], context)
+    return EmailPreviewOut(
+        kind=kind, subject=rendered.subject, text=rendered.text, html=rendered.html
+    )
+
+
+NO_ASSESSMENT = "No assessment to preview"
+PREVIEW_LINK_PLACEHOLDER = "personal-link"
 
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])

@@ -37,6 +37,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       timeline: vi.fn(),
       accessLog: vi.fn(),
       remind: vi.fn(),
+      emailPreview: vi.fn(),
       bulkReject: vi.fn(),
       bulkStage: vi.fn(),
       eraseCandidate: vi.fn(),
@@ -186,6 +187,12 @@ describe("ApplicantsPage", () => {
     mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
     mockedApps.quizAnswers.mockResolvedValue(ANSWERS);
     mockedApps.bulkReject.mockResolvedValue({ rejected: 2, skipped: 0 });
+    mockedApps.emailPreview.mockResolvedValue({
+      kind: "rejection",
+      subject: "Your application to ACME Ganek",
+      text: "Thank you, Jane Applicant",
+      html: "",
+    });
     mockedApps.bulkStage.mockResolvedValue({ updated: 2, skipped: 0 });
     mockedApps.eraseCandidate.mockResolvedValue({ applications: 2, google_event_failures: 0 });
     mockedApps.dsarExport.mockResolvedValue({ candidate: { email: "jane@example.com" } });
@@ -458,15 +465,53 @@ describe("ApplicantsPage", () => {
     expect(screen.queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
   });
 
-  it("Email-the-candidate checkbox passes notify through stage changes", async () => {
+  it("Email-the-candidate checkbox previews the rejection before sending", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
 
     await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
     await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    expect(await screen.findByText("Your application to ACME Ganek")).toBeInTheDocument();
+    expect(mockedApps.setStage).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
     await waitFor(() =>
       expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true),
     );
+  });
+
+  it("Cancel in the preview keeps the stage", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await screen.findByText("Your application to ACME Ganek");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Your application to ACME Ganek")).not.toBeInTheDocument(),
+    );
+    expect(mockedApps.setStage).not.toHaveBeenCalled();
+  });
+
+  it("Advance to a stage without an email moves immediately even with the checkbox on", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Advance" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "screening", true),
+    );
+    expect(screen.queryByText("Your application to ACME Ganek")).not.toBeInTheDocument();
+    expect(mockedApps.emailPreview).not.toHaveBeenCalled();
+  });
+
+  it("Reject without the checkbox stays immediate", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false),
+    );
+    expect(mockedApps.emailPreview).not.toHaveBeenCalled();
   });
 
   it("withdrawn applications get a chip, a count and a filter", async () => {

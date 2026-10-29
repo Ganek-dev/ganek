@@ -38,6 +38,7 @@ import {
 } from "@/lib/applicant-filters";
 import { relativeTime } from "@/lib/time";
 import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/ApplicantChips";
+import { StageEmailDialog } from "@/components/StageEmailDialog";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
@@ -558,6 +559,16 @@ function DetailPanel({
   trailTick: number;
 }) {
   const [notify, setNotify] = useState(false);
+  // with the checkbox on, interview and rejected first show the email the
+  // candidate gets (card "Candidate emails"); other stages have no mail
+  const [emailStage, setEmailStage] = useState<"interview" | "rejected" | null>(null);
+  function requestStage(stage: ApplicationStage) {
+    if (notify && (stage === "interview" || stage === "rejected")) {
+      setEmailStage(stage);
+      return;
+    }
+    onStage(stage, notify);
+  }
   const [reminded, setReminded] = useState(false);
   const [confirmingErase, setConfirmingErase] = useState(false);
   const [eraseBusy, setEraseBusy] = useState(false);
@@ -622,7 +633,7 @@ function DetailPanel({
             {nextStage && app.stage !== "rejected" && app.stage !== "withdrawn" ? (
               <button
                 type="button"
-                onClick={() => onStage(nextStage, notify)}
+                onClick={() => requestStage(nextStage)}
                 className="inline-flex h-8 items-center rounded-md bg-accent px-3.5 text-[13.5px] font-semibold text-white hover:brightness-[0.94]"
               >
                 Advance
@@ -631,7 +642,7 @@ function DetailPanel({
             {app.stage !== "rejected" && app.stage !== "withdrawn" ? (
               <button
                 type="button"
-                onClick={() => onStage("rejected", notify)}
+                onClick={() => requestStage("rejected")}
                 className={`inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium hover:bg-muted-fill ${SCORE_TONE.red.text}`}
               >
                 Reject
@@ -644,7 +655,7 @@ function DetailPanel({
               <select
                 id={`stage-${app.id}`}
                 value={app.stage}
-                onChange={(event) => onStage(event.target.value as ApplicationStage, notify)}
+                onChange={(event) => requestStage(event.target.value as ApplicationStage)}
                 className="inline-flex h-8 appearance-none items-center rounded-md border border-edge bg-surface pr-7 pl-3 text-[13px] font-medium text-g700 outline-none focus:border-g400"
               >
                 {STAGE_ORDER.concat("rejected").map((stage) => (
@@ -776,6 +787,19 @@ function DetailPanel({
           </form>
         </DialogContent>
       </Dialog>
+      <StageEmailDialog
+        key={emailStage ?? "closed"}
+        open={emailStage !== null}
+        applicationId={app.id}
+        candidateName={app.candidate.name}
+        stage={emailStage ?? "rejected"}
+        onConfirm={() => {
+          const stage = emailStage ?? "rejected";
+          setEmailStage(null);
+          onStage(stage, true);
+        }}
+        onCancel={() => setEmailStage(null)}
+      />
 
       {app.message ? (
         <p className="mt-4 text-sm text-g600">{app.message}</p>
