@@ -467,6 +467,64 @@ async def update_candidate_email(
     return application
 
 
+async def bulk_set_stage(
+    db: AsyncSession,
+    company: Company,
+    application_ids: list[uuid.UUID],
+    stage: ApplicationStage,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> list[Application]:
+    """Move every listed application the actor may move to `stage`.
+
+    Rows already there, withdrawn rows (the candidate's call, never
+    overridden), ids from another tenant and unknown ids are skipped
+    silently; the route derives `skipped` from the count difference. Each
+    moved row gets its own `stage.changed` activity entry (payload marks
+    `bulk`) and webhook, so the trail reads the same as single moves.
+    """
+    applications = list(
+        (
+            await db.execute(
+                select(Application)
+                .where(
+                    Application.company_id == company.id,
+                    Application.id.in_(application_ids),
+                    Application.stage != stage,
+                    Application.stage != ApplicationStage.WITHDRAWN,
+                )
+                .options(
+                    selectinload(Application.candidate),
+                    selectinload(Application.quiz_attempts),
+                    selectinload(Application.job),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    moved: list[tuple[Application, ApplicationStage]] = []
+    for application in applications:
+        previous = application.stage
+        stamp_decision(application, stage)
+        application.stage = stage
+        activity.record(
+            db,
+            company_id=company.id,
+            type=activity.STAGE_CHANGED,
+            actor_user_id=actor_user_id,
+            application_id=application.id,
+            payload={"from": previous.value, "to": stage.value, "bulk": True},
+        )
+        moved.append((application, previous))
+    await db.commit()
+    for application, previous in moved:
+        await webhooks.emit_application_event(
+            db, application.id, "stage.changed", {"previous_stage": previous.value}
+        )
+    return applications
+
+
 async def bulk_reject(
     db: AsyncSession,
     company: Company,
