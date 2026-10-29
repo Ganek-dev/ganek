@@ -1,3 +1,5 @@
+import type { PublicCompanyPage, PublicJobDetail } from "@/lib/public-api";
+
 /** Minimal typed wrapper around the Ganek API (proxied same-origin via Next rewrites). */
 
 export interface UserOut {
@@ -1307,6 +1309,23 @@ export interface CompanySummary {
   name: string;
   mode: "single" | "multi";
 }
+
+/** The public careers endpoints the SSR pages render from, reachable from
+ * the admin too: the Google Jobs card builds the markup the public page
+ * emits from these same payloads. Public jobs only: a draft or closed job
+ * answers 404. */
+export const publicPages = {
+  company: (mode: "single" | "multi", slug: string) =>
+    request<PublicCompanyPage>(
+      mode === "multi" ? `/api/v1/public/companies/${slug}` : "/api/v1/public/company",
+    ).then((page) => page.company),
+  job: (mode: "single" | "multi", slug: string, jobSlug: string) =>
+    request<PublicJobDetail>(
+      mode === "multi"
+        ? `/api/v1/public/companies/${slug}/jobs/${jobSlug}`
+        : `/api/v1/public/company/jobs/${jobSlug}`,
+    ),
+};
 
 export const companyApi = {
   get: () => request<CompanyAdmin>("/api/v1/company"),

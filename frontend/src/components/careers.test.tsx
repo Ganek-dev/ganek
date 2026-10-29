@@ -6,7 +6,7 @@ import type { PublicCompany, PublicJobDetail, PublicJobSummary } from "@/lib/pub
 
 import { CompanyHero, formatPostedAgo, formatSalary, jobMetaLine } from "./careers";
 import { JobList } from "./careers-list";
-import { jobPostingJsonLd } from "./JobPosting";
+import { jobPostingJsonLd } from "@/lib/job-posting";
 
 const company: PublicCompany = {
   slug: "acme",
