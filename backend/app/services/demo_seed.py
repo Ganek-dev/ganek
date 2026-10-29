@@ -268,18 +268,34 @@ async def _take_quiz(
             if right
             else _wrong_key(question.options, question.correct_key, rng)
         )
-        recorded = await quiz_service.submit_answer(db, attempt, question.id, key)
-        # the engine stamps served_at and answered_at a few ms apart; stretch
-        # the gap into a human response time before the flags are computed
-        assert recorded.answered_at is not None
-        response = timedelta(seconds=rng.uniform(*pace))
-        recorded.served_at = recorded.answered_at - response
-        recorded.deadline_at = recorded.served_at + timedelta(seconds=22)
-        await db.commit()
+        await quiz_service.submit_answer(db, attempt, question.id, key)
+    await _humanize_pace(db, attempt, pace, rng)
     finished = await quiz_service.current_or_next_question(db, attempt, rng=rng)
     assert finished is None, "the quiz should be complete"
     await db.refresh(attempt)
     return attempt
+
+
+async def _humanize_pace(
+    db: AsyncSession, attempt: QuizAttempt, pace: tuple[float, float], rng: random.Random
+) -> None:
+    """The engine stamps served_at and answered_at a few ms apart. Stretch
+    every gap into a human response time before the flags are computed,
+    walking back from the last answer so served_at stays in the order the
+    questions were taken: the review page numbers Q1..Qn by that order, and
+    shifting each answer on its own used to scramble it (blurs recorded on
+    the third and fifth question read "Q1 and Q6" in the event log)."""
+    answers = await quiz_service.resolved_answers(db, attempt)
+    assert answers and all(a.answered_at is not None for a in answers)
+    clock = answers[-1].answered_at
+    assert clock is not None
+    for recorded in reversed(answers):
+        recorded.answered_at = clock
+        recorded.served_at = clock - timedelta(seconds=rng.uniform(*pace))
+        recorded.deadline_at = recorded.served_at + timedelta(seconds=22)
+        clock = recorded.served_at - timedelta(seconds=rng.uniform(0.5, 2.0))
+    attempt.started_at = answers[0].served_at
+    await db.commit()
 
 
 async def _backdate(db: AsyncSession, application: Application, offset: timedelta) -> None:
