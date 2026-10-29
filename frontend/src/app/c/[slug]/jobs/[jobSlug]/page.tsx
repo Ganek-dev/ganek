@@ -7,6 +7,7 @@ import { HowWeHire, JobGone, JobHero, JobPosting } from "@/components/JobPosting
 import { themeStyle } from "@/components/careers";
 import { DemoBanner } from "@/components/DemoBanner";
 import { PreviewBar } from "@/components/PreviewBar";
+import { jobMetaDescription } from "@/lib/job-meta";
 import { demoRobots, fetchInstanceInfo, publicApi, resolveJobView } from "@/lib/public-api";
 import { resolveSource, websiteHostOf } from "@/lib/source";
 import { isPrefetch, shouldCountView, viewHeaders } from "@/lib/views";
@@ -32,6 +33,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (!page || !job) return {};
   return {
     title: `${job.title} - ${page.company.name}`,
+    // share cards and search snippets describe the role, not the platform
+    description: jobMetaDescription(job, page.company),
     ...(previewing ? NOINDEX : demoRobots(demo)),
   };
 }
