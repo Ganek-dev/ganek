@@ -165,14 +165,30 @@ def _values(kind: str, context: dict[str, Any]) -> dict[str, str]:
     return values
 
 
-def _substitute(text: str, values: dict[str, str]) -> str:
-    def replace(match: re.Match[str]) -> str:
+_BOLD = '<b style="font-weight: 600;">'
+
+
+def _substitute(text: str, values: dict[str, str], *, html: bool = False) -> str:
+    """Resolve placeholders. In HTML mode every literal segment and every
+    value is escaped separately (a template is plain text, never markup),
+    and the job title keeps the designed bold span."""
+    out: list[str] = []
+    position = 0
+    for match in _TOKEN.finditer(text):
         name = match.group(1)
         if name not in values:
             raise KeyError(f"no value for placeholder {name!r}")
-        return values[name]
-
-    return _TOKEN.sub(replace, text)
+        literal = text[position : match.start()]
+        value = values[name]
+        if html:
+            literal = _text(literal)
+            value = _BOLD + _text(value) + "</b>" if name == "job_title" else _text(value)
+        out.append(literal)
+        out.append(value)
+        position = match.end()
+    tail = text[position:]
+    out.append(_text(tail) if html else tail)
+    return "".join(out)
 
 
 def _paragraphs(body: str) -> list[str]:
@@ -275,6 +291,10 @@ def render(kind: str, template: Template, context: dict[str, Any]) -> Rendered:
     subject = _substitute(template.subject, values)
     paragraphs = _paragraphs(_substitute(template.body, values))
     heading, rest = (paragraphs[0], paragraphs[1:]) if paragraphs else ("", [])
+    html_paragraphs = _paragraphs(_substitute(template.body, values, html=True))
+    html_heading, html_rest = (
+        (html_paragraphs[0], html_paragraphs[1:]) if html_paragraphs else ("", [])
+    )
 
     if kind == "rejection":
         brand, brand_fg, bar = DEFAULT_BRAND_PRIMARY, "#ffffff", NEUTRAL_BAR
@@ -291,8 +311,8 @@ def render(kind: str, template: Template, context: dict[str, Any]) -> Rendered:
         + privacy_text(context.get("privacy_url"))
     )
     content = (
-        f'<h1 style="{_H1_STYLE}">{_text(heading)}</h1>'
-        + "".join(paragraph(_text(part).replace("\n", "<br>")) for part in rest)
+        f'<h1 style="{_H1_STYLE}">{html_heading}</h1>'
+        + "".join(paragraph(part.replace("\n", "<br>")) for part in html_rest)
         + action_html
     )
     controller = context.get("controller_name")

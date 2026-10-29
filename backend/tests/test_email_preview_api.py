@@ -2,6 +2,7 @@
 candidate, byte for byte what the sender delivers (card "Candidate emails",
 PR 1)."""
 
+import re
 from typing import Any
 from uuid import uuid4
 
@@ -102,6 +103,50 @@ async def test_preview_equals_the_delivered_mail(
     assert sent[0]["subject"] == preview["subject"]
     assert sent[0]["body"] == preview["text"]
     assert sent[0]["html"] == preview["html"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_preview_masks_the_candidate_link_and_matches_the_sent_mail_otherwise(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The status link carries a signed candidate token (withdraw, request
+    data); the preview shows the link with a placeholder instead so a
+    recruiter never holds the candidate's capability. Everything else is
+    byte for byte the sent mail."""
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(email_service, "send_email", lambda **kw: sent.append(kw))
+    app_id, _ = await _company_with_applicant(client)
+    sent.clear()
+    preview = (
+        await client.get(f"/api/v1/applications/{app_id}/email-preview?kind=stage_advance")
+    ).json()
+    placeholder = re.search(r"(https?://\S+/)personal-link", preview["text"])
+    assert placeholder is not None, preview["text"]
+    link_prefix = placeholder.group(1)
+
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "interview", "notify_candidate": True},
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(sent) == 1
+    token = re.search(re.escape(link_prefix) + r"(\S+)", sent[0]["body"])
+    assert token is not None and token.group(1) != "personal-link"
+    masked_body = sent[0]["body"].replace(token.group(1), "personal-link")
+    masked_html = sent[0]["html"].replace(token.group(1), "personal-link")
+    assert sent[0]["subject"] == preview["subject"]
+    assert masked_body == preview["text"]
+    assert masked_html == preview["html"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "seeded_bank", "multi_mode")
+async def test_preview_masks_the_quiz_link(client: AsyncClient) -> None:
+    app_id, _ = await _company_with_applicant(client, with_quiz=True)
+    invite = (
+        await client.get(f"/api/v1/applications/{app_id}/email-preview?kind=quiz_invite")
+    ).json()
+    assert re.search(r"https?://\S+/personal-link", invite["text"])
+    assert "/personal-link" in invite["html"]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

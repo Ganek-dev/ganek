@@ -918,6 +918,13 @@ async def email_preview(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_ASSESSMENT)
         kwargs = _reminder_kwargs(company, application, attempt, now)
     context = {key: value for key, value in kwargs.items() if key not in ("to", "ref")}
+    # the status and quiz links carry the candidate's signed token (withdraw,
+    # request data, take the assessment); the recruiter sees the link shape
+    # with a placeholder instead, never the capability itself
+    if "status_url" in context:
+        context["status_url"] = urls.status_url(company, PREVIEW_LINK_PLACEHOLDER)
+    if "quiz_url" in context:
+        context["quiz_url"] = urls.quiz_url(company, PREVIEW_LINK_PLACEHOLDER)
     rendered = email_render.render(kind, email_render.BUILTIN[kind], context)
     return EmailPreviewOut(
         kind=kind, subject=rendered.subject, text=rendered.text, html=rendered.html
@@ -925,6 +932,7 @@ async def email_preview(
 
 
 NO_ASSESSMENT = "No assessment to preview"
+PREVIEW_LINK_PLACEHOLDER = "personal-link"
 
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])

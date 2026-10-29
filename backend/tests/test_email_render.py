@@ -83,6 +83,8 @@ def test_builtin_rejection_matches_the_designed_email() -> None:
         "All the best,\nThe ACME Ganek hiring team\n"
     )
     assert "Thank you, Marta Vidal</h1>" in r.html
+    # the designed emails bold the job title; a template cannot lose that
+    assert '<b style="font-weight: 600;">Senior Frontend Engineer</b>' in r.html
     assert NEUTRAL_BAR in r.html
     assert "See open positions</a>" in r.html
     assert r.html.index("See open positions</a>") < r.html.index("All the best,")
@@ -124,6 +126,7 @@ def test_invite_action_block_lists_details_and_link() -> None:
     assert "Link valid until Fri, Jul 31" in r.text
     assert "#3d5afe" in r.html
     assert "Start the assessment</a>" in r.html
+    assert '<b style="font-weight: 600;">Senior Frontend Engineer</b>' in r.html
 
 
 def test_invite_omits_the_timer_row_without_a_limit() -> None:
@@ -155,6 +158,15 @@ def test_values_are_html_escaped_and_text_kept_raw() -> None:
     assert "Marta <b>Vidal</b> & Co" in r.text
     assert "Marta &lt;b&gt;Vidal&lt;/b&gt; &amp; Co" in r.html
     assert "<b>Vidal" not in r.html
+    # literal template text escapes too: a template is plain text, never markup
+    r = render(
+        "rejection",
+        Template("S", "Head\n\n<i>{{job_title}}</i> & {{company_name}}"),
+        {**REJECTION_CTX, "job_title": "C++ & <Go>", "company_name": "A&B <Co>"},
+    )
+    assert "<i>C++ & <Go></i> & A&B <Co>" in r.text
+    bold = '<b style="font-weight: 600;">C++ &amp; &lt;Go&gt;</b>'
+    assert f"&lt;i&gt;{bold}&lt;/i&gt; &amp; A&amp;B &lt;Co&gt;" in r.html
 
 
 def test_single_line_breaks_become_br_and_empty_paragraphs_drop() -> None:
