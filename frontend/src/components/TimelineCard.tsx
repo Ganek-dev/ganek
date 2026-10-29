@@ -126,7 +126,7 @@ function failureHint(events: TimelineEvent[]): string | null {
   if (failed.some((event) => event.payload.last_error === "Email not configured")) {
     return "Email is not configured on this instance - nothing is being delivered.";
   }
-  return "Delivery failed after retries - check your email settings and use the test send on Settings → Privacy.";
+  return "Delivery failed after retries - check your email settings and use the test send on the Privacy page under Settings.";
 }
 
 export function TimelineCard({

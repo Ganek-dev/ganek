@@ -187,9 +187,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             Email is not configured on this instance - candidates are <b>not</b> receiving
             assessment invites or updates. Set the <code className="font-mono">GANEK_SMTP_*</code>{" "}
-            variables, then verify with the test send on{" "}
+            variables, then verify with the test send on the{" "}
             <Link href="/admin/privacy" className="font-medium underline">
-              Settings → Privacy
+              Privacy page under Settings
             </Link>
             .
           </div>

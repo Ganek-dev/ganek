@@ -22,7 +22,7 @@ export interface PublicJobSummary {
 
 export interface PublicJobDetail extends PublicJobSummary {
   description_md: string;
-  /** Advisory deadline → JSON-LD validThrough; the posting stays applyable. */
+  /** Advisory deadline -> JSON-LD validThrough; the posting stays applyable. */
   closes_at: string | null;
 }
 

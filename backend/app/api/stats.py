@@ -47,7 +47,7 @@ async def today(
                 ],
             )
         except google_calendar.GoogleCalendarError:
-            pass  # broken consent → ganek fallback below; Account card flags it
+            pass  # broken consent -> ganek fallback below; Account card flags it
     zone = ZoneInfo(tz)
     day = datetime.now(zone).date()
     start = datetime.combine(day, time.min, tzinfo=zone)

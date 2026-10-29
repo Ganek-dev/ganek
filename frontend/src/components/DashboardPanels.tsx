@@ -243,7 +243,7 @@ function activityCopy(item: ActivityItem): string {
     case "application.received":
       return `${String(p.candidate ?? "Someone")} applied - ${String(p.job ?? "a job")}`;
     case "stage.changed":
-      return `${item.actor_email ?? "Someone"} moved a candidate ${String(p.from)} → ${String(p.to)}`;
+      return `${item.actor_email ?? "Someone"} moved a candidate from ${String(p.from)} to ${String(p.to)}`;
     case "quiz.finished": {
       const score = typeof p.score === "number" ? ` - ${Math.round(p.score * 100)}%` : "";
       return `Assessment completed${score}`;

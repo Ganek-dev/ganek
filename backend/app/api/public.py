@@ -354,7 +354,7 @@ async def _apply(
     attempt = await quiz_service.create_attempt(db, company, application, job)
     quiz_token = create_quiz_token(attempt.id) if attempt is not None else None
     if attempt is not None and quiz_token is not None:
-        # assessment attached → the invite (17a) subsumes the generic confirmation
+        # assessment attached -> the invite (17a) subsumes the generic confirmation
         await outbox_service.queue_email(
             db,
             kind="quiz_invite",

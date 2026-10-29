@@ -730,7 +730,7 @@ async def current_or_next_question(
             ).scalar_one()
             await db.commit()
             return answer, question
-        # deadline passed unanswered → resolve as missed
+        # deadline passed unanswered -> resolve as missed
         answer.answered_at = now
         answer.answer_key = None
         answer.is_correct = False

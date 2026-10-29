@@ -34,7 +34,7 @@ const processor = unified()
   .use(imagesToAltText)
   .use(rehypeStringify);
 
-/** Markdown → HTML string for JSON-LD descriptions (Google wants HTML, not
+/** Markdown -> HTML string for JSON-LD descriptions (Google wants HTML, not
  * raw markdown). Output contains only elements generated from markdown. */
 export function mdToHtml(markdown: string): string {
   return String(processor.processSync(markdown));

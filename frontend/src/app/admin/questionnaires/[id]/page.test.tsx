@@ -144,7 +144,7 @@ describe("QuestionnaireBuilderPage", () => {
     render(<QuestionnaireBuilderPage />);
     await screen.findAllByText("What does the GIL prevent?");
 
-    // second library row (py-list-alias-1) is not yet in refs → shows +Add
+    // second library row (py-list-alias-1) is not yet in refs -> shows +Add
     await userEvent.click(screen.getByRole("button", { name: "+ Add" }));
 
     // remove the first attached row by targeting its Remove button directly

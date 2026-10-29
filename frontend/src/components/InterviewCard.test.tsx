@@ -125,7 +125,7 @@ describe("InterviewCard", () => {
       new ApiError(409, "Interviewer has not connected Google Calendar"),
     );
     await openDialog();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Settings → Account/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Account page under Settings/);
   });
 
   it("shows availability-based pending copy", async () => {

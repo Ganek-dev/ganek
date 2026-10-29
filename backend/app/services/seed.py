@@ -30,8 +30,8 @@ def questions_dir() -> Path | None:
         path = Path(settings.questions_dir)
         return path if path.is_dir() else None
     here = Path(__file__).resolve()
-    # repo checkout: <repo>/backend/app/services/seed.py → <repo>/questions
-    # docker image:   /srv/app/services/seed.py → /srv/questions (compose mount)
+    # repo checkout: <repo>/backend/app/services/seed.py -> <repo>/questions
+    # docker image:   /srv/app/services/seed.py -> /srv/questions (compose mount)
     for base in (here.parents[3], here.parents[2]):
         candidate = base / "questions"
         if candidate.is_dir():

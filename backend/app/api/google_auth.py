@@ -108,7 +108,7 @@ async def _accept_invite_via_google(
     ],
 )
 async def google_calendar_connect(user: CurrentUser) -> RedirectResponse:
-    """Incremental-auth consent for Calendar access (offline → refresh token)."""
+    """Incremental-auth consent for Calendar access (offline -> refresh token)."""
     _require_configured()
     url, state, verifier, nonce = oauth_google.build_authorization_request(calendar=True)
     response = RedirectResponse(url, status_code=status.HTTP_302_FOUND)

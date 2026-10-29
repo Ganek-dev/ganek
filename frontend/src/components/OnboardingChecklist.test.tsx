@@ -154,7 +154,7 @@ describe("OnboardingChecklist", () => {
       invites: [{ id: "i1" }],
     });
     render(<OnboardingChecklist />);
-    // all five done → the checklist retires itself
+    // all five done -> the checklist retires itself
     await waitFor(() => expect(mockedTeam.listInvites).toHaveBeenCalled());
     await waitFor(() =>
       expect(screen.queryByTestId("onboarding-checklist")).not.toBeInTheDocument(),
