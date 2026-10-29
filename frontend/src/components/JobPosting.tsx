@@ -8,65 +8,8 @@ import {
   formatPostedAgo,
   formatSalary,
 } from "@/components/careers";
-import { mdToHtml } from "@/lib/md-html";
+import { jobPostingJsonLd } from "@/lib/job-posting";
 import type { PublicCompany, PublicJobDetail } from "@/lib/public-api";
-
-const EMPLOYMENT_TYPE_SCHEMA: Record<string, string> = {
-  full_time: "FULL_TIME",
-  part_time: "PART_TIME",
-  contract: "CONTRACTOR",
-  internship: "INTERN",
-};
-
-const SALARY_UNIT_SCHEMA: Record<string, string> = {
-  hour: "HOUR",
-  day: "DAY",
-  week: "WEEK",
-  month: "MONTH",
-  year: "YEAR",
-};
-
-export function jobPostingJsonLd(company: PublicCompany, job: PublicJobDetail): object {
-  return {
-    "@context": "https://schema.org",
-    "@type": "JobPosting",
-    title: job.title,
-    // Google wants an HTML description, not raw markdown
-    description: mdToHtml(job.description_md),
-    datePosted: job.published_at,
-    ...(job.closes_at ? { validThrough: job.closes_at } : {}),
-    employmentType: EMPLOYMENT_TYPE_SCHEMA[job.employment_type],
-    hiringOrganization: {
-      "@type": "Organization",
-      name: company.name,
-      ...(company.website ? { sameAs: company.website } : {}),
-      ...(company.logo_url ? { logo: company.logo_url } : {}),
-    },
-    ...(job.location
-      ? {
-          jobLocation: {
-            "@type": "Place",
-            address: { "@type": "PostalAddress", addressLocality: job.location },
-          },
-        }
-      : {}),
-    ...(job.remote_policy === "remote" ? { jobLocationType: "TELECOMMUTE" } : {}),
-    ...(job.salary_min !== null && job.salary_currency
-      ? {
-          baseSalary: {
-            "@type": "MonetaryAmount",
-            currency: job.salary_currency,
-            value: {
-              "@type": "QuantitativeValue",
-              minValue: job.salary_min,
-              ...(job.salary_max !== null ? { maxValue: job.salary_max } : {}),
-              unitText: SALARY_UNIT_SCHEMA[job.salary_period] ?? "YEAR",
-            },
-          },
-        }
-      : {}),
-  };
-}
 
 /** Compact brand band for the job detail page (screen 02): logo chip + name,
  * back link, job title, meta chips on the brand color. */

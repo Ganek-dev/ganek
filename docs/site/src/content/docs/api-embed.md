@@ -156,3 +156,19 @@ POST /api/v1/applications/{id}/quiz/extra-time
 ```
 
 Breaking changes to public endpoints carry a deprecation note in the release notes.
+
+## Google Jobs markup
+
+Every published job page carries a `JobPosting` script (schema.org JSON-LD) built from the job and the company:
+
+| JobPosting field | Comes from |
+| --- | --- |
+| `title`, `description` | the job title and the description, markdown rendered to HTML |
+| `datePosted` | the publish date |
+| `validThrough` | "Closes on", when set |
+| `employmentType` | the employment type |
+| `hiringOrganization` | the company name, website and logo from Settings |
+| `jobLocation` | the location; a remote job sets `jobLocationType: TELECOMMUTE` instead |
+| `baseSalary` | the salary range, currency and period, when set |
+
+The job page in the admin shows the exact JSON and checks the properties Google requires: title, description, datePosted, hiringOrganization and a location or TELECOMMUTE. Paste the public job URL into Google's Rich Results Test to confirm what Google sees. Draft and closed jobs emit nothing, preview links emit nothing, and a demo instance switches the markup off because its vacancies are fictional.

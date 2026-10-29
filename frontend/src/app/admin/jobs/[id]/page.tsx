@@ -9,6 +9,7 @@ import { ExternalLink, Pencil } from "lucide-react";
 import { ScoreChip, StagePill } from "@/components/ApplicantChips";
 import { CopyButton } from "@/components/CopyButton";
 import { DailyChart } from "@/components/DailyChart";
+import { GoogleJobsCard } from "@/components/GoogleJobsCard";
 import { AssessmentChip, StatusPill } from "@/components/JobStatus";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
@@ -405,6 +406,7 @@ export default function JobOverviewPage() {
         <div className="space-y-5">
           <ShareLinksCard jobUrl={live ? jobUrl : null} live={live} urlFailed={companyFailed} />
           <JobStatusCard job={job} publicUrl={jobUrl} onError={setError} onChanged={reload} />
+          <GoogleJobsCard job={job} company={company} urlFailed={companyFailed} />
           <div className="card px-5 py-[18px]">
             <div className="flex items-center justify-between">
               <span className="font-heading text-[15px] font-semibold">Assessment</span>

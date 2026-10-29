@@ -34,6 +34,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     api: {
       ...original.api,
+      providers: vi.fn().mockResolvedValue({ google: false, mode: "single", demo: false }),
       jobs: {
         ...original.api.jobs,
         get: vi.fn(),
@@ -47,6 +48,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
     // the overview must not depend on the admin-only company view: a member
     // (recruiter) sees the public link and the share links too
     companyApi: { ...original.companyApi, get: vi.fn(), summary: vi.fn() },
+    // the Google Jobs card reads the public page; the rail tests only need
+    // it to settle
+    publicPages: { company: vi.fn().mockResolvedValue(null), job: vi.fn().mockResolvedValue(null) },
   };
 });
 
@@ -241,14 +245,20 @@ describe("JobOverviewPage", () => {
     }
   });
 
-  it("stacks the rail as Share, Status, Assessment, Sources", async () => {
+  it("stacks the rail as Share, Status, Google Jobs markup, Assessment, Sources", async () => {
     render(<JobOverviewPage />);
     const share = await screen.findByText("Share this job");
     const rail = share.closest("div.card")!.parentElement!;
     const headings = within(rail)
-      .getAllByText(/^(Share this job|Status|Assessment|Sources)$/)
+      .getAllByText(/^(Share this job|Status|Google Jobs markup|Assessment|Sources)$/)
       .map((node) => node.textContent);
-    expect(headings).toEqual(["Share this job", "Status", "Assessment", "Sources"]);
+    expect(headings).toEqual([
+      "Share this job",
+      "Status",
+      "Google Jobs markup",
+      "Assessment",
+      "Sources",
+    ]);
   });
 
   it("offers tracked share links on a live job and asks a draft to publish first", async () => {
