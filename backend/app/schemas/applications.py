@@ -43,6 +43,23 @@ class AccessEntryOut(BaseModel):
     created_at: datetime
 
 
+class TimelineEventOut(BaseModel):
+    """One row of the applicant panel's timeline (board card "Candidate
+    timeline"): a merged read model, see services/timeline.py. ``kind`` is
+    an activity type or one of applied / quiz.invited / quiz.started /
+    quiz.completed / quiz.expired / email; ``payload`` carries the facts
+    the copy needs (from/to, score, template + status, reason)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    kind: str
+    at: datetime
+    actor_label: str | None
+    actor_email: str | None
+    payload: dict[str, object]
+
+
 class AccessLogRowOut(AccessEntryOut):
     """Company-wide row: the entry plus who the candidate was."""
 

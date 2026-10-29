@@ -742,8 +742,17 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
             detail="This application already has a decision",
         )
     if application.stage is not ApplicationStage.WITHDRAWN:
+        previous = application.stage
         applications_service.stamp_decision(application, ApplicationStage.WITHDRAWN)
         application.stage = ApplicationStage.WITHDRAWN
+        # actor NULL = the candidate; the panel timeline reads "withdrew"
+        activity.record(
+            db,
+            company_id=application.company_id,
+            type=activity.STAGE_CHANGED,
+            application_id=application.id,
+            payload={"from": previous.value, "to": ApplicationStage.WITHDRAWN.value},
+        )
         await db.commit()
     return {"withdrawn": True}
 

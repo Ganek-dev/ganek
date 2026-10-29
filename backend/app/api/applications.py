@@ -52,6 +52,7 @@ from app.schemas.applications import (
     QuizResultOut,
     ReviewIntegrityEvent,
     StageUpdate,
+    TimelineEventOut,
 )
 from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
@@ -63,6 +64,7 @@ from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
 from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
+from app.services import timeline as timeline_service
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -298,6 +300,21 @@ async def application_access_log(
     the trail is not itself a read of the candidate."""
     application = await _get_or_404(db, company, application_id)
     return await access_log.list_for_application(db, company, application.id)
+
+
+@router.get("/{application_id}/timeline", response_model=list[TimelineEventOut])
+async def application_timeline(
+    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+) -> list[TimelineEventOut]:
+    """What happened to this application, newest first: stage moves with
+    the actor, emails with delivery state, quiz milestones, notes,
+    interviews. Reading the trail is not itself a read of the candidate,
+    so no access-log row."""
+    application = await _get_or_404(db, company, application_id)
+    return [
+        TimelineEventOut.model_validate(event)
+        for event in await timeline_service.list_events(db, company, application)
+    ]
 
 
 @router.patch("/{application_id}/stage", response_model=ApplicationOut)
