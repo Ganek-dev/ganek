@@ -522,14 +522,56 @@ export const accessLogApi = {
 export interface ApplicationPage {
   items: ApplicationOut[];
   total: number;
-  /** Whole job-filtered set - the stage filter never narrows these. */
+  /** The whole set the other filters match - the stage filter never narrows these. */
   stage_counts: Partial<Record<ApplicationStage, number>>;
+  /** Source facet for the filter control: company-wide, NULL folded into "direct". */
+  sources: string[];
 }
 
-/** Filters the applicants list and its export share. */
+export type ApplicationSortKey =
+  | "applied_desc"
+  | "applied_asc"
+  | "score_desc"
+  | "score_asc"
+  | "name_asc";
+
+/** Latest-attempt state; "expired" also covers a pending link past its expiry. */
+export type ApplicationQuizState = "none" | "pending" | "in_progress" | "completed" | "expired";
+
+/** Filters the applicants list and its export share (one query grammar on
+ * both routes, so the file is always the rows on screen). */
 export interface ApplicationFilters {
   job_id?: string;
   stage?: ApplicationStage;
+  /** Candidate name or email, substring, case-insensitive. */
+  q?: string;
+  /** Percent of the latest attempt, 0..100. */
+  score_min?: number;
+  quiz?: ApplicationQuizState;
+  /** "direct" also matches applications without a recorded source. */
+  source?: string;
+  flagged?: boolean;
+  /** Applied within the last N days, 1..365. */
+  since_days?: number;
+  sort?: ApplicationSortKey;
+  /** Export only: a selection (the bulk bar), at most 100. */
+  ids?: string[];
+}
+
+function applicationParams(filters: ApplicationFilters | undefined): URLSearchParams {
+  const params = new URLSearchParams();
+  if (!filters) return params;
+  if (filters.job_id) params.set("job_id", filters.job_id);
+  if (filters.stage) params.set("stage", filters.stage);
+  if (filters.q) params.set("q", filters.q);
+  if (filters.score_min !== undefined) params.set("score_min", String(filters.score_min));
+  if (filters.quiz) params.set("quiz", filters.quiz);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.flagged !== undefined) params.set("flagged", String(filters.flagged));
+  if (filters.since_days !== undefined) params.set("since_days", String(filters.since_days));
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.ids && filters.ids.length > 0) params.set("ids", filters.ids.join(","));
+  return params;
 }
 
 export const applications = {
@@ -537,19 +579,11 @@ export const applications = {
    * with the session cookie is enough, so no fetch and no blob juggling. */
   exportUrl: (format: "csv" | "json", filters?: ApplicationFilters) => {
     const params = new URLSearchParams({ format });
-    if (filters?.job_id) params.set("job_id", filters.job_id);
-    if (filters?.stage) params.set("stage", filters.stage);
+    for (const [key, value] of applicationParams(filters)) params.set(key, value);
     return `/api/v1/applications/export?${params.toString()}`;
   },
-  list: (filters?: {
-    job_id?: string;
-    stage?: ApplicationStage;
-    limit?: number;
-    offset?: number;
-  }) => {
-    const params = new URLSearchParams();
-    if (filters?.job_id) params.set("job_id", filters.job_id);
-    if (filters?.stage) params.set("stage", filters.stage);
+  list: (filters?: ApplicationFilters & { limit?: number; offset?: number }) => {
+    const params = applicationParams(filters);
     if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
     if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
     const qs = params.toString();
@@ -587,6 +621,17 @@ export const applications = {
       method: "POST",
       body: JSON.stringify({
         application_ids: applicationIds,
+        notify_candidates: notifyCandidates,
+      }),
+    }),
+  /** Bulk bar "Move to": rows already there, withdrawn, foreign or unknown
+   * are skipped and counted; each moved row gets its own activity entry. */
+  bulkStage: (applicationIds: string[], stage: ApplicationStage, notifyCandidates: boolean) =>
+    request<{ updated: number; skipped: number }>("/api/v1/applications/bulk-stage", {
+      method: "POST",
+      body: JSON.stringify({
+        application_ids: applicationIds,
+        stage,
         notify_candidates: notifyCandidates,
       }),
     }),

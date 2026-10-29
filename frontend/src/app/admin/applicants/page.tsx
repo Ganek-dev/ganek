@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -26,8 +26,18 @@ import {
   type QuizResult,
   type ReviewIntegrityEvent,
 } from "@/lib/api";
+import {
+  clearNarrowing,
+  countActive,
+  filtersToParams,
+  parseFilters,
+  toApiFilters,
+  type ApplicantFilters,
+  type SortKey,
+} from "@/lib/applicant-filters";
 import { relativeTime } from "@/lib/time";
 import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/ApplicantChips";
+import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
 import { EmailTrailCard } from "@/components/EmailTrailCard";
@@ -49,6 +59,8 @@ import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/me
 type StagePill = { value: ApplicationStage | "all"; label: string };
 
 const LIST_PAGE_SIZE = 50;
+/** Server cap on bulk reject, bulk stage and the export selection. */
+const BULK_CAP = 100;
 
 const STAGE_PILLS: StagePill[] = [
   { value: "all", label: "All" },
@@ -62,6 +74,14 @@ const STAGE_PILLS: StagePill[] = [
 ];
 
 const STAGE_ORDER: ApplicationStage[] = ["new", "screening", "interview", "offer", "hired"];
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "applied_desc", label: "Newest first" },
+  { value: "applied_asc", label: "Oldest first" },
+  { value: "score_desc", label: "Score: high to low" },
+  { value: "score_asc", label: "Score: low to high" },
+  { value: "name_asc", label: "Name A to Z" },
+];
 
 
 function formatDuration(seconds: number): string {
@@ -177,20 +197,20 @@ function ScoreStrip({
   );
 }
 
-function BulkRejectBar({
+function BulkActionBar({
   selected,
   onClear,
-  onRejected,
+  onChanged,
 }: {
   selected: Map<string, string>;
   onClear: () => void;
-  onRejected: () => void;
+  onChanged: () => void;
 }) {
   const [notify, setNotify] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [flash, setFlash] = useState<number | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
 
   useEffect(() => {
     if (flash === null) return;
@@ -200,23 +220,22 @@ function BulkRejectBar({
 
   if (selected.size === 0 && flash === null) return null;
 
+  const ids = Array.from(selected.keys());
   const names = Array.from(selected.values());
   const namesLine =
     names.length > 5
       ? `${names.slice(0, 5).join(", ")} and ${names.length - 5} more`
       : names.join(", ");
+  const tooMany = selected.size > BULK_CAP;
 
   async function confirmReject() {
     setBusy(true);
     setError(null);
     try {
-      const { rejected } = await applications.bulkReject(
-        Array.from(selected.keys()),
-        notify,
-      );
+      const { rejected } = await applications.bulkReject(ids, notify);
       setConfirming(false);
-      setFlash(rejected);
-      onRejected();
+      setFlash(`Rejected ${rejected}`);
+      onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bulk reject failed");
     } finally {
@@ -224,38 +243,103 @@ function BulkRejectBar({
     }
   }
 
+  async function move(stage: ApplicationStage) {
+    setBusy(true);
+    setError(null);
+    try {
+      const { updated, skipped } = await applications.bulkStage(ids, stage, notify);
+      setFlash(skipped > 0 ? `Moved ${updated}, skipped ${skipped}` : `Moved ${updated}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bulk move failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-edge bg-surface p-2.5">
+    <div className="sticky bottom-0 z-10 space-y-2 border-t border-edge bg-surface p-2.5 shadow-[0_-6px_12px_-8px_rgba(0,0,0,0.25)]">
       {selected.size > 0 ? (
-        <>
-          <span className="text-[13px] font-semibold">{selected.size} selected</span>
-          {confirming ? (
-            <>
-              <span className="flex flex-col">
-                <span className="text-[12.5px] text-g600">
-                  Reject {selected.size} applicant{selected.size === 1 ? "" : "s"}?
-                </span>
-                <span className="text-[11.5px] text-g500">{namesLine}</span>
+        confirming ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-[12.5px] text-g600">
+                Reject {selected.size} applicant{selected.size === 1 ? "" : "s"}?
               </span>
+              <span className="truncate text-[11.5px] text-g500" title={namesLine}>
+                {namesLine}
+              </span>
+            </span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void confirmReject()}
+              className="inline-flex h-7 items-center rounded-sm bg-red-600 px-2.5 text-[12.5px] font-medium text-white hover:brightness-[0.94] disabled:opacity-50"
+            >
+              {busy ? "…" : "Yes, reject"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+              className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
+            >
+              Keep them
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[13px] font-semibold">{selected.size} selected</span>
+              <div className="relative">
+                <select
+                  aria-label="Move selected to stage"
+                  value=""
+                  disabled={busy || tooMany}
+                  onChange={(event) => {
+                    const stage = event.target.value as ApplicationStage | "";
+                    if (stage !== "") void move(stage);
+                  }}
+                  className="inline-flex h-7 appearance-none items-center rounded-sm border border-edge bg-surface pr-7 pl-2.5 text-[12.5px] font-medium text-g700 outline-none hover:bg-muted-fill focus:border-g400 disabled:opacity-50"
+                >
+                  <option value="">Move to…</option>
+                  {STAGE_ORDER.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {stage}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-g500"
+                />
+              </div>
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void confirmReject()}
-                className="inline-flex h-7 items-center rounded-sm bg-red-600 px-2.5 text-[12.5px] font-medium text-white hover:brightness-[0.94] disabled:opacity-50"
+                disabled={busy || tooMany}
+                onClick={() => setConfirming(true)}
+                className={`inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium hover:bg-muted-fill disabled:opacity-50 ${SCORE_TONE.red.text}`}
               >
-                {busy ? "…" : "Yes, reject"}
+                Reject…
               </button>
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => setConfirming(false)}
-                className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
+                onClick={onClear}
+                className="ml-auto text-[12.5px] text-g500 hover:underline"
               >
-                Keep them
+                Clear
               </button>
-            </>
-          ) : (
-            <>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={applications.exportUrl("csv", { ids })}
+                download
+                aria-disabled={tooMany || undefined}
+                className="inline-flex h-7 items-center gap-1.5 rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              >
+                <Download aria-hidden className="h-3.5 w-3.5" />
+                Export selected (CSV)
+              </a>
               <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-g600">
                 <input
                   type="checkbox"
@@ -265,29 +349,14 @@ function BulkRejectBar({
                 />
                 Also email candidates
               </label>
-              <button
-                type="button"
-                disabled={selected.size > 100}
-                onClick={() => setConfirming(true)}
-                className={`inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium hover:bg-muted-fill disabled:opacity-50 ${SCORE_TONE.red.text}`}
-              >
-                Reject…
-              </button>
-              {selected.size > 100 ? (
+              {tooMany ? (
                 <span className="text-[11.5px] text-warn">
-                  Up to 100 at a time - narrow the selection.
+                  Up to {BULK_CAP} at a time - narrow the selection.
                 </span>
               ) : null}
-            </>
-          )}
-          <button
-            type="button"
-            onClick={onClear}
-            className="ml-auto text-[12.5px] text-g500 hover:underline"
-          >
-            Clear
-          </button>
-        </>
+            </div>
+          </>
+        )
       ) : null}
       {flash !== null ? (
         <span
@@ -295,7 +364,7 @@ function BulkRejectBar({
           className="inline-flex items-center gap-1 text-[12.5px] text-emerald-700 dark:text-emerald-400"
         >
           <Check aria-hidden className="h-3.5 w-3.5" />
-          Rejected {flash}
+          {flash}
         </span>
       ) : null}
       {error ? (
@@ -748,20 +817,25 @@ function DetailPanel({
 }
 
 function ApplicantsContent() {
-  // Deep links (dashboard queue, emails) name the applicant to open as
-  // ?selected=<id>; the list is paginated, so one outside the first page is
-  // fetched on its own and pinned to the top.
+  // The URL is the state (card "Applicant list"): every filter, the sort
+  // and the open applicant live in the query string so a view can be
+  // shared, survives a refresh and works with the back button. Deep links
+  // (dashboard queue, emails) name the applicant to open as ?selected=<id>;
+  // the list is paginated, so one outside the first page is fetched on its
+  // own and pinned to the top.
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const requestedId = searchParams.get("selected");
-  const requestedJob = searchParams.get("job") ?? "";
+  const [requestedId] = useState(() => searchParams.get("selected"));
   const requestHandled = useRef(false);
+  const [filters, setFilters] = useState<ApplicantFilters>(() => parseFilters(searchParams));
+  const lastWritten = useRef<string | null>(null);
   const [items, setItems] = useState<ApplicationOut[] | null>(null);
   const [total, setTotal] = useState(0);
   const [stageCounts, setStageCounts] = useState<Partial<Record<ApplicationStage, number>>>({});
+  const [sources, setSources] = useState<string[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [jobs, setJobs] = useState<JobOut[]>([]);
-  const [stageFilter, setStageFilter] = useState<ApplicationStage | "all">("all");
-  const [jobFilter, setJobFilter] = useState<string>(requestedJob);
   const [selectedId, setSelectedId] = useState<string | null>(requestedId);
   const [checked, setChecked] = useState<Map<string, string>>(new Map());
   const [answersById, setAnswersById] = useState<Record<string, QuizAnswerReview[]>>({});
@@ -781,11 +855,45 @@ function ApplicantsContent() {
     return () => clearTimeout(id);
   }, [notice]);
 
+  // back/forward: a query string we did not write ourselves wins
+  useEffect(() => {
+    const current = searchParams.toString();
+    if (current === lastWritten.current) return;
+    lastWritten.current = current;
+    setFilters(parseFilters(searchParams));
+  }, [searchParams]);
+
+  const writeUrl = useCallback(
+    (next: ApplicantFilters, selected: string | null) => {
+      const qs = filtersToParams(next, selected ? { selected } : {}).toString();
+      lastWritten.current = qs;
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname],
+  );
+
+  function updateFilters(change: Partial<ApplicantFilters>) {
+    const next = { ...filters, ...change };
+    setFilters(next);
+    if (change.job !== undefined && change.job !== filters.job) setChecked(new Map());
+    // a view change drops ?selected=: the open row is whatever the new
+    // list puts first, and a shared link should not carry a stale pin
+    writeUrl(next, null);
+  }
+
+  function selectApplicant(id: string) {
+    setSelectedId(id);
+    writeUrl(filters, id);
+  }
+
+  // one string is the whole query: the effect below reruns only when the
+  // query actually changes, not on every object identity
+  const filterKey = filtersToParams(filters).toString();
+
   const reload = useCallback(() => {
     applications
       .list({
-        stage: stageFilter === "all" ? undefined : stageFilter,
-        job_id: jobFilter === "" ? undefined : jobFilter,
+        ...toApiFilters(parseFilters(new URLSearchParams(filterKey))),
         limit: LIST_PAGE_SIZE,
       })
       .then(async (page) => {
@@ -799,6 +907,7 @@ function ApplicantsContent() {
         setItems(rows);
         setTotal(page.total);
         setStageCounts(page.stage_counts);
+        setSources(page.sources ?? []);
         setSelectedId((current) => {
           if (current && rows.some((row) => row.id === current)) return current;
           return rows[0]?.id ?? null;
@@ -807,15 +916,14 @@ function ApplicantsContent() {
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load applications"),
       );
-  }, [stageFilter, jobFilter, requestedId]);
+  }, [filterKey, requestedId]);
 
   const loadMore = useCallback(() => {
     if (items === null) return;
     setLoadingMore(true);
     applications
       .list({
-        stage: stageFilter === "all" ? undefined : stageFilter,
-        job_id: jobFilter === "" ? undefined : jobFilter,
+        ...toApiFilters(parseFilters(new URLSearchParams(filterKey))),
         limit: LIST_PAGE_SIZE,
         offset: items.length,
       })
@@ -828,7 +936,7 @@ function ApplicantsContent() {
         setError(err instanceof Error ? err.message : "Failed to load applications"),
       )
       .finally(() => setLoadingMore(false));
-  }, [items, stageFilter, jobFilter]);
+  }, [items, filterKey]);
 
   useEffect(reload, [reload]);
 
@@ -981,10 +1089,7 @@ function ApplicantsContent() {
           {(["csv", "json"] as const).map((format) => (
             <a
               key={format}
-              href={applications.exportUrl(format, {
-                job_id: jobFilter === "" ? undefined : jobFilter,
-                stage: stageFilter === "all" ? undefined : stageFilter,
-              })}
+              href={applications.exportUrl(format, toApiFilters(filters))}
               download
               className="inline-flex h-[34px] items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill"
             >
@@ -995,11 +1100,8 @@ function ApplicantsContent() {
         <div className="relative">
           <select
             aria-label="Filter by job"
-            value={jobFilter}
-            onChange={(event) => {
-              setJobFilter(event.target.value);
-              setChecked(new Map());
-            }}
+            value={filters.job}
+            onChange={(event) => updateFilters({ job: event.target.value })}
             className="inline-flex h-[34px] appearance-none items-center rounded-md border border-edge bg-surface pr-8 pl-3 text-[13px] text-g700 outline-none focus:border-g400"
           >
             <option value="">All jobs</option>
@@ -1022,10 +1124,10 @@ function ApplicantsContent() {
           <button
             key={pill.value}
             type="button"
-            aria-pressed={stageFilter === pill.value}
-            onClick={() => setStageFilter(pill.value)}
+            aria-pressed={filters.stage === pill.value}
+            onClick={() => updateFilters({ stage: pill.value })}
             className={`inline-flex h-7 items-center rounded-full px-[11px] text-[12.5px] font-medium ${
-              stageFilter === pill.value
+              filters.stage === pill.value
                 ? "bg-inverse text-inverse-foreground"
                 : "border border-edge bg-surface text-g700 hover:border-g400"
             }`}
@@ -1034,6 +1136,8 @@ function ApplicantsContent() {
           </button>
         ))}
       </div>
+
+      <ApplicantFilterBar filters={filters} sources={sources} onChange={updateFilters} />
 
       {error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
@@ -1050,7 +1154,55 @@ function ApplicantsContent() {
       ) : null}
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[360px_1fr]">
-        <div className="card overflow-hidden">
+        {/* overflow-clip, not overflow-hidden: hidden would make this card the
+            sticky containing block and the bulk bar would never pin to the
+            viewport; clip rounds the corners the same way */}
+        <div className="card overflow-clip">
+          <div className="flex items-center gap-3 border-b border-divider py-1.5 pr-2 pl-4">
+            <input
+              type="checkbox"
+              aria-label="Select all on this page"
+              disabled={!items || items.length === 0}
+              checked={!!items && items.length > 0 && items.every((app) => checked.has(app.id))}
+              ref={(el) => {
+                if (el) el.indeterminate = checked.size > 0 && !!items && !items.every((app) => checked.has(app.id));
+              }}
+              onChange={(event) => {
+                if (!items) return;
+                if (event.target.checked) {
+                  setChecked(new Map(items.map((app) => [app.id, app.candidate.name])));
+                } else {
+                  setChecked(new Map());
+                }
+              }}
+              className="h-[15px] w-[15px] shrink-0 cursor-pointer accent-[var(--color-accent)] disabled:cursor-default"
+            />
+            <span className="font-mono text-[11px] text-g500" aria-live="polite">
+              {items === null
+                ? "…"
+                : countActive(filters) > 0
+                  ? `${total} match`
+                  : `${total} applicant${total === 1 ? "" : "s"}`}
+            </span>
+            <div className="relative ml-auto">
+              <select
+                aria-label="Sort applicants"
+                value={filters.sort}
+                onChange={(event) => updateFilters({ sort: event.target.value as SortKey })}
+                className="h-7 appearance-none rounded-md border border-transparent bg-transparent pr-6 pl-2 text-[12px] text-g600 outline-none hover:border-edge focus:border-g400"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 right-1.5 h-3.5 w-3.5 -translate-y-1/2 text-g500"
+              />
+            </div>
+          </div>
           {items === null ? (
             <div aria-busy="true" className="p-3">
               {Array.from({ length: 4 }, (_, i) => (
@@ -1058,7 +1210,20 @@ function ApplicantsContent() {
               ))}
             </div>
           ) : items.length === 0 ? (
-            <p className="p-4 text-sm text-g500">No applications match.</p>
+            countActive(filters) > 0 ? (
+              <div className="flex flex-col items-start gap-2 p-4 text-sm text-g500">
+                <span>No applicants match these filters.</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilters(clearNarrowing(filters))}
+                  className="inline-flex h-7 items-center rounded-md border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill"
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : (
+              <p className="p-4 text-sm text-g500">No applications match.</p>
+            )
           ) : (
             <ul>
               {items.map((app) => {
@@ -1086,7 +1251,7 @@ function ApplicantsContent() {
                     />
                     <button
                       type="button"
-                      onClick={() => setSelectedId(app.id)}
+                      onClick={() => selectApplicant(app.id)}
                       aria-current={isSelected ? "true" : undefined}
                       className="flex min-w-0 flex-1 items-center gap-3 py-[13px] pr-4 text-left"
                     >
@@ -1105,6 +1270,11 @@ function ApplicantsContent() {
                             />
                           ) : null}
                         </div>
+                        {filters.job === "" ? (
+                          <p className="mt-0.5 truncate text-[11.5px] text-g600">
+                            {jobLookup[app.job_id] ?? "-"}
+                          </p>
+                        ) : null}
                         <p className="mt-0.5 font-mono text-[11px] text-g500">
                           applied {relativeTime(app.created_at, now)} · {app.stage}
                         </p>
@@ -1128,10 +1298,10 @@ function ApplicantsContent() {
               </button>
             </div>
           ) : null}
-          <BulkRejectBar
+          <BulkActionBar
             selected={checked}
             onClear={() => setChecked(new Map())}
-            onRejected={() => {
+            onChanged={() => {
               setChecked(new Map());
               reload();
             }}
