@@ -464,14 +464,16 @@ export interface ApplicationOut {
   created_at: string;
 }
 
-export interface EmailDelivery {
+/** One row of the applicant timeline (card "Candidate timeline"): an
+ * activity type or applied / quiz.invited / quiz.started / quiz.completed /
+ * quiz.expired / email, with the facts the copy needs in `payload`. */
+export interface TimelineEvent {
   id: string;
   kind: string;
-  status: "queued" | "sent" | "failed" | "suppressed" | "bounced" | "complained";
-  attempts: number;
-  last_error: string | null;
-  created_at: string;
-  sent_at: string | null;
+  at: string;
+  actor_label: string | null;
+  actor_email: string | null;
+  payload: Record<string, unknown>;
 }
 
 /** One read of a candidate (read-access audit trail), newest first. */
@@ -600,8 +602,8 @@ export const applications = {
     request<{ sent: boolean }>(`/api/v1/applications/${id}/remind`, { method: "POST" }),
   quizAnswers: (id: string) =>
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
-  /** Delivery trail (M5.7 H4): whether this application's emails went out. */
-  emails: (id: string) => request<EmailDelivery[]>(`/api/v1/applications/${id}/emails`),
+  /** What happened to this application, newest first (card "Candidate timeline"). */
+  timeline: (id: string) => request<TimelineEvent[]>(`/api/v1/applications/${id}/timeline`),
   /** Who looked at this candidate; admins only (403 for members). */
   accessLog: (id: string) => request<AccessEntry[]>(`/api/v1/applications/${id}/access-log`),
   get: (id: string) => request<ApplicationOut>(`/api/v1/applications/${id}`),

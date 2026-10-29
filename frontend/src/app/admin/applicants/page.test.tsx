@@ -34,7 +34,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       setStage: vi.fn(),
       cvUrl: vi.fn(),
       quizAnswers: vi.fn(),
-      emails: vi.fn(),
+      timeline: vi.fn(),
       accessLog: vi.fn(),
       remind: vi.fn(),
       bulkReject: vi.fn(),
@@ -200,7 +200,7 @@ describe("ApplicantsPage", () => {
       has_password: true,
     });
     mockedNotes.list.mockResolvedValue([]);
-    mockedApps.emails.mockResolvedValue([]);
+    mockedApps.timeline.mockResolvedValue([]);
     mockedApps.accessLog.mockResolvedValue([]);
     mockedNotes.add.mockResolvedValue({
       id: "note-1",
@@ -321,6 +321,32 @@ describe("ApplicantsPage", () => {
     expect(screen.getByLabelText(/2 correct, 1 wrong, 1 timed out/)).toBeInTheDocument();
     // integrity card summary pill
     expect(screen.getByText("1 flag")).toBeInTheDocument();
+  });
+
+  it("asks for the timeline of the selected applicant", async () => {
+    mockedApps.timeline.mockResolvedValue([
+      {
+        id: "t1",
+        kind: "stage.changed",
+        at: RECENT,
+        actor_label: "Erika",
+        actor_email: "erika@acme.example",
+        payload: { from: "new", to: "screening" },
+      },
+    ]);
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await waitFor(() => expect(mockedApps.timeline).toHaveBeenCalledWith("app-1"));
+    const timeline = await screen.findByRole("region", { name: "Timeline" });
+    expect(within(timeline).getByText("Erika moved to Screening")).toBeInTheDocument();
+  });
+
+  it("refetches the timeline after a stage change from the panel", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await waitFor(() => expect(mockedApps.timeline).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole("button", { name: "Advance" }));
+    await waitFor(() => expect(mockedApps.timeline).toHaveBeenCalledTimes(2));
   });
 
   it("asks for the access trail of the selected applicant", async () => {
