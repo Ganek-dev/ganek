@@ -284,7 +284,11 @@ async def _take_quiz(
 
 async def _backdate(db: AsyncSession, application: Application, offset: timedelta) -> None:
     """Shift everything about one application into the past by ``offset``."""
+    # stage_changed_at is a server default: load it before shifting, or the
+    # stamp stays at seed time and the panel reads "moved to new just now".
+    await db.refresh(application, ["stage_changed_at"])
     application.created_at -= offset
+    application.stage_changed_at -= offset
     if application.decided_at is not None:
         application.decided_at -= offset
     attempts = (
