@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     Application,
     ApplicationNote,
+    ApplicationStage,
     AttemptStatus,
     Candidate,
     Company,
@@ -97,6 +98,16 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
         ).all()
     }
     assert {"new", "screening", "interview", "rejected"} <= stages
+
+    # the stage-age stamp is backdated with the rest: a row that never moved
+    # matches created_at, a moved row carries the stamp of the day it moved
+    rows = (
+        (await db_session.execute(select(Application).where(Application.company_id == company.id)))
+        .scalars()
+        .all()
+    )
+    assert all(a.stage_changed_at == a.created_at for a in rows if a.stage is ApplicationStage.NEW)
+    assert all(a.stage_changed_at < datetime.now(UTC) - timedelta(hours=1) for a in rows)
 
     # where the applicants came from: the overview's Sources table has rows
     sources = {
