@@ -99,6 +99,7 @@ class ApplicationOut(BaseModel):
     source: str | None
     quiz_attempt: QuizResultOut | None
     created_at: datetime
+    stage_changed_at: datetime
 
 
 class ApplicationPage(BaseModel):

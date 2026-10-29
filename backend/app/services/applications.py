@@ -29,6 +29,17 @@ def stamp_decision(application: Application, stage: ApplicationStage) -> None:
     application.decided_at = datetime.now(UTC) if stage in TERMINAL_STAGES else None
 
 
+def move_stage(application: Application, stage: ApplicationStage) -> ApplicationStage:
+    """The one way to write a stage: retention clock, stage-age stamp, the
+    assignment. Returns the previous stage; a no-op move stamps nothing."""
+    previous = application.stage
+    if previous is not stage:
+        stamp_decision(application, stage)
+        application.stage = stage
+        application.stage_changed_at = datetime.now(UTC)
+    return previous
+
+
 class AlreadyAppliedError(Exception):
     """This candidate already applied to this job."""
 
@@ -106,7 +117,15 @@ async def submit_application(
     return application
 
 
-SortKey = Literal["applied_desc", "applied_asc", "score_desc", "score_asc", "name_asc"]
+SortKey = Literal[
+    "applied_desc",
+    "applied_asc",
+    "score_desc",
+    "score_asc",
+    "name_asc",
+    "stage_age_desc",
+    "stage_age_asc",
+]
 QuizState = Literal["none", "pending", "in_progress", "completed", "expired"]
 
 SEARCH_MAX_LENGTH = 200
@@ -238,6 +257,10 @@ def _order_by(sort: SortKey) -> list[SQLColumnExpression[Any]]:
         return [QuizAttempt.score.asc().nulls_last(), *newest]
     if sort == "name_asc":
         return [func.lower(Candidate.name), *newest]
+    if sort == "stage_age_desc":  # longest in the current stage first
+        return [Application.stage_changed_at.asc(), Application.id]
+    if sort == "stage_age_asc":
+        return [Application.stage_changed_at.desc(), Application.id]
     return newest
 
 
@@ -405,9 +428,7 @@ async def set_stage(
     *,
     actor_user_id: uuid.UUID | None = None,
 ) -> Application:
-    previous = application.stage
-    stamp_decision(application, stage)
-    application.stage = stage
+    previous = move_stage(application, stage)
     if previous is not stage:
         activity.record(
             db,
@@ -505,9 +526,7 @@ async def bulk_set_stage(
     )
     moved: list[tuple[Application, ApplicationStage]] = []
     for application in applications:
-        previous = application.stage
-        stamp_decision(application, stage)
-        application.stage = stage
+        previous = move_stage(application, stage)
         activity.record(
             db,
             company_id=company.id,
@@ -563,9 +582,7 @@ async def bulk_reject(
         .all()
     )
     for application in applications:
-        previous = application.stage
-        stamp_decision(application, ApplicationStage.REJECTED)
-        application.stage = ApplicationStage.REJECTED
+        previous = move_stage(application, ApplicationStage.REJECTED)
         activity.record(
             db,
             company_id=company.id,

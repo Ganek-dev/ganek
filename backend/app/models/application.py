@@ -3,7 +3,17 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -53,6 +63,11 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # retention clock (G3): stamped on terminal stages, cleared on reopening;
     # the nightly purge measures the company's retention window from here
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # when the row entered its current stage (0035): "longest in stage" sort;
+    # every stage writer stamps it, a no-op move leaves it alone
+    stage_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     candidate: Mapped["Candidate"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship()
