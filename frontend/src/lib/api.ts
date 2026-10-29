@@ -462,6 +462,8 @@ export interface ApplicationOut {
   source: string | null;
   quiz_attempt: QuizResult | null;
   created_at: string;
+  /** When the row entered its current stage (sort "Longest in stage"). */
+  stage_changed_at: string;
 }
 
 /** One row of the applicant timeline (card "Candidate timeline"): an
@@ -535,7 +537,9 @@ export type ApplicationSortKey =
   | "applied_asc"
   | "score_desc"
   | "score_asc"
-  | "name_asc";
+  | "name_asc"
+  | "stage_age_desc"
+  | "stage_age_asc";
 
 /** Latest-attempt state; "expired" also covers a pending link past its expiry. */
 export type ApplicationQuizState = "none" | "pending" | "in_progress" | "completed" | "expired";

@@ -124,6 +124,7 @@ function makeApplication(overrides: Partial<ApplicationOut>): ApplicationOut {
     candidate: { id: "c1", name: "Marta Vidal", email: "marta@example.com", links: {} },
     cv_filename: "marta.pdf",
     cv_size: 1024,
+    stage_changed_at: "2026-10-20T10:00:00Z",
     message: null,
     stage: "new",
     source: null,

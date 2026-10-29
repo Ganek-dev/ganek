@@ -56,6 +56,8 @@ const SORTS: ReadonlySet<string> = new Set([
   "score_desc",
   "score_asc",
   "name_asc",
+  "stage_age_desc",
+  "stage_age_asc",
 ]);
 const QUIZ_STATES: ReadonlySet<string> = new Set([
   "none",

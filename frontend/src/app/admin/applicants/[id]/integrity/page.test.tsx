@@ -72,6 +72,7 @@ function makeApp(overrides: Partial<ApplicationOut> = {}): ApplicationOut {
     candidate: { id: "c1", name: "Tomas Hruby", email: "tomas@x.dev", links: {} },
     cv_filename: "cv.pdf",
     cv_size: 1000,
+    stage_changed_at: "2026-10-20T10:00:00Z",
     message: null,
     stage: "screening",
     source: null,
