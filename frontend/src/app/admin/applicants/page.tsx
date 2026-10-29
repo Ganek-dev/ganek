@@ -42,6 +42,7 @@ import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
 import { NotesCard } from "@/components/NotesCard";
 import { TimelineCard } from "@/components/TimelineCard";
+import { Toast, type ToastMessage } from "@/components/Toast";
 import {
   Dialog,
   DialogContent,
@@ -81,7 +82,26 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "score_desc", label: "Score: high to low" },
   { value: "score_asc", label: "Score: low to high" },
   { value: "name_asc", label: "Name A to Z" },
+  { value: "stage_age_desc", label: "Longest in stage" },
+  { value: "stage_age_asc", label: "Shortest in stage" },
 ];
+
+const STAGE_LABELS: Record<ApplicationStage, string> = {
+  new: "New",
+  screening: "Screening",
+  interview: "Interview",
+  offer: "Offer",
+  hired: "Hired",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
+};
+
+/** "in screening for 4d": how long the row has sat in its current stage. */
+function stageAge(app: ApplicationOut, now: Date): string {
+  const age = relativeTime(app.stage_changed_at, now);
+  if (age === "just now") return `moved to ${app.stage} just now`;
+  return `in ${app.stage} for ${age.replace(" ago", "")}`;
+}
 
 
 function formatDuration(seconds: number): string {
@@ -591,6 +611,7 @@ function DetailPanel({
             <span className="font-mono text-[11.5px] text-g400">
               {jobTitle} · applied {relativeTime(app.created_at, now)}
               {app.source ? ` · via ${app.source}` : ""}
+              {app.stage_changed_at !== app.created_at ? ` · ${stageAge(app, now)}` : ""}
             </span>
           </div>
         </div>
@@ -850,6 +871,7 @@ function ApplicantsContent() {
   const [error, setError] = useState<string | null>(null);
   // bumps after panel actions that write a timeline row, so the trail refetches
   const [trailTick, setTrailTick] = useState(0);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -1006,13 +1028,38 @@ function ApplicantsContent() {
 
   async function changeStage(id: string, stage: ApplicationStage, notify: boolean) {
     setError(null);
+    const before = items?.find((row) => row.id === id) ?? null;
     try {
       await applications.setStage(id, stage, notify);
       setTrailTick((tick) => tick + 1);
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stage change failed");
+      return;
     }
+    if (before === null || before.stage === stage) return;
+    const previous = before.stage;
+    const name = before.candidate.name;
+    // an email that went out cannot be unsent; the toast says so and
+    // undo moves the row back quietly
+    setToast({
+      id: Date.now(),
+      text: `Moved ${name} to ${STAGE_LABELS[stage]}.${notify ? " Email sent." : ""}`,
+      action: {
+        label: "Undo",
+        run: async () => {
+          setToast(null);
+          try {
+            await applications.setStage(id, previous, false);
+            setTrailTick((tick) => tick + 1);
+            reload();
+            setToast({ id: Date.now(), text: `Moved ${name} back to ${STAGE_LABELS[previous]}.` });
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Undo failed");
+          }
+        },
+      },
+    });
   }
 
   async function remindCandidate(id: string): Promise<boolean> {
@@ -1342,6 +1389,7 @@ function ApplicantsContent() {
           </div>
         )}
       </div>
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </section>
   );
 }

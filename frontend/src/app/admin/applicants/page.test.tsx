@@ -70,6 +70,7 @@ function makeApp(overrides: Partial<ApplicationOut>): ApplicationOut {
     message: "Hello!",
     stage: "new",
     source: null,
+    stage_changed_at: RECENT, // same instant as created_at: untouched row
     quiz_attempt: {
       status: "completed",
       score: 0.75,
@@ -392,6 +393,40 @@ describe("ApplicantsPage", () => {
     await waitFor(() =>
       expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false),
     );
+  });
+
+  it("confirms a stage move with a toast whose Undo moves the row back quietly", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("button", { name: "Advance" }));
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(status).toHaveTextContent("Moved Jane Applicant to Screening."));
+    expect(status).not.toHaveTextContent("Email sent");
+    await userEvent.click(within(status).getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenLastCalledWith("app-1", "new", false),
+    );
+    await waitFor(() => expect(status).toHaveTextContent("Moved Jane Applicant back to New."));
+  });
+
+  it("the toast says when an email went out with the move", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Advance" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Moved Jane Applicant to Screening. Email sent."),
+    );
+  });
+
+  it("shows how long the applicant has sat in the current stage", async () => {
+    const moved = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
+    mockedApps.list.mockResolvedValue(
+      pageOf([{ ...makeApp({}), stage: "screening", stage_changed_at: moved }]),
+    );
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(screen.getByText(/in screening for 4d/)).toBeInTheDocument();
   });
 
   it("Send reminder appears for pending attempts and calls the endpoint", async () => {
@@ -720,6 +755,21 @@ describe("filters, sort and URL state", () => {
     expect(screen.getByLabelText("Sort applicants")).toHaveValue("score_desc");
     expect(screen.getByLabelText("Score")).toHaveValue("60");
     expect(screen.getByLabelText("Search applicants")).toHaveValue("erika");
+  });
+
+  it("offers the stage-age sort and writes it to the URL", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.selectOptions(screen.getByLabelText("Sort applicants"), "Longest in stage");
+    await waitFor(() => expect(replace).toHaveBeenLastCalledWith(
+      "/admin/applicants?sort=stage_age_desc",
+      { scroll: false },
+    ));
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "stage_age_desc" }),
+      ),
+    );
   });
 
   it("changing the sort writes the URL and refetches", async () => {

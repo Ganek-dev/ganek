@@ -45,6 +45,11 @@ describe("parseFilters", () => {
     expect(parseFilters(new URLSearchParams("days=7")).days).toBe(7);
   });
 
+  it("accepts the stage-age sort keys", () => {
+    expect(parseFilters(new URLSearchParams("sort=stage_age_desc")).sort).toBe("stage_age_desc");
+    expect(parseFilters(new URLSearchParams("sort=stage_age_asc")).sort).toBe("stage_age_asc");
+  });
+
   it("reads flagged=false as the clean filter", () => {
     expect(parseFilters(new URLSearchParams("flagged=false")).flagged).toBe(false);
   });
