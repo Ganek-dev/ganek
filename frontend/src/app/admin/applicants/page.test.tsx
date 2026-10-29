@@ -15,9 +15,10 @@ import {
 import ApplicantsPage from "./page";
 
 let search = new URLSearchParams();
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/applicants",
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace }),
   useSearchParams: () => search,
 }));
 
@@ -37,6 +38,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       accessLog: vi.fn(),
       remind: vi.fn(),
       bulkReject: vi.fn(),
+      bulkStage: vi.fn(),
       eraseCandidate: vi.fn(),
       dsarExport: vi.fn(),
       updateCandidateEmail: vi.fn(),
@@ -147,7 +149,7 @@ const ANSWERS: QuizAnswerReview[] = [
 function pageOf(items: ApplicationOut[]) {
   const stage_counts: Partial<Record<ApplicationStage, number>> = {};
   for (const app of items) stage_counts[app.stage] = (stage_counts[app.stage] ?? 0) + 1;
-  return { items, total: items.length, stage_counts };
+  return { items, total: items.length, stage_counts, sources: ["direct", "linkedin"] };
 }
 
 describe("ApplicantsPage", () => {
@@ -183,6 +185,7 @@ describe("ApplicantsPage", () => {
     mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
     mockedApps.quizAnswers.mockResolvedValue(ANSWERS);
     mockedApps.bulkReject.mockResolvedValue({ rejected: 2, skipped: 0 });
+    mockedApps.bulkStage.mockResolvedValue({ updated: 2, skipped: 0 });
     mockedApps.eraseCandidate.mockResolvedValue({ applications: 2, google_event_failures: 0 });
     mockedApps.dsarExport.mockResolvedValue({ candidate: { email: "jane@example.com" } });
     mockedApps.updateCandidateEmail.mockResolvedValue(makeApp({ id: "app-1" }));
@@ -273,6 +276,7 @@ describe("ApplicantsPage", () => {
         items: [makeApp({ id: "app-1", stage: "new" })],
         total: 2,
         stage_counts: { new: 2 },
+        sources: [],
       })
       .mockResolvedValueOnce({
         items: [
@@ -284,6 +288,7 @@ describe("ApplicantsPage", () => {
         ],
         total: 2,
         stage_counts: { new: 2 },
+        sources: [],
       });
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });
@@ -661,6 +666,207 @@ describe("ApplicantsPage", () => {
       await screen.findByText("Another candidate already uses this email"),
     ).toBeInTheDocument();
   });
+
+describe("filters, sort and URL state", () => {
+  it("sends every URL filter to the API", async () => {
+    search = new URLSearchParams(
+      "job=job-1&stage=screening&q=erika&score=60&quiz=completed&source=linkedin&flagged=true&days=30&sort=score_desc",
+    );
+    render(<ApplicantsPage />);
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenCalledWith({
+        job_id: "job-1",
+        stage: "screening",
+        q: "erika",
+        score_min: 60,
+        quiz: "completed",
+        source: "linkedin",
+        flagged: true,
+        since_days: 30,
+        sort: "score_desc",
+        limit: 50,
+      }),
+    );
+    expect(screen.getByRole("button", { name: /^Screening · / })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("Sort applicants")).toHaveValue("score_desc");
+    expect(screen.getByLabelText("Score")).toHaveValue("60");
+    expect(screen.getByLabelText("Search applicants")).toHaveValue("erika");
+  });
+
+  it("changing the sort writes the URL and refetches", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.selectOptions(screen.getByLabelText("Sort applicants"), "name_asc");
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants?sort=name_asc", { scroll: false });
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "name_asc" }),
+      ),
+    );
+  });
+
+  it("a filter from the bar narrows the request and lights the count line", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    expect(screen.getByText("2 applicants")).toBeInTheDocument();
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ id: "app-1", stage: "new" })]));
+    await userEvent.selectOptions(screen.getByLabelText("Quiz"), "completed");
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants?quiz=completed", {
+      scroll: false,
+    });
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ quiz: "completed" }),
+      ),
+    );
+    expect(await screen.findByText("1 match")).toBeInTheDocument();
+  });
+
+  it("offers the sources the server knows in the Source filter", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    const options = Array.from(
+      (screen.getByLabelText("Source") as HTMLSelectElement).options,
+      (option) => option.value,
+    );
+    expect(options).toEqual(["", "direct", "linkedin"]);
+  });
+
+  it("shows the job on each row in the all-jobs view and not in a single-job view", async () => {
+    render(<ApplicantsPage />);
+    const jane = await screen.findByRole("button", { name: /Jane Applicant/ });
+    await waitFor(() => expect(within(jane).getByText("Backend Engineer")).toBeInTheDocument());
+    expect(within(jane).getByText(/applied .* · new/)).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Filter by job"), "job-1");
+    const janeAgain = await screen.findByRole("button", { name: /Jane Applicant/ });
+    expect(within(janeAgain).queryByText(/Backend Engineer/)).not.toBeInTheDocument();
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants?job=job-1", { scroll: false });
+  });
+
+  it("shows a clearable empty state when filters match nothing", async () => {
+    search = new URLSearchParams("q=nobody&flagged=true");
+    mockedApps.list.mockResolvedValue(pageOf([]));
+    render(<ApplicantsPage />);
+    expect(await screen.findByText("No applicants match these filters.")).toBeInTheDocument();
+    const clear = screen.getAllByRole("button", { name: "Clear filters" });
+    await userEvent.click(clear[clear.length - 1]);
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants", { scroll: false });
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith({ limit: 50 }),
+    );
+  });
+
+  it("keeps the plain empty state when only the stage pill narrows", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([]));
+    render(<ApplicantsPage />);
+    expect(await screen.findByText("No applications match.")).toBeInTheDocument();
+  });
+
+  it("opening an applicant writes ?selected= so the back button returns to them", async () => {
+    render(<ApplicantsPage />);
+    const kenji = await screen.findByRole("button", { name: /Kenji Sato/ });
+    await userEvent.click(kenji);
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants?selected=app-2", {
+      scroll: false,
+    });
+    expect(kenji).toHaveAttribute("aria-current", "true");
+    // the deep-link pin is a first-load affair; a row click never refetches
+    expect(mockedApps.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("still pins a ?selected= applicant from outside the page when a search is set", async () => {
+    search = new URLSearchParams("q=jane&selected=app-9");
+    mockedApps.get.mockResolvedValue(
+      makeApp({
+        id: "app-9",
+        candidate: { id: "cand-9", name: "Far Away", email: "far@example.com", links: {} },
+      }),
+    );
+    render(<ApplicantsPage />);
+    expect(await screen.findByRole("button", { name: /Far Away/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(mockedApps.list).toHaveBeenCalledWith(expect.objectContaining({ q: "jane" }));
+  });
+
+  it("follows a query string the browser restores (back button)", async () => {
+    const { rerender } = render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    search = new URLSearchParams("stage=rejected");
+    rerender(<ApplicantsPage />);
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ stage: "rejected" }),
+      ),
+    );
+    expect(screen.getByRole("button", { name: /^Rejected · / })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});
+
+describe("bulk bar", () => {
+  it("the header checkbox selects every loaded row and clears them again", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    const all = screen.getByLabelText("Select all on this page");
+    await userEvent.click(all);
+    expect(screen.getByLabelText("Select Jane Applicant")).toBeChecked();
+    expect(screen.getByLabelText("Select Kenji Sato")).toBeChecked();
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    await userEvent.click(all);
+    expect(screen.getByLabelText("Select Jane Applicant")).not.toBeChecked();
+    expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
+  });
+
+  it("Move to calls bulkStage with the ids, the stage and the email toggle, then reloads", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByLabelText("Select Jane Applicant"));
+    await userEvent.click(screen.getByLabelText("Select Kenji Sato"));
+    await userEvent.click(screen.getByLabelText("Also email candidates"));
+    await userEvent.selectOptions(screen.getByLabelText("Move selected to stage"), "screening");
+    await waitFor(() =>
+      expect(mockedApps.bulkStage).toHaveBeenCalledWith(["app-1", "app-2"], "screening", true),
+    );
+    expect(await screen.findByText("Moved 2")).toBeInTheDocument();
+    expect(mockedApps.list).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
+  });
+
+  it("reports skipped rows after a move", async () => {
+    mockedApps.bulkStage.mockResolvedValue({ updated: 1, skipped: 1 });
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByLabelText("Select all on this page"));
+    await userEvent.selectOptions(screen.getByLabelText("Move selected to stage"), "interview");
+    expect(await screen.findByText("Moved 1, skipped 1")).toBeInTheDocument();
+  });
+
+  it("Export CSV in the bar downloads just the selection", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByLabelText("Select all on this page"));
+    const link = screen.getByRole("link", { name: "Export selected (CSV)" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/api/v1/applications/export?format=csv&ids=app-1%2Capp-2",
+    );
+  });
+
+  it("the bar sticks to the bottom of the list while rows are checked", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByLabelText("Select Jane Applicant"));
+    expect(screen.getByText("1 selected").closest(".sticky")).not.toBeNull();
+  });
+});
 });
 
 describe("export", () => {
@@ -681,6 +887,7 @@ describe("export", () => {
       items: [makeApp({})],
       total: 1,
       stage_counts: { new: 1 },
+      sources: [],
     });
   });
 

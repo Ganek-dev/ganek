@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api } from "./api";
+import { ApiError, api, applications } from "./api";
 
 function mockFetch(status: number, body: unknown, statusText = "Unprocessable Content") {
   vi.stubGlobal(
@@ -82,5 +82,35 @@ describe("401 interceptor", () => {
       api.login({ email: "a@b.c", password: "wrong-but-long" }),
     ).rejects.toThrowError(new ApiError(401, "Invalid email or password"));
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe("applications query params", () => {
+  it("serialises every list filter and the export selection", () => {
+    const url = applications.exportUrl("csv", {
+      job_id: "job-1",
+      stage: "new",
+      q: "a b",
+      score_min: 60,
+      quiz: "completed",
+      source: "linkedin",
+      flagged: false,
+      since_days: 30,
+      ids: ["1", "2"],
+    });
+    const params = new URL(url, "http://x").searchParams;
+    expect(params.get("format")).toBe("csv");
+    expect(params.get("q")).toBe("a b");
+    expect(params.get("score_min")).toBe("60");
+    expect(params.get("quiz")).toBe("completed");
+    expect(params.get("source")).toBe("linkedin");
+    expect(params.get("flagged")).toBe("false");
+    expect(params.get("since_days")).toBe("30");
+    expect(params.get("ids")).toBe("1,2");
+    expect(url).toContain("ids=1%2C2");
+  });
+
+  it("leaves unset filters out of the query", () => {
+    expect(applications.exportUrl("json")).toBe("/api/v1/applications/export?format=json");
   });
 });

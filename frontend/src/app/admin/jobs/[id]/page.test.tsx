@@ -173,6 +173,7 @@ describe("JobOverviewPage", () => {
       ],
       total: 2,
       stage_counts: { new: 1, screening: 1 },
+      sources: [],
     });
   });
 
@@ -312,7 +313,12 @@ describe("JobOverviewPage", () => {
         days_open: null,
       }),
     );
-    mockedApplications.list.mockResolvedValue({ items: [], total: 0, stage_counts: {} });
+    mockedApplications.list.mockResolvedValue({
+      items: [],
+      total: 0,
+      stage_counts: {},
+      sources: [],
+    });
     render(<JobOverviewPage />);
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
     expect(await screen.findByText("Draft, not published")).toBeInTheDocument();

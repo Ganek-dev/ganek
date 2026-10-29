@@ -1,0 +1,99 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  countActive,
+  DEFAULT_FILTERS,
+  filtersToParams,
+  parseFilters,
+  toApiFilters,
+  type ApplicantFilters,
+} from "./applicant-filters";
+
+const FULL: ApplicantFilters = {
+  job: "job-1",
+  stage: "screening",
+  q: "erika",
+  sort: "score_desc",
+  score: 60,
+  quiz: "completed",
+  source: "linkedin",
+  flagged: true,
+  days: 30,
+};
+
+describe("parseFilters", () => {
+  it("returns the defaults for an empty query", () => {
+    expect(parseFilters(new URLSearchParams())).toEqual(DEFAULT_FILTERS);
+  });
+
+  it("round-trips every parameter", () => {
+    const params = filtersToParams(FULL);
+    expect(parseFilters(params)).toEqual(FULL);
+  });
+
+  it("falls back to the default on a value it does not know", () => {
+    const params = new URLSearchParams(
+      "score=abc&days=0&sort=sideways&quiz=maybe&stage=limbo&flagged=perhaps",
+    );
+    expect(parseFilters(params)).toEqual(DEFAULT_FILTERS);
+  });
+
+  it("clamps score to 0..100 and days to 1..365", () => {
+    expect(parseFilters(new URLSearchParams("score=101")).score).toBeNull();
+    expect(parseFilters(new URLSearchParams("score=0")).score).toBe(0);
+    expect(parseFilters(new URLSearchParams("days=366")).days).toBeNull();
+    expect(parseFilters(new URLSearchParams("days=7")).days).toBe(7);
+  });
+
+  it("reads flagged=false as the clean filter", () => {
+    expect(parseFilters(new URLSearchParams("flagged=false")).flagged).toBe(false);
+  });
+});
+
+describe("filtersToParams", () => {
+  it("is empty for the defaults so the plain link stays clean", () => {
+    expect(filtersToParams(DEFAULT_FILTERS).toString()).toBe("");
+  });
+
+  it("omits defaults and keeps extra params such as the selected applicant", () => {
+    const params = filtersToParams({ ...DEFAULT_FILTERS, q: "ben" }, { selected: "app-9" });
+    expect(params.get("q")).toBe("ben");
+    expect(params.get("selected")).toBe("app-9");
+    expect(params.has("sort")).toBe(false);
+    expect(params.has("stage")).toBe(false);
+  });
+
+  it("writes flagged=false explicitly", () => {
+    expect(filtersToParams({ ...DEFAULT_FILTERS, flagged: false }).get("flagged")).toBe("false");
+  });
+});
+
+describe("toApiFilters", () => {
+  it("maps the URL names to the API names and drops defaults", () => {
+    expect(toApiFilters(FULL)).toEqual({
+      job_id: "job-1",
+      stage: "screening",
+      q: "erika",
+      sort: "score_desc",
+      score_min: 60,
+      quiz: "completed",
+      source: "linkedin",
+      flagged: true,
+      since_days: 30,
+    });
+    expect(toApiFilters(DEFAULT_FILTERS)).toEqual({});
+  });
+
+  it("drops a blank search", () => {
+    expect(toApiFilters({ ...DEFAULT_FILTERS, q: "   " })).toEqual({});
+  });
+});
+
+describe("countActive", () => {
+  it("counts the narrowing filters, not job, stage or sort", () => {
+    expect(countActive(DEFAULT_FILTERS)).toBe(0);
+    expect(countActive({ ...DEFAULT_FILTERS, job: "j", stage: "new", sort: "name_asc" })).toBe(0);
+    expect(countActive(FULL)).toBe(6);
+    expect(countActive({ ...DEFAULT_FILTERS, flagged: false })).toBe(1);
+  });
+});
