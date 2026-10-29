@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 
 import {
   AlertTriangle,
+  ArrowRight,
   BellRing,
   Check,
   ChevronDown,
@@ -482,7 +483,8 @@ function IntegrityCard({ result, applicationId }: { result: QuizResult; applicat
             href={`/admin/applicants/${applicationId}/integrity`}
             className="text-[11.5px] font-medium text-accent hover:underline"
           >
-            Review →
+            Review
+            <ArrowRight aria-hidden className="ml-0.5 inline h-3 w-3 align-[-1px]" />
           </Link>
         </span>
       </div>

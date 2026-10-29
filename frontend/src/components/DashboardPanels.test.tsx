@@ -148,7 +148,7 @@ describe("QueuePanel", () => {
     render(<QueuePanel overview={OVERVIEW} />);
     expect(await screen.findByText("Review 7 new applicants")).toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
-    expect(screen.queryByText(/SRE/)).not.toBeInTheDocument(); // zero new → no item
+    expect(screen.queryByText(/SRE/)).not.toBeInTheDocument(); // zero new -> no item
     expect(screen.getByText("1 open")).toBeInTheDocument();
   });
 
@@ -210,7 +210,7 @@ describe("ActivityPanel", () => {
       await screen.findByText("Marta Vidal applied - Backend Engineer"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("grumpy@acme.dev moved a candidate new → screening"),
+      screen.getByText("grumpy@acme.dev moved a candidate from new to screening"),
     ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();

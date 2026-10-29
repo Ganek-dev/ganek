@@ -31,7 +31,7 @@ class PublicJobSummary(BaseModel):
 
 class PublicJobDetail(PublicJobSummary):
     description_md: str
-    # advisory deadline → JSON-LD validThrough; the posting stays applyable
+    # advisory deadline -> JSON-LD validThrough; the posting stays applyable
     closes_at: datetime | None
 
 

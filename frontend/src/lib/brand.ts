@@ -2,7 +2,7 @@
  *
  * Every brand-dependent value on candidate surfaces goes through CSS variables:
  * `--brand-primary` plus a computed `--brand-primary-foreground` (luminance
- * > 0.45 → dark text, else white). Never hard-code a brand color in
+ * > 0.45 -> dark text, else white). Never hard-code a brand color in
  * candidate components.
  */
 

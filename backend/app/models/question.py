@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
 
 # Difficulty is a 1-5 scale (5-dot UI: ≤2 easy-ish, 3 medium, ≥4 hard).
-# Legacy 3-level values map as easy→2, medium→3, hard→4 (migration 0008).
+# Legacy 3-level values map as easy->2, medium->3, hard->4 (migration 0008).
 MIN_DIFFICULTY = 1
 MAX_DIFFICULTY = 5
 

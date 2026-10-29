@@ -10,7 +10,7 @@ import { brandStyle } from "@/lib/brand";
 import { answeredSummary } from "@/lib/quiz-progress";
 
 /** Candidate status page, handoff screen 21: private magic-link page with a
- * vertical timeline (received → assessment → under review → decision) and a
+ * vertical timeline (received -> assessment -> under review -> decision) and a
  * two-step withdraw. Candidate-facing: never shows a score. */
 
 const RED = "var(--danger)";

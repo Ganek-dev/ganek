@@ -15,11 +15,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-/** Interview scheduling card for the applicant detail panel (screen 11 → 23).
+/** Interview scheduling card for the applicant detail panel (screen 11 -> 23).
 
 Self-contained: fetches its own state per application so the (large)
-applicants page stays lean. States: none → schedule dialog → pending →
-booked → (cancel) → back to none. */
+applicants page stays lean. States: none -> schedule dialog -> pending ->
+booked -> (cancel) -> back to none. */
 
 const DURATIONS = [15, 30, 45, 60] as const;
 
@@ -95,7 +95,7 @@ function ScheduleDialogBody({
           key,
           error:
             err instanceof Error && /calendar/i.test(err.message)
-              ? "Interviewer needs to connect Google Calendar in Settings → Account first."
+              ? "Interviewer needs to connect Google Calendar on the Account page under Settings first."
               : err instanceof Error
                 ? err.message
                 : "Failed to load availability",

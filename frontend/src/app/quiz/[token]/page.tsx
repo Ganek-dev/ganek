@@ -123,7 +123,7 @@ function useIntegrityTelemetry(token: string, active: boolean, questionId: strin
   useEffect(() => {
     if (!active) return;
     const onPageHide = () => {
-      // close an open blur segment - on tab close, visibilitychange→hidden
+      // close an open blur segment - on tab close, visibilitychange->hidden
       // fires first and would otherwise leave the segment dangling
       if (blurStarted.current !== null) {
         queue.current.push({
@@ -303,7 +303,7 @@ export default function QuizPage() {
     [question, busy, token, clockOffset, flushTelemetry, advance],
   );
 
-  // deadline hit → lock whatever is selected (server grace decides), else
+  // deadline hit -> lock whatever is selected (server grace decides), else
   // let the server resolve the miss and move on
   useEffect(() => {
     if (

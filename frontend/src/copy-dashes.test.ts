@@ -3,13 +3,14 @@ import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-/** Owner rule: never an em or en dash in any copy, plain "-" only. The
- * sweep (board card "Copy sweep") cleared frontend/src; this keeps it
- * clear without a reviewer having to notice. Tests may spell a dash as
- * an escape when they assert its absence. */
+/** Owner rule: never an em or en dash in any copy, plain "-" only, and
+ * no arrow glyph either (words or a lucide icon instead). The sweep
+ * (board card "Copy sweep") cleared frontend/src; this keeps it clear
+ * without a reviewer having to notice. Tests may spell a glyph as an
+ * escape when they assert its absence. */
 
 const ROOT = join(__dirname);
-const DASH = /[\u2013\u2014]/;
+const DASH = /[\u2013\u2014\u2192]/;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -20,7 +21,7 @@ function sources(dir: string): string[] {
   });
 }
 
-describe("copy has no em or en dashes", () => {
+describe("copy has no em or en dashes or arrow glyphs", () => {
   it("frontend/src (tests excluded)", () => {
     const offenders = sources(ROOT).flatMap((file) =>
       readFileSync(file, "utf8")

@@ -74,9 +74,9 @@ class CompanySettingsUpdate(BaseModel):
 
     The privacy keys feed the candidate-facing privacy notice and the
     retention engine: ``legal_name`` is the controller identity shown to
-    candidates (unset → display name), ``privacy_contact_email`` receives
+    candidates (unset -> display name), ``privacy_contact_email`` receives
     rights requests, ``retention_months`` is the post-decision retention
-    window (unset → platform default), ``privacy_policy_url`` lets a company
+    window (unset -> platform default), ``privacy_policy_url`` lets a company
     link its own policy instead of the generated notice.
     """
 
