@@ -116,6 +116,27 @@ class BulkRejectOut(BaseModel):
     skipped: int
 
 
+class BulkStageIn(BaseModel):
+    """The bulk bar's "Move to": same cap as bulk reject; withdrawn is the
+    candidate's stage and never a recruiter target."""
+
+    application_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    stage: ApplicationStage
+    notify_candidates: bool = False
+
+    @field_validator("stage")
+    @classmethod
+    def _not_withdrawn(cls, value: ApplicationStage) -> ApplicationStage:
+        if value is ApplicationStage.WITHDRAWN:
+            raise ValueError("withdrawn is set by the candidate, not the team")
+        return value
+
+
+class BulkStageOut(BaseModel):
+    updated: int
+    skipped: int
+
+
 class EmailDeliveryOut(BaseModel):
     """One outbox row for the applicant panel's delivery trail (M5.7 H4).
 

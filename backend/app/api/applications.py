@@ -39,6 +39,8 @@ from app.schemas.applications import (
     ApplicationPage,
     BulkRejectIn,
     BulkRejectOut,
+    BulkStageIn,
+    BulkStageOut,
     CandidateEmailUpdate,
     CvDownload,
     EmailDeliveryOut,
@@ -250,6 +252,23 @@ async def bulk_reject_applications(
     return BulkRejectOut(
         rejected=len(rejected), skipped=len(payload.application_ids) - len(rejected)
     )
+
+
+@router.post("/bulk-stage", response_model=BulkStageOut)
+async def bulk_stage_applications(
+    payload: BulkStageIn,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> BulkStageOut:
+    # literal path, declared before /{application_id} like bulk-reject
+    updated = await applications_service.bulk_set_stage(
+        db, company, payload.application_ids, payload.stage, actor_user_id=user.id
+    )
+    if payload.notify_candidates:
+        for application in updated:
+            await _queue_stage_email(db, company, application, payload.stage)
+    return BulkStageOut(updated=len(updated), skipped=len(payload.application_ids) - len(updated))
 
 
 @router.get("/{application_id}", response_model=ApplicationOut)
