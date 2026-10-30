@@ -68,6 +68,11 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stage_changed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # internal rejection reason (0036): a key from services.rejection_reasons
+    # plus a free note, set when the row enters rejected or withdrawn and
+    # cleared when it leaves; the stage.changed payload keeps the history
+    rejection_reason: Mapped[str | None] = mapped_column(String(40))
+    rejection_note: Mapped[str | None] = mapped_column(Text)
 
     candidate: Mapped["Candidate"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship()

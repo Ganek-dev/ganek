@@ -4,9 +4,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models import ApplicationStage, AttemptStatus
+from app.services.rejection_reasons import ReasonKey
 
 
 class CandidateOut(BaseModel):
@@ -100,6 +101,9 @@ class ApplicationOut(BaseModel):
     quiz_attempt: QuizResultOut | None
     created_at: datetime
     stage_changed_at: datetime
+    # internal, recruiter-facing only (0036); never in a candidate schema
+    rejection_reason: str | None
+    rejection_note: str | None
 
 
 class ApplicationPage(BaseModel):
@@ -115,14 +119,40 @@ class ApplicationPage(BaseModel):
     sources: list[str] = []
 
 
-class StageUpdate(BaseModel):
+class RejectionFields(BaseModel):
+    """The optional internal reason (PR 2): a fixed key and a free note,
+    stripped, empty becomes null. Never part of an email."""
+
+    rejection_reason: ReasonKey | None = None
+    rejection_note: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("rejection_note")
+    @classmethod
+    def _strip_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @property
+    def has_reason(self) -> bool:
+        return self.rejection_reason is not None or self.rejection_note is not None
+
+
+class StageUpdate(RejectionFields):
     stage: ApplicationStage
     # opt-in: emails the candidate for stages with a template (22a/22b);
     # silently ignored for the rest
     notify_candidate: bool = False
 
+    @model_validator(mode="after")
+    def _reason_needs_rejected(self) -> "StageUpdate":
+        if self.has_reason and self.stage is not ApplicationStage.REJECTED:
+            raise ValueError("rejection reason needs the rejected stage")
+        return self
 
-class BulkRejectIn(BaseModel):
+
+class BulkRejectIn(RejectionFields):
     application_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
     # opt-in: emails each newly-rejected candidate (22b); already-rejected/
     # withdrawn/foreign/unknown ids are silently skipped, no email either way
@@ -134,7 +164,7 @@ class BulkRejectOut(BaseModel):
     skipped: int
 
 
-class BulkStageIn(BaseModel):
+class BulkStageIn(RejectionFields):
     """The bulk bar's "Move to": same cap as bulk reject; withdrawn is the
     candidate's stage and never a recruiter target."""
 
@@ -148,6 +178,12 @@ class BulkStageIn(BaseModel):
         if value is ApplicationStage.WITHDRAWN:
             raise ValueError("withdrawn is set by the candidate, not the team")
         return value
+
+    @model_validator(mode="after")
+    def _reason_needs_rejected(self) -> "BulkStageIn":
+        if self.has_reason and self.stage is not ApplicationStage.REJECTED:
+            raise ValueError("rejection reason needs the rejected stage")
+        return self
 
 
 class BulkStageOut(BaseModel):
