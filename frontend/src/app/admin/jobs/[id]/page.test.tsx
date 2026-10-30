@@ -129,6 +129,8 @@ function makeApplication(overrides: Partial<ApplicationOut>): ApplicationOut {
     cv_filename: "marta.pdf",
     cv_size: 1024,
     stage_changed_at: "2026-10-20T10:00:00Z",
+    rejection_reason: null,
+    rejection_note: null,
     message: null,
     stage: "new",
     source: null,

@@ -213,7 +213,8 @@ async def test_candidate_withdrawal_is_a_stage_change_without_actor(client: Asyn
     rows = await _timeline(client, application_id)
     moves = [row for row in rows if row["kind"] == "stage.changed"]
     assert len(moves) == 1
-    assert moves[0]["payload"] == {"from": "new", "to": "withdrawn"}
+    # the candidate's withdrawal records the withdrew reason (PR 2)
+    assert moves[0]["payload"] == {"from": "new", "to": "withdrawn", "reason": "withdrew"}
     assert moves[0]["actor_email"] is None and moves[0]["actor_label"] is None
 
 

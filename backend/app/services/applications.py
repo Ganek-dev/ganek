@@ -16,7 +16,7 @@ from app.core.sources import normalize_source
 from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
-from app.services import activity, storage, webhooks
+from app.services import activity, rejection_reasons, storage, webhooks
 
 TERMINAL_STAGES = frozenset(
     {ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED}
@@ -29,15 +29,46 @@ def stamp_decision(application: Application, stage: ApplicationStage) -> None:
     application.decided_at = datetime.now(UTC) if stage in TERMINAL_STAGES else None
 
 
-def move_stage(application: Application, stage: ApplicationStage) -> ApplicationStage:
+REASON_STAGES = frozenset({ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN})
+
+
+def move_stage(
+    application: Application,
+    stage: ApplicationStage,
+    *,
+    reason: str | None = None,
+    note: str | None = None,
+) -> ApplicationStage:
     """The one way to write a stage: retention clock, stage-age stamp, the
-    assignment. Returns the previous stage; a no-op move stamps nothing."""
+    rejection reason, the assignment. Returns the previous stage; a no-op
+    move stamps nothing. The reason and note are written on a move into
+    rejected or withdrawn and cleared on a move out of them."""
     previous = application.stage
     if previous is not stage:
         stamp_decision(application, stage)
+        if stage in REASON_STAGES:
+            application.rejection_reason = reason
+            application.rejection_note = note
+        elif previous in REASON_STAGES:
+            application.rejection_reason = None
+            application.rejection_note = None
         application.stage = stage
         application.stage_changed_at = datetime.now(UTC)
     return previous
+
+
+def _reason_payload(
+    stage: ApplicationStage, reason: str | None, note: str | None
+) -> dict[str, Any]:
+    """The stage.changed payload keys that keep the reason in history."""
+    if stage not in REASON_STAGES:
+        return {}
+    payload: dict[str, Any] = {}
+    if reason is not None:
+        payload["reason"] = reason
+    if note is not None:
+        payload["note"] = note
+    return payload
 
 
 class AlreadyAppliedError(Exception):
@@ -320,6 +351,8 @@ EXPORT_COLUMNS = (
     "quiz_time_multiplier",
     "cv_filename",
     "message",
+    "rejection_reason",
+    "rejection_note",
 )
 
 
@@ -354,6 +387,9 @@ def export_row(application: Application) -> dict[str, str | int]:
         ),
         "cv_filename": application.cv_filename,
         "message": application.message or "",
+        # internal rejection reason (PR 2): the label, for the team's sheet
+        "rejection_reason": rejection_reasons.label(application.rejection_reason),
+        "rejection_note": application.rejection_note or "",
     }
 
 
@@ -427,8 +463,10 @@ async def set_stage(
     stage: ApplicationStage,
     *,
     actor_user_id: uuid.UUID | None = None,
+    reason: str | None = None,
+    note: str | None = None,
 ) -> Application:
-    previous = move_stage(application, stage)
+    previous = move_stage(application, stage, reason=reason, note=note)
     if previous is not stage:
         activity.record(
             db,
@@ -436,7 +474,11 @@ async def set_stage(
             type=activity.STAGE_CHANGED,
             actor_user_id=actor_user_id,
             application_id=application.id,
-            payload={"from": previous.value, "to": stage.value},
+            payload={
+                "from": previous.value,
+                "to": stage.value,
+                **_reason_payload(stage, reason, note),
+            },
         )
     await db.commit()
     await db.refresh(application)
@@ -495,6 +537,8 @@ async def bulk_set_stage(
     stage: ApplicationStage,
     *,
     actor_user_id: uuid.UUID | None = None,
+    reason: str | None = None,
+    note: str | None = None,
 ) -> list[Application]:
     """Move every listed application the actor may move to `stage`.
 
@@ -526,14 +570,19 @@ async def bulk_set_stage(
     )
     moved: list[tuple[Application, ApplicationStage]] = []
     for application in applications:
-        previous = move_stage(application, stage)
+        previous = move_stage(application, stage, reason=reason, note=note)
         activity.record(
             db,
             company_id=company.id,
             type=activity.STAGE_CHANGED,
             actor_user_id=actor_user_id,
             application_id=application.id,
-            payload={"from": previous.value, "to": stage.value, "bulk": True},
+            payload={
+                "from": previous.value,
+                "to": stage.value,
+                "bulk": True,
+                **_reason_payload(stage, reason, note),
+            },
         )
         moved.append((application, previous))
     await db.commit()
@@ -550,6 +599,8 @@ async def bulk_reject(
     application_ids: list[uuid.UUID],
     *,
     actor_user_id: uuid.UUID | None = None,
+    reason: str | None = None,
+    note: str | None = None,
 ) -> list[Application]:
     """Reject every listed application that's still open.
 
@@ -582,14 +633,19 @@ async def bulk_reject(
         .all()
     )
     for application in applications:
-        previous = move_stage(application, ApplicationStage.REJECTED)
+        previous = move_stage(application, ApplicationStage.REJECTED, reason=reason, note=note)
         activity.record(
             db,
             company_id=company.id,
             type=activity.STAGE_CHANGED,
             actor_user_id=actor_user_id,
             application_id=application.id,
-            payload={"from": previous.value, "to": ApplicationStage.REJECTED.value, "bulk": True},
+            payload={
+                "from": previous.value,
+                "to": ApplicationStage.REJECTED.value,
+                "bulk": True,
+                **_reason_payload(ApplicationStage.REJECTED, reason, note),
+            },
         )
     if applications:
         activity.record(

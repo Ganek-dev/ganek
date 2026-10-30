@@ -248,7 +248,12 @@ async def bulk_reject_applications(
     # literal path - must stay declared before /{application_id} routes,
     # which would otherwise shadow it (FastAPI matches in declaration order)
     rejected = await applications_service.bulk_reject(
-        db, company, payload.application_ids, actor_user_id=user.id
+        db,
+        company,
+        payload.application_ids,
+        actor_user_id=user.id,
+        reason=payload.rejection_reason,
+        note=payload.rejection_note,
     )
     if payload.notify_candidates:
         for application in rejected:
@@ -267,7 +272,13 @@ async def bulk_stage_applications(
 ) -> BulkStageOut:
     # literal path, declared before /{application_id} like bulk-reject
     updated = await applications_service.bulk_set_stage(
-        db, company, payload.application_ids, payload.stage, actor_user_id=user.id
+        db,
+        company,
+        payload.application_ids,
+        payload.stage,
+        actor_user_id=user.id,
+        reason=payload.rejection_reason,
+        note=payload.rejection_note,
     )
     if payload.notify_candidates:
         for application in updated:
@@ -336,6 +347,8 @@ async def set_stage(
         application,
         payload.stage,
         actor_user_id=actor.user.id if actor.user is not None else None,
+        reason=payload.rejection_reason,
+        note=payload.rejection_note,
     )
     if payload.notify_candidate and stage_changed:
         await _queue_stage_email(db, company, application, payload.stage)

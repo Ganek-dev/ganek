@@ -34,7 +34,7 @@ from app.schemas.dsar import (
     DsarNote,
 )
 from app.services import company as company_service
-from app.services import storage
+from app.services import rejection_reasons, storage
 
 
 def _scrub_integrity(integrity: dict[str, Any] | None) -> dict[str, Any]:
@@ -161,6 +161,12 @@ async def export_candidate(
                 message=application.message,
                 cv_filename=application.cv_filename,
                 cv_size=application.cv_size,
+                rejection_reason=(
+                    rejection_reasons.label(application.rejection_reason)
+                    if application.rejection_reason is not None
+                    else None
+                ),
+                rejection_note=application.rejection_note,
                 applied_at=application.created_at,
                 cv_download_url=(
                     storage.presign_cv_download(application.cv_object_key, application.cv_filename)

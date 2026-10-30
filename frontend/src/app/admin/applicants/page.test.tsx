@@ -72,6 +72,8 @@ function makeApp(overrides: Partial<ApplicationOut>): ApplicationOut {
     stage: "new",
     source: null,
     stage_changed_at: RECENT, // same instant as created_at: untouched row
+    rejection_reason: null,
+    rejection_note: null,
     quiz_attempt: {
       status: "completed",
       score: 0.75,
@@ -387,18 +389,13 @@ describe("ApplicantsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("Advance advances to the next stage, Reject sets rejected", async () => {
+  it("Advance advances to the next stage", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
 
     await userEvent.click(screen.getByRole("button", { name: "Advance" }));
     await waitFor(() =>
       expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "screening", false),
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
-    await waitFor(() =>
-      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false),
     );
   });
 
@@ -475,7 +472,10 @@ describe("ApplicantsPage", () => {
     expect(mockedApps.setStage).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
     await waitFor(() =>
-      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true),
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true, {
+        rejectionReason: null,
+        rejectionNote: null,
+      }),
     );
   });
 
@@ -504,14 +504,58 @@ describe("ApplicantsPage", () => {
     expect(mockedApps.emailPreview).not.toHaveBeenCalled();
   });
 
-  it("Reject without the checkbox stays immediate", async () => {
+  it("Reject always opens the dialog; without the checkbox it rejects without an email", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
     await userEvent.click(screen.getByRole("button", { name: "Reject" }));
-    await waitFor(() =>
-      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false),
-    );
+    const dialog = await screen.findByRole("dialog", { name: "Reject Jane Applicant" });
+    expect(within(dialog).getByText("No email will be sent.")).toBeInTheDocument();
     expect(mockedApps.emailPreview).not.toHaveBeenCalled();
+    expect(mockedApps.setStage).not.toHaveBeenCalled();
+    await userEvent.selectOptions(
+      within(dialog).getByRole("combobox", { name: "Reason (internal, optional)" }),
+      "Another candidate preferred",
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", false, {
+        rejectionReason: "another_candidate",
+        rejectionNote: null,
+      }),
+    );
+  });
+
+  it("Cancel in the reject dialog sends nothing", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject Jane Applicant" });
+    await userEvent.type(within(dialog).getByLabelText("Internal note"), "Not a fit");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Reject Jane Applicant" })).not.toBeInTheDocument(),
+    );
+    expect(mockedApps.setStage).not.toHaveBeenCalled();
+  });
+
+  it("Reject with the checkbox sends the reason with the email", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.selectOptions(
+      within(dialog).getByRole("combobox", { name: "Reason (internal, optional)" }),
+      "Skills below the bar",
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reject and send email" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true, {
+        rejectionReason: "skills_gap",
+        rejectionNote: null,
+      }),
+    );
   });
 
   it("withdrawn applications get a chip, a count and a filter", async () => {
@@ -603,11 +647,55 @@ describe("ApplicantsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
 
     await waitFor(() =>
-      expect(mockedApps.bulkReject).toHaveBeenCalledWith(["app-1", "app-2"], true),
+      expect(mockedApps.bulkReject).toHaveBeenCalledWith(["app-1", "app-2"], true, {
+        rejectionReason: null,
+        rejectionNote: null,
+      }),
     );
     await waitFor(() => expect(mockedApps.list).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("Rejected 2")).toBeInTheDocument();
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+  });
+
+  it("bulk reject passes the reason and note", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(await screen.findByText("Reject 2 applicants?")).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Reason (internal, optional)" }),
+      "No response from the candidate",
+    );
+    await userEvent.type(screen.getByLabelText("Internal note"), " Two reminders, no reply ");
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
+    await waitFor(() =>
+      expect(mockedApps.bulkReject).toHaveBeenCalledWith(["app-1", "app-2"], false, {
+        rejectionReason: "no_response",
+        rejectionNote: "Two reminders, no reply",
+      }),
+    );
+  });
+
+  it("Keep them discards a typed reason and note", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Reason (internal, optional)" }),
+      "Skills below the bar",
+    );
+    await userEvent.type(screen.getByLabelText("Internal note"), "About Jane only");
+    await userEvent.click(screen.getByRole("button", { name: "Keep them" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    expect(screen.getByRole("combobox", { name: "Reason (internal, optional)" })).toHaveValue("");
+    expect(screen.getByLabelText("Internal note")).toHaveValue("");
   });
 
   it("Keep them cancels the confirm step without calling bulkReject", async () => {

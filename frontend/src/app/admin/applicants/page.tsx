@@ -21,6 +21,7 @@ import {
   applications,
   type ApplicationOut,
   type ApplicationStage,
+  type RejectionFields,
   type IntegrityFlag,
   type JobOut,
   type QuizAnswerReview,
@@ -38,7 +39,8 @@ import {
 } from "@/lib/applicant-filters";
 import { relativeTime } from "@/lib/time";
 import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/ApplicantChips";
-import { StageEmailDialog } from "@/components/StageEmailDialog";
+import { REASON_HELPER, StageEmailDialog } from "@/components/StageEmailDialog";
+import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
@@ -230,6 +232,9 @@ function BulkActionBar({
 }) {
   const [notify, setNotify] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  // the internal rejection reason for every row (PR 2); never emailed
+  const [bulkReason, setBulkReason] = useState<RejectionReason | "">("");
+  const [bulkNote, setBulkNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -254,8 +259,13 @@ function BulkActionBar({
     setBusy(true);
     setError(null);
     try {
-      const { rejected } = await applications.bulkReject(ids, notify);
+      const { rejected } = await applications.bulkReject(ids, notify, {
+        rejectionReason: bulkReason || null,
+        rejectionNote: bulkNote.trim() || null,
+      });
       setConfirming(false);
+      setBulkReason("");
+      setBulkNote("");
       setFlash(`Rejected ${rejected}`);
       onChanged();
     } catch (err) {
@@ -292,6 +302,33 @@ function BulkActionBar({
                 {namesLine}
               </span>
             </span>
+            <div className="flex w-full flex-col gap-1.5">
+              <label className="text-[12px] font-medium text-g700">
+                Reason (internal, optional)
+                <select
+                  value={bulkReason}
+                  onChange={(event) => setBulkReason(event.target.value as RejectionReason | "")}
+                  className="mt-1 block h-7 w-full rounded-sm border border-edge bg-surface px-1.5 text-[12.5px] font-normal text-foreground"
+                >
+                  <option value="">No reason recorded</option>
+                  {REJECTION_REASONS.filter((reason) => reason.key !== "withdrew").map((reason) => (
+                    <option key={reason.key} value={reason.key}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <input
+                type="text"
+                aria-label="Internal note"
+                value={bulkNote}
+                onChange={(event) => setBulkNote(event.target.value)}
+                placeholder="Internal note (optional)"
+                maxLength={1000}
+                className="h-7 w-full rounded-sm border border-edge bg-surface px-1.5 text-[12.5px] text-foreground placeholder:text-g500"
+              />
+              <p className="text-[11px] text-g500">{REASON_HELPER}</p>
+            </div>
             <button
               type="button"
               disabled={busy}
@@ -303,7 +340,12 @@ function BulkActionBar({
             <button
               type="button"
               disabled={busy}
-              onClick={() => setConfirming(false)}
+              onClick={() => {
+                // Cancel discards: a note about this set must not arm the next
+                setConfirming(false);
+                setBulkReason("");
+                setBulkNote("");
+              }}
               className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
             >
               Keep them
@@ -549,7 +591,7 @@ function DetailPanel({
   app: ApplicationOut;
   jobTitle: string;
   answers: QuizAnswerReview[] | null;
-  onStage: (stage: ApplicationStage, notify: boolean) => void;
+  onStage: (stage: ApplicationStage, notify: boolean, fields?: RejectionFields) => void;
   onDownloadCv: () => void;
   onRemind: () => Promise<boolean>;
   onExport: () => void;
@@ -559,12 +601,19 @@ function DetailPanel({
   trailTick: number;
 }) {
   const [notify, setNotify] = useState(false);
-  // with the checkbox on, interview and rejected first show the email the
-  // candidate gets (card "Candidate emails"); other stages have no mail
-  const [emailStage, setEmailStage] = useState<"interview" | "rejected" | null>(null);
+  // Reject always goes through the dialog (the internal reason, PR 2, plus
+  // the email preview when the checkbox is on); interview shows the email
+  // it sends when the checkbox is on; other stages have no mail
+  const [dialog, setDialog] = useState<{ stage: "interview" | "rejected"; email: boolean } | null>(
+    null,
+  );
   function requestStage(stage: ApplicationStage) {
-    if (notify && (stage === "interview" || stage === "rejected")) {
-      setEmailStage(stage);
+    if (stage === "rejected") {
+      setDialog({ stage, email: notify });
+      return;
+    }
+    if (notify && stage === "interview") {
+      setDialog({ stage, email: true });
       return;
     }
     onStage(stage, notify);
@@ -788,17 +837,18 @@ function DetailPanel({
         </DialogContent>
       </Dialog>
       <StageEmailDialog
-        key={emailStage ?? "closed"}
-        open={emailStage !== null}
+        key={dialog ? `${dialog.stage}-${dialog.email}` : "closed"}
+        open={dialog !== null}
         applicationId={app.id}
         candidateName={app.candidate.name}
-        stage={emailStage ?? "rejected"}
-        onConfirm={() => {
-          const stage = emailStage ?? "rejected";
-          setEmailStage(null);
-          onStage(stage, true);
+        stage={dialog?.stage ?? "rejected"}
+        email={dialog?.email ?? false}
+        onConfirm={(fields) => {
+          const { stage, email } = dialog ?? { stage: "rejected" as const, email: notify };
+          setDialog(null);
+          onStage(stage, email, fields);
         }}
-        onCancel={() => setEmailStage(null)}
+        onCancel={() => setDialog(null)}
       />
 
       {app.message ? (
@@ -1052,11 +1102,19 @@ function ApplicantsContent() {
     return base;
   }, [stageCounts]);
 
-  async function changeStage(id: string, stage: ApplicationStage, notify: boolean) {
+  async function changeStage(
+    id: string,
+    stage: ApplicationStage,
+    notify: boolean,
+    fields?: RejectionFields,
+  ) {
     setError(null);
     const before = items?.find((row) => row.id === id) ?? null;
     try {
-      await applications.setStage(id, stage, notify);
+      // the reason only exists on a rejection; immediate moves send none
+      await (fields
+        ? applications.setStage(id, stage, notify, fields)
+        : applications.setStage(id, stage, notify));
       setTrailTick((tick) => tick + 1);
       reload();
     } catch (err) {
@@ -1398,7 +1456,7 @@ function ApplicantsContent() {
             app={selected}
             jobTitle={jobLookup[selected.job_id] ?? "-"}
             answers={answersById[selected.id] ?? null}
-            onStage={(stage, notify) => changeStage(selected.id, stage, notify)}
+            onStage={(stage, notify, fields) => changeStage(selected.id, stage, notify, fields)}
             onDownloadCv={() => downloadCv(selected.id)}
             onRemind={() => remindCandidate(selected.id)}
             onExport={() => void downloadDsar(selected)}

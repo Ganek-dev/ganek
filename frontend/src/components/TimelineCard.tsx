@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { applications, type TimelineEvent } from "@/lib/api";
 import { relativeTime } from "@/lib/time";
+import { reasonLabel } from "@/lib/rejection-reasons";
 
 /** What happened to this application and who did it (board card
  * "Candidate timeline"): stage moves with the actor, every email with its
@@ -65,7 +66,12 @@ function stageName(value: unknown): string {
   return STAGE_LABELS[String(value)] ?? String(value);
 }
 
-export function describeEvent(event: TimelineEvent): { text: string; tone: Tone } {
+export function describeEvent(event: TimelineEvent): {
+  text: string;
+  tone: Tone;
+  /** A second line under the row: the internal rejection note. */
+  detail?: string;
+} {
   const p = event.payload;
   switch (event.kind) {
     case "applied":
@@ -76,7 +82,10 @@ export function describeEvent(event: TimelineEvent): { text: string; tone: Tone 
         return { text: "Candidate withdrew", tone: "stage" };
       }
       const bulk = p.bulk ? " (bulk)" : "";
-      return { text: `${who(event)} moved to ${stageName(p.to)}${bulk}`, tone: "stage" };
+      const reason = p.to === "rejected" ? reasonLabel(p.reason) : null;
+      const suffix = reason ? `: ${reason}` : "";
+      const detail = typeof p.note === "string" && p.note.trim() ? p.note : undefined;
+      return { text: `${who(event)} moved to ${stageName(p.to)}${suffix}${bulk}`, tone: "stage", detail };
     }
     case "quiz.invited":
       return { text: "Assessment link issued", tone: "quiz" };
@@ -178,21 +187,26 @@ export function TimelineCard({
         <>
           <ol className="mt-2.5 space-y-1.5">
             {visible.map((event) => {
-              const { text, tone } = describeEvent(event);
+              const { text, tone, detail } = describeEvent(event);
               return (
-                <li key={event.id} className="flex items-baseline gap-2 text-[13px]">
-                  <span
-                    aria-hidden
-                    className={`inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full ${DOT[tone]}`}
-                  />
-                  <span className="text-g700">{text}</span>
-                  <time
-                    dateTime={event.at}
-                    title={new Date(event.at).toLocaleString()}
-                    className="ml-auto shrink-0 font-mono text-[11px] text-g500"
-                  >
-                    {relativeTime(event.at, now)}
-                  </time>
+                <li key={event.id} className="text-[13px]">
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      aria-hidden
+                      className={`inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full ${DOT[tone]}`}
+                    />
+                    <span className="text-g700">{text}</span>
+                    <time
+                      dateTime={event.at}
+                      title={new Date(event.at).toLocaleString()}
+                      className="ml-auto shrink-0 font-mono text-[11px] text-g500"
+                    >
+                      {relativeTime(event.at, now)}
+                    </time>
+                  </div>
+                  {detail ? (
+                    <p className="ml-3.5 whitespace-pre-wrap text-[12px] text-g500">{detail}</p>
+                  ) : null}
                 </li>
               );
             })}

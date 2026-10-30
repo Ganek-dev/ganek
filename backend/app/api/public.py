@@ -60,7 +60,7 @@ from app.schemas.public import (
     StatusQuizOut,
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
-from app.services import activity, demo_mode, google_calendar, quotas, storage
+from app.services import activity, demo_mode, google_calendar, quotas, rejection_reasons, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import interviews as interviews_service
@@ -742,14 +742,20 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
             detail="This application already has a decision",
         )
     if application.stage is not ApplicationStage.WITHDRAWN:
-        previous = applications_service.move_stage(application, ApplicationStage.WITHDRAWN)
+        previous = applications_service.move_stage(
+            application, ApplicationStage.WITHDRAWN, reason=rejection_reasons.WITHDREW
+        )
         # actor NULL = the candidate; the panel timeline reads "withdrew"
         activity.record(
             db,
             company_id=application.company_id,
             type=activity.STAGE_CHANGED,
             application_id=application.id,
-            payload={"from": previous.value, "to": ApplicationStage.WITHDRAWN.value},
+            payload={
+                "from": previous.value,
+                "to": ApplicationStage.WITHDRAWN.value,
+                "reason": rejection_reasons.WITHDREW,
+            },
         )
         await db.commit()
     return {"withdrawn": True}

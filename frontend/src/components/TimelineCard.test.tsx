@@ -76,6 +76,30 @@ describe("TimelineCard", () => {
     expect(items[3]).toHaveTextContent("Assessment link expired");
   });
 
+  it("names the rejection reason and shows the note under the row", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({
+        kind: "stage.changed",
+        payload: { from: "screening", to: "rejected", reason: "another_candidate", note: "Other finalist had the depth." },
+        ...ERIKA,
+      }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const [row] = await screen.findAllByRole("listitem");
+    expect(row).toHaveTextContent("Erika Muster moved to Rejected: Another candidate preferred");
+    expect(screen.getByText("Other finalist had the depth.")).toBeInTheDocument();
+  });
+
+  it("keeps 'Candidate withdrew' for a withdrawal with the withdrew reason", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "stage.changed", payload: { from: "new", to: "withdrawn", reason: "withdrew" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const [row] = await screen.findAllByRole("listitem");
+    expect(row).toHaveTextContent("Candidate withdrew");
+    expect(row).not.toHaveTextContent("Rejected");
+  });
+
   it("explains an undelivered email under the trail", async () => {
     mocked.timeline.mockResolvedValue([
       event({ kind: "email", payload: { template: "rejection", status: "bounced", attempts: 1, last_error: null } }),
