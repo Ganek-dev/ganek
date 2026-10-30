@@ -23,7 +23,7 @@ from app.core import queue
 from app.core.config import settings
 from app.models import Company, EmailOutbox, EmailStatus
 from app.services import email as email_service
-from app.services import quotas, suppression
+from app.services import email_render, email_templates, quotas, suppression
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,15 @@ async def queue_email(
         # demo addresses are fictional; no row, no counter, no job
         logger.info("demo mode: dropped %s email", kind)
         return None
+    if kind in email_render.KINDS and "template_subject" not in kwargs:
+        # the chosen (or default) template travels as a snapshot so a later
+        # edit or delete never changes an in-flight mail (PR 3)
+        resolved_id, template = await email_templates.resolve(
+            db, company_id, kind, kwargs.pop("template_id", None)
+        )
+        kwargs["template_id"] = str(resolved_id) if resolved_id is not None else None
+        kwargs["template_subject"] = template.subject
+        kwargs["template_body"] = template.body
     row = EmailOutbox(
         company_id=company_id,
         application_id=application_id,
