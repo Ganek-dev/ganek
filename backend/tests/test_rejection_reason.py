@@ -206,6 +206,23 @@ async def test_bulk_stage_to_rejected_takes_the_reason_and_other_stages_refuse_i
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_withdraw_records_the_withdrew_reason(client: AsyncClient) -> None:
+    applicants, _ = await _company_with_applicants(client, 1, name_prefix="Reason Co")
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    token = applicants[0]["status_token"]
+    resp = await client.post(f"/api/v1/public/applications/{token}/withdraw")
+    assert resp.status_code == 200, resp.text
+
+    row = (await client.get(f"/api/v1/applications/{app_id}")).json()
+    assert row["stage"] == "withdrawn"
+    assert row["rejection_reason"] == "withdrew"
+    assert row["rejection_note"] is None
+    (move,) = await _stage_moves(client)
+    assert move["payload"] == {"from": "new", "to": "withdrawn", "reason": "withdrew"}
+    assert move["actor_email"] is None
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_csv_export_carries_the_reason_label_and_note(client: AsyncClient) -> None:
     applicants, _ = await _company_with_applicants(client, 2, name_prefix="Reason Co")
     ids = await _ids_by_email(client)
