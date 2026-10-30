@@ -2,6 +2,9 @@
 "Candidate emails", PR 2): stored by the stage writers, carried in the
 stage.changed activity payload, cleared on reopening."""
 
+import csv
+import io
+
 import pytest
 from httpx import AsyncClient
 
@@ -200,3 +203,50 @@ async def test_bulk_stage_to_rejected_takes_the_reason_and_other_stages_refuse_i
         m["payload"] == {"from": "new", "to": "rejected", "bulk": True, "reason": "no_response"}
         for m in moves
     )
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_csv_export_carries_the_reason_label_and_note(client: AsyncClient) -> None:
+    applicants, _ = await _company_with_applicants(client, 2, name_prefix="Reason Co")
+    ids = await _ids_by_email(client)
+    rejected_id = ids[applicants[0]["email"]]
+    resp = await client.patch(
+        f"/api/v1/applications/{rejected_id}/stage",
+        json={"stage": "rejected", "rejection_reason": "salary_mismatch", "rejection_note": NOTE},
+    )
+    assert resp.status_code == 200, resp.text
+
+    resp = await client.get("/api/v1/applications/export", params={"format": "csv"})
+    assert resp.status_code == 200, resp.text
+    reader = csv.DictReader(io.StringIO(resp.text))
+    rows = {row["candidate_email"]: row for row in reader}
+    assert reader.fieldnames is not None
+    assert reader.fieldnames[-2:] == ["rejection_reason", "rejection_note"]
+    rejected = rows[applicants[0]["email"]]
+    assert rejected["rejection_reason"] == "Salary expectations did not match"
+    assert rejected["rejection_note"] == NOTE
+    untouched = rows[applicants[1]["email"]]
+    assert untouched["rejection_reason"] == ""
+    assert untouched["rejection_note"] == ""
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_dsar_bundle_includes_the_reason_and_note(client: AsyncClient) -> None:
+    applicants, _ = await _company_with_applicants(client, 1, name_prefix="Reason Co")
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+
+    bundle = (await client.get(f"/api/v1/applications/{app_id}/dsar-export")).json()
+    (application,) = bundle["applications"]
+    assert application["rejection_reason"] is None
+    assert application["rejection_note"] is None
+
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "rejection_reason": "another_candidate", "rejection_note": NOTE},
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await client.get(f"/api/v1/applications/{app_id}/dsar-export")
+    assert resp.status_code == 200, resp.text
+    (application,) = resp.json()["applications"]
+    assert application["rejection_reason"] == "Another candidate preferred"
+    assert application["rejection_note"] == NOTE

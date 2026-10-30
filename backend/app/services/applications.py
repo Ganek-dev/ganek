@@ -16,7 +16,7 @@ from app.core.sources import normalize_source
 from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
-from app.services import activity, storage, webhooks
+from app.services import activity, rejection_reasons, storage, webhooks
 
 TERMINAL_STAGES = frozenset(
     {ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED}
@@ -351,6 +351,8 @@ EXPORT_COLUMNS = (
     "quiz_time_multiplier",
     "cv_filename",
     "message",
+    "rejection_reason",
+    "rejection_note",
 )
 
 
@@ -385,6 +387,9 @@ def export_row(application: Application) -> dict[str, str | int]:
         ),
         "cv_filename": application.cv_filename,
         "message": application.message or "",
+        # internal rejection reason (PR 2): the label, for the team's sheet
+        "rejection_reason": rejection_reasons.label(application.rejection_reason),
+        "rejection_note": application.rejection_note or "",
     }
 
 

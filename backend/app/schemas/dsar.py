@@ -58,6 +58,10 @@ class DsarApplication(BaseModel):
     message: str | None
     cv_filename: str | None
     cv_size: int | None
+    # the internal rejection reason (label) and note join the Article 15
+    # bundle like notes do (owner, 2026-10-29)
+    rejection_reason: str | None
+    rejection_note: str | None
     applied_at: datetime
     cv_download_url: str | None
     quiz_attempts: list[DsarAttempt]
