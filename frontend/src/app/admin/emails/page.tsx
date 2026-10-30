@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { emailTemplates, type EmailKindInfo, type EmailTemplate } from "@/lib/api";
 
@@ -26,8 +27,15 @@ export default function EmailsSettingsPage() {
   const [flash, setFlash] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
-  // the editor (next task) opens from New template, Duplicate and Edit
+  // the editor opens from New template, Duplicate and Edit; re-keyed per
+  // opening so it mounts with the prefilled text
   const [editing, setEditing] = useState<EditorTarget>(null);
+  const [editorKey, setEditorKey] = useState(0);
+
+  function openEditor(target: EditorTarget) {
+    setEditorKey((key) => key + 1);
+    setEditing(target);
+  }
 
   const load = useCallback(() => {
     return emailTemplates
@@ -93,7 +101,7 @@ export default function EmailsSettingsPage() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => setEditing({ kind, template: null, duplicateOf: null })}
+                  onClick={() => openEditor({ kind, template: null, duplicateOf: null })}
                   className={btn}
                 >
                   New template
@@ -110,7 +118,7 @@ export default function EmailsSettingsPage() {
                       type="button"
                       disabled={busy}
                       onClick={() =>
-                        setEditing({
+                        openEditor({
                           kind,
                           template: null,
                           duplicateOf: {
@@ -182,7 +190,7 @@ export default function EmailsSettingsPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => setEditing({ kind, template: null, duplicateOf: template })}
+                            onClick={() => openEditor({ kind, template: null, duplicateOf: template })}
                             className={btn}
                           >
                             Duplicate
@@ -190,7 +198,7 @@ export default function EmailsSettingsPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => setEditing({ kind, template, duplicateOf: null })}
+                            onClick={() => openEditor({ kind, template, duplicateOf: null })}
                             className={btn}
                           >
                             Edit
@@ -213,8 +221,36 @@ export default function EmailsSettingsPage() {
           );
         })
       )}
-      {/* the editor dialog is wired here by the next task */}
-      {editing ? null : null}
+      {editing ? (
+        <EmailTemplateEditor
+          key={editorKey}
+          open
+          kind={editing.kind.kind}
+          label={editing.kind.label}
+          placeholders={editing.kind.placeholders}
+          initial={
+            editing.template
+              ? {
+                  id: editing.template.id,
+                  name: editing.template.name,
+                  subject: editing.template.subject,
+                  body: editing.template.body,
+                }
+              : editing.duplicateOf
+                ? {
+                    name: `${editing.duplicateOf.name} (copy)`,
+                    subject: editing.duplicateOf.subject,
+                    body: editing.duplicateOf.body,
+                  }
+                : { name: "", subject: "", body: "" }
+          }
+          onSaved={() => {
+            setEditing(null);
+            void load().then(() => setFlash("Template saved"));
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      ) : null}
     </section>
   );
 }

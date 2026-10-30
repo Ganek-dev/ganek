@@ -144,6 +144,35 @@ describe("EmailsSettingsPage", () => {
     expect(screen.getByRole("link", { name: "Emails" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("Duplicate on Ganek default opens the editor prefilled with the built-in text", async () => {
+    mocked.preview.mockResolvedValue({ kind: "rejection", subject: "x", text: "y", html: "" });
+    render(<EmailsSettingsPage />);
+    await screen.findByRole("heading", { name: "Emails" });
+    const [builtin] = within(section("Rejection")).getAllByRole("listitem");
+    await userEvent.click(within(builtin).getByRole("button", { name: "Duplicate" }));
+    const dialog = await screen.findByRole("dialog", { name: "New Rejection template" });
+    expect(within(dialog).getByLabelText("Subject")).toHaveValue(
+      "Your application to {{company_name}}",
+    );
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Ganek default (copy)");
+  });
+
+  it("Edit opens the editor on the template and Save refetches with a flash", async () => {
+    mocked.preview.mockResolvedValue({ kind: "rejection", subject: "x", text: "y", html: "" });
+    mocked.update.mockResolvedValue(template({ id: "t-a" }));
+    render(<EmailsSettingsPage />);
+    await screen.findByRole("heading", { name: "Emails" });
+    const [, rowA] = within(section("Rejection")).getAllByRole("listitem");
+    await userEvent.click(within(rowA).getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit A" });
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await userEvent.click(save);
+    await waitFor(() => expect(mocked.update).toHaveBeenCalledWith("t-a", expect.anything()));
+    await waitFor(() => expect(mocked.list).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("status")).toHaveTextContent("Template saved");
+  });
+
   it("shows the error when the list fails", async () => {
     mocked.list.mockRejectedValue(new Error("boom"));
     render(<EmailsSettingsPage />);
