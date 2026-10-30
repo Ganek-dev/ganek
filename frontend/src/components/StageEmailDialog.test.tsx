@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { applications } from "@/lib/api";
+import { applications, emailTemplates, type EmailKindInfo } from "@/lib/api";
 
 import { StageEmailDialog } from "./StageEmailDialog";
 
@@ -11,10 +11,37 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     applications: { ...original.applications, emailPreview: vi.fn() },
+    emailTemplates: { ...original.emailTemplates, list: vi.fn() },
   };
 });
 
 const mockedApps = vi.mocked(applications);
+const mockedTemplates = vi.mocked(emailTemplates);
+
+function kinds(rejection: EmailKindInfo["templates"]): { kinds: EmailKindInfo[] } {
+  const base = { placeholders: [], builtin: { subject: "s", body: "b" }, templates: [] };
+  return {
+    kinds: [
+      { kind: "quiz_invite", label: "Assessment invite", ...base },
+      { kind: "quiz_reminder", label: "Assessment reminder", ...base },
+      { kind: "stage_advance", label: "Interview", ...base },
+      { kind: "rejection", label: "Rejection", ...base, templates: rejection },
+    ],
+  };
+}
+
+function tpl(id: string, name: string, is_default = false): EmailKindInfo["templates"][number] {
+  return {
+    id,
+    kind: "rejection",
+    name,
+    subject: "s",
+    body: "b",
+    is_default,
+    created_at: "",
+    updated_at: "",
+  };
+}
 
 const REJECTION = {
   kind: "rejection" as const,
@@ -48,13 +75,14 @@ describe("StageEmailDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedApps.emailPreview.mockResolvedValue(REJECTION);
+    mockedTemplates.list.mockResolvedValue(kinds([]));
   });
 
   it("shows the subject and the text of the rejection email", async () => {
     renderDialog("rejected");
     expect(await screen.findByText("Your application to ACME")).toBeInTheDocument();
     expect(screen.getByTestId("stage-email-text")).toHaveTextContent("Thank you, Jane");
-    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection");
+    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", undefined);
     expect(screen.getByRole("button", { name: "Reject and send email" })).toBeEnabled();
     expect(screen.getByRole("dialog", { name: "Email to Jane Applicant" })).toBeInTheDocument();
   });
@@ -67,7 +95,7 @@ describe("StageEmailDialog", () => {
     });
     renderDialog("interview");
     expect(await screen.findByText("Next step: interviews at ACME")).toBeInTheDocument();
-    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "stage_advance");
+    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "stage_advance", undefined);
     expect(
       screen.getByRole("button", { name: "Move to Interview and send email" }),
     ).toBeEnabled();
@@ -159,5 +187,33 @@ describe("StageEmailDialog", () => {
     expect(
       screen.getByText("Internal: not emailed. Included if the candidate requests their data, so keep it factual."),
     ).toBeInTheDocument();
+  });
+
+  it("hides the template select when only the Ganek default exists", async () => {
+    renderDialog("rejected");
+    await screen.findByText("Your application to ACME");
+    expect(screen.queryByRole("combobox", { name: "Template" })).not.toBeInTheDocument();
+    expect(mockedApps.emailPreview).toHaveBeenCalledTimes(1);
+    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", undefined);
+  });
+
+  it("offers the templates with the default preselected and refetches the preview on change", async () => {
+    mockedTemplates.list.mockResolvedValue(kinds([tpl("t-a", "A"), tpl("t-b", "B", true)]));
+    const { onConfirm } = renderDialog("rejected");
+    const select = await screen.findByRole("combobox", { name: "Template" });
+    expect(select).toHaveValue("t-b");
+    expect(Array.from(select.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+      "Ganek default",
+      "A",
+      "B",
+    ]);
+    await waitFor(() => expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "t-b"));
+    await userEvent.selectOptions(select, "Ganek default");
+    await waitFor(() =>
+      expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "builtin"),
+    );
+    await screen.findByText("Your application to ACME");
+    await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
+    expect(onConfirm).toHaveBeenCalledWith({ ...NO_FIELDS, templateId: "builtin" });
   });
 });

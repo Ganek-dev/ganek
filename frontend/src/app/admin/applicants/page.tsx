@@ -19,9 +19,13 @@ import {
 import {
   api,
   applications,
+  emailTemplates,
   type ApplicationOut,
   type ApplicationStage,
+  type EmailKindInfo,
+  type EmailTemplate,
   type RejectionFields,
+  type StageFields,
   type IntegrityFlag,
   type JobOut,
   type QuizAnswerReview,
@@ -39,7 +43,7 @@ import {
 } from "@/lib/applicant-filters";
 import { relativeTime } from "@/lib/time";
 import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/ApplicantChips";
-import { REASON_HELPER, StageEmailDialog } from "@/components/StageEmailDialog";
+import { BUILTIN_TEMPLATE, REASON_HELPER, StageEmailDialog } from "@/components/StageEmailDialog";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
@@ -221,6 +225,123 @@ function ScoreStrip({
   );
 }
 
+function templatesOf(kinds: EmailKindInfo[] | null, kind: EmailKindInfo["kind"]): EmailTemplate[] {
+  return kinds?.find((entry) => entry.kind === kind)?.templates ?? [];
+}
+
+/** The kind's default template id, the Ganek default when custom templates
+ * exist without a default, "" when there are none (nothing is sent). */
+function defaultChoice(kinds: EmailKindInfo[], kind: EmailKindInfo["kind"]): string {
+  const own = templatesOf(kinds, kind);
+  if (own.length === 0) return "";
+  return own.find((t) => t.is_default)?.id ?? BUILTIN_TEMPLATE;
+}
+
+function TemplateSelect({
+  label,
+  value,
+  templates,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  templates: EmailTemplate[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1.5 text-[12.5px] text-g600">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-7 rounded-sm border border-edge bg-surface px-1.5 text-[12.5px] text-foreground"
+      >
+        <option value={BUILTIN_TEMPLATE}>Ganek default</option>
+        {templates.map((template) => (
+          <option key={template.id} value={template.id}>
+            {template.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+type BulkPreviewState =
+  | { kind: "loading" }
+  | { kind: "ready"; subject: string; text: string }
+  | { kind: "error" };
+
+/** The rejection email as the first selected candidate would receive it
+ * (card "Candidate emails", PR 3): every candidate gets their own values. */
+function BulkPreview({
+  applicationId,
+  candidateName,
+  templateId,
+}: {
+  applicationId: string;
+  candidateName: string;
+  templateId: string | undefined;
+}) {
+  const [fetched, setFetched] = useState<{ key: string; state: BulkPreviewState } | null>(null);
+  const key = `${applicationId}:${templateId ?? ""}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      applications
+        .emailPreview(applicationId, "rejection", templateId)
+        .then((preview) => {
+          if (!cancelled) {
+            setFetched({
+              key,
+              state: { kind: "ready", subject: preview.subject, text: preview.text },
+            });
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setFetched({ key, state: { kind: "error" } });
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [applicationId, templateId, key]);
+
+  const state: BulkPreviewState =
+    fetched !== null && fetched.key === key ? fetched.state : { kind: "loading" };
+  return (
+    <div className="space-y-1">
+      <p className="text-[11.5px] text-g500">
+        Shown for {candidateName}; each candidate gets their own values.
+      </p>
+      {state.kind === "loading" ? (
+        <div aria-busy="true" aria-label="Loading preview" className="space-y-1.5">
+          <div className="h-4 w-56 animate-pulse rounded-sm bg-muted-fill" />
+          <div className="h-16 animate-pulse rounded-md bg-muted-fill" />
+        </div>
+      ) : state.kind === "error" ? (
+        <p className="text-[12px] text-g600">
+          Preview unavailable. The emails are still sent when you confirm.
+        </p>
+      ) : (
+        <>
+          <p className="text-[12.5px] text-g600">
+            Subject: <span className="font-medium text-foreground">{state.subject}</span>
+          </p>
+          <pre
+            data-testid="bulk-email-text"
+            className="max-h-40 overflow-auto rounded-md border border-edge bg-muted-fill p-2 font-mono text-[11.5px] leading-[17px] whitespace-pre-wrap text-g700"
+          >
+            {state.text}
+          </pre>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BulkActionBar({
   selected,
   onClear,
@@ -235,6 +356,11 @@ function BulkActionBar({
   // the internal rejection reason for every row (PR 2); never emailed
   const [bulkReason, setBulkReason] = useState<RejectionReason | "">("");
   const [bulkNote, setBulkNote] = useState("");
+  // the workspace's email templates (PR 3), listed once the checkbox is on;
+  // "" = no custom template for that kind, so nothing is sent
+  const [kinds, setKinds] = useState<EmailKindInfo[] | null>(null);
+  const [rejectTemplate, setRejectTemplate] = useState("");
+  const [interviewTemplate, setInterviewTemplate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -245,7 +371,28 @@ function BulkActionBar({
     return () => clearTimeout(id);
   }, [flash]);
 
+  useEffect(() => {
+    if (!notify || kinds !== null) return;
+    let cancelled = false;
+    emailTemplates
+      .list()
+      .then((data) => {
+        if (cancelled) return;
+        setKinds(data.kinds);
+        setRejectTemplate(defaultChoice(data.kinds, "rejection"));
+        setInterviewTemplate(defaultChoice(data.kinds, "stage_advance"));
+      })
+      .catch(() => {
+        if (!cancelled) setKinds([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [notify, kinds]);
+
   if (selected.size === 0 && flash === null) return null;
+  const rejectionTemplates = templatesOf(kinds, "rejection");
+  const advanceTemplates = templatesOf(kinds, "stage_advance");
 
   const ids = Array.from(selected.keys());
   const names = Array.from(selected.values());
@@ -259,10 +406,12 @@ function BulkActionBar({
     setBusy(true);
     setError(null);
     try {
-      const { rejected } = await applications.bulkReject(ids, notify, {
+      const fields: StageFields = {
         rejectionReason: bulkReason || null,
         rejectionNote: bulkNote.trim() || null,
-      });
+      };
+      if (notify && rejectTemplate) fields.templateId = rejectTemplate;
+      const { rejected } = await applications.bulkReject(ids, notify, fields);
       setConfirming(false);
       setBulkReason("");
       setBulkNote("");
@@ -279,7 +428,10 @@ function BulkActionBar({
     setBusy(true);
     setError(null);
     try {
-      const { updated, skipped } = await applications.bulkStage(ids, stage, notify);
+      const { updated, skipped } =
+        stage === "interview" && notify && interviewTemplate
+          ? await applications.bulkStage(ids, stage, notify, { templateId: interviewTemplate })
+          : await applications.bulkStage(ids, stage, notify);
       setFlash(skipped > 0 ? `Moved ${updated}, skipped ${skipped}` : `Moved ${updated}`);
       onChanged();
     } catch (err) {
@@ -413,12 +565,35 @@ function BulkActionBar({
                 />
                 Also email candidates
               </label>
+              {notify && rejectionTemplates.length > 0 ? (
+                <TemplateSelect
+                  label="Template"
+                  value={rejectTemplate}
+                  templates={rejectionTemplates}
+                  onChange={setRejectTemplate}
+                />
+              ) : null}
+              {notify && advanceTemplates.length > 0 ? (
+                <TemplateSelect
+                  label="Interview template"
+                  value={interviewTemplate}
+                  templates={advanceTemplates}
+                  onChange={setInterviewTemplate}
+                />
+              ) : null}
               {tooMany ? (
                 <span className="text-[11.5px] text-warn">
                   Up to {BULK_CAP} at a time - narrow the selection.
                 </span>
               ) : null}
             </div>
+            {notify && kinds !== null && ids.length > 0 ? (
+              <BulkPreview
+                applicationId={ids[0]}
+                candidateName={names[0]}
+                templateId={rejectTemplate || undefined}
+              />
+            ) : null}
           </>
         )
       ) : null}

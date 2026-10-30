@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   applications,
+  emailTemplates,
   type EmailKind,
   type EmailPreview,
-  type RejectionFields,
+  type EmailTemplate,
+  type StageFields,
 } from "@/lib/api";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 
@@ -40,6 +42,12 @@ type State =
   | { kind: "ready"; preview: EmailPreview }
   | { kind: "error" };
 
+/** The server's answer for one template choice; another choice on screen
+ * renders as loading until its own answer lands. */
+type Fetched = { templateId: string; state: State };
+const PREVIEW_DEBOUNCE_MS = 300;
+export const BUILTIN_TEMPLATE = "builtin";
+
 export function StageEmailDialog({
   open,
   applicationId,
@@ -55,31 +63,70 @@ export function StageEmailDialog({
   stage: Stage;
   /** Whether confirming also emails the candidate (the panel checkbox). */
   email: boolean;
-  onConfirm: (fields: RejectionFields) => void;
+  onConfirm: (fields: StageFields) => void;
   onCancel: () => void;
 }) {
-  const [state, setState] = useState<State>({ kind: "loading" });
   const [reason, setReason] = useState<RejectionReason | "">("");
   const [note, setNote] = useState("");
+  // the workspace's templates for this kind (PR 3); null until listed, [] when
+  // only the Ganek default exists (the select stays hidden then)
+  const [templates, setTemplates] = useState<EmailTemplate[] | null>(null);
+  const [templateId, setTemplateId] = useState(BUILTIN_TEMPLATE);
+  const [fetched, setFetched] = useState<Fetched | null>(null);
+  const kind = KIND_FOR[stage];
 
   useEffect(() => {
     if (!open || !email) return;
     let cancelled = false;
-    applications
-      .emailPreview(applicationId, KIND_FOR[stage])
-      .then((preview) => {
-        if (!cancelled) setState({ kind: "ready", preview });
+    emailTemplates
+      .list()
+      .then((data) => {
+        if (cancelled) return;
+        const own = data.kinds.find((entry) => entry.kind === kind)?.templates ?? [];
+        setTemplates(own);
+        setTemplateId(own.find((t) => t.is_default)?.id ?? BUILTIN_TEMPLATE);
       })
       .catch(() => {
-        if (!cancelled) setState({ kind: "error" });
+        // the picker is a convenience: without the list the default applies
+        if (!cancelled) setTemplates([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [open, email, applicationId, stage]);
+  }, [open, email, kind]);
+
+  const hasTemplates = templates !== null && templates.length > 0;
+  // without custom templates nothing is sent: the server applies the default
+  const chosen = hasTemplates ? templateId : undefined;
+
+  useEffect(() => {
+    if (!open || !email || templates === null) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      applications
+        .emailPreview(applicationId, kind, chosen)
+        .then((preview) => {
+          if (!cancelled) setFetched({ templateId, state: { kind: "ready", preview } });
+        })
+        .catch(() => {
+          if (!cancelled) setFetched({ templateId, state: { kind: "error" } });
+        });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, email, templates, applicationId, kind, chosen, templateId]);
+
+  const state: State =
+    fetched !== null && fetched.templateId === templateId ? fetched.state : { kind: "loading" };
 
   const confirm = () =>
-    onConfirm({ rejectionReason: reason || null, rejectionNote: note.trim() || null });
+    onConfirm({
+      rejectionReason: reason || null,
+      rejectionNote: note.trim() || null,
+      ...(hasTemplates ? { templateId } : {}),
+    });
 
   return (
     <Dialog
@@ -97,6 +144,23 @@ export function StageEmailDialog({
         </DialogDescription>
         {email ? (
         <div className="mt-3">
+          {hasTemplates ? (
+            <label className="mb-3 block text-[13px] font-medium text-g700">
+              Template
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="mt-1 block h-8 w-full rounded-md border border-edge bg-surface px-2 text-[13px] font-normal text-foreground"
+              >
+                <option value={BUILTIN_TEMPLATE}>Ganek default</option>
+                {templates?.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {state.kind === "loading" ? (
             <div aria-busy="true" aria-label="Loading preview" className="space-y-2">
               <div className="h-5 w-64 animate-pulse rounded-sm bg-muted-fill" />

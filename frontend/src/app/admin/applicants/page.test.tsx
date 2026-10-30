@@ -10,6 +10,8 @@ import {
   type ApplicationOut,
   type ApplicationStage,
   type QuizAnswerReview,
+  emailTemplates,
+  type EmailKindInfo,
 } from "@/lib/api";
 
 import ApplicantsPage from "./page";
@@ -45,6 +47,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       updateCandidateEmail: vi.fn(),
     },
     notes: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
+    emailTemplates: { ...original.emailTemplates, list: vi.fn() },
   };
 });
 
@@ -52,6 +55,29 @@ const mockedApps = vi.mocked(applications);
 const mockedJobs = vi.mocked(api.jobs);
 const mockedApi = vi.mocked(api);
 const mockedNotes = vi.mocked(notes);
+const mockedTemplates = vi.mocked(emailTemplates);
+
+function templateKinds(): { kinds: EmailKindInfo[] } {
+  const base = { placeholders: [], builtin: { subject: "s", body: "b" }, templates: [] };
+  const row = (id: string, kind: EmailKindInfo["kind"], name: string, is_default: boolean) => ({
+    id,
+    kind,
+    name,
+    subject: "s",
+    body: "b",
+    is_default,
+    created_at: "",
+    updated_at: "",
+  });
+  return {
+    kinds: [
+      { kind: "quiz_invite", label: "Assessment invite", ...base },
+      { kind: "quiz_reminder", label: "Assessment reminder", ...base },
+      { kind: "stage_advance", label: "Interview", ...base, templates: [row("t-u", "stage_advance", "U", true)] },
+      { kind: "rejection", label: "Rejection", ...base, templates: [row("t-a", "rejection", "A", true)] },
+    ],
+  };
+}
 
 const RECENT = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 const OLDER = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -189,6 +215,7 @@ describe("ApplicantsPage", () => {
     mockedApps.cvUrl.mockResolvedValue({ download_url: "http://minio.test/cv" });
     mockedApps.quizAnswers.mockResolvedValue(ANSWERS);
     mockedApps.bulkReject.mockResolvedValue({ rejected: 2, skipped: 0 });
+    mockedTemplates.list.mockResolvedValue(templateKinds());
     mockedApps.emailPreview.mockResolvedValue({
       kind: "rejection",
       subject: "Your application to ACME Ganek",
@@ -475,6 +502,7 @@ describe("ApplicantsPage", () => {
       expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true, {
         rejectionReason: null,
         rejectionNote: null,
+        templateId: "t-a",
       }),
     );
   });
@@ -554,6 +582,7 @@ describe("ApplicantsPage", () => {
       expect(mockedApps.setStage).toHaveBeenCalledWith("app-1", "rejected", true, {
         rejectionReason: "skills_gap",
         rejectionNote: null,
+        templateId: "t-a",
       }),
     );
   });
@@ -650,6 +679,7 @@ describe("ApplicantsPage", () => {
       expect(mockedApps.bulkReject).toHaveBeenCalledWith(["app-1", "app-2"], true, {
         rejectionReason: null,
         rejectionNote: null,
+        templateId: "t-a",
       }),
     );
     await waitFor(() => expect(mockedApps.list).toHaveBeenCalledTimes(2));
@@ -696,6 +726,57 @@ describe("ApplicantsPage", () => {
     await screen.findByText("Reject 1 applicant?");
     expect(screen.getByRole("combobox", { name: "Reason (internal, optional)" })).toHaveValue("");
     expect(screen.getByLabelText("Internal note")).toHaveValue("");
+  });
+
+  it("bulk bar shows the template select and the first candidate's preview when emailing", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+    expect(screen.queryByRole("combobox", { name: "Template" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
+    const select = await screen.findByRole("combobox", { name: "Template" });
+    expect(select).toHaveValue("t-a");
+    expect(Array.from(select.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+      "Ganek default",
+      "A",
+    ]);
+    expect(
+      await screen.findByText("Shown for Jane Applicant; each candidate gets their own values."),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "t-a"));
+    expect(await screen.findByText("Your application to ACME Ganek")).toBeInTheDocument();
+    await userEvent.selectOptions(select, "Ganek default");
+    await waitFor(() =>
+      expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "builtin"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
+    await waitFor(() =>
+      expect(mockedApps.bulkReject).toHaveBeenCalledWith(["app-1", "app-2"], true, {
+        rejectionReason: null,
+        rejectionNote: null,
+        templateId: "builtin",
+      }),
+    );
+  });
+
+  it("bulk move to interview carries the stage_advance template", async () => {
+    mockedApps.bulkStage.mockResolvedValue({ updated: 2, skipped: 0 });
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByLabelText("Select Jane Applicant"));
+    await userEvent.click(screen.getByLabelText("Select Kenji Sato"));
+    await userEvent.click(screen.getByLabelText("Also email candidates"));
+    const select = await screen.findByRole("combobox", { name: "Interview template" });
+    expect(select).toHaveValue("t-u");
+    await userEvent.selectOptions(screen.getByLabelText("Move selected to stage"), "interview");
+    await waitFor(() =>
+      expect(mockedApps.bulkStage).toHaveBeenCalledWith(["app-1", "app-2"], "interview", true, {
+        templateId: "t-u",
+      }),
+    );
   });
 
   it("Keep them cancels the confirm step without calling bulkReject", async () => {
