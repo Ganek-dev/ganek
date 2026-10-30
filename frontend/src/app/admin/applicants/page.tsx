@@ -22,6 +22,7 @@ import {
   emailTemplates,
   type ApplicationOut,
   type ApplicationStage,
+  type EmailKind,
   type EmailKindInfo,
   type EmailTemplate,
   type RejectionFields,
@@ -237,6 +238,10 @@ function defaultChoice(kinds: EmailKindInfo[], kind: EmailKindInfo["kind"]): str
   return own.find((t) => t.is_default)?.id ?? BUILTIN_TEMPLATE;
 }
 
+function templateName(templates: EmailTemplate[], value: string): string {
+  return templates.find((t) => t.id === value)?.name ?? "Ganek default";
+}
+
 function TemplateSelect({
   label,
   value,
@@ -275,22 +280,26 @@ type BulkPreviewState =
 /** The rejection email as the first selected candidate would receive it
  * (card "Candidate emails", PR 3): every candidate gets their own values. */
 function BulkPreview({
+  kind,
+  label,
   applicationId,
   candidateName,
   templateId,
 }: {
+  kind: EmailKind;
+  label: string;
   applicationId: string;
   candidateName: string;
   templateId: string | undefined;
 }) {
   const [fetched, setFetched] = useState<{ key: string; state: BulkPreviewState } | null>(null);
-  const key = `${applicationId}:${templateId ?? ""}`;
+  const key = `${kind}:${applicationId}:${templateId ?? ""}`;
 
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
       applications
-        .emailPreview(applicationId, "rejection", templateId)
+        .emailPreview(applicationId, kind, templateId)
         .then((preview) => {
           if (!cancelled) {
             setFetched({
@@ -307,14 +316,14 @@ function BulkPreview({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [applicationId, templateId, key]);
+  }, [applicationId, kind, templateId, key]);
 
   const state: BulkPreviewState =
     fetched !== null && fetched.key === key ? fetched.state : { kind: "loading" };
   return (
     <div className="space-y-1">
       <p className="text-[11.5px] text-g500">
-        Shown for {candidateName}; each candidate gets their own values.
+        {label}. Shown for {candidateName}; each candidate gets their own values.
       </p>
       {state.kind === "loading" ? (
         <div aria-busy="true" aria-label="Loading preview" className="space-y-1.5">
@@ -453,6 +462,11 @@ function BulkActionBar({
               <span className="truncate text-[11.5px] text-g500" title={namesLine}>
                 {namesLine}
               </span>
+              {notify ? (
+                <span className="text-[11.5px] text-g500">
+                  Email: {templateName(rejectionTemplates, rejectTemplate)}
+                </span>
+              ) : null}
             </span>
             <div className="flex w-full flex-col gap-1.5">
               <label className="text-[12px] font-medium text-g700">
@@ -567,7 +581,7 @@ function BulkActionBar({
               </label>
               {notify && rejectionTemplates.length > 0 ? (
                 <TemplateSelect
-                  label="Template"
+                  label="Rejection template"
                   value={rejectTemplate}
                   templates={rejectionTemplates}
                   onChange={setRejectTemplate}
@@ -588,11 +602,22 @@ function BulkActionBar({
               ) : null}
             </div>
             {notify && kinds !== null && ids.length > 0 ? (
-              <BulkPreview
-                applicationId={ids[0]}
-                candidateName={names[0]}
-                templateId={rejectTemplate || undefined}
-              />
+              <>
+                <BulkPreview
+                  kind="rejection"
+                  label="Rejection email"
+                  applicationId={ids[0]}
+                  candidateName={names[0]}
+                  templateId={rejectTemplate || undefined}
+                />
+                <BulkPreview
+                  kind="stage_advance"
+                  label="Interview email"
+                  applicationId={ids[0]}
+                  candidateName={names[0]}
+                  templateId={interviewTemplate || undefined}
+                />
+              </>
             ) : null}
           </>
         )

@@ -32,6 +32,10 @@ class EmailTemplateUpdate(BaseModel):
     body: str | None = Field(default=None, max_length=20_000)
 
 
+class EmailKindIn(BaseModel):
+    kind: str = Field(max_length=40)
+
+
 class EmailTemplatePreviewIn(BaseModel):
     kind: str = Field(max_length=40)
     subject: str = Field(max_length=200)

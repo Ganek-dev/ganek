@@ -8,9 +8,9 @@ import { emailTemplates, type EmailKindInfo, type EmailTemplate } from "@/lib/ap
 
 /** Emails settings (card "Candidate emails", PR 3): the workspace's own
  * templates per stage mail kind. "Ganek default" is the built-in text and
- * stays available; a custom template can be the kind's default. The
- * editor itself lands with the next task; this page lists, switches the
- * default and deletes. Admin-only like Privacy. */
+ * stays available; a custom template can be the kind's default and the
+ * Ganek default can take it back. The editor opens from New template,
+ * Duplicate and Edit. Admin-only like Privacy. */
 
 export const EXPLAINER = "The link and the privacy footer are always added by Ganek.";
 
@@ -114,6 +114,21 @@ export default function EmailsSettingsPage() {
                   </span>
                   {!hasCustomDefault ? <DefaultBadge /> : null}
                   <span className="ml-auto flex gap-1.5">
+                    {hasCustomDefault ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(
+                            () => emailTemplates.setBuiltinDefault(kind.kind),
+                            "Default updated",
+                          )
+                        }
+                        className={btn}
+                      >
+                        Set as default
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       disabled={busy}

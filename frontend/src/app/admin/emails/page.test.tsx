@@ -21,6 +21,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       update: vi.fn(),
       remove: vi.fn(),
       setDefault: vi.fn(),
+      setBuiltinDefault: vi.fn(),
       preview: vi.fn(),
     },
   };
@@ -83,6 +84,20 @@ describe("EmailsSettingsPage", () => {
     mocked.list.mockResolvedValue({ kinds: KINDS });
     mocked.setDefault.mockResolvedValue(template({ id: "t-a", is_default: true }));
     mocked.remove.mockResolvedValue(undefined);
+    mocked.setBuiltinDefault.mockResolvedValue(undefined);
+  });
+
+  it("Ganek default can be made the default again when a custom one holds it", async () => {
+    render(<EmailsSettingsPage />);
+    await screen.findByRole("heading", { name: "Emails" });
+    const [builtin] = within(section("Rejection")).getAllByRole("listitem");
+    await userEvent.click(within(builtin).getByRole("button", { name: "Set as default" }));
+    await waitFor(() => expect(mocked.setBuiltinDefault).toHaveBeenCalledWith("rejection"));
+    expect(await screen.findByRole("status")).toHaveTextContent("Default updated");
+    const [interviewBuiltin] = within(section("Interview")).getAllByRole("listitem");
+    expect(
+      within(interviewBuiltin).queryByRole("button", { name: "Set as default" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lists the four kinds with Ganek default first and custom templates after", async () => {

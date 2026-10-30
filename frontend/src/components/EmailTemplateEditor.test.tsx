@@ -134,6 +134,13 @@ describe("EmailTemplateEditor", () => {
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
+  it("opens wide enough for the two columns", () => {
+    renderEditor({ name: "A", subject: "s", body: "b" });
+    const dialog = screen.getByRole("dialog", { name: "New Rejection template" });
+    expect(dialog).toHaveClass("max-w-2xl");
+    expect(dialog).not.toHaveClass("max-w-md");
+  });
+
   it("Cancel calls back without saving", async () => {
     const { onCancel } = renderEditor({ name: "A", subject: "s", body: "b" });
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));

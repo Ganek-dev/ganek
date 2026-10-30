@@ -218,3 +218,32 @@ async def test_sample_preview_renders_unsaved_text(client: AsyncClient) -> None:
     )
     assert resp.status_code == 422, resp.text
     assert resp.json()["detail"] == "Unknown placeholder: quiz_url"
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_builtin_can_be_made_the_default_again(client: AsyncClient) -> None:
+    await _register_admin(client)
+    a = await _create(client, name="A")
+    assert (await client.post(f"{BASE}/{a['id']}/default")).status_code == 200
+    resp = await client.post(f"{BASE}/builtin/default", json={"kind": "rejection"})
+    assert resp.status_code == 204, resp.text
+    flags = {t["name"]: t["is_default"] for t in (await _kind(client, "rejection"))["templates"]}  # type: ignore[union-attr]
+    assert flags == {"A": False}
+    assert (
+        await client.post(f"{BASE}/builtin/default", json={"kind": "newsletter"})
+    ).status_code == 422
+    await _member_login(client)
+    assert (
+        await client.post(f"{BASE}/builtin/default", json={"kind": "rejection"})
+    ).status_code == 403
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_subject_must_be_one_line(client: AsyncClient) -> None:
+    await _register_admin(client)
+    resp = await client.post(BASE, json=_rejection(subject="Hello\nthere"))
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == "Subject must be one line"
+    created = await _create(client)
+    resp = await client.patch(f"{BASE}/{created['id']}", json={"subject": "Hi\r\nthere"})
+    assert resp.status_code == 422, resp.text

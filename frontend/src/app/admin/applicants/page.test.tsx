@@ -728,29 +728,41 @@ describe("ApplicantsPage", () => {
     expect(screen.getByLabelText("Internal note")).toHaveValue("");
   });
 
-  it("bulk bar shows the template select and the first candidate's preview when emailing", async () => {
+  it("bulk bar shows the template selects and a labelled preview per mail kind when emailing", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });
     await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
     await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
-    expect(screen.queryByRole("combobox", { name: "Template" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Rejection template" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
-    const select = await screen.findByRole("combobox", { name: "Template" });
+    const select = await screen.findByRole("combobox", { name: "Rejection template" });
     expect(select).toHaveValue("t-a");
     expect(Array.from(select.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
       "Ganek default",
       "A",
     ]);
     expect(
-      await screen.findByText("Shown for Jane Applicant; each candidate gets their own values."),
+      await screen.findByText(
+        "Rejection email. Shown for Jane Applicant; each candidate gets their own values.",
+      ),
     ).toBeInTheDocument();
-    await waitFor(() => expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "t-a"));
-    expect(await screen.findByText("Your application to ACME Ganek")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Interview email. Shown for Jane Applicant; each candidate gets their own values.",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "t-a"),
+    );
+    await waitFor(() =>
+      expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "stage_advance", "t-u"),
+    );
     await userEvent.selectOptions(select, "Ganek default");
     await waitFor(() =>
       expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "builtin"),
     );
     await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(await screen.findByText("Email: Ganek default")).toBeInTheDocument();
     mockedApps.list.mockResolvedValueOnce(pageOf([]));
     await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
     await waitFor(() =>

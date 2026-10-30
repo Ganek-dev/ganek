@@ -54,6 +54,9 @@ def clean(kind: str, name: str | None, subject: str, body: str) -> tuple[str | N
     subject, body = subject.strip(), body.strip()
     if not subject:
         raise InvalidTemplate("Subject is required")
+    if "\n" in subject or "\r" in subject:
+        # a header line break makes the transport refuse every mail of the kind
+        raise InvalidTemplate("Subject must be one line")
     if not body:
         raise InvalidTemplate("Body is required")
     try:
@@ -168,6 +171,22 @@ async def set_default(db: AsyncSession, company: Company, template_id: uuid.UUID
     await db.commit()
     await db.refresh(row)
     return row
+
+
+async def clear_default(db: AsyncSession, company: Company, kind: str) -> None:
+    """Back to the Ganek default for a kind: no row keeps the flag."""
+    if kind not in email_render.KINDS:
+        raise InvalidTemplate("Unknown email kind")
+    await db.execute(
+        update(EmailTemplate)
+        .where(
+            EmailTemplate.company_id == company.id,
+            EmailTemplate.kind == kind,
+            EmailTemplate.is_default.is_(True),
+        )
+        .values(is_default=False)
+    )
+    await db.commit()
 
 
 async def resolve(

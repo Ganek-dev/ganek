@@ -7,6 +7,7 @@ from app.models import EmailTemplate
 from app.schemas.applications import EmailPreviewOut
 from app.schemas.email_templates import (
     BuiltinTemplateOut,
+    EmailKindIn,
     EmailKindOut,
     EmailTemplateCreate,
     EmailTemplateOut,
@@ -93,6 +94,18 @@ async def preview_email_template(
         text=rendered.text,
         html=rendered.html,
     )
+
+
+@router.post("/builtin/default", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_default_email_template(
+    payload: EmailKindIn, db: DbSession, company: CurrentCompany, _admin: AdminUser
+) -> None:
+    """Make the Ganek default the kind's default again (no row keeps the
+    flag). Literal path, declared before /{template_id} routes."""
+    try:
+        await templates_service.clear_default(db, company, payload.kind)
+    except templates_service.InvalidTemplate as exc:
+        raise _invalid(exc) from None
 
 
 @router.patch("/{template_id}", response_model=EmailTemplateOut)

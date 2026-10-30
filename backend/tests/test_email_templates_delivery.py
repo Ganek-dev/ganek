@@ -241,3 +241,31 @@ async def test_bulk_reject_and_bulk_stage_carry_the_template(
     for app_id in (a, b):
         rows = await _rows(db_session, app_id)
         assert [r.payload["template_id"] for r in rows] == [rejection["id"]]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "sent")
+async def test_resolver_follows_the_default_switch_and_the_builtin_reset(
+    client: AsyncClient,
+) -> None:
+    app_id, company_name = await _company_with_applicant(client)
+    url = f"/api/v1/applications/{app_id}/email-preview"
+    a = await _template(client, subject="A {{company_name}}", default=True)
+    b = await _template(client, subject="B {{company_name}}")
+    assert (await client.get(url, params={"kind": "rejection"})).json()[
+        "subject"
+    ] == f"A {company_name}"
+    assert (await client.post(f"{BASE}/{b['id']}/default")).status_code == 200
+    assert (await client.get(url, params={"kind": "rejection"})).json()[
+        "subject"
+    ] == f"B {company_name}"
+    assert (
+        await client.post(f"{BASE}/builtin/default", json={"kind": "rejection"})
+    ).status_code == 204
+    assert (await client.get(url, params={"kind": "rejection"})).json()["subject"] == (
+        f"Your application to {company_name}"
+    )
+    assert (await client.post(f"{BASE}/{a['id']}/default")).status_code == 200
+    assert (await client.delete(f"{BASE}/{a['id']}")).status_code == 204
+    assert (await client.get(url, params={"kind": "rejection"})).json()["subject"] == (
+        f"Your application to {company_name}"
+    )

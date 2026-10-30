@@ -1353,6 +1353,12 @@ export const emailTemplates = {
     request<void>(`/api/v1/company/email-templates/${id}`, { method: "DELETE" }),
   setDefault: (id: string) =>
     request<EmailTemplate>(`/api/v1/company/email-templates/${id}/default`, { method: "POST" }),
+  /** Back to the Ganek default for a kind: no custom template keeps the flag. */
+  setBuiltinDefault: (kind: EmailKind) =>
+    request<void>("/api/v1/company/email-templates/builtin/default", {
+      method: "POST",
+      body: JSON.stringify({ kind }),
+    }),
   /** The editor's live preview: unsaved text rendered for a sample candidate. */
   preview: (payload: { kind: EmailKind; subject: string; body: string }) =>
     request<EmailPreview>("/api/v1/company/email-templates/preview", {
