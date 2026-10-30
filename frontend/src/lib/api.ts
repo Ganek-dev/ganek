@@ -480,10 +480,19 @@ export interface RejectionFields {
   rejectionNote?: string | null;
 }
 
-function rejectionBody(fields: RejectionFields): Record<string, unknown> {
+/** What a stage move may carry besides the stage: the internal rejection
+ * fields and the email template for the mail it sends (card "Candidate
+ * emails", PR 3): a template id, "builtin" for the Ganek default, null
+ * for the kind's default. Undefined keys are not sent at all. */
+export interface StageFields extends RejectionFields {
+  templateId?: string | null;
+}
+
+function rejectionBody(fields: StageFields): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (fields.rejectionReason !== undefined) body.rejection_reason = fields.rejectionReason;
   if (fields.rejectionNote !== undefined) body.rejection_note = fields.rejectionNote;
+  if (fields.templateId !== undefined) body.template_id = fields.templateId;
   return body;
 }
 
@@ -629,7 +638,7 @@ export const applications = {
     id: string,
     stage: ApplicationStage,
     notifyCandidate = false,
-    fields: RejectionFields = {},
+    fields: StageFields = {},
   ) =>
     request<ApplicationOut>(`/api/v1/applications/${id}/stage`, {
       method: "PATCH",
@@ -641,8 +650,11 @@ export const applications = {
     }),
   /** The stage mail rendered for this candidate, exactly what the sender
    * delivers (card "Candidate emails"); nothing is queued. */
-  emailPreview: (id: string, kind: EmailKind) =>
-    request<EmailPreview>(`/api/v1/applications/${id}/email-preview?kind=${kind}`),
+  emailPreview: (id: string, kind: EmailKind, templateId?: string) =>
+    request<EmailPreview>(
+      `/api/v1/applications/${id}/email-preview?kind=${kind}` +
+        (templateId ? `&template_id=${encodeURIComponent(templateId)}` : ""),
+    ),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
   remind: (id: string) =>
@@ -665,7 +677,7 @@ export const applications = {
     }),
   dismissFlags: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/dismiss-flags`, { method: "POST" }),
-  bulkReject: (applicationIds: string[], notifyCandidates: boolean, fields: RejectionFields = {}) =>
+  bulkReject: (applicationIds: string[], notifyCandidates: boolean, fields: StageFields = {}) =>
     request<{ rejected: number; skipped: number }>("/api/v1/applications/bulk-reject", {
       method: "POST",
       body: JSON.stringify({
@@ -680,7 +692,7 @@ export const applications = {
     applicationIds: string[],
     stage: ApplicationStage,
     notifyCandidates: boolean,
-    fields: RejectionFields = {},
+    fields: StageFields = {},
   ) =>
     request<{ updated: number; skipped: number }>("/api/v1/applications/bulk-stage", {
       method: "POST",
@@ -1296,6 +1308,64 @@ export interface ApiKey {
 export interface ApiKeyCreated extends ApiKey {
   secret: string;
 }
+
+/** Workspace email templates (card "Candidate emails", PR 3): one list call
+ * gives every kind with its label, placeholders, the Ganek default's text
+ * and the workspace's own templates. Writes are admin-only. */
+export interface EmailTemplate {
+  id: string;
+  kind: EmailKind;
+  name: string;
+  subject: string;
+  body: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailKindInfo {
+  kind: EmailKind;
+  label: string;
+  placeholders: string[];
+  builtin: { subject: string; body: string };
+  templates: EmailTemplate[];
+}
+
+export interface EmailTemplateInput {
+  name: string;
+  subject: string;
+  body: string;
+}
+
+export const emailTemplates = {
+  list: () => request<{ kinds: EmailKindInfo[] }>("/api/v1/company/email-templates"),
+  create: (payload: EmailTemplateInput & { kind: EmailKind }) =>
+    request<EmailTemplate>("/api/v1/company/email-templates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  update: (id: string, payload: Partial<EmailTemplateInput>) =>
+    request<EmailTemplate>(`/api/v1/company/email-templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  remove: (id: string) =>
+    request<void>(`/api/v1/company/email-templates/${id}`, { method: "DELETE" }),
+  setDefault: (id: string) =>
+    request<EmailTemplate>(`/api/v1/company/email-templates/${id}/default`, { method: "POST" }),
+  /** Back to the Ganek default for a kind: no custom template keeps the flag. */
+  setBuiltinDefault: (kind: EmailKind) =>
+    request<void>("/api/v1/company/email-templates/builtin/default", {
+      method: "POST",
+      body: JSON.stringify({ kind }),
+    }),
+  /** The editor's live preview: unsaved text rendered for a sample candidate. */
+  preview: (payload: { kind: EmailKind; subject: string; body: string }) =>
+    request<EmailPreview>("/api/v1/company/email-templates/preview", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
 
 export const apiKeys = {
   list: () => request<ApiKey[]>("/api/v1/api-keys"),

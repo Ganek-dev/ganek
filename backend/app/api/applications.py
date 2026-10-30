@@ -62,6 +62,7 @@ from app.services import access_log, activity, email_render, google_calendar, st
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
+from app.services import email_templates as templates_service
 from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
 from app.services import outbox as outbox_service
@@ -247,6 +248,8 @@ async def bulk_reject_applications(
 ) -> BulkRejectOut:
     # literal path - must stay declared before /{application_id} routes,
     # which would otherwise shadow it (FastAPI matches in declaration order)
+    if payload.notify_candidates:
+        await _check_template(db, company, ApplicationStage.REJECTED, payload.template_id)
     rejected = await applications_service.bulk_reject(
         db,
         company,
@@ -257,7 +260,7 @@ async def bulk_reject_applications(
     )
     if payload.notify_candidates:
         for application in rejected:
-            await _queue_rejection_email(db, company, application)
+            await _queue_rejection_email(db, company, application, payload.template_id)
     return BulkRejectOut(
         rejected=len(rejected), skipped=len(payload.application_ids) - len(rejected)
     )
@@ -271,6 +274,8 @@ async def bulk_stage_applications(
     user: CurrentUser,
 ) -> BulkStageOut:
     # literal path, declared before /{application_id} like bulk-reject
+    if payload.notify_candidates:
+        await _check_template(db, company, payload.stage, payload.template_id)
     updated = await applications_service.bulk_set_stage(
         db,
         company,
@@ -282,7 +287,7 @@ async def bulk_stage_applications(
     )
     if payload.notify_candidates:
         for application in updated:
-            await _queue_stage_email(db, company, application, payload.stage)
+            await _queue_stage_email(db, company, application, payload.stage, payload.template_id)
     return BulkStageOut(updated=len(updated), skipped=len(payload.application_ids) - len(updated))
 
 
@@ -342,6 +347,8 @@ async def set_stage(
     # bulk-reject silently skips already-rejected rows; the single route must
     # not re-send the stage email either when nothing actually changed
     stage_changed = application.stage is not payload.stage
+    if payload.notify_candidate and stage_changed:
+        await _check_template(db, company, payload.stage, payload.template_id)
     updated = await applications_service.set_stage(
         db,
         application,
@@ -351,7 +358,7 @@ async def set_stage(
         note=payload.rejection_note,
     )
     if payload.notify_candidate and stage_changed:
-        await _queue_stage_email(db, company, application, payload.stage)
+        await _queue_stage_email(db, company, application, payload.stage, payload.template_id)
     return updated
 
 
@@ -823,7 +830,10 @@ async def cancel_interview(
 
 
 async def _queue_rejection_email(
-    db: DbSession, company: CurrentCompany, application: Application
+    db: DbSession,
+    company: CurrentCompany,
+    application: Application,
+    template_id: templates_service.TemplateRef = None,
 ) -> None:
     """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
     await outbox_service.queue_email(
@@ -831,8 +841,32 @@ async def _queue_rejection_email(
         kind="rejection",
         company_id=company.id,
         application_id=application.id,
+        template_id=template_id,
         **_rejection_kwargs(company, application),
     )
+
+
+MAIL_KIND_FOR_STAGE: dict[ApplicationStage, str] = {
+    ApplicationStage.INTERVIEW: "stage_advance",
+    ApplicationStage.REJECTED: "rejection",
+}
+
+
+async def _check_template(
+    db: DbSession, company: Company, stage: ApplicationStage, template_id: Any
+) -> None:
+    """A workspace template named for the mail a move sends must exist here,
+    BEFORE the stage changes: a foreign or stale id is a 404 with nothing
+    moved and nothing queued."""
+    kind = MAIL_KIND_FOR_STAGE.get(stage)
+    if kind is None or not isinstance(template_id, uuid.UUID):
+        return
+    try:
+        await templates_service.resolve(db, company.id, kind, template_id)
+    except templates_service.NotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Template not found"
+        ) from None
 
 
 def _rejection_kwargs(company: Company, application: Application) -> dict[str, Any]:
@@ -871,6 +905,7 @@ async def _queue_stage_email(
     company: CurrentCompany,
     application: Application,
     stage: ApplicationStage,
+    template_id: templates_service.TemplateRef = None,
 ) -> None:
     """Queue 22a/22b for stages with a template; other stages are a no-op."""
     if stage is ApplicationStage.INTERVIEW:
@@ -879,10 +914,11 @@ async def _queue_stage_email(
             kind="stage_advance",
             company_id=company.id,
             application_id=application.id,
+            template_id=template_id,
             **_stage_advance_kwargs(company, application),
         )
     elif stage is ApplicationStage.REJECTED:
-        await _queue_rejection_email(db, company, application)
+        await _queue_rejection_email(db, company, application, template_id)
 
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)
@@ -904,7 +940,11 @@ async def cv_download_url(
 
 @router.get("/{application_id}/email-preview", response_model=EmailPreviewOut)
 async def email_preview(
-    application_id: uuid.UUID, kind: EmailKind, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID,
+    kind: EmailKind,
+    db: DbSession,
+    company: CurrentCompany,
+    template_id: str | None = None,
 ) -> EmailPreviewOut:
     """The stage mail as this candidate would receive it (card "Candidate
     emails"): the same context the queue helpers build, rendered through the
@@ -938,14 +978,40 @@ async def email_preview(
         context["status_url"] = urls.status_url(company, PREVIEW_LINK_PLACEHOLDER)
     if "quiz_url" in context:
         context["quiz_url"] = urls.quiz_url(company, PREVIEW_LINK_PLACEHOLDER)
-    rendered = email_render.render(kind, email_render.BUILTIN[kind], context)
+    rendered = email_render.render(
+        kind, await _preview_template(db, company, kind, template_id), context
+    )
     return EmailPreviewOut(
         kind=kind, subject=rendered.subject, text=rendered.text, html=rendered.html
     )
 
 
+async def _preview_template(
+    db: DbSession, company: Company, kind: str, template_id: str | None
+) -> email_render.Template:
+    """``template_id``: omitted = the kind's default, ``builtin`` = the Ganek
+    default, a uuid = that workspace template (404 outside this tenant)."""
+    ref: templates_service.TemplateRef
+    if template_id is None or template_id == templates_service.BUILTIN_ID:
+        ref = template_id
+    else:
+        try:
+            ref = uuid.UUID(template_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid template id"
+            ) from None
+    try:
+        _, template = await templates_service.resolve(db, company.id, kind, ref)
+    except templates_service.NotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Template not found"
+        ) from None
+    return template
+
+
 NO_ASSESSMENT = "No assessment to preview"
-PREVIEW_LINK_PLACEHOLDER = "personal-link"
+PREVIEW_LINK_PLACEHOLDER = templates_service.PREVIEW_LINK_PLACEHOLDER
 
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])

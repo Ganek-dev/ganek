@@ -125,6 +125,10 @@ class RejectionFields(BaseModel):
 
     rejection_reason: ReasonKey | None = None
     rejection_note: str | None = Field(default=None, max_length=1000)
+    # the email template for the mail this move sends (PR 3): a workspace
+    # template id, "builtin" for the Ganek default, None for the kind's
+    # default; ignored when no mail goes out
+    template_id: uuid.UUID | Literal["builtin"] | None = None
 
     @field_validator("rejection_note")
     @classmethod

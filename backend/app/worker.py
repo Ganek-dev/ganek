@@ -37,7 +37,7 @@ from app.models import (
 from app.models.quiz import AttemptStatus
 from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
-from app.services import demo_seed
+from app.services import demo_seed, email_templates
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import outbox as outbox_service
@@ -173,8 +173,12 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
         ).scalar_one()
         candidate = attempt.application.candidate
         days_left = max(0, math.ceil((attempt.expires_at - now).total_seconds() / 86400))
+        template_id, template = await email_templates.resolve(db, company.id, "quiz_reminder")
         email_service.send_quiz_reminder(
             to=candidate.email,
+            template_id=str(template_id) if template_id is not None else None,
+            template_subject=template.subject,
+            template_body=template.body,
             ref=str(attempt.application_id),
             candidate_name=candidate.name,
             job_title=attempt.application.job.title,

@@ -94,12 +94,25 @@ def send_application_received(
     send_email(to=to, subject=subject, body=body, ref=ref)
 
 
-def _send_builtin(kind: str, *, to: str, ref: str | None, context: dict[str, Any]) -> None:
-    """Render one of the four candidate stage mails from its built-in template
-    (``email_render``) and send it. The preview endpoint renders the same
-    context through the same function, so what the recruiter reads is what
-    the candidate gets."""
-    rendered = email_render.render(kind, email_render.BUILTIN[kind], context)
+def _send_stage(
+    kind: str,
+    *,
+    to: str,
+    ref: str | None,
+    context: dict[str, Any],
+    template_subject: str | None = None,
+    template_body: str | None = None,
+) -> None:
+    """Render one of the four candidate stage mails and send it: from the
+    template snapshot the outbox took at queue time (PR 3), else from the
+    built-in. The preview endpoint renders the same context through the
+    same function, so what the recruiter reads is what the candidate gets."""
+    template = (
+        email_render.Template(subject=template_subject, body=template_body)
+        if template_subject is not None and template_body is not None
+        else email_render.BUILTIN[kind]
+    )
+    rendered = email_render.render(kind, template, context)
     send_email(to=to, subject=rendered.subject, body=rendered.text, html=rendered.html, ref=ref)
 
 
@@ -117,15 +130,20 @@ def send_quiz_invite(
     expires_at: datetime,
     controller_name: str | None = None,
     privacy_url: str | None = None,
+    template_id: str | None = None,
+    template_subject: str | None = None,
+    template_body: str | None = None,
 ) -> None:
     """Assessment invite (design 17a): quiz link + what-to-expect details.
 
     Replaces the generic confirmation when the job has an assessment.
     """
-    _send_builtin(
+    _send_stage(
         "quiz_invite",
         to=to,
         ref=ref,
+        template_subject=template_subject,
+        template_body=template_body,
         context={
             "candidate_name": candidate_name,
             "job_title": job_title,
@@ -154,14 +172,19 @@ def send_quiz_reminder(
     days_left: int,
     controller_name: str | None = None,
     privacy_url: str | None = None,
+    template_id: str | None = None,
+    template_subject: str | None = None,
+    template_body: str | None = None,
 ) -> None:
     """Assessment reminder (design 17b), sent manually by a recruiter or by
     the worker nudge. Never claims the application auto-closes - only the
     link expires."""
-    _send_builtin(
+    _send_stage(
         "quiz_reminder",
         to=to,
         ref=ref,
+        template_subject=template_subject,
+        template_body=template_body,
         context={
             "candidate_name": candidate_name,
             "job_title": job_title,
@@ -187,12 +210,17 @@ def send_stage_advance(
     status_url: str | None = None,
     controller_name: str | None = None,
     privacy_url: str | None = None,
+    template_id: str | None = None,
+    template_subject: str | None = None,
+    template_body: str | None = None,
 ) -> None:
     """Advance-to-interview email (design 22a); scheduling details follow later."""
-    _send_builtin(
+    _send_stage(
         "stage_advance",
         to=to,
         ref=ref,
+        template_subject=template_subject,
+        template_body=template_body,
         context={
             "candidate_name": candidate_name,
             "job_title": job_title,
@@ -216,12 +244,17 @@ def send_rejection(
     completed_assessment: bool,
     controller_name: str | None = None,
     privacy_url: str | None = None,
+    template_id: str | None = None,
+    template_subject: str | None = None,
+    template_body: str | None = None,
 ) -> None:
     """Humane rejection (design 22b): neutral bar, no score, no brand accents."""
-    _send_builtin(
+    _send_stage(
         "rejection",
         to=to,
         ref=ref,
+        template_subject=template_subject,
+        template_body=template_body,
         context={
             "candidate_name": candidate_name,
             "job_title": job_title,
