@@ -1,4 +1,5 @@
 import type { PublicCompanyPage, PublicJobDetail } from "@/lib/public-api";
+import type { RejectionReason } from "@/lib/rejection-reasons";
 
 /** Minimal typed wrapper around the Ganek API (proxied same-origin via Next rewrites). */
 
@@ -466,6 +467,24 @@ export interface ApplicationOut {
   created_at: string;
   /** When the row entered its current stage (sort "Longest in stage"). */
   stage_changed_at: string;
+  /** Internal rejection reason and note (card "Candidate emails", PR 2):
+   * set while the row is rejected or withdrawn, never shown to candidates. */
+  rejection_reason: RejectionReason | null;
+  rejection_note: string | null;
+}
+
+/** The optional internal reason sent with a rejection; a key left
+ * undefined is not sent at all. */
+export interface RejectionFields {
+  rejectionReason?: RejectionReason | null;
+  rejectionNote?: string | null;
+}
+
+function rejectionBody(fields: RejectionFields): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (fields.rejectionReason !== undefined) body.rejection_reason = fields.rejectionReason;
+  if (fields.rejectionNote !== undefined) body.rejection_note = fields.rejectionNote;
+  return body;
 }
 
 /** One row of the applicant timeline (card "Candidate timeline"): an
@@ -606,10 +625,19 @@ export const applications = {
     const qs = params.toString();
     return request<ApplicationPage>(`/api/v1/applications${qs ? `?${qs}` : ""}`);
   },
-  setStage: (id: string, stage: ApplicationStage, notifyCandidate = false) =>
+  setStage: (
+    id: string,
+    stage: ApplicationStage,
+    notifyCandidate = false,
+    fields: RejectionFields = {},
+  ) =>
     request<ApplicationOut>(`/api/v1/applications/${id}/stage`, {
       method: "PATCH",
-      body: JSON.stringify({ stage, notify_candidate: notifyCandidate }),
+      body: JSON.stringify({
+        stage,
+        notify_candidate: notifyCandidate,
+        ...rejectionBody(fields),
+      }),
     }),
   /** The stage mail rendered for this candidate, exactly what the sender
    * delivers (card "Candidate emails"); nothing is queued. */
@@ -637,23 +665,30 @@ export const applications = {
     }),
   dismissFlags: (id: string) =>
     request<QuizResult>(`/api/v1/applications/${id}/quiz/dismiss-flags`, { method: "POST" }),
-  bulkReject: (applicationIds: string[], notifyCandidates: boolean) =>
+  bulkReject: (applicationIds: string[], notifyCandidates: boolean, fields: RejectionFields = {}) =>
     request<{ rejected: number; skipped: number }>("/api/v1/applications/bulk-reject", {
       method: "POST",
       body: JSON.stringify({
         application_ids: applicationIds,
         notify_candidates: notifyCandidates,
+        ...rejectionBody(fields),
       }),
     }),
   /** Bulk bar "Move to": rows already there, withdrawn, foreign or unknown
    * are skipped and counted; each moved row gets its own activity entry. */
-  bulkStage: (applicationIds: string[], stage: ApplicationStage, notifyCandidates: boolean) =>
+  bulkStage: (
+    applicationIds: string[],
+    stage: ApplicationStage,
+    notifyCandidates: boolean,
+    fields: RejectionFields = {},
+  ) =>
     request<{ updated: number; skipped: number }>("/api/v1/applications/bulk-stage", {
       method: "POST",
       body: JSON.stringify({
         application_ids: applicationIds,
         stage,
         notify_candidates: notifyCandidates,
+        ...rejectionBody(fields),
       }),
     }),
   /** Art. 17: erases the whole candidate (every application), admin-only. */
