@@ -679,6 +679,25 @@ describe("ApplicantsPage", () => {
     );
   });
 
+  it("Keep them discards a typed reason and note", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Reason (internal, optional)" }),
+      "Skills below the bar",
+    );
+    await userEvent.type(screen.getByLabelText("Internal note"), "About Jane only");
+    await userEvent.click(screen.getByRole("button", { name: "Keep them" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    expect(screen.getByRole("combobox", { name: "Reason (internal, optional)" })).toHaveValue("");
+    expect(screen.getByLabelText("Internal note")).toHaveValue("");
+  });
+
   it("Keep them cancels the confirm step without calling bulkReject", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });

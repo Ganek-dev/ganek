@@ -340,7 +340,12 @@ function BulkActionBar({
             <button
               type="button"
               disabled={busy}
-              onClick={() => setConfirming(false)}
+              onClick={() => {
+                // Cancel discards: a note about this set must not arm the next
+                setConfirming(false);
+                setBulkReason("");
+                setBulkNote("");
+              }}
               className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
             >
               Keep them
