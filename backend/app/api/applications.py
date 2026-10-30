@@ -62,6 +62,7 @@ from app.services import access_log, activity, email_render, google_calendar, st
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
+from app.services import email_templates as templates_service
 from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
 from app.services import outbox as outbox_service
@@ -945,7 +946,7 @@ async def email_preview(
 
 
 NO_ASSESSMENT = "No assessment to preview"
-PREVIEW_LINK_PLACEHOLDER = "personal-link"
+PREVIEW_LINK_PLACEHOLDER = templates_service.PREVIEW_LINK_PLACEHOLDER
 
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])

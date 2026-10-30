@@ -11,6 +11,7 @@ from app.api import (
     auth,
     company,
     dashboard,
+    email_templates,
     email_webhooks,
     google_auth,
     jobs,
@@ -86,6 +87,7 @@ async def security_headers(
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(company.router, prefix="/api/v1")
+app.include_router(email_templates.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(email_webhooks.router, prefix="/api/v1")
 app.include_router(google_auth.router, prefix="/api/v1")
