@@ -25,7 +25,6 @@ import {
   type EmailKind,
   type EmailKindInfo,
   type EmailTemplate,
-  type RejectionFields,
   type StageFields,
   type IntegrityFlag,
   type JobOut,
@@ -791,7 +790,7 @@ function DetailPanel({
   app: ApplicationOut;
   jobTitle: string;
   answers: QuizAnswerReview[] | null;
-  onStage: (stage: ApplicationStage, notify: boolean, fields?: RejectionFields) => void;
+  onStage: (stage: ApplicationStage, notify: boolean, fields?: StageFields) => void;
   onDownloadCv: () => void;
   onRemind: () => Promise<boolean>;
   onExport: () => void;
@@ -1306,7 +1305,7 @@ function ApplicantsContent() {
     id: string,
     stage: ApplicationStage,
     notify: boolean,
-    fields?: RejectionFields,
+    fields?: StageFields,
   ) {
     setError(null);
     const before = items?.find((row) => row.id === id) ?? null;

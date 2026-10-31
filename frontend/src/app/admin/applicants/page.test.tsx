@@ -567,6 +567,28 @@ describe("ApplicantsPage", () => {
     expect(mockedApps.setStage).not.toHaveBeenCalled();
   });
 
+  it("an edited rejection email reaches setStage as subject and body", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit this email" }));
+    const subject = within(dialog).getByRole("textbox", { name: "Subject" });
+    await userEvent.clear(subject);
+    await userEvent.type(subject, "About your application");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reject and send email" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith(
+        "app-1",
+        "rejected",
+        true,
+        expect.objectContaining({ subject: "About your application", body: "Thank you, Jane Applicant" }),
+      ),
+    );
+  });
+
   it("Reject with the checkbox sends the reason with the email", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });

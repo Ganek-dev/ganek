@@ -217,4 +217,49 @@ describe("StageEmailDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
     expect(onConfirm).toHaveBeenCalledWith({ ...NO_FIELDS, templateId: "builtin" });
   });
+
+  it("Edit this email prefills the subject and the body from the preview and sends them as overrides", async () => {
+    const { onConfirm } = renderDialog("rejected");
+    await screen.findByTestId("stage-email-text");
+    await userEvent.click(screen.getByRole("button", { name: "Edit this email" }));
+    const subject = screen.getByRole("textbox", { name: "Subject" });
+    const body = screen.getByRole("textbox", { name: "Body" });
+    expect(subject).toHaveValue("Your application to ACME");
+    expect(body).toHaveValue(REJECTION.body);
+    expect(
+      screen.getByText("Edited for this send. The link and the privacy footer are always added by Ganek."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("stage-email-text")).not.toBeInTheDocument();
+    await userEvent.type(subject, " - personal");
+    await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
+    expect(onConfirm).toHaveBeenCalledWith({
+      ...NO_FIELDS,
+      subject: "Your application to ACME - personal",
+      body: REJECTION.body,
+    });
+  });
+
+  it("Use the template text leaves edit mode and sends no overrides", async () => {
+    const { onConfirm } = renderDialog("rejected");
+    await screen.findByTestId("stage-email-text");
+    await userEvent.click(screen.getByRole("button", { name: "Edit this email" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Body" }), " more");
+    await userEvent.click(screen.getByRole("button", { name: "Use the template text" }));
+    expect(await screen.findByTestId("stage-email-text")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
+    expect(onConfirm).toHaveBeenCalledWith(NO_FIELDS);
+  });
+
+  it("keeps confirm disabled while an edited field is blank and disables the template select", async () => {
+    mockedTemplates.list.mockResolvedValue(kinds([tpl("t-a", "Warm no"), tpl("t-b", "Short", true)]));
+    renderDialog("rejected");
+    await screen.findByTestId("stage-email-text");
+    await userEvent.click(screen.getByRole("button", { name: "Edit this email" }));
+    expect(screen.getByRole("combobox", { name: "Template" })).toBeDisabled();
+    const body = screen.getByRole("textbox", { name: "Body" });
+    await userEvent.clear(body);
+    expect(screen.getByRole("button", { name: "Reject and send email" })).toBeDisabled();
+    await userEvent.type(body, "Back again");
+    expect(screen.getByRole("button", { name: "Reject and send email" })).toBeEnabled();
+  });
 });
