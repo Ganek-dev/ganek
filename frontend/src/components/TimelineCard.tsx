@@ -28,7 +28,10 @@ const EMAIL_LABELS: Record<string, string> = {
   stage_advance: "Advance update",
   rejection: "Rejection",
   interview_invite: "Interview booking link",
+  interview_confirmed: "Interview confirmation",
+  interview_scheduled: "Interviewer invite",
   interview_cancelled: "Interview cancellation",
+  interview_cancelled_interviewer: "Interviewer cancel notice",
   message: "Message",
 };
 

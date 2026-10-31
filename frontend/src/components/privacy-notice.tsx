@@ -137,13 +137,6 @@ export function PrivacyNotice({
               The infrastructure this site runs on - servers, file storage for CVs, and the
               email delivery service.
             </li>
-            <li className={liCls}>
-              <span className={termCls}>Google (Calendar &amp; Meet)</span> - only if an
-              interview is scheduled: your name and email go into the calendar event, and
-              Google emails you the invite. Google is a US company; the transfer relies on
-              the EU-US Data Privacy Framework and Google&apos;s standard data-protection
-              terms.
-            </li>
           </ul>
         </section>
 

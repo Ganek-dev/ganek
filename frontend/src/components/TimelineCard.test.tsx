@@ -112,6 +112,19 @@ describe("TimelineCard", () => {
     expect(screen.getByText(/bounce or a spam complaint/)).toBeInTheDocument();
   });
 
+  it("labels the interview mails for both sides", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "email", payload: { template: "interview_confirmed", status: "sent", attempts: 1, last_error: null } }),
+      event({ kind: "email", payload: { template: "interview_scheduled", status: "sent", attempts: 1, last_error: null } }),
+      event({ kind: "email", payload: { template: "interview_cancelled_interviewer", status: "sent", attempts: 1, last_error: null } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Interview confirmation");
+    expect(items[1]).toHaveTextContent("Interviewer invite");
+    expect(items[2]).toHaveTextContent("Interviewer cancel notice");
+  });
+
   it("collapses a long trail behind Show more", async () => {
     mocked.timeline.mockResolvedValue(
       Array.from({ length: 11 }, (_, i) => event({ kind: "quiz.started", id: `e${i}` })),

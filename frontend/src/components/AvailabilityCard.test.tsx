@@ -14,6 +14,7 @@ const mocked = vi.mocked(api.availability);
 const DEFAULTS = {
   timezone: "",
   is_default: true,
+  location: "",
   days: Object.fromEntries(
     ["mon", "tue", "wed", "thu", "fri"].map((d) => [d, { start: "09:00", end: "17:00" }]),
   ),
@@ -52,5 +53,23 @@ describe("AvailabilityCard", () => {
     expect(await screen.findByText(/start must be before end/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save availability/i })).toBeDisabled();
     expect(mocked.set).not.toHaveBeenCalled();
+  });
+});
+
+describe("AvailabilityCard location", () => {
+  it("saves the default location with the week", async () => {
+    mocked.set.mockResolvedValue({ ...DEFAULTS, is_default: false, timezone: "UTC" });
+    render(<AvailabilityCard />);
+    const where = await screen.findByLabelText("Where your interviews happen");
+    await userEvent.type(where, "https://teams.example/room-2");
+    await userEvent.click(screen.getByRole("button", { name: "Save availability" }));
+    await waitFor(() => expect(mocked.set).toHaveBeenCalledTimes(1));
+    expect(mocked.set.mock.calls[0][0]).toMatchObject({ location: "https://teams.example/room-2" });
+  });
+
+  it("shows the saved location", async () => {
+    mocked.get.mockResolvedValue({ ...DEFAULTS, location: "Room 2" });
+    render(<AvailabilityCard />);
+    expect(await screen.findByLabelText("Where your interviews happen")).toHaveValue("Room 2");
   });
 });

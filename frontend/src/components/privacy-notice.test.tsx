@@ -34,6 +34,12 @@ describe("PrivacyNotice", () => {
     );
   });
 
+  it("names no calendar processor", () => {
+    render(<PrivacyNotice notice={makeNotice()} backHref="/" />);
+    expect(screen.queryByText(/Google/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Calendar/)).not.toBeInTheDocument();
+  });
+
   it("singularizes one month", () => {
     render(<PrivacyNotice notice={makeNotice({ retention_months: 1 })} backHref="/" />);
     expect(screen.getByText("1 month")).toBeInTheDocument();
