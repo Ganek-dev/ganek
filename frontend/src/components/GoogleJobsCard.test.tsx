@@ -17,10 +17,16 @@ vi.mock("@/lib/api", async (importOriginal) => {
 const mockedApi = vi.mocked(api);
 const mockedPublic = vi.mocked(publicPages);
 
-const company: CompanySummary = { slug: "acme", name: "ACME Ganek", mode: "single" };
+const company: CompanySummary = {
+  slug: "acme",
+  name: "ACME Ganek",
+  mode: "single",
+  screening_questions: [],
+};
 
 function makeJob(overrides: Partial<JobOut> = {}): JobOut {
   return {
+    screening_questions: [],
     id: "job-1",
     slug: "senior-frontend-engineer",
     title: "Senior Frontend Engineer",
@@ -79,6 +85,7 @@ function publicJobOf(job: JobOut) {
     published_at: job.published_at,
     description_md: job.description_md,
     closes_at: job.closes_at,
+    screening_questions: [],
   };
 }
 

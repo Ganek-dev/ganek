@@ -19,6 +19,7 @@ const company: PublicCompany = {
 };
 
 const job: PublicJobDetail = {
+  screening_questions: [],
   slug: "senior-python-developer",
   title: "Senior Python Developer",
   location: "Warsaw",

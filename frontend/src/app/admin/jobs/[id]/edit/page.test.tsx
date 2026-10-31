@@ -36,6 +36,7 @@ const mockedJobs = vi.mocked(api.jobs);
 
 function makeJob(overrides: Partial<JobOut>): JobOut {
   return {
+    screening_questions: [],
     id: "11111111-1111-1111-1111-111111111111",
     slug: "senior-frontend-engineer",
     title: "Senior Frontend Engineer",

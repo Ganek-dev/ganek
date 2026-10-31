@@ -48,6 +48,7 @@ const soloTeam: TeamUser[] = [
 
 function makeJob(overrides: Partial<JobOut> = {}): JobOut {
   return {
+    screening_questions: [],
     id: "j1",
     slug: "engineer",
     title: "Engineer",
@@ -95,6 +96,7 @@ function mockState({
 } = {}) {
   mockedApi.me.mockResolvedValue(admin);
   mockedCompany.get.mockResolvedValue({
+    screening_questions: [],
     slug: "acmelabs",
     mode,
     smtp_configured: true,

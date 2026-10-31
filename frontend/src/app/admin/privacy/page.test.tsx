@@ -48,6 +48,7 @@ function makeHealth(lastPurgeAt: string | null): DeepHealth {
 
 function makeCompany(settings: CompanyAdmin["settings"] = {}): CompanyAdmin {
   return {
+    screening_questions: [],
     slug: "acmelabs",
     mode: "single" as const,
     smtp_configured: true,

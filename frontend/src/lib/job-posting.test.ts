@@ -15,6 +15,7 @@ const company: PublicCompany = {
 };
 
 const job: PublicJobDetail = {
+  screening_questions: [],
   slug: "senior-frontend-engineer",
   title: "Senior Frontend Engineer",
   location: "Berlin",

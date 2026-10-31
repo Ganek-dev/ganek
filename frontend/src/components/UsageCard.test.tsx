@@ -16,6 +16,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 const mocked = vi.mocked(companyApi);
 
 const company: CompanyAdmin = {
+  screening_questions: [],
   slug: "acme",
   name: "Acme",
   description: "",

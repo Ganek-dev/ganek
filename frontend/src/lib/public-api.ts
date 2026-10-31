@@ -20,10 +20,21 @@ export interface PublicJobSummary {
   published_at: string | null;
 }
 
+/** A screening question as the apply form renders it: never the recruiter's
+ * preferred answer. */
+export interface PublicScreeningQuestion {
+  id: string;
+  type: "yes_no" | "single_choice" | "short_text" | "acknowledgment";
+  prompt: string;
+  options: string[] | null;
+  required: boolean;
+}
+
 export interface PublicJobDetail extends PublicJobSummary {
   description_md: string;
   /** Advisory deadline -> JSON-LD validThrough; the posting stays applyable. */
   closes_at: string | null;
+  screening_questions: PublicScreeningQuestion[];
 }
 
 export interface PublicCompany {

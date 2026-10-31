@@ -62,6 +62,39 @@ export interface QuizConfig {
   questionnaire_id: string | null;
 }
 
+/** Per-job screening questions (board card "Per-job screening questions").
+ * `preferred` is recruiter-internal: the public job detail never carries it
+ * and an answer never moves, mails or scores a candidate. */
+export type ScreeningQuestionType = "yes_no" | "single_choice" | "short_text" | "acknowledgment";
+
+export interface ScreeningQuestion {
+  /** `sq_` + 8 hex; the server keeps a client-made id. */
+  id: string;
+  type: ScreeningQuestionType;
+  prompt: string;
+  /** single_choice only, 2 to 10 entries. */
+  options: string[] | null;
+  /** "yes" | "no" for yes_no, an option for single_choice, else null. */
+  preferred: string | null;
+  /** Always true for an acknowledgment. */
+  required: boolean;
+}
+
+/** One stored answer with the question as it was asked (write-once snapshot). */
+export interface ScreeningAnswer {
+  question_id: string;
+  type: ScreeningQuestionType;
+  prompt: string;
+  options: string[] | null;
+  preferred: string | null;
+  /** null = skipped optional question; true = acknowledgment accepted. */
+  answer: string | boolean | null;
+  /** null when there is no preferred answer or the question was skipped. */
+  match: boolean | null;
+}
+
+export type ScreeningFilter = "match" | "mismatch" | "unanswered";
+
 export interface JobOut {
   id: string;
   slug: string;
@@ -78,6 +111,7 @@ export interface JobOut {
   tags: string[];
   status: JobStatus;
   quiz_config: QuizConfig;
+  screening_questions: ScreeningQuestion[];
   published_at: string | null;
   closed_at: string | null;
   created_at: string;
@@ -97,6 +131,7 @@ export interface JobInput {
   closes_at: string | null;
   tags: string[];
   quiz_config: QuizConfig;
+  screening_questions: ScreeningQuestion[];
 }
 
 export class ApiError extends Error {
@@ -325,6 +360,8 @@ export interface ApplicationPayload {
   altcha?: string | null;
   /** where the candidate came from (lib/source.ts grammar); null when unknown */
   source?: string | null;
+  /** Answers to the job's screening questions; null = skipped optional. */
+  screening_answers?: { question_id: string; answer: string | boolean | null }[];
 }
 
 export const publicApply = {
@@ -471,6 +508,8 @@ export interface ApplicationOut {
    * set while the row is rejected or withdrawn, never shown to candidates. */
   rejection_reason: RejectionReason | null;
   rejection_note: string | null;
+  /** Screening answer snapshots with preferred + match: recruiter-facing only. */
+  screening_answers: ScreeningAnswer[];
 }
 
 /** The optional internal reason sent with a rejection; a key left
@@ -595,6 +634,7 @@ export interface ApplicationFilters {
   flagged?: boolean;
   /** Applied within the last N days, 1..365. */
   since_days?: number;
+  screening?: ScreeningFilter;
   sort?: ApplicationSortKey;
   /** Export only: a selection (the bulk bar), at most 100. */
   ids?: string[];
@@ -611,6 +651,7 @@ function applicationParams(filters: ApplicationFilters | undefined): URLSearchPa
   if (filters.source) params.set("source", filters.source);
   if (filters.flagged !== undefined) params.set("flagged", String(filters.flagged));
   if (filters.since_days !== undefined) params.set("since_days", String(filters.since_days));
+  if (filters.screening) params.set("screening", filters.screening);
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.ids && filters.ids.length > 0) params.set("ids", filters.ids.join(","));
   return params;
@@ -1291,6 +1332,7 @@ export interface CompanyAdmin {
     retention_months?: number;
     privacy_policy_url?: string;
   };
+  screening_questions: ScreeningQuestion[];
 }
 
 /** Omit = untouched, null = reset to default (mirrors BrandingUpdate). */
@@ -1300,6 +1342,8 @@ export interface CompanySettingsUpdate {
   privacy_contact_email?: string | null;
   retention_months?: number | null;
   privacy_policy_url?: string | null;
+  /** Replaces the company default set; omit to leave it untouched. */
+  screening_questions?: ScreeningQuestion[] | null;
 }
 
 export interface BrandingUpdate {
@@ -1455,6 +1499,8 @@ export interface CompanySummary {
   slug: string;
   name: string;
   mode: "single" | "multi";
+  /** The default screening questions new jobs start with (every role reads it). */
+  screening_questions: ScreeningQuestion[];
 }
 
 /** The public careers endpoints the SSR pages render from, reachable from

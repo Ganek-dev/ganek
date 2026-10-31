@@ -232,6 +232,8 @@ export function JobForm({
         closes_at: str("closes_at") === "" ? null : str("closes_at"),
         tags,
         quiz_config,
+        // the editor lands in the next PR; until then the list is carried through
+        screening_questions: initial?.screening_questions ?? [],
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

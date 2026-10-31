@@ -28,6 +28,7 @@ const mocked = vi.mocked(companyApi);
 
 function makeCompany(overrides: Partial<CompanyAdmin> = {}): CompanyAdmin {
   return {
+    screening_questions: [],
     slug: "acme",
     mode: "multi" as const,
     smtp_configured: true,

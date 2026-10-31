@@ -22,6 +22,7 @@ const mocked = vi.mocked(companyApi);
 
 function makeCompany(settings: CompanyAdmin["settings"] = {}): CompanyAdmin {
   return {
+    screening_questions: [],
     slug: "acmelabs",
     mode: "single" as const,
     smtp_configured: true,

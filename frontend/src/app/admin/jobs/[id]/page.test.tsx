@@ -60,6 +60,7 @@ const mockedCompany = vi.mocked(companyApi);
 
 function makeJob(overrides: Partial<JobOut> = {}): JobOut {
   return {
+    screening_questions: [],
     id: JOB_ID,
     slug: "senior-frontend-engineer",
     title: "Senior Frontend Engineer",
@@ -123,6 +124,7 @@ function makeStats(overrides: Partial<JobStats> = {}): JobStats {
 
 function makeApplication(overrides: Partial<ApplicationOut>): ApplicationOut {
   return {
+    screening_answers: [],
     id: APP_A,
     job_id: JOB_ID,
     candidate: { id: "c1", name: "Marta Vidal", email: "marta@example.com", links: {} },
@@ -149,6 +151,7 @@ describe("JobOverviewPage", () => {
     mockedJobs.stats.mockResolvedValue(makeStats());
     mockedCompany.get.mockRejectedValue(new Error("403 admin only"));
     mockedCompany.summary.mockResolvedValue({
+      screening_questions: [],
       slug: company.slug,
       name: company.name,
       mode: company.mode,

@@ -25,6 +25,7 @@ const mocked = vi.mocked(api);
 const mockedCompany = vi.mocked(companyApi);
 
 const company: CompanyAdmin = {
+  screening_questions: [],
   slug: "acme-labs",
   name: "Acme Labs",
   description: "",
