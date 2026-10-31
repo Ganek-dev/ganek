@@ -15,6 +15,8 @@ from app.models import (
     AttemptStatus,
     Candidate,
     Company,
+    EmailOutbox,
+    EmailStatus,
     Job,
     JobStatus,
     JobView,
@@ -68,6 +70,21 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
 
     assert await _count(db_session, Application, company.id) == 17
     assert await _count(db_session, ApplicationNote, company.id) >= 2
+    # sent stage mail so the demo timeline shows subjects and text (PR 4)
+    mails = (
+        (await db_session.execute(select(EmailOutbox).where(EmailOutbox.company_id == company.id)))
+        .scalars()
+        .all()
+    )
+    assert {row.kind for row in mails} == {"stage_advance", "rejection"}
+    assert all(
+        row.status is EmailStatus.SENT and row.rendered_subject and row.rendered_text
+        for row in mails
+    )
+    assert len(mails) == 5  # CANDIDATES: 2 interview + 3 rejected
+    assert all(
+        "personal-link" in str(row.payload.get("status_url", "personal-link")) for row in mails
+    )
     candidates = (
         (await db_session.execute(select(Candidate).where(Candidate.company_id == company.id)))
         .scalars()
