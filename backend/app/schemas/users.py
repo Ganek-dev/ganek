@@ -38,6 +38,20 @@ class TeamUserOut(BaseModel):
     created_at: datetime
 
 
+class TeamMemberOut(BaseModel):
+    """The slim teammate view every role may read (pickers, scorecard labels).
+    Activity data (last_login_at) stays on the admin-only TeamUserOut."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    role: UserRole
+    display_name: str | None = None
+    display_label: str = ""
+    is_active: bool
+
+
 class InviteCreate(BaseModel):
     email: EmailStr
     role: UserRole = UserRole.MEMBER

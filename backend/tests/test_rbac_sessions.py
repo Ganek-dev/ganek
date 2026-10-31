@@ -5,7 +5,7 @@ from httpx import AsyncClient
 
 from app.core import lockout, ratelimit
 from app.core.config import settings
-from app.schemas.users import TeamUserOut
+from app.schemas.users import TeamMemberOut, TeamUserOut
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -46,6 +46,7 @@ async def test_admin_creates_member_who_lacks_admin_rights(client: AsyncClient) 
 
     # both users are listed
     users = (await client.get("/api/v1/users")).json()
+    assert all(set(u) == set(TeamUserOut.model_fields) for u in users)  # admin keeps activity
     assert {u["email"] for u in users} == {admin["email"], member_email}
 
     # member logs in and is blocked from admin-only actions
@@ -58,7 +59,8 @@ async def test_admin_creates_member_who_lacks_admin_rights(client: AsyncClient) 
     team = await client.get("/api/v1/users")
     assert team.status_code == 200, team.text
     assert {u["email"] for u in team.json()} == {admin["email"], member_email}
-    assert all(set(u) == set(TeamUserOut.model_fields) for u in team.json())
+    assert all(set(u) == set(TeamMemberOut.model_fields) for u in team.json())
+    assert all("last_login_at" not in u and "created_at" not in u for u in team.json())
     assert (
         await client.post("/api/v1/users/invites", json={"email": "x@acme.example"})
     ).status_code == 403
@@ -197,5 +199,6 @@ async def test_member_reads_the_company_summary_but_not_the_admin_view(
         # the company default screening questions ride along for every role
         # (members create jobs; the editor prefills from this)
         "screening_questions": [],
+        "scorecard_template": [],
     }
     assert admin["email"]  # fixture used
