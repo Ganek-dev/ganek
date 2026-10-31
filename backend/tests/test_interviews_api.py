@@ -1,5 +1,6 @@
 """Interview admin endpoints: slot preview, request, cancel, tenancy."""
 
+import uuid
 from uuid import uuid4
 
 import pytest
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import read_interview_token
-from app.models import User
+from app.models import EmailOutbox, User
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 
@@ -290,3 +291,104 @@ async def test_interview_endpoints_are_tenant_scoped(
         f"/api/v1/applications/{other_app_id}/interview", json=foreign_interviewer
     )
     assert resp.status_code == 404
+
+
+async def _outbox_kinds(db_session: AsyncSession, application_id: str) -> list[tuple[str, str]]:
+    rows = (
+        (
+            await db_session.execute(
+                select(EmailOutbox)
+                .where(EmailOutbox.application_id == uuid.UUID(application_id))
+                .order_by(EmailOutbox.created_at, EmailOutbox.kind)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [(row.kind, str(row.payload.get("to"))) for row in rows]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_recruiter_cancel_pending_mails_candidate_only(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
+    monkeypatch.setattr(email_service, "send_interview_cancelled", lambda **kw: None)
+    application_id, admin_id, _ = await _company_with_applicant(client)
+    payload = {"interviewer_user_id": admin_id, "duration_minutes": 30, "timezone": "Europe/Berlin"}
+    assert (
+        await client.post(f"/api/v1/applications/{application_id}/interview", json=payload)
+    ).status_code == 201
+    assert (
+        await client.post(f"/api/v1/applications/{application_id}/interview/cancel")
+    ).status_code == 200
+    kinds = [k for k, _ in await _outbox_kinds(db_session, application_id)]
+    assert kinds.count("interview_cancelled") == 1
+    assert "interview_cancelled_interviewer" not in kinds
+    row = (
+        await db_session.execute(
+            select(EmailOutbox).where(
+                EmailOutbox.application_id == uuid.UUID(application_id),
+                EmailOutbox.kind == "interview_cancelled",
+            )
+        )
+    ).scalar_one()
+    assert "uid" not in row.payload  # pending: nothing to remove from a calendar
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_recruiter_cancel_booked_mails_both_with_cancel(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    captured: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: captured.append(kw))
+    for name in (
+        "send_interview_confirmed",
+        "send_interview_scheduled",
+        "send_interview_cancelled",
+        "send_interview_cancelled_interviewer",
+    ):
+        monkeypatch.setattr(email_service, name, lambda **kw: None)
+    application_id, admin_id, admin_email = await _company_with_applicant(client)
+    payload = {"interviewer_user_id": admin_id, "duration_minutes": 30, "timezone": "Europe/Berlin"}
+    assert (
+        await client.post(f"/api/v1/applications/{application_id}/interview", json=payload)
+    ).status_code == 201
+    token = str(captured[0]["booking_url"]).rsplit("/", 1)[-1]
+    slots = (await client.get(f"/api/v1/public/interviews/{token}")).json()["available_slots"]
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+
+    assert (
+        await client.post(f"/api/v1/applications/{application_id}/interview/cancel")
+    ).status_code == 200
+    kinds = await _outbox_kinds(db_session, application_id)
+    cancel_rows = [(k, to) for k, to in kinds if k.startswith("interview_cancelled")]
+    assert sorted(k for k, _ in cancel_rows) == [
+        "interview_cancelled",
+        "interview_cancelled_interviewer",
+    ]
+    assert dict(cancel_rows)["interview_cancelled_interviewer"] == admin_email
+    rows = {
+        row.kind: row.payload
+        for row in (
+            await db_session.execute(
+                select(EmailOutbox).where(
+                    EmailOutbox.application_id == uuid.UUID(application_id),
+                    EmailOutbox.kind.like("interview_cancelled%"),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert rows["interview_cancelled"]["sequence"] == 1  # booked at 0, cancel sends +1
+    assert rows["interview_cancelled_interviewer"]["sequence"] == 1
+    assert rows["interview_cancelled"]["uid"] == rows["interview_cancelled_interviewer"]["uid"]
+    # the actor's display label (display name, else the email's local part)
+    assert rows["interview_cancelled_interviewer"]["cancelled_by"] not in ("", "The candidate")

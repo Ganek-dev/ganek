@@ -51,6 +51,7 @@ SENDER_NAMES: dict[str, str] = {
     "interview_confirmed": "send_interview_confirmed",
     "interview_scheduled": "send_interview_scheduled",
     "interview_cancelled": "send_interview_cancelled",
+    "interview_cancelled_interviewer": "send_interview_cancelled_interviewer",
     "password_reset": "send_password_reset",
     "email_verification": "send_email_verification",
 }

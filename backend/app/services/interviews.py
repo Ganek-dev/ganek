@@ -21,7 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core import queue
 from app.models import Application, Company, Interview, InterviewStatus, User
-from app.services import activity
+from app.services import activity, ics
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,23 @@ def summarize_availability(windows: dict[str, tuple[time, time]]) -> str:
         label = DAY_LABELS[first] if first == last else f"{DAY_LABELS[first]}-{DAY_LABELS[last]}"
         parts.append(f"{label} {start:%H:%M}-{end:%H:%M}")
     return " · ".join(parts)
+
+
+def cancel_notice_fields(interview: Interview) -> dict[str, object]:
+    """Calendar fields for the METHOD:CANCEL mails: the event as it was
+    sent, one sequence higher. Empty when no time was ever booked (a
+    pending request has nothing to remove from a calendar)."""
+    if interview.scheduled_start is None:
+        return {}
+    return {
+        "title": interview.title,
+        "start": interview.scheduled_start,
+        "duration_minutes": interview.duration_minutes,
+        "timezone": interview.timezone,
+        "location": interview.location,
+        "uid": ics.interview_uid(interview.id),
+        "sequence": interview.ics_sequence + 1,
+    }
 
 
 class InterviewExistsError(Exception):

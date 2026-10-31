@@ -575,3 +575,55 @@ async def test_reschedule_queues_both_with_sequence_one(
     moved = [row for row in rows if row.payload.get("rescheduled") is True]
     assert sorted(row.kind for row in moved) == ["interview_confirmed", "interview_scheduled"]
     assert all(row.payload["sequence"] == 1 for row in moved)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_candidate_cancel_booked_mails_interviewer_only(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    before = len(await _outbox_rows(db_session, interview_id))
+    assert (await client.post(f"/api/v1/public/interviews/{token}/cancel")).status_code == 200
+    rows = await _outbox_rows(db_session, interview_id)
+    assert len(rows) == before + 1
+    assert rows[-1].kind == "interview_cancelled_interviewer"
+    assert rows[-1].payload["cancelled_by"] == "The candidate"
+    assert rows[-1].payload["to"].startswith("admin-")
+    assert rows[-1].payload["sequence"] == 1
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_candidate_cancel_pending_mails_nobody(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, _ = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    before = len(await _outbox_rows(db_session, interview_id))
+    assert (await client.post(f"/api/v1/public/interviews/{token}/cancel")).status_code == 200
+    assert len(await _outbox_rows(db_session, interview_id)) == before
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_sequences_stay_monotonic(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    base = f"/api/v1/public/interviews/{token}"
+    assert (await client.post(f"{base}/book", json={"start": slots[0]})).status_code == 200
+    assert (await client.post(f"{base}/reschedule", json={"start": slots[2]})).status_code == 200
+    assert (await client.post(f"{base}/reschedule", json={"start": slots[4]})).status_code == 200
+    assert (await client.post(f"{base}/cancel")).status_code == 200
+    rows = [row for row in await _outbox_rows(db_session, interview_id) if "uid" in row.payload]
+    uids = {row.payload["uid"] for row in rows}
+    assert uids == {f"interview-{interview_id}@ganek"}
+    by_kind: dict[str, list[int]] = {}
+    for row in rows:
+        by_kind.setdefault(row.kind, []).append(int(row.payload["sequence"]))
+    assert by_kind["interview_confirmed"] == [0, 1, 2]
+    assert by_kind["interview_scheduled"] == [0, 1, 2]
+    assert by_kind["interview_cancelled_interviewer"] == [3]

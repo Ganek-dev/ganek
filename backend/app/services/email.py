@@ -608,18 +608,31 @@ def send_interview_cancelled(
     company_name: str,
     controller_name: str | None = None,
     privacy_url: str | None = None,
+    # set when a time had been booked: the mail then carries METHOD:CANCEL
+    title: str | None = None,
+    start: datetime | None = None,
+    duration_minutes: int | None = None,
+    timezone: str | None = None,
+    location: str = "",
+    uid: str | None = None,
+    sequence: int | None = None,
+    interviewer_name: str | None = None,
+    interviewer_email: str | None = None,
 ) -> None:
     """Interview request withdrawn/cancelled notice (neutral, no brand accent)."""
     safe_candidate = escape(candidate_name)
     safe_job = escape(job_title)
     safe_company = escape(company_name)
     subject = f"Interview cancelled - {job_title} at {company_name}"
+    when_text = ""
+    if start is not None and timezone is not None:
+        when_text = f" ({_local_when(start, timezone)}, {timezone})"
 
     body = (
         f"Hi {candidate_name},\n"
         f"\n"
         f"The scheduled interview for the {job_title} position at\n"
-        f"{company_name} has been cancelled. If a new time is needed,\n"
+        f"{company_name}{when_text} has been cancelled. If a new time is needed,\n"
         f"you'll receive a fresh scheduling link.\n"
         f"\n"
         f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
@@ -629,8 +642,8 @@ def send_interview_cancelled(
         "Interview cancelled</h1>"
         + _paragraph(
             f"Hi {safe_candidate} - the scheduled interview for the "
-            f'<b style="font-weight: 600;">{safe_job}</b> position at {safe_company} has '
-            f"been cancelled."
+            f'<b style="font-weight: 600;">{safe_job}</b> position at {safe_company}'
+            f"{escape(when_text)} has been cancelled."
         )
         + _paragraph("If a new time is needed, you'll receive a fresh scheduling link.")
     )
@@ -643,7 +656,115 @@ def send_interview_cancelled(
         safe_controller=escape(controller_name) if controller_name else None,
         privacy_url=privacy_url,
     )
-    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
+    calendar = None
+    if (
+        start is not None
+        and uid is not None
+        and sequence is not None
+        and duration_minutes is not None
+    ):
+        attendees: list[tuple[str, str]] = [(candidate_name, to)]
+        if interviewer_name and interviewer_email:
+            attendees.append((interviewer_name, interviewer_email))
+        calendar = _calendar_part(
+            method="CANCEL",
+            uid=uid,
+            sequence=sequence,
+            start=start,
+            duration_minutes=duration_minutes,
+            summary=f"{title or 'Interview'} - {job_title} at {company_name}",
+            description="",
+            location=location,
+            company_name=company_name,
+            attendees=tuple(attendees),
+            url=None,
+        )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref, calendar=calendar)
+
+
+def send_interview_cancelled_interviewer(
+    *,
+    to: str,
+    ref: str | None = None,
+    candidate_name: str,
+    candidate_email: str,
+    interviewer_name: str,
+    job_title: str,
+    company_name: str,
+    title: str,
+    start: datetime,
+    duration_minutes: int,
+    timezone: str,
+    location: str,
+    uid: str,
+    sequence: int,
+    cancelled_by: str,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
+) -> None:
+    """Interviewer copy of a cancellation with METHOD:CANCEL so the event
+    leaves their calendar. With an empty ``candidate_name`` (erasure) the
+    mail and the event carry no personal data about the candidate."""
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    when = _local_when(start, timezone)
+    if candidate_name:
+        subject = f"Interview cancelled: {candidate_name} - {job_title}"
+        line = (
+            f"{cancelled_by} cancelled the {title} with {candidate_name} "
+            f"for the {job_title} position"
+        )
+        summary = f"{title} - {candidate_name} ({job_title})"
+    else:
+        subject = f"Interview cancelled - {job_title}"
+        line = f"{cancelled_by}. The {title} for the {job_title} position is cancelled"
+        summary = "Interview cancelled"
+
+    body = (
+        f"Hi {interviewer_name},\n"
+        f"\n"
+        f"{line}: {when} ({timezone}).\n"
+        f"The attached update removes it from your calendar.\n"
+        f"\n"
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+    )
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        "Interview cancelled</h1>"
+        + _paragraph(
+            f'{escape(line)}: <b style="font-weight: 600;">{when}</b> '
+            f'<span style="font-family: monospace; font-size: 12px;">({escape(timezone)})</span>.'
+        )
+        + _paragraph("The attached update removes it from your calendar.")
+    )
+    html = _card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
+    )
+    attendees: list[tuple[str, str]] = []
+    if candidate_name and candidate_email:
+        attendees.append((candidate_name, candidate_email))
+    attendees.append((interviewer_name, to))
+    calendar = _calendar_part(
+        method="CANCEL",
+        uid=uid,
+        sequence=sequence,
+        start=start,
+        duration_minutes=duration_minutes,
+        summary=summary,
+        description="",
+        location=location,
+        company_name=company_name,
+        attendees=tuple(attendees),
+        url=None,
+    )
+    del safe_job
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref, calendar=calendar)
 
 
 def send_interview_reminder(

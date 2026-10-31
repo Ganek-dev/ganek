@@ -812,6 +812,7 @@ async def cancel_interview(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No active interview to cancel"
         )
+    notice = interviews_service.cancel_notice_fields(interview)  # before the status flips
     try:
         await interviews_service.cancel_interview(
             db, interview, interviewer=interview.interviewer, actor_user_id=user.id
@@ -821,6 +822,7 @@ async def cancel_interview(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Scheduling is busy - try again in a moment",
         ) from None
+    interviewer = interview.interviewer
     await outbox_service.queue_email(
         db,
         kind="interview_cancelled",
@@ -833,7 +835,34 @@ async def cancel_interview(
         company_name=company.name,
         controller_name=company_service.controller_name(company),
         privacy_url=urls.privacy_notice_url(company),
+        **(
+            {
+                **notice,
+                "interviewer_name": interviewer.display_label,
+                "interviewer_email": interviewer.email,
+            }
+            if notice
+            else {}
+        ),
     )
+    if notice:
+        await outbox_service.queue_email(
+            db,
+            kind="interview_cancelled_interviewer",
+            company_id=company.id,
+            application_id=application.id,
+            to=interviewer.email,
+            ref=str(application.id),
+            candidate_name=application.candidate.name,
+            candidate_email=application.candidate.email,
+            interviewer_name=interviewer.display_label,
+            job_title=application.job.title,
+            company_name=company.name,
+            cancelled_by=user.display_label,
+            controller_name=company_service.controller_name(company),
+            privacy_url=urls.privacy_notice_url(company),
+            **notice,
+        )
     return interview
 
 

@@ -158,3 +158,100 @@ def test_interview_invite_copy_mentions_both_sides(sent: list[providers.Outbound
     assert "you and your interviewer both receive a calendar invite" in message.html
     assert "meeting link" not in flat_text
     assert message.calendar is None
+
+
+def _cancelled(**overrides: object) -> None:
+    kwargs: dict[str, object] = {
+        "to": "jane@example.com",
+        "ref": "app-1",
+        "candidate_name": "Jane Applicant",
+        "job_title": "Backend Engineer",
+        "company_name": "Acme",
+    }
+    kwargs.update(overrides)
+    email_service.send_interview_cancelled(**kwargs)  # type: ignore[arg-type]
+
+
+def test_cancelled_without_time_has_no_calendar_part(sent: list[providers.OutboundMessage]) -> None:
+    _cancelled()
+    assert sent[0].calendar is None
+    assert sent[0].subject == "Interview cancelled - Backend Engineer at Acme"
+
+
+def test_cancelled_with_time_has_cancel_part(sent: list[providers.OutboundMessage]) -> None:
+    _cancelled(
+        title="Hiring manager interview",
+        start=START,
+        duration_minutes=45,
+        timezone="Europe/Berlin",
+        location="Room 2",
+        uid="interview-abc@ganek",
+        sequence=3,
+        interviewer_name="Erika",
+        interviewer_email="erika@acme.example",
+    )
+    message = sent[0]
+    assert message.calendar is not None
+    assert message.calendar.method == "CANCEL"
+    lines = _ics_lines(message)
+    assert "METHOD:CANCEL" in lines
+    assert "STATUS:CANCELLED" in lines
+    assert "SEQUENCE:3" in lines
+    assert "UID:interview-abc@ganek" in lines
+    assert "Mon, Nov 16 · 10:00" in message.text
+
+
+def test_cancelled_interviewer_names_who_cancelled(sent: list[providers.OutboundMessage]) -> None:
+    email_service.send_interview_cancelled_interviewer(
+        to="erika@acme.example",
+        ref="app-1",
+        candidate_name="Jane Applicant",
+        candidate_email="jane@example.com",
+        interviewer_name="Erika",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        title="Hiring manager interview",
+        start=START,
+        duration_minutes=45,
+        timezone="Europe/Berlin",
+        location="Room 2",
+        uid="interview-abc@ganek",
+        sequence=1,
+        cancelled_by="The candidate",
+    )
+    message = sent[0]
+    assert message.subject == "Interview cancelled: Jane Applicant - Backend Engineer"
+    assert "The candidate cancelled" in message.text
+    assert message.calendar is not None and message.calendar.method == "CANCEL"
+    lines = _ics_lines(message)
+    assert "SUMMARY:Hiring manager interview - Jane Applicant (Backend Engineer)" in lines
+    assert "SEQUENCE:1" in lines
+
+
+def test_cancelled_interviewer_without_candidate_name_is_neutral(
+    sent: list[providers.OutboundMessage],
+) -> None:
+    """Erasure sends this one: no candidate name anywhere, neutral summary."""
+    email_service.send_interview_cancelled_interviewer(
+        to="erika@acme.example",
+        ref=None,
+        candidate_name="",
+        candidate_email="",
+        interviewer_name="Erika",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        title="Hiring manager interview",
+        start=START,
+        duration_minutes=45,
+        timezone="Europe/Berlin",
+        location="",
+        uid="interview-abc@ganek",
+        sequence=2,
+        cancelled_by="The application was deleted",
+    )
+    message = sent[0]
+    assert message.subject == "Interview cancelled - Backend Engineer"
+    assert "The application was deleted" in message.text
+    lines = _ics_lines(message)
+    assert "SUMMARY:Interview cancelled" in lines
+    assert sum(1 for line in lines if line.startswith("ATTENDEE")) == 1
