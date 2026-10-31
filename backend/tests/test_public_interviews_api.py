@@ -552,7 +552,9 @@ async def test_book_queues_confirmation_and_interviewer_invite(
     assert confirmed["uid"] == scheduled["uid"] == f"interview-{interview_id}@ganek"
     assert confirmed["sequence"] == scheduled["sequence"] == 0
     assert confirmed["rescheduled"] is False
-    assert confirmed["booking_url"].endswith(f"/interview/{token}")
+    # a fresh signed token (timestamped), so decode instead of comparing bytes
+    mailed_token = str(confirmed["booking_url"]).rsplit("/", 1)[-1]
+    assert read_interview_token(mailed_token) == interview_id
     assert scheduled["applicant_url"].endswith(f"/admin/applicants?selected={confirmed['ref']}")
     assert confirmed["start"] == {
         "$dt": datetime.fromisoformat(slots[0]).astimezone(UTC).isoformat()
