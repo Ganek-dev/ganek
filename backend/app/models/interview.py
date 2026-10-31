@@ -24,7 +24,7 @@ class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     Slots are never frozen on the row - both the candidate's picker and the
     booking re-check compute them live from the interviewer's saved
-    availability + Google free/busy (``services.interviews.live_slots``).
+    availability minus Ganek's own bookings (``services.interviews.live_slots``).
     Cancelled rows stay as history; the partial unique index allows a fresh
     request after a cancellation.
     """
@@ -60,8 +60,12 @@ class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=InterviewStatus.PENDING,
     )
     scheduled_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    google_event_id: Mapped[str | None] = mapped_column(String(300))
-    meet_url: Mapped[str | None] = mapped_column(String(500))
+    # room or video link shown to both sides; snapshot of the interviewer's
+    # default at request time (0040)
+    location: Mapped[str] = mapped_column(String(500), default="")
+    # iTIP SEQUENCE of the last invite sent; a reschedule bumps it so the
+    # recipients' calendars replace the event, a cancel sends one higher
+    ics_sequence: Mapped[int] = mapped_column(SmallInteger, default=0)
     # arq job id for the T-24h reminder (PR ⑧); requeued on reschedule
     reminder_job_id: Mapped[str | None] = mapped_column(String(100))
 
