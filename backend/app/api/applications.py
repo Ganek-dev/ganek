@@ -102,6 +102,7 @@ def _list_filters(
     source: str | None,
     flagged: bool | None,
     since_days: int | None,
+    screening: applications_service.ScreeningFilter | None = None,
     ids: tuple[uuid.UUID, ...] = (),
 ) -> applications_service.ListFilters:
     return applications_service.ListFilters(
@@ -113,6 +114,7 @@ def _list_filters(
         source=source,
         flagged=flagged,
         since_days=since_days,
+        screening=screening,
         ids=ids,
     )
 
@@ -148,6 +150,7 @@ async def list_applications(
     source: str | None = Query(default=None, max_length=100),
     flagged: bool | None = None,
     since_days: int | None = Query(default=None, ge=1, le=365),
+    screening: applications_service.ScreeningFilter | None = None,
     sort: applications_service.SortKey = "applied_desc",
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -161,6 +164,7 @@ async def list_applications(
         source=source,
         flagged=flagged,
         since_days=since_days,
+        screening=screening,
     )
     items, total = await applications_service.list_applications(
         db, company, filters=filters, sort=sort, limit=limit, offset=offset
@@ -187,6 +191,7 @@ async def export_applications(
     source: str | None = Query(default=None, max_length=100),
     flagged: bool | None = None,
     since_days: int | None = Query(default=None, ge=1, le=365),
+    screening: applications_service.ScreeningFilter | None = None,
     ids: str | None = None,
 ) -> Response:
     """The current filter as a file (card D9): flat rows, no internal ids,
@@ -204,6 +209,7 @@ async def export_applications(
         source=source,
         flagged=flagged,
         since_days=since_days,
+        screening=screening,
         ids=_parse_ids(ids),
     )
     rows = await applications_service.export_applications(db, company, filters=filters)
@@ -220,7 +226,7 @@ async def export_applications(
             "job_id": str(job_id) if job_id is not None else None,
             "filtered": any(
                 value is not None
-                for value in (filters.q, score_min, quiz, source, flagged, since_days)
+                for value in (filters.q, score_min, quiz, source, flagged, since_days, screening)
             )
             or bool(filters.ids),
         },

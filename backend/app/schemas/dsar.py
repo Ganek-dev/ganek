@@ -11,6 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.schemas.public import StatusScreeningAnswer
+
 
 class DsarAnswer(BaseModel):
     question_id: str
@@ -64,6 +66,9 @@ class DsarApplication(BaseModel):
     rejection_note: str | None
     applied_at: datetime
     cv_download_url: str | None
+    # the candidate's own screening answers with the question text asked;
+    # never the preferred answer or the match (recruiter-internal)
+    screening_answers: list[StatusScreeningAnswer] = []
     quiz_attempts: list[DsarAttempt]
     interviews: list[DsarInterview]
     notes: list[DsarNote]

@@ -114,8 +114,16 @@ async def _get_or_create_candidate(
 
 
 async def submit_application(
-    db: AsyncSession, company: Company, job: Job, payload: ApplicationSubmit
+    db: AsyncSession,
+    company: Company,
+    job: Job,
+    payload: ApplicationSubmit,
+    *,
+    screening_answers: list[dict[str, Any]] | None = None,
 ) -> Application:
+    """``screening_answers`` is the validated snapshot from
+    services.screening.build_answers; it is stored as given and never
+    influences anything else here (hard rule 5)."""
     if payload.cv_object_key is None or payload.cv_filename is None:
         raise InvalidCvError("CV is required")
     stat = await _validated_cv(company, payload.cv_object_key)
@@ -129,6 +137,7 @@ async def submit_application(
         cv_size=stat.size,
         message=payload.message,
         source=normalize_source(payload.source),
+        screening_answers=screening_answers or [],
     )
     db.add(application)
     try:
@@ -158,6 +167,11 @@ SortKey = Literal[
     "stage_age_asc",
 ]
 QuizState = Literal["none", "pending", "in_progress", "completed", "expired"]
+# screening answers (0039): `match` = every preferred answer matched (and at
+# least one exists), `mismatch` = any preferred answer missed, `unanswered` =
+# any question skipped. Applicants from before a job had questions carry an
+# empty list and show only without the filter.
+ScreeningFilter = Literal["match", "mismatch", "unanswered"]
 
 SEARCH_MAX_LENGTH = 200
 EXPORT_IDS_MAX = 100
@@ -185,6 +199,7 @@ class ListFilters:
     source: str | None = None
     flagged: bool | None = None
     since_days: int | None = None
+    screening: ScreeningFilter | None = None
     ids: tuple[uuid.UUID, ...] = ()
 
 
@@ -260,6 +275,16 @@ def _conditions(
         conditions.append(
             Application.created_at >= datetime.now(UTC) - timedelta(days=filters.since_days)
         )
+    if filters.screening is not None:
+        # JSONB containment (@>) so the GIN index on screening_answers serves it
+        answers = Application.screening_answers
+        if filters.screening == "mismatch":
+            conditions.append(answers.contains([{"match": False}]))
+        elif filters.screening == "unanswered":
+            conditions.append(answers.contains([{"answer": None}]))
+        else:
+            conditions.append(answers.contains([{"match": True}]))
+            conditions.append(~answers.contains([{"match": False}]))
     return conditions
 
 
@@ -351,6 +376,7 @@ EXPORT_COLUMNS = (
     "quiz_time_multiplier",
     "cv_filename",
     "message",
+    "screening_mismatches",
     "rejection_reason",
     "rejection_note",
 )
@@ -387,6 +413,13 @@ def export_row(application: Application) -> dict[str, str | int]:
         ),
         "cv_filename": application.cv_filename,
         "message": application.message or "",
+        # screening (0039): how many preferred answers were missed; blank when
+        # the job asked nothing. The answers themselves stay in the admin UI.
+        "screening_mismatches": (
+            str(sum(1 for a in application.screening_answers if a.get("match") is False))
+            if application.screening_answers
+            else ""
+        ),
         # internal rejection reason (PR 2): the label, for the team's sheet
         "rejection_reason": rejection_reasons.label(application.rejection_reason),
         "rejection_note": application.rejection_note or "",

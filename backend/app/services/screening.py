@@ -108,3 +108,100 @@ def public_view(questions: list[ScreeningQuestion]) -> list[dict[str, Any]]:
         }
         for question in questions
     ]
+
+
+# --- answers ----------------------------------------------------------------
+
+
+class ScreeningAnswerIn(BaseModel):
+    """One answer as the apply form posts it. ``answer`` is "yes"/"no", an
+    option's text, free text, ``True`` for an acknowledgment, or ``None``
+    for a skipped optional question."""
+
+    question_id: str = Field(pattern=_ID_RE.pattern)
+    answer: str | bool | None = None
+
+
+class InvalidAnswers(ValueError):
+    """Answers that do not fit the job's questions; ``errors`` lists one
+    ``{"question_id", "reason"}`` per problem so the form can mark rows."""
+
+    def __init__(self, errors: list[dict[str, str]]) -> None:
+        super().__init__("invalid screening answers")
+        self.errors = errors
+
+
+def _normalize(question: ScreeningQuestion, raw: str | bool | None) -> str | bool | None:
+    """The stored answer or None for "unanswered"; raises ValueError when
+    the value does not fit the question type."""
+    if raw is None:
+        return None
+    if question.type == "acknowledgment":
+        if raw is True:
+            return True
+        raise ValueError("must be accepted")
+    if not isinstance(raw, str):
+        raise ValueError("must be text")
+    value = raw.strip()
+    if value == "":
+        return None
+    if question.type == "yes_no":
+        if value not in YES_NO:
+            raise ValueError("must be yes or no")
+        return value
+    if question.type == "single_choice":
+        if question.options is None or value not in question.options:
+            raise ValueError("must be one of the options")
+        return value
+    if len(value) > TEXT_ANSWER_MAX:
+        raise ValueError(f"at most {TEXT_ANSWER_MAX} characters")
+    return value
+
+
+def build_answers(
+    questions: list[ScreeningQuestion], answers: list[ScreeningAnswerIn]
+) -> list[dict[str, Any]]:
+    """The write-once snapshot stored on the application: one object per
+    question in the job's order, with the question as it was asked, the
+    answer (None when skipped) and ``match`` against the preferred answer
+    (None when there is none or the question was skipped). Required
+    questions without an answer, unknown ids and ill-fitting values raise
+    ``InvalidAnswers`` with every problem collected."""
+    by_id = {question.id: question for question in questions}
+    errors: list[dict[str, str]] = []
+    given: dict[str, str | bool | None] = {}
+    for item in answers:
+        if item.question_id not in by_id:
+            errors.append({"question_id": item.question_id, "reason": "unknown question"})
+            continue
+        if item.question_id in given:
+            errors.append({"question_id": item.question_id, "reason": "answered twice"})
+            continue
+        given[item.question_id] = item.answer
+    out: list[dict[str, Any]] = []
+    for question in questions:
+        try:
+            answer = _normalize(question, given.get(question.id))
+        except ValueError as exc:
+            errors.append({"question_id": question.id, "reason": str(exc)})
+            continue
+        if answer is None and question.required:
+            errors.append({"question_id": question.id, "reason": "required"})
+            continue
+        match: bool | None = (
+            None if question.preferred is None or answer is None else answer == question.preferred
+        )
+        out.append(
+            {
+                "question_id": question.id,
+                "type": question.type,
+                "prompt": question.prompt,
+                "options": question.options,
+                "preferred": question.preferred,
+                "answer": answer,
+                "match": match,
+            }
+        )
+    if errors:
+        raise InvalidAnswers(errors)
+    return out

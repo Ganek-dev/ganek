@@ -33,6 +33,7 @@ from app.schemas.dsar import (
     DsarInterview,
     DsarNote,
 )
+from app.schemas.public import StatusScreeningAnswer
 from app.services import company as company_service
 from app.services import rejection_reasons, storage
 
@@ -173,6 +174,10 @@ async def export_candidate(
                     if application.cv_object_key
                     else None
                 ),
+                screening_answers=[
+                    StatusScreeningAnswer(prompt=answer["prompt"], answer=answer["answer"])
+                    for answer in application.screening_answers
+                ],
                 quiz_attempts=[_attempt_out(a) for a in application.quiz_attempts],
                 interviews=[
                     DsarInterview(

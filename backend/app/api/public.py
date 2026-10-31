@@ -58,9 +58,18 @@ from app.schemas.public import (
     QuizStateOut,
     ReissueRequest,
     StatusQuizOut,
+    StatusScreeningAnswer,
 )
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
-from app.services import activity, demo_mode, google_calendar, quotas, rejection_reasons, storage
+from app.services import (
+    activity,
+    demo_mode,
+    google_calendar,
+    quotas,
+    rejection_reasons,
+    screening,
+    storage,
+)
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import interviews as interviews_service
@@ -337,11 +346,21 @@ async def _apply(
         await quotas.guard(db, company, quotas.APPLICATIONS, consume=True)
     except quotas.QuotaExceeded as exc:
         raise _quota_429(exc) from None
+    questions = [screening.ScreeningQuestion.model_validate(q) for q in job.screening_questions]
     if demo_mode.enabled():
         # nothing the visitor typed is stored; see services/demo_mode.py
-        payload = await demo_mode.sanitize(company, payload)
+        payload = await demo_mode.sanitize(company, payload, questions=questions)
     try:
-        application = await applications_service.submit_application(db, company, job, payload)
+        # the job's current questions decide; the stored snapshot never changes
+        screening_answers = screening.build_answers(questions, payload.screening_answers)
+    except screening.InvalidAnswers as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.errors
+        ) from None
+    try:
+        application = await applications_service.submit_application(
+            db, company, job, payload, screening_answers=screening_answers
+        )
     except applications_service.InvalidCvError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.reason
@@ -725,6 +744,10 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         decision_expected_by=application.created_at + DECISION_WINDOW,
         retention_months=company_service.privacy_notice(company).retention_months,
         privacy_url=urls.privacy_notice_url(company),
+        screening_answers=[
+            StatusScreeningAnswer(prompt=answer["prompt"], answer=answer["answer"])
+            for answer in application.screening_answers
+        ],
     )
 
 
