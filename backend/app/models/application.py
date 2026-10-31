@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     DateTime,
@@ -14,6 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -50,6 +51,9 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cv_filename: Mapped[str] = mapped_column(String(255))
     cv_size: Mapped[int] = mapped_column(Integer)
     message: Mapped[str | None] = mapped_column(Text)
+    # answers to the job's screening questions with a snapshot of each
+    # question (0039, GIN-indexed); written once at apply time
+    screening_answers: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     stage: Mapped[ApplicationStage] = mapped_column(
         Enum(
             ApplicationStage,

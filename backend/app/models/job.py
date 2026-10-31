@@ -84,5 +84,7 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # set by close_job, cleared by publish_job: "days open" for closed jobs
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quiz_config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # per-job screening questions (0039); shape in services.screening
+    screening_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
 
     company: Mapped["Company"] = relationship(back_populates="jobs")

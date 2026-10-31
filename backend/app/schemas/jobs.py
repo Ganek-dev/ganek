@@ -1,10 +1,18 @@
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.models import EmploymentType, JobStatus, RemotePolicy, SalaryPeriod
+from app.services.screening import ScreeningQuestion, validate_questions
 
 DifficultyLevel = Annotated[int, Field(ge=1, le=5)]
 
@@ -17,6 +25,16 @@ def _as_utc(value: datetime | None) -> datetime | None:
 
 
 ClosesAt = Annotated[datetime | None, AfterValidator(_as_utc)]
+
+
+def _screening_list(value: object) -> object:
+    """Ids filled in, duplicates and the ceiling refused (ValueError -> 422)."""
+    if isinstance(value, list):
+        raw: list[dict[str, Any]] = [
+            item.model_dump() if isinstance(item, ScreeningQuestion) else item for item in value
+        ]
+        return validate_questions(raw)
+    return value
 
 
 class QuizConfigSchema(BaseModel):
@@ -86,6 +104,13 @@ class JobCreate(BaseModel):
     closes_at: ClosesAt = None
     tags: list[str] = Field(default_factory=list, max_length=20)
     quiz_config: QuizConfigSchema = Field(default_factory=QuizConfigSchema)
+    # None = copy the company default set (services.jobs.create_job)
+    screening_questions: list[ScreeningQuestion] | None = None
+
+    @field_validator("screening_questions", mode="before")
+    @classmethod
+    def _validate_questions(cls, value: object) -> object:
+        return _screening_list(value)
 
     @model_validator(mode="after")
     def _salary_range_valid(self) -> "JobCreate":
@@ -111,6 +136,13 @@ class JobUpdate(BaseModel):
     closes_at: ClosesAt = None
     tags: list[str] | None = Field(default=None, max_length=20)
     quiz_config: QuizConfigSchema | None = None
+    # None = untouched; a list replaces the job's questions
+    screening_questions: list[ScreeningQuestion] | None = None
+
+    @field_validator("screening_questions", mode="before")
+    @classmethod
+    def _validate_questions(cls, value: object) -> object:
+        return _screening_list(value)
 
 
 class JobOut(BaseModel):
@@ -131,6 +163,7 @@ class JobOut(BaseModel):
     tags: list[str]
     status: JobStatus
     quiz_config: QuizConfigSchema
+    screening_questions: list[ScreeningQuestion] = []
     published_at: datetime | None
     closed_at: datetime | None
     created_at: datetime

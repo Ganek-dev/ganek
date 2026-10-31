@@ -186,5 +186,8 @@ async def test_member_reads_the_company_summary_but_not_the_admin_view(
         "slug": admin_view["slug"],
         "name": admin_view["name"],
         "mode": "multi",
+        # the company default screening questions ride along for every role
+        # (members create jobs; the editor prefills from this)
+        "screening_questions": [],
     }
     assert admin["email"]  # fixture used

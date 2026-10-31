@@ -1,3 +1,4 @@
+import json
 from uuid import uuid4
 
 import pytest
@@ -201,3 +202,46 @@ async def test_preview_token_from_another_company_404s(client: AsyncClient) -> N
         f"/api/v1/public/companies/{other_slug}/jobs/{draft['slug']}", params={"preview": token}
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_public_job_detail_carries_screening_questions_without_preferred(
+    client: AsyncClient,
+) -> None:
+    """Candidates see the questions; the preferred answer is recruiter
+    internal and must never leave the server (like correct_key)."""
+    slug = await _register(client)
+    job = await _create_and_publish(
+        client,
+        "Screened Role",
+        screening_questions=[
+            {
+                "type": "yes_no",
+                "prompt": "Can you work in Germany?",
+                "preferred": "yes",
+                "required": True,
+            },
+            {
+                "type": "single_choice",
+                "prompt": "Days on site?",
+                "options": ["0", "1-2", "3+"],
+                "preferred": "1-2",
+            },
+            {"type": "acknowledgment", "prompt": "I confirm the information is accurate"},
+        ],
+    )
+    await client.post("/api/v1/auth/logout")
+
+    detail = (await client.get(f"/api/v1/public/companies/{slug}/jobs/{job['slug']}")).json()
+    questions = detail["screening_questions"]
+    assert [q["type"] for q in questions] == ["yes_no", "single_choice", "acknowledgment"]
+    assert questions[0] == {
+        "id": job["screening_questions"][0]["id"],
+        "type": "yes_no",
+        "prompt": "Can you work in Germany?",
+        "options": None,
+        "required": True,
+    }
+    assert questions[1]["options"] == ["0", "1-2", "3+"]
+    assert questions[2]["required"] is True
+    assert "preferred" not in json.dumps(detail)
