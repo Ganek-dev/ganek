@@ -16,11 +16,14 @@ class SlotPreviewRequest(BaseModel):
 class InterviewCreate(SlotPreviewRequest):
     title: str = Field(default="Hiring manager interview", min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
+    # room or video link; the dialog prefills it from the interviewer's default
+    location: str = Field(default="", max_length=500)
 
 
 class SlotPreviewOut(BaseModel):
     schedule_summary: str
     open_slot_count: int
+    default_location: str
 
 
 class InterviewOut(BaseModel):
@@ -35,5 +38,5 @@ class InterviewOut(BaseModel):
     duration_minutes: int
     timezone: str
     scheduled_start: datetime | None
-    meet_url: str | None
+    location: str
     created_at: datetime

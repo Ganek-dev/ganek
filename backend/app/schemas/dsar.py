@@ -36,6 +36,7 @@ class DsarAttempt(BaseModel):
 class DsarInterview(BaseModel):
     title: str
     timezone: str
+    location: str
     scheduled_start: datetime | None
     status: str
     created_at: datetime

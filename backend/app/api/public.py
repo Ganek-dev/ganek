@@ -921,7 +921,6 @@ async def _interview_public(
 ) -> InterviewPublicOut:
     candidate = interview.application.candidate
     display = interview.interviewer.display_label  # display name, else email local part
-    booked = interview.status is InterviewStatus.BOOKED
     return InterviewPublicOut(
         company_name=company.name,
         brand_primary=(company.theme or {}).get("primary_color"),
@@ -936,7 +935,7 @@ async def _interview_public(
         interviewer_display=display,
         available_slots=await interviews_service.live_slots(db, interview),
         scheduled_start=interview.scheduled_start,
-        meet_url=interview.meet_url if booked else None,
+        location=interview.location,
     )
 
 

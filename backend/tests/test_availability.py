@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import User, UserRole
@@ -86,12 +87,13 @@ def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
 
 
-async def _register(client: AsyncClient) -> None:
+async def _register(client: AsyncClient) -> str:
     creds = {"email": f"a-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
     resp = await client.post(
         "/api/v1/auth/register", json={"company_name": f"Av Co {uuid4().hex[:6]}", **creds}
     )
     assert resp.status_code == 201, resp.text
+    return creds["email"]
 
 
 @api_marks
@@ -116,6 +118,29 @@ async def test_availability_roundtrip(client: AsyncClient) -> None:
     body = (await client.get("/api/v1/users/me/availability")).json()
     assert body["timezone"] == "Europe/Warsaw"
     assert body["days"] == {"tue": {"start": "10:00", "end": "16:00"}}
+    assert body["location"] == ""
+
+
+@api_marks
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_location_saved_and_returned(client: AsyncClient, db_session: AsyncSession) -> None:
+    from sqlalchemy import select
+
+    email = await _register(client)
+    payload = {"timezone": "Europe/Warsaw", "days": {}, "location": "https://teams.example/room"}
+    resp = await client.put("/api/v1/users/me/availability", json=payload)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["location"] == "https://teams.example/room"
+    assert (await client.get("/api/v1/users/me/availability")).json()["location"] == (
+        "https://teams.example/room"
+    )
+
+    resp = await client.put("/api/v1/users/me/availability", json={**payload, "location": ""})
+    assert resp.status_code == 200
+    assert (await client.get("/api/v1/users/me/availability")).json()["location"] == ""
+    row = (await db_session.execute(select(User).where(User.email == email))).scalar_one()
+    await db_session.refresh(row)
+    assert row.interview_location is None
 
 
 @api_marks

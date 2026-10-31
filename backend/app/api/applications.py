@@ -734,6 +734,7 @@ async def interview_slot_preview(
     return SlotPreviewOut(
         schedule_summary=f"{interviews_service.summarize_availability(windows)} ({zone})",
         open_slot_count=len(slots),
+        default_location=interviewer.interview_location or "",
     )
 
 
@@ -751,11 +752,6 @@ async def create_interview(
 ) -> object:
     application = await _get_or_404(db, company, application_id)
     interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
-    if await google_calendar.get_credential(db, interviewer) is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Interviewer has not connected Google Calendar",
-        )
     try:
         ZoneInfo(payload.timezone)
     except Exception:  # noqa: BLE001 - any zoneinfo failure means a bad zone
@@ -772,6 +768,7 @@ async def create_interview(
             description=payload.description,
             duration_minutes=payload.duration_minutes,
             timezone=payload.timezone,
+            location=payload.location,
             actor_user_id=user.id,
         )
     except interviews_service.InterviewExistsError:

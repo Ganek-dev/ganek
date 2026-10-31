@@ -90,6 +90,8 @@ class DayWindow(BaseModel):
 class AvailabilityIn(BaseModel):
     timezone: str = Field(min_length=1, max_length=60)
     days: dict[DayKey, DayWindow]
+    # default meeting place for this user's interviews (room or video link)
+    location: str = Field(default="", max_length=500)
 
     @field_validator("timezone")
     @classmethod
@@ -105,3 +107,4 @@ class AvailabilityOut(BaseModel):
     timezone: str
     days: dict[DayKey, DayWindow]
     is_default: bool
+    location: str = ""

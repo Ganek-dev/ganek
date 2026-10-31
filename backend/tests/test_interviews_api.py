@@ -160,7 +160,12 @@ async def test_create_interview_sends_booking_email(
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
-async def test_create_interview_requires_connected_calendar(client: AsyncClient) -> None:
+async def test_create_without_calendar_connection_succeeds(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
     application_id, admin_id, _ = await _company_with_applicant(client)
     resp = await client.post(
         f"/api/v1/applications/{application_id}/interview",
@@ -170,7 +175,50 @@ async def test_create_interview_requires_connected_calendar(client: AsyncClient)
             "timezone": "Europe/Berlin",
         },
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["location"] == ""
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+async def test_slot_preview_returns_default_location(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, admin_id, admin_email = await _company_with_applicant(client)
+    body = {"interviewer_user_id": admin_id, "duration_minutes": 45, "timezone": "Europe/Berlin"}
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview/slot-preview", json=body
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["default_location"] == ""
+
+    user = (await db_session.execute(select(User).where(User.email == admin_email))).scalar_one()
+    user.interview_location = "Room 2, 3rd floor"
+    await db_session.commit()
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview/slot-preview", json=body
+    )
+    assert resp.json()["default_location"] == "Room 2, 3rd floor"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+async def test_create_stores_location(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
+    application_id, admin_id, _ = await _company_with_applicant(client)
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview",
+        json={
+            "interviewer_user_id": admin_id,
+            "duration_minutes": 30,
+            "timezone": "Europe/Berlin",
+            "location": "https://zoom.example/j/123",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["location"] == "https://zoom.example/j/123"
+    got = await client.get(f"/api/v1/applications/{application_id}/interview")
+    assert got.json()["location"] == "https://zoom.example/j/123"
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")

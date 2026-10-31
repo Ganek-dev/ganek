@@ -215,6 +215,7 @@ async def create_interview(
     description: str,
     duration_minutes: int,
     timezone: str,
+    location: str = "",
     actor_user_id: uuid.UUID | None = None,
 ) -> Interview:
     if await get_for_application(db, company, application.id) is not None:
@@ -228,6 +229,7 @@ async def create_interview(
         description=description,
         duration_minutes=duration_minutes,
         timezone=saved_tz or timezone,
+        location=location.strip(),
     )
     db.add(interview)
     activity.record(

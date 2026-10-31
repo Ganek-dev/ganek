@@ -183,6 +183,7 @@ async def export_candidate(
                     DsarInterview(
                         title=interview.title,
                         timezone=interview.timezone,
+                        location=interview.location,
                         scheduled_start=interview.scheduled_start,
                         status=interview.status.value,
                         created_at=interview.created_at,
