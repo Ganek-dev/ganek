@@ -56,6 +56,13 @@ async def create_job(db: AsyncSession, company: Company, payload: JobCreate) -> 
     # column; quiz_config alone re-dumps json-mode (UUID -> str for JSONB)
     values = payload.model_dump()
     values["quiz_config"] = payload.quiz_config.model_dump(mode="json")
+    # screening questions: an explicit list wins, otherwise the company's
+    # default set is copied (copy on create, never linked)
+    values["screening_questions"] = (
+        [question.model_dump() for question in payload.screening_questions]
+        if payload.screening_questions is not None
+        else list(company.screening_questions or [])
+    )
     job = Job(
         company_id=company.id,
         slug=await _unique_slug(db, company.id, slugify(payload.title)),
@@ -87,6 +94,10 @@ async def update_job(db: AsyncSession, company: Company, job: Job, payload: JobU
     values = payload.model_dump(exclude_unset=True)
     if payload.quiz_config is not None:
         values["quiz_config"] = payload.quiz_config.model_dump(mode="json")
+    if payload.screening_questions is not None:
+        values["screening_questions"] = [q.model_dump() for q in payload.screening_questions]
+    else:
+        values.pop("screening_questions", None)
     for field, value in values.items():
         setattr(job, field, value)
     if (

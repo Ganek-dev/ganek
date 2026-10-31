@@ -24,6 +24,9 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     # bank question ids this company never wants served, across all its jobs
     blocked_question_ids: Mapped[list[str]] = mapped_column(ARRAY(String(100)), default=list)
+    # default screening questions copied into every new job (0039); shape in
+    # services.screening.ScreeningQuestion
+    screening_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
 
     users: Mapped[list["User"]] = relationship(back_populates="company")
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")

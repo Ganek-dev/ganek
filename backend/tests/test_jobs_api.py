@@ -276,3 +276,61 @@ async def test_preview_link_404s_for_another_tenants_job(client: AsyncClient) ->
     await client.post("/api/v1/auth/logout")
     await _register(client)
     assert (await client.post(f"/api/v1/jobs/{job['id']}/preview-link")).status_code == 404
+
+
+# --- screening questions (board card "Per-job screening questions") ---------
+
+SCREENING = [
+    {
+        "type": "yes_no",
+        "prompt": "Can you work in Germany?",
+        "preferred": "yes",
+        "required": True,
+    },
+    {"type": "acknowledgment", "prompt": "I confirm the information is accurate"},
+]
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_job_screening_questions_round_trip_and_replace(client: AsyncClient) -> None:
+    await _register(client)
+    resp = await client.post("/api/v1/jobs", json=_job_payload(screening_questions=SCREENING))
+    assert resp.status_code == 201, resp.text
+    saved = resp.json()["screening_questions"]
+    assert [q["type"] for q in saved] == ["yes_no", "acknowledgment"]
+    assert saved[1]["required"] is True
+    assert saved[0]["preferred"] == "yes"
+    assert all(q["id"].startswith("sq_") for q in saved)
+    job_id = resp.json()["id"]
+
+    resp = await client.patch(f"/api/v1/jobs/{job_id}", json={"screening_questions": [saved[0]]})
+    assert resp.status_code == 200, resp.text
+    assert [q["id"] for q in resp.json()["screening_questions"]] == [saved[0]["id"]]
+
+    resp = await client.patch(f"/api/v1/jobs/{job_id}", json={"title": "Renamed"})
+    assert len(resp.json()["screening_questions"]) == 1  # untouched when absent
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_job_screening_questions_validation_422(client: AsyncClient) -> None:
+    await _register(client)
+    duplicate = [
+        {"id": "sq_00000001", "type": "yes_no", "prompt": "a"},
+        {"id": "sq_00000001", "type": "yes_no", "prompt": "b"},
+    ]
+    resp = await client.post("/api/v1/jobs", json=_job_payload(screening_questions=duplicate))
+    assert resp.status_code == 422, resp.text
+    too_many = [{"type": "yes_no", "prompt": f"q{i}"} for i in range(21)]
+    resp = await client.post("/api/v1/jobs", json=_job_payload(screening_questions=too_many))
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_new_job_copies_company_default_questions(client: AsyncClient) -> None:
+    await _register(client)
+    resp = await client.patch("/api/v1/company/settings", json={"screening_questions": SCREENING})
+    assert resp.status_code == 200, resp.text
+    copied = (await client.post("/api/v1/jobs", json=_job_payload())).json()["screening_questions"]
+    assert [q["prompt"] for q in copied] == [q["prompt"] for q in SCREENING]
+    explicit = (await client.post("/api/v1/jobs", json=_job_payload(screening_questions=[]))).json()
+    assert explicit["screening_questions"] == []
