@@ -334,3 +334,26 @@ def render(
         privacy_url=context.get("privacy_url"),
     )
     return Rendered(subject=subject, text=text, html=html, body=body)
+
+
+def render_message(subject: str, body: str, context: dict[str, Any]) -> Rendered:
+    """A recruiter's one-off message (PR 4): literal text in the neutral
+    card, no heading, no action block, the company sign-off and the privacy
+    footer. ``context`` carries ``company_name``, ``controller_name`` and
+    ``privacy_url``."""
+    company = str(context.get("company_name") or "")
+    paragraphs = _paragraphs(body)
+    body_text = "\n\n".join(paragraphs)
+    text = body_text + f"\n\n- {company}\n" + privacy_text(context.get("privacy_url"))
+    content = "".join(paragraph(_text(part).replace("\n", "<br>")) for part in paragraphs)
+    controller = context.get("controller_name")
+    html = card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=_text(company),
+        content=content,
+        safe_controller=_text(str(controller)) if controller else None,
+        privacy_url=context.get("privacy_url"),
+    )
+    return Rendered(subject=subject, text=text, html=html, body=body_text)

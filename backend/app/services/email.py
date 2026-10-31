@@ -298,6 +298,38 @@ def send_rejection(
     )
 
 
+def send_message(
+    *,
+    to: str,
+    ref: str | None = None,
+    subject: str,
+    body: str,
+    company_name: str,
+    reply_to: str,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
+) -> None:
+    """A recruiter's one-off message to a candidate (PR 4): neutral card, no
+    action block, replies go to the recruiter who wrote it."""
+    rendered = email_render.render_message(
+        subject,
+        body,
+        {
+            "company_name": company_name,
+            "controller_name": controller_name,
+            "privacy_url": privacy_url,
+        },
+    )
+    send_email(
+        to=to,
+        subject=rendered.subject,
+        body=rendered.text,
+        html=rendered.html,
+        ref=ref,
+        reply_to=reply_to,
+    )
+
+
 # Matches the team page's role select labels (Owner/Recruiter naming is
 # still an open design decision - the shipped UI says Member).
 ROLE_LABELS = {"admin": "Admin", "member": "Member"}

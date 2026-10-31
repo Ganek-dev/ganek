@@ -216,19 +216,53 @@ class BulkStageOut(BaseModel):
 
 
 EmailKind = Literal["quiz_invite", "quiz_reminder", "stage_advance", "rejection"]
+# a preview can also be a one-off message (PR 4); only the four stage kinds
+# are templated and selectable on GET /email-preview
+PreviewKind = EmailKind | Literal["message"]
 
 
 class EmailPreviewOut(BaseModel):
     """A candidate stage mail rendered for one application: what the
     recruiter reads in the preview and what the sender delivers."""
 
-    kind: EmailKind
+    kind: PreviewKind
     subject: str
     text: str
     html: str
     # the template part alone (before the fixed action block): what "Edit
     # this email" prefills (PR 4)
     body: str
+
+
+class MessageIn(BaseModel):
+    """A recruiter's one-off message to a candidate (PR 4): literal text,
+    no placeholders, stripped; a blank field is a 422 naming it."""
+
+    subject: str = Field(max_length=200)
+    body: str = Field(max_length=10000)
+
+    @field_validator("subject")
+    @classmethod
+    def _subject(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Subject is required")
+        if "\n" in stripped or "\r" in stripped:
+            raise ValueError("Subject must be one line")
+        return stripped
+
+    @field_validator("body")
+    @classmethod
+    def _body(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Body is required")
+        return stripped
+
+
+class MessageOut(BaseModel):
+    # False on a demo instance, where nothing is ever mailed
+    queued: bool
 
 
 class EmailDeliveryOut(BaseModel):

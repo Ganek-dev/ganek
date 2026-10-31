@@ -48,6 +48,8 @@ from app.schemas.applications import (
     EmailPreviewOut,
     EraseCandidateOut,
     ExtraTimeIn,
+    MessageIn,
+    MessageOut,
     NoteCreate,
     NoteOut,
     QuizAnswerReview,
@@ -1047,6 +1049,74 @@ async def _preview_template(
 
 NO_ASSESSMENT = "No assessment to preview"
 PREVIEW_LINK_PLACEHOLDER = templates_service.PREVIEW_LINK_PLACEHOLDER
+
+
+def _message_kwargs(company: Company, application: Application) -> dict[str, Any]:
+    """Keyword arguments of ``email.send_message`` minus the text (PR 4)."""
+    return {
+        "to": application.candidate.email,
+        "ref": str(application.id),
+        "company_name": company.name,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
+
+
+@router.post("/{application_id}/message", response_model=MessageOut)
+async def send_message(
+    application_id: uuid.UUID,
+    payload: MessageIn,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> MessageOut:
+    """A one-off message to the candidate from the panel (card "Candidate
+    emails", PR 4): queued like every candidate mail, Reply-To set to the
+    recruiter who wrote it. A session user only: an API key has no inbox."""
+    application = await _get_or_404(db, company, application_id)
+    row = await outbox_service.queue_email(
+        db,
+        kind="message",
+        company_id=company.id,
+        application_id=application.id,
+        subject=payload.subject,
+        body=payload.body,
+        reply_to=user.email,
+        **_message_kwargs(company, application),
+    )
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.EMAIL_MESSAGE,
+        actor_user_id=user.id,
+        application_id=application.id,
+        payload={"subject": payload.subject},
+    )
+    await db.commit()
+    return MessageOut(queued=row is not None)
+
+
+@router.post("/{application_id}/message/preview", response_model=EmailPreviewOut)
+async def message_preview(
+    application_id: uuid.UUID,
+    payload: MessageIn,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> EmailPreviewOut:
+    """The one-off message as the candidate would receive it; nothing is
+    queued. The same render the sender runs, so the preview is the mail."""
+    application = await _get_or_404(db, company, application_id)
+    kwargs = _message_kwargs(company, application)
+    context = {key: value for key, value in kwargs.items() if key not in ("to", "ref")}
+    rendered = email_render.render_message(payload.subject, payload.body, context)
+    return EmailPreviewOut(
+        kind="message",
+        subject=rendered.subject,
+        text=rendered.text,
+        html=rendered.html,
+        body=rendered.body,
+    )
 
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])

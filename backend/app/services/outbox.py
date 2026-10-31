@@ -44,6 +44,7 @@ SENDER_NAMES: dict[str, str] = {
     "quiz_reminder": "send_quiz_reminder",
     "stage_advance": "send_stage_advance",
     "rejection": "send_rejection",
+    "message": "send_message",
     "team_invite": "send_team_invite",
     "google_linked": "send_google_linked",
     "interview_invite": "send_interview_invite",

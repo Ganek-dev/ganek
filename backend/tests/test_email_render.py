@@ -16,6 +16,7 @@ from app.services.email_render import (
     Template,
     TemplateError,
     render,
+    render_message,
     validate,
 )
 
@@ -233,3 +234,21 @@ def test_literal_render_keeps_braces_and_escapes_html() -> None:
     assert "<h1" in rendered.html and "Line &lt;b&gt;one&lt;/b&gt;</h1>" in rendered.html
     assert "{{job_title}} stays</p>" in rendered.html
     assert "Looking forward to it," in rendered.text and "application status" in rendered.html
+
+
+def test_render_message_is_the_neutral_card_without_an_action_block() -> None:
+    rendered = render_message(
+        "Quick question",
+        "Hi Jane,\n\nCould you send your portfolio?",
+        {"company_name": "Acme", "controller_name": None, "privacy_url": "https://x/privacy"},
+    )
+    assert rendered.subject == "Quick question"
+    assert rendered.body == "Hi Jane,\n\nCould you send your portfolio?"
+    assert rendered.text == (
+        "Hi Jane,\n\nCould you send your portfolio?\n\n- Acme\n\n"
+        "Privacy & your data: https://x/privacy\n"
+    )
+    assert "<h1" not in rendered.html
+    assert "See open positions" not in rendered.html and "Start the assessment" not in rendered.html
+    assert NEUTRAL_BAR in rendered.html and "privacy notice" in rendered.html
+    assert "Could you send your portfolio?</p>" in rendered.html
