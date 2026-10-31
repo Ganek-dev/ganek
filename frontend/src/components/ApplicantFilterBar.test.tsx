@@ -27,7 +27,7 @@ describe("ApplicantFilterBar", () => {
       "placeholder",
       "Search name or email…",
     );
-    for (const label of ["Score", "Quiz", "Source", "Flags", "Applied"]) {
+    for (const label of ["Score", "Quiz", "Source", "Flags", "Screening", "Applied"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
@@ -57,6 +57,10 @@ describe("ApplicantFilterBar", () => {
     expect(onChange).toHaveBeenLastCalledWith({ flagged: false });
     await user.selectOptions(screen.getByLabelText("Applied"), "30");
     expect(onChange).toHaveBeenLastCalledWith({ days: 30 });
+    await user.selectOptions(screen.getByLabelText("Screening"), "mismatch");
+    expect(onChange).toHaveBeenLastCalledWith({ screening: "mismatch" });
+    await user.selectOptions(screen.getByLabelText("Screening"), "");
+    expect(onChange).toHaveBeenLastCalledWith({ screening: null });
   });
 
   it("resets a select to null on its 'Any' option", async () => {
@@ -87,6 +91,7 @@ describe("ApplicantFilterBar", () => {
       source: null,
       flagged: null,
       days: null,
+      screening: null,
     });
   });
 

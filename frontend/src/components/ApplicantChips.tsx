@@ -1,4 +1,4 @@
-import type { ApplicationStage, QuizResult } from "@/lib/api";
+import type { ApplicationStage, QuizResult, ScreeningAnswer } from "@/lib/api";
 
 /** Score tones, the score chip and the stage pill shared by the applicant
  * review list (screen 11) and the job overview's candidate table. */
@@ -47,6 +47,21 @@ export function ScoreChip({ result }: { result: QuizResult | null }) {
       className={`inline-flex h-[22px] items-center rounded-full border px-2 font-mono text-xs font-semibold ${tone.chip}`}
     >
       {percent}
+    </span>
+  );
+}
+
+/** "N mismatch(es)" against the job's preferred screening answers; nothing
+ * when every preferred answer matched or none was set. Information for the
+ * recruiter, never a verdict: the stage does not move on it. */
+export function ScreeningChip({ answers }: { answers: ScreeningAnswer[] }) {
+  const misses = answers.filter((answer) => answer.match === false).length;
+  if (misses === 0) return null;
+  return (
+    <span
+      className={`inline-flex h-[22px] items-center rounded-full border px-2 font-mono text-xs ${SCORE_TONE.amber.chip}`}
+    >
+      {misses} {misses === 1 ? "mismatch" : "mismatches"}
     </span>
   );
 }

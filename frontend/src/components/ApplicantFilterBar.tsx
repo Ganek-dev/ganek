@@ -43,6 +43,13 @@ const FLAG_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "false", label: "No flags" },
 ];
 
+const SCREENING_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Any screening" },
+  { value: "match", label: "All preferred" },
+  { value: "mismatch", label: "Any mismatch" },
+  { value: "unanswered", label: "Unanswered" },
+];
+
 const DAYS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "Any time" },
   { value: "7", label: "Last 7 days" },
@@ -192,6 +199,16 @@ export function ApplicantFilterBar({
         onChange={(value) => onChange({ flagged: value === "" ? null : value === "true" })}
       />
       <FilterSelect
+        label="Screening"
+        value={filters.screening ?? ""}
+        options={SCREENING_OPTIONS}
+        active={filters.screening !== null}
+        disabled={disabled}
+        onChange={(value) =>
+          onChange({ screening: value === "" ? null : (value as ApplicantFilters["screening"]) })
+        }
+      />
+      <FilterSelect
         label="Applied"
         value={filters.days === null ? "" : String(filters.days)}
         options={
@@ -215,6 +232,7 @@ export function ApplicantFilterBar({
               source: cleared.source,
               flagged: cleared.flagged,
               days: cleared.days,
+              screening: cleared.screening,
             });
           }}
           className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12.5px] font-medium text-g600 hover:bg-hover-fill"

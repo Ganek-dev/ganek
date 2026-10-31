@@ -3,6 +3,7 @@ import type {
   ApplicationQuizState,
   ApplicationSortKey,
   ApplicationStage,
+  ScreeningFilter,
 } from "@/lib/api";
 
 /** The applicant list's state lives in the URL (card "Applicant list"):
@@ -26,6 +27,8 @@ export interface ApplicantFilters {
   flagged: boolean | null;
   /** Applied within the last N days, 1..365. */
   days: number | null;
+  /** Screening answers: all preferred matched, any mismatch, any skipped. */
+  screening: ScreeningFilter | null;
 }
 
 export const DEFAULT_FILTERS: ApplicantFilters = {
@@ -38,6 +41,7 @@ export const DEFAULT_FILTERS: ApplicantFilters = {
   source: null,
   flagged: null,
   days: null,
+  screening: null,
 };
 
 const STAGES: ReadonlySet<string> = new Set([
@@ -59,6 +63,7 @@ const SORTS: ReadonlySet<string> = new Set([
   "stage_age_desc",
   "stage_age_asc",
 ]);
+const SCREENING: ReadonlySet<string> = new Set(["match", "mismatch", "unanswered"]);
 const QUIZ_STATES: ReadonlySet<string> = new Set([
   "none",
   "pending",
@@ -79,6 +84,7 @@ export function parseFilters(params: URLSearchParams): ApplicantFilters {
   const quiz = params.get("quiz");
   const flagged = params.get("flagged");
   const source = params.get("source");
+  const screening = params.get("screening");
   return {
     job: params.get("job") ?? "",
     stage: stage !== null && STAGES.has(stage) ? (stage as ApplicantFilters["stage"]) : "all",
@@ -89,6 +95,8 @@ export function parseFilters(params: URLSearchParams): ApplicantFilters {
     source: source ? source : null,
     flagged: flagged === "true" ? true : flagged === "false" ? false : null,
     days: intInRange(params.get("days"), 1, 365),
+    screening:
+      screening !== null && SCREENING.has(screening) ? (screening as ScreeningFilter) : null,
   };
 }
 
@@ -106,6 +114,7 @@ export function filtersToParams(
   if (filters.source !== null) params.set("source", filters.source);
   if (filters.flagged !== null) params.set("flagged", String(filters.flagged));
   if (filters.days !== null) params.set("days", String(filters.days));
+  if (filters.screening !== null) params.set("screening", filters.screening);
   for (const [key, value] of Object.entries(extra)) {
     if (value) params.set(key, value);
   }
@@ -124,6 +133,7 @@ export function toApiFilters(filters: ApplicantFilters): ApplicationFilters {
   if (filters.source !== null) api.source = filters.source;
   if (filters.flagged !== null) api.flagged = filters.flagged;
   if (filters.days !== null) api.since_days = filters.days;
+  if (filters.screening !== null) api.screening = filters.screening;
   return api;
 }
 
@@ -138,6 +148,7 @@ export function countActive(filters: ApplicantFilters): number {
     filters.source !== null,
     filters.flagged !== null,
     filters.days !== null,
+    filters.screening !== null,
   ].filter(Boolean).length;
 }
 
@@ -150,6 +161,6 @@ export function clearNarrowing(filters: ApplicantFilters): ApplicantFilters {
     quiz: null,
     source: null,
     flagged: null,
-    days: null,
+    days: null, screening: null,
   };
 }
