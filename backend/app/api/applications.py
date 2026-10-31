@@ -60,7 +60,7 @@ from app.schemas.applications import (
 )
 from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
-from app.services import access_log, activity, email_render, google_calendar, storage
+from app.services import access_log, activity, email_render, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
@@ -721,11 +721,6 @@ async def interview_slot_preview(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown timezone"
-        ) from None
-    except google_calendar.NeedsReconnectError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Interviewer has not connected Google Calendar",
         ) from None
     # Same resolution generate_slots uses: the interviewer's saved zone wins,
     # otherwise the request's fallback - recruiters need to know whose clock
