@@ -255,3 +255,26 @@ def test_cancelled_interviewer_without_candidate_name_is_neutral(
     lines = _ics_lines(message)
     assert "SUMMARY:Interview cancelled" in lines
     assert sum(1 for line in lines if line.startswith("ATTENDEE")) == 1
+
+
+def test_interview_reminder_interviewer_mentions_candidate_and_link(
+    sent: list[providers.OutboundMessage],
+) -> None:
+    email_service.send_interview_reminder_interviewer(
+        to="erika@acme.example",
+        ref="app-1",
+        interviewer_name="Erika",
+        candidate_name="Jane Applicant",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        start=START,
+        timezone="Europe/Berlin",
+        location="Room 2",
+        applicant_url="https://jobs.acme.example/admin/applicants?selected=app-1",
+    )
+    message = sent[0]
+    assert message.subject == "Reminder: interview with Jane Applicant tomorrow"
+    assert "Mon, Nov 16 · 10:00" in message.text
+    assert "Where: Room 2" in message.text
+    assert "https://jobs.acme.example/admin/applicants?selected=app-1" in message.text
+    assert message.calendar is None

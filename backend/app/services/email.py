@@ -1046,3 +1046,61 @@ def send_interview_scheduled(
         url=applicant_url,
     )
     send_email(to=to, subject=subject, body=body, html=html, ref=ref, calendar=calendar)
+
+
+def send_interview_reminder_interviewer(
+    *,
+    to: str,
+    ref: str | None = None,
+    interviewer_name: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    start: datetime,
+    timezone: str,
+    location: str,
+    applicant_url: str,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
+) -> None:
+    """T-24h reminder for the interviewer (no calendar part: the invite
+    already sits in their calendar)."""
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    when = _local_when(start, timezone)
+    subject = f"Reminder: interview with {candidate_name} tomorrow"
+
+    body = (
+        f"Hi {interviewer_name},\n"
+        f"\n"
+        f"Your interview with {candidate_name} for the {job_title} position is\n"
+        f"coming up: {when} ({timezone}).\n" + (f"Where: {location}\n" if location else "") + f"\n"
+        f"Open the applicant: {applicant_url}\n"
+        f"\n"
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+    )
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        "Interview tomorrow</h1>"
+        + _paragraph(
+            f'Your interview with <b style="font-weight: 600;">{safe_candidate}</b> for the '
+            f'{safe_job} position: <b style="font-weight: 600;">{when}</b> '
+            f'<span style="font-family: monospace; font-size: 12px;">({escape(timezone)})</span>.'
+        )
+        + (_paragraph(f"Where: {escape(location)}") if location else "")
+        + f'<a href="{applicant_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {DEFAULT_BRAND_PRIMARY}; color: #ffffff; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Open the applicant</a>"
+    )
+    html = _card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
+    )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)

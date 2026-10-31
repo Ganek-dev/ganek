@@ -111,12 +111,20 @@ async def test_reminder_sends_for_valid_booking(db_session: AsyncSession, ctx: A
     start = datetime.now(UTC) + timedelta(hours=20)
     interview = await _booked_interview(db_session, start=start)
     await send_interview_reminder(ctx, str(interview.id), start.isoformat())
-    assert len(FakeSMTP.sent) == 1
-    message = FakeSMTP.sent[0]
-    assert "Reminder" in message["Subject"]
-    plain = message.get_body(preferencelist=("plain",))
+    assert len(FakeSMTP.sent) == 2  # candidate and interviewer
+    by_subject = {str(message["Subject"]): message for message in FakeSMTP.sent}
+    candidate_mail = by_subject["Reminder: your interview at Worker Co is coming up"]
+    assert candidate_mail["To"].startswith("cand-")
+    plain = candidate_mail.get_body(preferencelist=("plain",))
     assert plain is not None
     assert "Where: Room 2, 3rd floor" in str(plain.get_content())
+    assert "Meet" not in str(plain.get_content())
+    interviewer_mail = by_subject["Reminder: interview with Marta tomorrow"]
+    assert interviewer_mail["To"].startswith("dana-")
+    interviewer_plain = interviewer_mail.get_body(preferencelist=("plain",))
+    assert interviewer_plain is not None
+    assert "/admin/applicants?selected=" in str(interviewer_plain.get_content())
+    assert "Where: Room 2, 3rd floor" in str(interviewer_plain.get_content())
 
 
 @pytest.mark.usefixtures("migrated_db")
