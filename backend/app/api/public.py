@@ -1007,6 +1007,28 @@ async def _queue_booking_mails(
     )
 
 
+@router.get(
+    "/interviews/{token}/invite.ics",
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def interview_invite_ics(token: str, db: DbSession) -> Response:
+    """The booked interview as a calendar file (METHOD:PUBLISH: a plain
+    "add to calendar", no organiser handshake) for clients that strip the
+    mailed attachment."""
+    interview = await _interview_by_token_or_404(db, token)
+    if interview.status is not InterviewStatus.BOOKED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="not-booked")
+    company = await _interview_company(db, interview)
+    event = interviews_service.candidate_event(
+        interview, company, booking_url=urls.interview_url(company, token)
+    )
+    return Response(
+        content=ics.render(event, method="PUBLISH"),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="interview.ics"'},
+    )
+
+
 def _scheduling_unavailable() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1069,8 +1091,31 @@ async def interview_reschedule(
 )
 async def interview_cancel(token: str, db: DbSession) -> InterviewPublicOut:
     interview = await _interview_by_token_or_404(db, token)
+    was_active = interview.status is not InterviewStatus.CANCELLED
+    notice = interviews_service.cancel_notice_fields(interview)  # before the status flips
     try:
         interview = await interviews_service.candidate_cancel(db, interview)
     except interviews_service.LockBusyError:
         raise _scheduling_unavailable() from None
-    return await _interview_public(db, interview, await _interview_company(db, interview))
+    company = await _interview_company(db, interview)
+    if was_active and notice:
+        candidate = interview.application.candidate
+        interviewer = interview.interviewer
+        await outbox_service.queue_email(
+            db,
+            kind="interview_cancelled_interviewer",
+            company_id=company.id,
+            application_id=interview.application_id,
+            to=interviewer.email,
+            ref=str(interview.application_id),
+            candidate_name=candidate.name,
+            candidate_email=candidate.email,
+            interviewer_name=interviewer.display_label,
+            job_title=interview.application.job.title,
+            company_name=company.name,
+            cancelled_by="The candidate",
+            controller_name=company_service.controller_name(company),
+            privacy_url=urls.privacy_notice_url(company),
+            **notice,
+        )
+    return await _interview_public(db, interview, company)

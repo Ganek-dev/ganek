@@ -386,8 +386,9 @@ async def erase_candidate(
     admin: AdminUser,
 ) -> EraseCandidateOut:
     """Art. 17: erases the whole CANDIDATE - every application they hold with
-    this company, their CVs in storage and (best-effort) their calendar
-    events - not just the application the panel happened to be showing."""
+    this company and their CVs in storage - not just the application the
+    panel happened to be showing. Interviewers with a booked future
+    interview get a calendar cancel notice without candidate data."""
     application = await _get_or_404(db, company, application_id)
     summary = await erasure_service.erase_candidate(
         db, company, application.candidate_id, actor_user_id=admin.id
@@ -395,7 +396,7 @@ async def erase_candidate(
     assert summary is not None  # the application existed, so its candidate does
     return EraseCandidateOut(
         applications=summary.applications,
-        google_event_failures=summary.google_event_failures,
+        cancel_notices=summary.cancel_notices,
     )
 
 
@@ -812,6 +813,7 @@ async def cancel_interview(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No active interview to cancel"
         )
+    notice = interviews_service.cancel_notice_fields(interview)  # before the status flips
     try:
         await interviews_service.cancel_interview(
             db, interview, interviewer=interview.interviewer, actor_user_id=user.id
@@ -821,6 +823,7 @@ async def cancel_interview(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Scheduling is busy - try again in a moment",
         ) from None
+    interviewer = interview.interviewer
     await outbox_service.queue_email(
         db,
         kind="interview_cancelled",
@@ -833,7 +836,34 @@ async def cancel_interview(
         company_name=company.name,
         controller_name=company_service.controller_name(company),
         privacy_url=urls.privacy_notice_url(company),
+        **(
+            {
+                **notice,
+                "interviewer_name": interviewer.display_label,
+                "interviewer_email": interviewer.email,
+            }
+            if notice
+            else {}
+        ),
     )
+    if notice:
+        await outbox_service.queue_email(
+            db,
+            kind="interview_cancelled_interviewer",
+            company_id=company.id,
+            application_id=application.id,
+            to=interviewer.email,
+            ref=str(application.id),
+            candidate_name=application.candidate.name,
+            candidate_email=application.candidate.email,
+            interviewer_name=interviewer.display_label,
+            job_title=application.job.title,
+            company_name=company.name,
+            cancelled_by=user.display_label,
+            controller_name=company_service.controller_name(company),
+            privacy_url=urls.privacy_notice_url(company),
+            **notice,
+        )
     return interview
 
 

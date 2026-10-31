@@ -12,6 +12,7 @@ import hashlib
 import logging
 import uuid
 from datetime import UTC, datetime, time, timedelta
+from email.utils import parseaddr
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select, text
@@ -20,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core import queue
+from app.core.config import settings
 from app.models import Application, Company, Interview, InterviewStatus, User
-from app.services import activity
+from app.services import activity, ics
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,58 @@ def summarize_availability(windows: dict[str, tuple[time, time]]) -> str:
         label = DAY_LABELS[first] if first == last else f"{DAY_LABELS[first]}-{DAY_LABELS[last]}"
         parts.append(f"{label} {start:%H:%M}-{end:%H:%M}")
     return " · ".join(parts)
+
+
+def candidate_event(
+    interview: Interview, company: Company, *, booking_url: str
+) -> ics.CalendarEvent:
+    """The candidate's copy of a booked interview as a calendar event (the
+    .ics download on the booking page). Mirrors what the confirmation mail
+    carries: same UID and sequence, so adding the file twice is harmless."""
+    assert interview.scheduled_start is not None
+    candidate = interview.application.candidate
+    interviewer = interview.interviewer
+    description = "\n".join(
+        part
+        for part in (
+            interview.description,
+            f"Location: {interview.location}" if interview.location else "",
+        )
+        if part
+    )
+    return ics.CalendarEvent(
+        uid=ics.interview_uid(interview.id),
+        sequence=interview.ics_sequence,
+        start=interview.scheduled_start,
+        end=interview.scheduled_start + timedelta(minutes=interview.duration_minutes),
+        summary=f"{interview.title} - {interview.application.job.title} at {company.name}",
+        description=description,
+        location=interview.location,
+        organizer_email=parseaddr(settings.email_from)[1] or settings.email_from,
+        organizer_name=company.name,
+        attendees=(
+            (candidate.name, candidate.email),
+            (interviewer.display_label, interviewer.email),
+        ),
+        url=booking_url,
+    )
+
+
+def cancel_notice_fields(interview: Interview) -> dict[str, object]:
+    """Calendar fields for the METHOD:CANCEL mails: the event as it was
+    sent, one sequence higher. Empty when no time was ever booked (a
+    pending request has nothing to remove from a calendar)."""
+    if interview.scheduled_start is None:
+        return {}
+    return {
+        "title": interview.title,
+        "start": interview.scheduled_start,
+        "duration_minutes": interview.duration_minutes,
+        "timezone": interview.timezone,
+        "location": interview.location,
+        "uid": ics.interview_uid(interview.id),
+        "sequence": interview.ics_sequence + 1,
+    }
 
 
 class InterviewExistsError(Exception):

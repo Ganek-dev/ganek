@@ -111,8 +111,8 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 async def send_interview_reminder(
     ctx: dict[str, Any], interview_id: str, expected_start_iso: str
 ) -> None:
-    """T-24h candidate reminder. The interviewer is deliberately not emailed -
-    their own Google Calendar event already carries native reminders."""
+    """T-24h reminder to the candidate and the interviewer. Re-validates the
+    booking, so a stale job (rescheduled, cancelled, past) no-ops."""
     async with ctx["session_factory"]() as db:
         interview = (
             await db.execute(
@@ -135,6 +135,7 @@ async def send_interview_reminder(
             await db.execute(select(Company).where(Company.id == interview.company_id))
         ).scalar_one()
         candidate = interview.application.candidate
+        interviewer = interview.interviewer
         email_service.send_interview_reminder(
             to=candidate.email,
             ref=str(interview.application_id),
@@ -145,6 +146,20 @@ async def send_interview_reminder(
             timezone=interview.timezone,
             location=interview.location,
             brand_primary=(company.theme or {}).get("primary_color"),
+            controller_name=company_service.controller_name(company),
+            privacy_url=urls.privacy_notice_url(company),
+        )
+        email_service.send_interview_reminder_interviewer(
+            to=interviewer.email,
+            ref=str(interview.application_id),
+            interviewer_name=interviewer.display_label,
+            candidate_name=candidate.name,
+            job_title=interview.application.job.title,
+            company_name=company.name,
+            start=start,
+            timezone=interview.timezone,
+            location=interview.location,
+            applicant_url=urls.admin_applicant_url(company, interview.application_id),
             controller_name=company_service.controller_name(company),
             privacy_url=urls.privacy_notice_url(company),
         )

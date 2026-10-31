@@ -5,10 +5,11 @@ Ordering is deliberate, per application:
 1. S3 CV object first, fail-closed - a storage error aborts before any row
    disappears, because ``applications.cv_object_key`` is the only pointer to
    the object and the row cascade would strand it forever.
-2. Google Calendar events best-effort - they live on the recruiter's
-   personal calendar; failures are logged and reported, never blocking.
-3. A Core ``DELETE`` so the Postgres cascades take the child rows
+2. A Core ``DELETE`` so the Postgres cascades take the child rows
    (an ORM delete would try to NULL NOT NULL FKs).
+3. For a booked future interview the interviewer gets a METHOD:CANCEL
+   notice without any candidate data, queued by the caller AFTER its
+   commit (``queue_cancel_notices``), so the event leaves their calendar.
 
 ``erase_application`` is the per-application primitive (no commit - the
 caller owns the transaction); ``erase_candidate`` wraps it for the whole
@@ -21,13 +22,15 @@ count-only payload.
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Application, Candidate, Company, Interview, Task
-from app.services import activity, storage, tombstones
+from app.models import Application, Candidate, Company, Interview, InterviewStatus, Job, Task
+from app.services import activity, ics, storage, tombstones
+from app.services import outbox as outbox_service
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +45,54 @@ PRIVACY_TASK_TITLE_LIKE = "Privacy: %request - %"
 class EraseSummary:
     applications: int
     cv_objects: int
-    google_events: int
-    google_event_failures: int
+    cancel_notices: int
     tasks: int
+
+
+@dataclass(frozen=True)
+class CancelNotice:
+    """What the interviewer's METHOD:CANCEL mail needs once the application
+    row is gone. No candidate name or email on purpose."""
+
+    company_id: uuid.UUID
+    company_name: str
+    interviewer_email: str
+    interviewer_name: str
+    job_title: str
+    title: str
+    start: datetime
+    duration_minutes: int
+    timezone: str
+    location: str
+    uid: str
+    sequence: int
+
+
+async def queue_cancel_notices(db: AsyncSession, notices: list[CancelNotice]) -> None:
+    """Queue the interviewer notices collected by ``erase_application``.
+    Call AFTER the caller's commit: ``outbox.queue_email`` commits."""
+    for notice in notices:
+        await outbox_service.queue_email(
+            db,
+            kind="interview_cancelled_interviewer",
+            company_id=notice.company_id,
+            application_id=None,
+            to=notice.interviewer_email,
+            ref=None,
+            candidate_name="",
+            candidate_email="",
+            interviewer_name=notice.interviewer_name,
+            job_title=notice.job_title,
+            company_name=notice.company_name,
+            title=notice.title,
+            start=notice.start,
+            duration_minutes=notice.duration_minutes,
+            timezone=notice.timezone,
+            location=notice.location,
+            uid=notice.uid,
+            sequence=notice.sequence,
+            cancelled_by="The application was deleted",
+        )
 
 
 def _like_literal(text: str) -> str:
@@ -78,20 +126,56 @@ async def scrub_privacy_request_tasks(
     return result.rowcount or 0
 
 
-async def erase_application(db: AsyncSession, application: Application) -> tuple[int, int]:
-    """Erase ONE application: S3 fail-closed, Google best-effort, row delete.
+async def erase_application(db: AsyncSession, application: Application) -> list[CancelNotice]:
+    """Delete one application and everything hanging off it. Returns the
+    cancel notices owed to interviewers (booked interviews in the future),
+    which the caller queues after committing.
 
-    Returns (google_events_attempted, google_events_failed). No commit, no
-    receipt - callers (admin erase, retention purge) own transaction and
-    bookkeeping.
+    No commit here - the admin erase and the retention purge own the
+    transaction and the bookkeeping.
     """
     if application.cv_object_key:
         await storage.delete_object(application.cv_object_key)
 
-    # Task 9 of the ICS-only plan replaces the Google event deletion with a
-    # cancel notice to the interviewer; until then nothing to do here.
-    interviews: list[Interview] = []
-    failures = 0
+    notices: list[CancelNotice] = []
+    booked = list(
+        (
+            await db.execute(
+                select(Interview).where(
+                    Interview.application_id == application.id,
+                    Interview.status == InterviewStatus.BOOKED,
+                    Interview.scheduled_start > datetime.now(UTC),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if booked:
+        company_name = (
+            await db.execute(select(Company.name).where(Company.id == application.company_id))
+        ).scalar_one()
+        job_title = (
+            await db.execute(select(Job.title).where(Job.id == application.job_id))
+        ).scalar_one()
+        for interview in booked:
+            assert interview.scheduled_start is not None  # filtered above
+            notices.append(
+                CancelNotice(
+                    company_id=application.company_id,
+                    company_name=company_name,
+                    interviewer_email=interview.interviewer.email,
+                    interviewer_name=interview.interviewer.display_label,
+                    job_title=job_title,
+                    title=interview.title,
+                    start=interview.scheduled_start,
+                    duration_minutes=interview.duration_minutes,
+                    timezone=interview.timezone,
+                    location=interview.location,
+                    uid=ics.interview_uid(interview.id),
+                    sequence=interview.ics_sequence + 1,
+                )
+            )
 
     # blind marker so a restored backup cannot bring this application back
     await tombstones.record(
@@ -101,7 +185,7 @@ async def erase_application(db: AsyncSession, application: Application) -> tuple
         subject_id=application.id,
     )
     await db.execute(delete(Application).where(Application.id == application.id))
-    return len(interviews), failures
+    return notices
 
 
 async def erase_candidate(
@@ -127,12 +211,9 @@ async def erase_candidate(
         .all()
     )
     cv_objects = sum(1 for a in applications if a.cv_object_key)
-    attempted = 0
-    failed = 0
+    notices: list[CancelNotice] = []
     for application in applications:
-        events, failures = await erase_application(db, application)
-        attempted += events
-        failed += failures
+        notices.extend(await erase_application(db, application))
 
     scrubbed_tasks = await scrub_privacy_request_tasks(db, company.id, candidate.email)
     await tombstones.record(
@@ -148,10 +229,10 @@ async def erase_candidate(
         payload={"applications": len(applications), "tasks": scrubbed_tasks},
     )
     await db.commit()
+    await queue_cancel_notices(db, notices)
     return EraseSummary(
         applications=len(applications),
         cv_objects=cv_objects,
-        google_events=attempted - failed,
-        google_event_failures=failed,
+        cancel_notices=len(notices),
         tasks=scrubbed_tasks,
     )
