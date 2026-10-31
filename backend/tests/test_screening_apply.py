@@ -4,6 +4,8 @@ snapshot the recruiter sees, the candidate-facing shapes that never carry
 ``preferred`` or ``match``, and the anti-goal: an answer never changes the
 stage, never queues a mail, never touches the quiz."""
 
+import csv
+import io
 import json
 from typing import Any
 from uuid import UUID, uuid4
@@ -207,3 +209,104 @@ async def test_job_without_questions_keeps_an_empty_list(client: AsyncClient) ->
         client, base, screening_answers=[{"question_id": "sq_0000aa01", "answer": "yes"}]
     )
     assert resp.status_code == 422
+
+
+async def _email(client: AsyncClient, base: str, answers: list[dict[str, Any]] | None) -> str:
+    email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
+    ticket = (await client.post(f"{base}/apply/upload-url")).json()
+    assert (await upload_pdf(ticket, PDF_BYTES)).is_success
+    payload: dict[str, Any] = {
+        "name": "Cand Idate",
+        "email": email,
+        "cv_object_key": ticket["object_key"],
+        "cv_filename": "cv.pdf",
+    }
+    if answers is not None:
+        payload["screening_answers"] = answers
+    resp = await client.post(f"{base}/apply", json=payload)
+    assert resp.status_code == 201, resp.text
+    return email
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_screening_filter_and_export_column(client: AsyncClient) -> None:
+    """Four applicants: all preferred matched, one mismatch, one skipped
+    optional, and one on a job without questions (legacy shape)."""
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
+    name = f"Filter Co {uuid4().hex[:6]}"
+    resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
+    assert resp.status_code == 201, resp.text
+    slug = name.lower().replace(" ", "-")
+    screened = (
+        await client.post(
+            "/api/v1/jobs", json={"title": "Screened", "screening_questions": QUESTIONS}
+        )
+    ).json()
+    plain = (await client.post("/api/v1/jobs", json={"title": "Plain"})).json()
+    for job in (screened, plain):
+        assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+    screened_base = f"/api/v1/public/companies/{slug}/jobs/{screened['slug']}"
+    plain_base = f"/api/v1/public/companies/{slug}/jobs/{plain['slug']}"
+
+    ack = {"question_id": "sq_0000aa04", "answer": True}
+    matched = await _email(
+        client,
+        screened_base,
+        [
+            {"question_id": "sq_0000aa01", "answer": "yes"},
+            {"question_id": "sq_0000aa02", "answer": "1-2"},
+            {"question_id": "sq_0000aa03", "answer": "now"},
+            ack,
+        ],
+    )
+    mismatched = await _email(
+        client,
+        screened_base,
+        [
+            {"question_id": "sq_0000aa01", "answer": "no"},
+            {"question_id": "sq_0000aa02", "answer": "3+"},
+            {"question_id": "sq_0000aa03", "answer": "8 weeks"},
+            ack,
+        ],
+    )
+    skipped = await _email(
+        client, screened_base, [{"question_id": "sq_0000aa01", "answer": "yes"}, ack]
+    )
+    legacy = await _email(client, plain_base, None)
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+
+    async def emails_for(screening: str | None) -> set[str]:
+        params = {"screening": screening} if screening else {}
+        page = (await client.get("/api/v1/applications", params=params)).json()
+        return {item["candidate"]["email"] for item in page["items"]}
+
+    assert await emails_for(None) == {matched, mismatched, skipped, legacy}
+    # skipping a preferred question is not a mismatch, so the applicant who
+    # answered one preferred question right and skipped the other is "all
+    # preferred" too; they show under Unanswered as well
+    assert await emails_for("match") == {matched, skipped}
+    assert await emails_for("mismatch") == {mismatched}
+    assert await emails_for("unanswered") == {skipped}
+    assert (
+        await client.get("/api/v1/applications", params={"screening": "nope"})
+    ).status_code == 422
+
+    resp = await client.get("/api/v1/applications/export", params={"format": "csv"})
+    rows = {row["candidate_email"]: row for row in csv.DictReader(io.StringIO(resp.text))}
+    assert rows[matched]["screening_mismatches"] == "0"
+    assert rows[mismatched]["screening_mismatches"] == "2"
+    assert rows[skipped]["screening_mismatches"] == "0"
+    assert rows[legacy]["screening_mismatches"] == ""
+    header = resp.text.splitlines()[0].split(",")
+    assert header.index("screening_mismatches") == header.index("message") + 1
+    for secret in ("preferred", "sq_0000aa01"):
+        assert secret not in resp.text  # no question internals in the sheet
+
+    resp = await client.get(
+        "/api/v1/applications/export", params={"format": "csv", "screening": "mismatch"}
+    )
+    assert [row["candidate_email"] for row in csv.DictReader(io.StringIO(resp.text))] == [
+        mismatched
+    ]

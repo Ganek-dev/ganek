@@ -78,3 +78,14 @@ def test_row_carries_the_extra_time_multiplier() -> None:
     assert granted["quiz_time_multiplier"] == "2x"
     # who granted it stays inside the app, like every other internal id
     assert "u1" not in str(granted)
+
+
+def test_screening_mismatches_counts_false_matches_and_blanks_without_answers() -> None:
+    answers = [{"match": False}, {"match": None}, {"match": True}, {"match": False}]
+    row = export_row(_application(quiz_attempts=[], screening_answers=answers))
+    assert row["screening_mismatches"] == "2"
+    assert (
+        export_row(_application(quiz_attempts=[], screening_answers=[]))["screening_mismatches"]
+        == ""
+    )
+    assert EXPORT_COLUMNS.index("screening_mismatches") == EXPORT_COLUMNS.index("message") + 1
