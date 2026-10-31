@@ -114,8 +114,16 @@ async def _get_or_create_candidate(
 
 
 async def submit_application(
-    db: AsyncSession, company: Company, job: Job, payload: ApplicationSubmit
+    db: AsyncSession,
+    company: Company,
+    job: Job,
+    payload: ApplicationSubmit,
+    *,
+    screening_answers: list[dict[str, Any]] | None = None,
 ) -> Application:
+    """``screening_answers`` is the validated snapshot from
+    services.screening.build_answers; it is stored as given and never
+    influences anything else here (hard rule 5)."""
     if payload.cv_object_key is None or payload.cv_filename is None:
         raise InvalidCvError("CV is required")
     stat = await _validated_cv(company, payload.cv_object_key)
@@ -129,6 +137,7 @@ async def submit_application(
         cv_size=stat.size,
         message=payload.message,
         source=normalize_source(payload.source),
+        screening_answers=screening_answers or [],
     )
     db.add(application)
     try:

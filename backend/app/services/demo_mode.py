@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.models import Company
 from app.schemas.public import ApplicationSubmit
 from app.services import demo_seed, storage
+from app.services.screening import ScreeningAnswerIn, ScreeningQuestion
 
 # every link a demo applicant can carry points at something Ganek owns
 DEMO_LINKS = {
@@ -105,10 +106,21 @@ async def ensure_sample_cv(company: Company) -> str:
     return key
 
 
-def pseudonymize(payload: ApplicationSubmit, *, cv_object_key: str) -> ApplicationSubmit:
+TEXT_ANSWER_PLACEHOLDER = "(text answers are not kept on the demo)"
+
+
+def pseudonymize(
+    payload: ApplicationSubmit,
+    *,
+    cv_object_key: str,
+    questions: list[ScreeningQuestion] | None = None,
+) -> ApplicationSubmit:
     """The same submission with every personal value replaced. Only the
-    captcha payload survives: it was already verified and carries no PII."""
+    captcha payload survives: it was already verified and carries no PII.
+    Screening answers to choice and acknowledgment questions are kept (they
+    are picks, not typed text); short-text answers become a placeholder."""
     tag = secrets.token_hex(3)
+    text_ids = {q.id for q in questions or [] if q.type == "short_text"}
     return ApplicationSubmit(
         name=f"Demo Candidate {tag}",
         email=f"demo-{tag}@example.com",
@@ -120,12 +132,28 @@ def pseudonymize(payload: ApplicationSubmit, *, cv_object_key: str) -> Applicati
         cv_filename=SAMPLE_CV_FILENAME,
         source=payload.source,
         altcha=payload.altcha,
+        screening_answers=[
+            ScreeningAnswerIn(
+                question_id=answer.question_id,
+                answer=(
+                    TEXT_ANSWER_PLACEHOLDER
+                    if answer.question_id in text_ids and answer.answer not in (None, "")
+                    else answer.answer
+                ),
+            )
+            for answer in payload.screening_answers
+        ],
     )
 
 
-async def sanitize(company: Company, payload: ApplicationSubmit) -> ApplicationSubmit:
+async def sanitize(
+    company: Company,
+    payload: ApplicationSubmit,
+    *,
+    questions: list[ScreeningQuestion] | None = None,
+) -> ApplicationSubmit:
     """What the public apply route stores instead of the visitor's input."""
-    return pseudonymize(payload, cv_object_key=await ensure_sample_cv(company))
+    return pseudonymize(payload, cv_object_key=await ensure_sample_cv(company), questions=questions)
 
 
 def forbid_upload() -> None:

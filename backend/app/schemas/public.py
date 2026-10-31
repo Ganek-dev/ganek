@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_vali
 
 from app.core import challenge
 from app.models import EmploymentType, RemotePolicy, SalaryPeriod
-from app.services.screening import ScreeningQuestionType
+from app.services.screening import MAX_QUESTIONS, ScreeningAnswerIn, ScreeningQuestionType
 
 
 class PublicJobSummary(BaseModel):
@@ -145,6 +145,11 @@ class ApplicationSubmit(BaseModel):
     # form (core/sources.py grammar); anything else is stored as NULL and an
     # odd value never blocks an application (no 422 from this field)
     source: str | None = Field(default=None, max_length=200)
+    # answers to the job's screening questions, validated against the job's
+    # current list in the apply route (services.screening.build_answers)
+    screening_answers: list[ScreeningAnswerIn] = Field(
+        default_factory=list, max_length=MAX_QUESTIONS
+    )
 
     @field_validator("source", mode="before")
     @classmethod
@@ -181,6 +186,15 @@ class StatusQuizOut(BaseModel):
     completed_at: datetime | None
 
 
+class StatusScreeningAnswer(BaseModel):
+    """A screening answer as the candidate may see it (status page, Article
+    15 bundle): the question and their answer, never the recruiter's
+    preferred answer or the match."""
+
+    prompt: str
+    answer: str | bool | None
+
+
 class ApplicationStatusOut(BaseModel):
     company_name: str
     brand_primary: str | None
@@ -194,6 +208,7 @@ class ApplicationStatusOut(BaseModel):
     # G2: honest retention copy + the notice link, server-resolved defaults
     retention_months: int
     privacy_url: str
+    screening_answers: list[StatusScreeningAnswer] = []
 
 
 class PrivacyRequestReceipt(BaseModel):

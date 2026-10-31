@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.models import Candidate, EmailOutbox
 from app.schemas.public import ApplicationSubmit
 from app.services import demo_mode, storage
+from app.services.screening import validate_questions
 from tests.db import database_reachable, s3_reachable
 
 PASSWORD = "a-long-secure-password"
@@ -247,3 +248,29 @@ async def test_demo_locks_the_shared_account_and_leaves_the_rest_open(
     assert (
         await client.post("/api/v1/jobs", json={"title": "Open on the demo"})
     ).status_code == 201
+
+
+def test_pseudonymize_keeps_choice_answers_and_replaces_text_answers() -> None:
+    questions = validate_questions(
+        [
+            {"id": "sq_0000aa01", "type": "yes_no", "prompt": "Permit?", "preferred": "yes"},
+            {"id": "sq_0000aa03", "type": "short_text", "prompt": "Notice period?"},
+            {"id": "sq_0000aa04", "type": "acknowledgment", "prompt": "I confirm"},
+        ]
+    )
+    out = demo_mode.pseudonymize(
+        _real_submission(
+            screening_answers=[
+                {"question_id": "sq_0000aa01", "answer": "yes"},
+                {"question_id": "sq_0000aa03", "answer": "My phone number is +49 170 0000000"},
+                {"question_id": "sq_0000aa04", "answer": True},
+            ]
+        ),
+        cv_object_key="k",
+        questions=questions,
+    )
+    answers = {a.question_id: a.answer for a in out.screening_answers}
+    assert answers["sq_0000aa01"] == "yes"
+    assert answers["sq_0000aa03"] == demo_mode.TEXT_ANSWER_PLACEHOLDER
+    assert answers["sq_0000aa04"] is True
+    assert "+49" not in out.model_dump_json()

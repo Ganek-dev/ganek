@@ -104,6 +104,8 @@ class ApplicationOut(BaseModel):
     # internal, recruiter-facing only (0036); never in a candidate schema
     rejection_reason: str | None
     rejection_note: str | None
+    # answer snapshots with preferred + match (0039): recruiter-facing only
+    screening_answers: list[dict[str, Any]] = []
 
 
 class ApplicationPage(BaseModel):
