@@ -42,14 +42,13 @@ class TaskOut(BaseModel):
     created_at: datetime
 
 
-class TodayEvent(BaseModel):
+class TodayEvent(BaseModel):  # the user's booked Ganek interviews for the day
     start: str | None
     summary: str
-    hangout_link: str | None
+    location: str
 
 
 class TodayOut(BaseModel):
-    source: str  # "google" | "ganek"
     events: list[TodayEvent]
 
 

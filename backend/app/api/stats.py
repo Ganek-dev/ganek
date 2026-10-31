@@ -9,7 +9,6 @@ from app.api.deps import CurrentCompany, CurrentUser, DbSession
 from app.models import Application, Interview, InterviewStatus
 from app.schemas.dashboard import QueueDismiss, QueueOut, TodayEvent, TodayOut
 from app.schemas.stats import StatsOverview
-from app.services import google_calendar
 from app.services import queue as queue_service
 from app.services import stats as stats_service
 
@@ -25,29 +24,12 @@ async def stats_overview(db: DbSession, company: CurrentCompany) -> StatsOvervie
 async def today(
     db: DbSession, company: CurrentCompany, user: CurrentUser, tz: str = "UTC"
 ) -> TodayOut:
-    """Dashboard Today panel: the signed-in user's Google Calendar when
-    connected; their booked ganek interviews otherwise. Never 500s on a
-    weird browser timezone - falls back to UTC."""
+    """Dashboard Today panel: the signed-in user's booked interviews for the
+    day. Never 500s on a weird browser timezone - falls back to UTC."""
     try:
         ZoneInfo(tz)
     except (ZoneInfoNotFoundError, ValueError):
         tz = "UTC"
-    if await google_calendar.get_credential(db, user) is not None:
-        try:
-            events = await google_calendar.list_today_events(db, user, tz=tz)
-            return TodayOut(
-                source="google",
-                events=[
-                    TodayEvent(
-                        start=str(e["start"]) if e.get("start") else None,
-                        summary=str(e.get("summary") or "(no title)"),
-                        hangout_link=(str(e["hangout_link"]) if e.get("hangout_link") else None),
-                    )
-                    for e in events
-                ],
-            )
-        except google_calendar.GoogleCalendarError:
-            pass  # broken consent -> ganek fallback below; Account card flags it
     zone = ZoneInfo(tz)
     day = datetime.now(zone).date()
     start = datetime.combine(day, time.min, tzinfo=zone)
@@ -71,12 +53,11 @@ async def today(
         .all()
     )
     return TodayOut(
-        source="ganek",
         events=[
             TodayEvent(
                 start=iv.scheduled_start.isoformat() if iv.scheduled_start else None,
                 summary=f"{iv.title} - {iv.application.candidate.name}",
-                hangout_link=iv.meet_url,
+                location=iv.location,
             )
             for iv in interviews
         ],

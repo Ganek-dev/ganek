@@ -18,7 +18,6 @@ from app.models import (
     QuizAttempt,
     User,
 )
-from app.services import google_calendar
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 
@@ -132,27 +131,7 @@ async def test_tasks_crud_and_tenancy(client: AsyncClient) -> None:
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
-async def test_today_prefers_google_when_connected(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _, admin_id, admin_email = await _company_with_applicant(client)
-    user = (await db_session.execute(select(User).where(User.email == admin_email))).scalar_one()
-    await google_calendar.store_credentials(
-        db_session, user, refresh_token="1//r", google_email=admin_email
-    )
-
-    async def fake_today(db: AsyncSession, u: User, *, tz: str) -> list[dict[str, object]]:
-        return [{"start": "2026-08-08T11:00:00+02:00", "summary": "Intro call - Marta"}]
-
-    monkeypatch.setattr(google_calendar, "list_today_events", fake_today)
-    resp = await client.get("/api/v1/stats/today?tz=Europe/Berlin")
-    body = resp.json()
-    assert body["source"] == "google"
-    assert body["events"][0]["summary"] == "Intro call - Marta"
-
-
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
-async def test_today_falls_back_to_ganek_interviews(
+async def test_today_lists_own_booked_interviews(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     application_id, admin_id, _ = await _company_with_applicant(client)
@@ -179,24 +158,24 @@ async def test_today_falls_back_to_ganek_interviews(
             ),
             datetime.now(UTC) + timedelta(minutes=1),
         ),
-        meet_url="https://meet.google.com/xyz",
+        location="Room 2",
     )
     db_session.add(interview)
     await db_session.commit()
 
     resp = await client.get("/api/v1/stats/today?tz=not-a-real-zone")  # bad tz → UTC
     body = resp.json()
-    assert body["source"] == "ganek"
+    assert set(body) == {"events"}
     assert len(body["events"]) == 1
     assert "Marta Vidal" in body["events"][0]["summary"]
-    assert body["events"][0]["hangout_link"] == "https://meet.google.com/xyz"
+    assert body["events"][0]["location"] == "Room 2"
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_today_empty_without_anything(client: AsyncClient) -> None:
     await _company_with_applicant(client)
     body = (await client.get("/api/v1/stats/today")).json()
-    assert body == {"source": "ganek", "events": []}
+    assert body == {"events": []}
 
 
 async def _queue_keys(client: AsyncClient) -> list[str]:

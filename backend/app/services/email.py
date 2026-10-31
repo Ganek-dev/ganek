@@ -655,7 +655,7 @@ def send_interview_reminder(
     company_name: str,
     start: datetime,
     timezone: str,
-    meet_url: str | None,
+    location: str,
     brand_primary: str | None,
     controller_name: str | None = None,
     privacy_url: str | None = None,
@@ -680,7 +680,7 @@ def send_interview_reminder(
         f"\n"
         f"A quick reminder about your {job_title} interview at\n"
         f"{company_name}: {when} ({timezone}).\n"
-        f"\n" + (f"Join via Google Meet: {meet_url}\n\n" if meet_url else "") + f"Good luck!\n"
+        f"\n" + (f"Where: {location}\n\n" if location else "") + f"Good luck!\n"
         f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
     content = (
@@ -691,14 +691,7 @@ def send_interview_reminder(
             f'interview at {safe_company}: <b style="font-weight: 600;">{when}</b> '
             f'<span style="font-family: monospace; font-size: 12px;">({escape(timezone)})</span>.'
         )
-        + (
-            f'<a href="{meet_url}" style="margin-top: 22px; display: block; text-align: center; '
-            f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
-            f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
-            f"Join with Google Meet</a>"
-            if meet_url
-            else ""
-        )
+        + (_paragraph(f"Where: {escape(location)}") if location else "")
     )
     html = _card_html(
         bar_color=brand,

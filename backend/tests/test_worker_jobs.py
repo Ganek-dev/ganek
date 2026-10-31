@@ -98,7 +98,7 @@ async def _booked_interview(db: AsyncSession, *, start: datetime) -> Interview:
         timezone="Europe/Berlin",
         status=InterviewStatus.BOOKED,
         scheduled_start=start,
-        meet_url="https://meet.google.com/abc",
+        location="Room 2, 3rd floor",
     )
     db.add(interview)
     await db.commit()
@@ -116,7 +116,7 @@ async def test_reminder_sends_for_valid_booking(db_session: AsyncSession, ctx: A
     assert "Reminder" in message["Subject"]
     plain = message.get_body(preferencelist=("plain",))
     assert plain is not None
-    assert "https://meet.google.com/abc" in str(plain.get_content())
+    assert "Where: Room 2, 3rd floor" in str(plain.get_content())
 
 
 @pytest.mark.usefixtures("migrated_db")

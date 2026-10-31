@@ -27,7 +27,7 @@ from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Application, Candidate, Company, Interview, Task
-from app.services import activity, google_calendar, storage, tombstones
+from app.services import activity, storage, tombstones
 
 logger = logging.getLogger(__name__)
 
@@ -88,27 +88,10 @@ async def erase_application(db: AsyncSession, application: Application) -> tuple
     if application.cv_object_key:
         await storage.delete_object(application.cv_object_key)
 
-    interviews = list(
-        (
-            await db.execute(
-                select(Interview).where(
-                    Interview.application_id == application.id,
-                    Interview.google_event_id.is_not(None),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    # Task 9 of the ICS-only plan replaces the Google event deletion with a
+    # cancel notice to the interviewer; until then nothing to do here.
+    interviews: list[Interview] = []
     failures = 0
-    for interview in interviews:
-        try:
-            assert interview.google_event_id is not None  # filtered above
-            await google_calendar.delete_event(db, interview.interviewer, interview.google_event_id)
-        except google_calendar.GoogleCalendarError:
-            # covers NeedsReconnectError too (subclass)
-            logger.warning("erasure: could not delete google event for interview %s", interview.id)
-            failures += 1
 
     # blind marker so a restored backup cannot bring this application back
     await tombstones.record(
