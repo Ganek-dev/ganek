@@ -10,7 +10,6 @@ from app.models.email_outbox import EmailOutbox, EmailStatus
 from app.models.email_suppression import EmailSuppression
 from app.models.email_template import EmailTemplate
 from app.models.erasure_tombstone import ErasureTombstone
-from app.models.google_credential import UserGoogleCredential
 from app.models.interview import Interview, InterviewStatus
 from app.models.job import EmploymentType, Job, JobStatus, RemotePolicy, SalaryPeriod
 from app.models.job_view import JobView
@@ -64,7 +63,6 @@ __all__ = [
     "RemotePolicy",
     "SalaryPeriod",
     "User",
-    "UserGoogleCredential",
     "UserInvite",
     "WebhookDelivery",
     "WebhookEndpoint",

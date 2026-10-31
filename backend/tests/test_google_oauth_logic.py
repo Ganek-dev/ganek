@@ -95,13 +95,13 @@ def test_decode_claims_garbage() -> None:
 
 
 @pytest.mark.usefixtures("google_configured")
-def test_authorization_url_calendar_variant() -> None:
-    url, _, _, _ = oauth_google.build_authorization_request(calendar=True)
-    assert "calendar.events" in url
-    assert "calendar.freebusy" in url  # events CRUD alone cannot query freebusy
-    assert "access_type=offline" in url
-    assert "prompt=consent" in url
-    assert "include_granted_scopes=true" in url
+def test_sign_in_scope_has_no_calendar() -> None:
+    """Google is sign-in only: no Calendar scope is ever requested, so the
+    OAuth app needs no sensitive-scope verification."""
+    url, _, _, _ = oauth_google.build_authorization_request()
+    assert "calendar" not in url.lower()
+    assert "access_type=offline" not in url
+    assert not hasattr(oauth_google, "CALENDAR_SCOPES")
 
 
 @pytest.mark.usefixtures("google_configured")

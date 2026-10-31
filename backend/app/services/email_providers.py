@@ -62,7 +62,7 @@ class OutboundMessage:
     # stage mail carries none
     reply_to: str | None = None
     # interview invites, reschedules and cancellations (card: scheduling
-    # without Google Calendar)
+    # on ICS only)
     calendar: CalendarPart | None = None
 
 

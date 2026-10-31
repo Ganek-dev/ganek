@@ -68,13 +68,10 @@ def _arm_flow(
     state: str = "state-1",
     nonce: str = "nonce-1",
     invite: str | None = None,
-    calendar_user_id: str | None = None,
 ) -> None:
     client.cookies.set(
         GOOGLE_FLOW_COOKIE_NAME,
-        create_google_flow_token(
-            state, "verifier-1", nonce, invite=invite, calendar_user_id=calendar_user_id
-        ),
+        create_google_flow_token(state, "verifier-1", nonce, invite=invite),
     )
 
 
@@ -412,114 +409,21 @@ async def _login_user(
 
 
 @pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_connect_requires_auth(client: AsyncClient) -> None:
+async def test_calendar_connect_route_is_gone(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Calendar sync was removed (owner decision 2026-10-31, ICS only): the
+    old connect route must 404 even for a signed-in user on a configured
+    instance."""
+    await _login_user(client, db_session)
     resp = await client.get("/api/v1/auth/google/calendar/connect")
-    assert resp.status_code == 401
+    assert resp.status_code == 404
 
 
 @pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_connect_redirects_with_offline_scope(
+async def test_google_calendar_status_route_is_gone(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     await _login_user(client, db_session)
-    resp = await client.get("/api/v1/auth/google/calendar/connect")
-    assert resp.status_code == 302
-    location = resp.headers["location"]
-    assert "calendar.events" in location
-    assert "access_type=offline" in location
-    assert GOOGLE_FLOW_COOKIE_NAME in resp.cookies
-
-
-@pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_callback_stores_credential(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    sub = f"sub-{uuid4().hex}"
-    user = await _login_user(client, db_session, google_sub=sub)
-    monkeypatch.setattr(
-        oauth_google,
-        "exchange_code_full",
-        _fake_exchange(_claims(user.email, sub=sub), refresh_token="1//refresh"),
-    )
-    _arm_flow(client, calendar_user_id=str(user.id))
-    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "/admin/account?calendar=connected"
-
-    status_resp = await client.get("/api/v1/users/me/google-calendar")
-    body = status_resp.json()
-    assert body == {"connected": True, "google_email": user.email, "needs_reconnect": False}
-    assert "1//refresh" not in status_resp.text
-
-
-@pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_callback_wrong_google_account(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    user = await _login_user(client, db_session, google_sub=f"sub-{uuid4().hex}")
-    monkeypatch.setattr(
-        oauth_google,
-        "exchange_code_full",
-        _fake_exchange(_claims(user.email, sub="sub-someone-else"), refresh_token="1//r"),
-    )
-    _arm_flow(client, calendar_user_id=str(user.id))
-    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
-    assert resp.headers["location"] == "/admin/account?calendar=wrong-account"
-    status_resp = await client.get("/api/v1/users/me/google-calendar")
-    assert status_resp.json()["connected"] is False
-
-
-@pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_callback_without_refresh_token_fails(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    sub = f"sub-{uuid4().hex}"
-    user = await _login_user(client, db_session, google_sub=sub)
-    monkeypatch.setattr(
-        oauth_google,
-        "exchange_code_full",
-        _fake_exchange(_claims(user.email, sub=sub), refresh_token=None),
-    )
-    _arm_flow(client, calendar_user_id=str(user.id))
-    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
-    assert resp.headers["location"] == "/admin/account?calendar=failed"
-
-
-@pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_disconnect(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from app.services import google_calendar as gcal
-
-    sub = f"sub-{uuid4().hex}"
-    user = await _login_user(client, db_session, google_sub=sub)
-    await gcal.store_credentials(db_session, user, refresh_token="1//r", google_email=user.email)
-
-    async def no_revoke(db: AsyncSession, u: User) -> None:
-        credential = await gcal.get_credential(db, u)
-        assert credential is not None
-        await db.delete(credential)
-        await db.commit()
-
-    monkeypatch.setattr(gcal, "remove_credentials", no_revoke)
-    resp = await client.delete("/api/v1/users/me/google-calendar")
-    assert resp.status_code == 204
-    status_resp = await client.get("/api/v1/users/me/google-calendar")
-    assert status_resp.json()["connected"] is False
-
-
-@pytest.mark.usefixtures("google_configured", "migrated_db")
-async def test_calendar_status_needs_reconnect(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
-    from app.services import google_calendar as gcal
-
-    user = await _login_user(client, db_session)
-    await gcal.store_credentials(db_session, user, refresh_token="1//r", google_email=user.email)
-    credential = await gcal.get_credential(db_session, user)
-    assert credential is not None
-    credential.last_refresh_error = "invalid_grant"
-    await db_session.commit()
-
-    status_resp = await client.get("/api/v1/users/me/google-calendar")
-    assert status_resp.json()["needs_reconnect"] is True
+    assert (await client.get("/api/v1/users/me/google-calendar")).status_code == 404
+    assert (await client.delete("/api/v1/users/me/google-calendar")).status_code == 404
