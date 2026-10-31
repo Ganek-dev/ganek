@@ -7,6 +7,7 @@ export const ADMIN_EMAIL = "admin@e2e.ganek.dev";
 export const ADMIN_PASSWORD = "e2e-super-secret-password";
 export const COMPANY_NAME = "E2E Test Co";
 export const QUIZ_JOB_TITLE = "E2E Quiz Engineer";
+export const SCREENING_PROMPT = "Can you work in the EU without sponsorship?";
 export const QUIZ_JOB_SLUG = "e2e-quiz-engineer";
 /** never published: the recruiter spec previews it as a candidate */
 export const DRAFT_JOB_TITLE = "E2E Draft Role";
@@ -60,6 +61,16 @@ export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void>
         question_count: QUIZ_QUESTION_COUNT,
         time_limit_seconds: 20,
       },
+      // one screening question on the apply form (card "Per-job screening
+      // questions"); the candidate path answers it, the recruiter path reads it
+      screening_questions: [
+        {
+          type: "yes_no",
+          prompt: SCREENING_PROMPT,
+          preferred: "yes",
+          required: true,
+        },
+      ],
     },
   });
   expect(created.status(), "job creation should succeed").toBe(201);

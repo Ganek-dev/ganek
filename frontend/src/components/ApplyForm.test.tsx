@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -214,5 +214,113 @@ describe("ApplyForm", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Please attach your CV as a PDF.");
       expect(mocked.submit).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("ApplyForm screening questions", () => {
+  const QUESTIONS = [
+    {
+      id: "sq_0000aa01",
+      type: "yes_no" as const,
+      prompt: "Can you work in Germany?",
+      options: null,
+      required: true,
+    },
+    {
+      id: "sq_0000aa02",
+      type: "single_choice" as const,
+      prompt: "Days on site?",
+      options: ["0", "1-2", "3+"],
+      required: false,
+    },
+    { id: "sq_0000aa03", type: "short_text" as const, prompt: "Notice period?", options: null, required: false },
+    {
+      id: "sq_0000aa04",
+      type: "acknowledgment" as const,
+      prompt: "I confirm the information is accurate",
+      options: null,
+      required: true,
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.uploadTicket.mockResolvedValue({
+      upload_url: "http://minio.test/ganek-cvs",
+      upload_fields: { key: "cvs/co/abc.pdf", policy: "p", "Content-Type": "application/pdf" },
+      object_key: "cvs/co/abc.pdf",
+      content_type: "application/pdf",
+      max_size_mb: 10,
+    });
+    mocked.uploadCv.mockResolvedValue(undefined);
+    mocked.submit.mockResolvedValue({ status: "received", quiz_token: null, status_token: "st-tok" });
+  });
+
+  it("renders nothing extra when the job asks no questions", () => {
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" companyName="ACME" />);
+    expect(screen.queryByText(/A few questions from/)).not.toBeInTheDocument();
+  });
+
+  it("renders every question type with the company's name and required markers", () => {
+    render(
+      <ApplyForm
+        apiBasePath="/api/v1/public/company/jobs/dev"
+        companyName="ACME"
+        screeningQuestions={QUESTIONS}
+      />,
+    );
+    expect(screen.getByText("A few questions from ACME")).toBeInTheDocument();
+    const permit = screen.getByRole("group", { name: /Can you work in Germany\?/ });
+    expect(within(permit).getByRole("radio", { name: "Yes" })).toBeRequired();
+    expect(within(permit).getByRole("radio", { name: "No" })).toBeRequired();
+    const days = screen.getByRole("group", { name: /Days on site\?/ });
+    expect(within(days).getByRole("radio", { name: "1-2" })).not.toBeRequired();
+    expect(screen.getByLabelText("Notice period?")).toHaveAttribute("maxlength", "500");
+    expect(screen.getByRole("checkbox", { name: "I confirm the information is accurate" })).toBeRequired();
+  });
+
+  it("submits the answers, null for a skipped optional question", async () => {
+    render(
+      <ApplyForm
+        apiBasePath="/api/v1/public/company/jobs/dev"
+        companyName="ACME"
+        screeningQuestions={QUESTIONS}
+      />,
+    );
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("radio", { name: "No" }));
+    await userEvent.click(screen.getByRole("radio", { name: "1-2" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "I confirm the information is accurate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(await screen.findByText(/Application received/)).toBeInTheDocument();
+    expect(mocked.submit).toHaveBeenCalledWith(
+      "/api/v1/public/company/jobs/dev",
+      expect.objectContaining({
+        screening_answers: [
+          { question_id: "sq_0000aa01", answer: "no" },
+          { question_id: "sq_0000aa02", answer: "1-2" },
+          { question_id: "sq_0000aa03", answer: null },
+          { question_id: "sq_0000aa04", answer: true },
+        ],
+      }),
+    );
+  });
+
+  it("a required acknowledgment left unticked keeps the form invalid", async () => {
+    render(
+      <ApplyForm
+        apiBasePath="/api/v1/public/company/jobs/dev"
+        companyName="ACME"
+        screeningQuestions={QUESTIONS}
+      />,
+    );
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    const form = screen.getByRole("button", { name: "Submit application" }).closest("form")!;
+    expect(form.checkValidity()).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(mocked.submit).not.toHaveBeenCalled();
   });
 });

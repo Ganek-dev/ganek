@@ -2,7 +2,13 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { COMPANY_NAME, QUIZ_JOB_SLUG, QUIZ_JOB_TITLE, QUIZ_QUESTION_COUNT } from "./stack";
+import {
+  COMPANY_NAME,
+  QUIZ_JOB_SLUG,
+  QUIZ_JOB_TITLE,
+  QUIZ_QUESTION_COUNT,
+  SCREENING_PROMPT,
+} from "./stack";
 
 /** Golden path 1 - the candidate: careers page → job detail → apply with a
  * CV → assessment invite → rules gate → answer every question → finished
@@ -46,6 +52,10 @@ test("candidate applies, takes the quiz, and lands on the status page", async ({
     ).toBeVisible();
     await page.getByLabel("Name").fill(CANDIDATE_NAME);
     await page.getByLabel("Email").fill(candidateEmail);
+    // the job's screening question sits below the links; required, so the
+    // form will not submit without it
+    await expect(page.getByText(SCREENING_PROMPT)).toBeVisible();
+    await page.getByRole("radio", { name: "Yes" }).check();
     await page
       .getByLabel("CV (PDF)")
       .setInputFiles(path.join(__dirname, "fixtures", "cv.pdf"));

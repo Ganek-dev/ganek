@@ -110,6 +110,7 @@ export default async function SingleModeJobPage({ params, searchParams }: Props)
               <ApplyForm
                 apiBasePath={`/api/v1/public/company/jobs/${job.slug}`}
                 jobTitle={job.title}
+                screeningQuestions={job.screening_questions}
                 companyName={page.company.name}
                 demo={demo}
                 privacyHref="/privacy"
