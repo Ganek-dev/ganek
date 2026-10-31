@@ -60,6 +60,7 @@ def send_email(
     ref: str | None = None,
     outbox_id: str | None = None,
     reply_to: str | None = None,
+    calendar: providers.CalendarPart | None = None,
 ) -> None:
     last_rendered.set((subject, body))
     if not configured():
@@ -76,6 +77,7 @@ def send_email(
             html=html,
             outbox_id=outbox_id or current_outbox_id.get(),
             reply_to=reply_to,
+            calendar=calendar,
         )
     )
 

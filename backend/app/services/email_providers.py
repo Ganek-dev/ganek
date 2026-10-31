@@ -37,6 +37,19 @@ MAILJET_SEND_URL = "https://api.mailjet.com/v3.1/send"
 
 
 @dataclass(frozen=True)
+class CalendarPart:
+    """An iCalendar body riding with the mail: ``method`` matches the METHOD
+    inside ``content`` (REQUEST, CANCEL, PUBLISH). SMTP sends it as a
+    ``text/calendar`` alternative plus an ``application/ics`` attachment so
+    calendar-aware clients offer Accept or Add; Mailjet's API carries
+    attachments only, so there it travels as the attachment alone."""
+
+    method: str
+    content: str
+    filename: str = "invite.ics"
+
+
+@dataclass(frozen=True)
 class OutboundMessage:
     to: str
     subject: str
@@ -48,6 +61,9 @@ class OutboundMessage:
     # one-off messages answer to the recruiter who wrote them (PR 4);
     # stage mail carries none
     reply_to: str | None = None
+    # interview invites, reschedules and cancellations (card: scheduling
+    # without Google Calendar)
+    calendar: CalendarPart | None = None
 
 
 class EmailProvider(Protocol):
@@ -79,6 +95,19 @@ class SmtpProvider:
         mime.set_content(message.text)
         if message.html is not None:
             mime.add_alternative(message.html, subtype="html")
+        if message.calendar is not None:
+            calendar = message.calendar
+            mime.add_alternative(
+                calendar.content,
+                subtype="calendar",
+                params={"method": calendar.method, "charset": "utf-8"},
+            )
+            mime.add_attachment(
+                calendar.content.encode(),
+                maintype="application",
+                subtype="ics",
+                filename=calendar.filename,
+            )
 
         assert settings.smtp_host is not None
         with smtplib.SMTP(
@@ -142,6 +171,14 @@ class MailjetProvider:
             entry["CustomID"] = message.outbox_id
         if message.reply_to is not None:
             entry["ReplyTo"] = {"Email": message.reply_to}
+        if message.calendar is not None:
+            entry["Attachments"] = [
+                {
+                    "ContentType": "text/calendar",
+                    "Filename": message.calendar.filename,
+                    "Base64Content": base64.b64encode(message.calendar.content.encode()).decode(),
+                }
+            ]
         credentials = f"{settings.mailjet_api_key}:{settings.mailjet_secret_key}".encode()
         response = _http_post_json(
             MAILJET_SEND_URL,
