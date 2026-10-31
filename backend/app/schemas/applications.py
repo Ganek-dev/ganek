@@ -143,16 +143,36 @@ class RejectionFields(BaseModel):
         return self.rejection_reason is not None or self.rejection_note is not None
 
 
+def _blank_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 class StageUpdate(RejectionFields):
     stage: ApplicationStage
     # opt-in: emails the candidate for stages with a template (22a/22b);
     # silently ignored for the rest
     notify_candidate: bool = False
+    # one-off edit of this send (PR 4): literal text, no placeholder
+    # processing, never saved to a template; both or neither
+    subject: str | None = Field(default=None, max_length=200)
+    body: str | None = Field(default=None, max_length=10000)
+
+    @field_validator("subject", "body")
+    @classmethod
+    def _strip_override(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
 
     @model_validator(mode="after")
     def _reason_needs_rejected(self) -> "StageUpdate":
         if self.has_reason and self.stage is not ApplicationStage.REJECTED:
             raise ValueError("rejection reason needs the rejected stage")
+        if (self.subject is None) != (self.body is None):
+            raise ValueError("Subject and body go together")
+        if self.subject is not None and ("\n" in self.subject or "\r" in self.subject):
+            raise ValueError("Subject must be one line")
         return self
 
 
@@ -206,6 +226,9 @@ class EmailPreviewOut(BaseModel):
     subject: str
     text: str
     html: str
+    # the template part alone (before the fixed action block): what "Edit
+    # this email" prefills (PR 4)
+    body: str
 
 
 class EmailDeliveryOut(BaseModel):

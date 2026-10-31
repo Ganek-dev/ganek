@@ -205,3 +205,31 @@ def test_validate_accepts_every_documented_placeholder(kind: str) -> None:
 def test_validate_unknown_kind() -> None:
     with pytest.raises(ValueError, match="kind"):
         validate("message", "S", "B")
+
+
+def test_rendered_body_is_the_paragraphs_before_the_action_block() -> None:
+    ctx = {**REJECTION_CTX, "completed_assessment": False}
+    rendered = render("rejection", BUILTIN["rejection"], ctx)
+    assert rendered.body == (
+        "Thank you, Marta Vidal\n"
+        "\n"
+        "We've finished reviewing applications for Senior Frontend Engineer, and we won't be "
+        "moving forward with yours this time.\n"
+        "\n"
+        "This was a competitive round and the decision was close.\n"
+        "\n"
+        "We'd genuinely welcome another application for a future role."
+    )
+    assert rendered.text.startswith(rendered.body + "\n\nSee open positions:")
+
+
+def test_literal_render_keeps_braces_and_escapes_html() -> None:
+    template = Template(
+        subject="Hi {{candidate_name}} & co", body="Line <b>one</b>\n\n{{job_title}} stays"
+    )
+    rendered = render("stage_advance", template, _advance_ctx("https://s/x"), literal=True)
+    assert rendered.subject == "Hi {{candidate_name}} & co"
+    assert rendered.body == "Line <b>one</b>\n\n{{job_title}} stays"
+    assert "<h1" in rendered.html and "Line &lt;b&gt;one&lt;/b&gt;</h1>" in rendered.html
+    assert "{{job_title}} stays</p>" in rendered.html
+    assert "Looking forward to it," in rendered.text and "application status" in rendered.html

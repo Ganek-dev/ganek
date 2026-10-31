@@ -93,6 +93,7 @@ async def preview_email_template(
         subject=rendered.subject,
         text=rendered.text,
         html=rendered.html,
+        body=rendered.body,
     )
 
 
