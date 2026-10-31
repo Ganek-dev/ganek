@@ -54,6 +54,7 @@ describe("DevelopersPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedCompany.get.mockResolvedValue({
+      screening_questions: [],
       slug: "acmelabs",
     mode: "single" as const,
     smtp_configured: true,

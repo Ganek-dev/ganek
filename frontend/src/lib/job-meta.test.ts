@@ -11,6 +11,7 @@ const company = {
 
 function makeJob(overrides: Partial<PublicJobDetail> = {}): PublicJobDetail {
   return {
+    screening_questions: [],
     slug: "backend-engineer-python",
     title: "Backend Engineer (Python)",
     location: "Berlin",

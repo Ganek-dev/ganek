@@ -6,8 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
 import { questionnaires, questions } from "@/lib/api";
+import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { Switch } from "@/components/ui/switch";
 import type {
+  ScreeningQuestion,
   Difficulty,
   EmploymentType,
   JobInput,
@@ -76,14 +78,21 @@ export function JobForm({
   submitLabel,
   onSubmit,
   rail,
+  defaultScreening,
 }: {
   initial?: JobOut;
   submitLabel: string;
   onSubmit: (values: JobInput) => Promise<void>;
   /** Extra right-rail content (e.g. the Status card on the edit page). */
   rail?: React.ReactNode;
+  /** The company's default screening questions: a new job starts from a copy
+   * of them, and "Reset to company defaults" restores them. */
+  defaultScreening?: ScreeningQuestion[];
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [screening, setScreening] = useState<ScreeningQuestion[]>(
+    initial?.screening_questions ?? defaultScreening ?? [],
+  );
   const [busy, setBusy] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagDraft, setTagDraft] = useState("");
@@ -232,6 +241,7 @@ export function JobForm({
         closes_at: str("closes_at") === "" ? null : str("closes_at"),
         tags,
         quiz_config,
+        screening_questions: screening,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -436,6 +446,21 @@ export function JobForm({
               className="min-h-[180px] w-full rounded-b-md border border-t-0 border-edge bg-transparent px-4 py-3.5 text-sm leading-[23px] outline-none focus:border-g400"
             />
           </div>
+        </div>
+
+        <div className="card px-5 py-[18px]">
+          <span className="font-heading text-[15px] font-semibold">Screening questions</span>
+          <p className="mt-1 mb-3.5 text-[12.5px] text-g500">
+            Asked on the apply form, below the CV. Answers show on the applicant with a mark
+            where they differ from your preferred answer; nobody is rejected by them.
+          </p>
+          <ScreeningQuestionsEditor
+            value={screening}
+            onChange={setScreening}
+            onReset={
+              defaultScreening ? () => setScreening(defaultScreening) : undefined
+            }
+          />
         </div>
 
         {error ? (

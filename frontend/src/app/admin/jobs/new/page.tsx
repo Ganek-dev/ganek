@@ -2,12 +2,31 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { JobForm } from "@/components/JobForm";
-import { api } from "@/lib/api";
+import { api, companyApi, type ScreeningQuestion } from "@/lib/api";
 
 export default function NewJobPage() {
   const router = useRouter();
+  // the company default screening questions prefill the editor; the server
+  // copies them too when a client omits the field, so a failed fetch only
+  // costs the prefill
+  const [defaults, setDefaults] = useState<ScreeningQuestion[] | null>(null);
+  useEffect(() => {
+    companyApi
+      .summary()
+      .then((summary) => setDefaults(summary.screening_questions))
+      .catch(() => setDefaults([]));
+  }, []);
+  if (defaults === null) {
+    return (
+      <section aria-busy="true" className="space-y-5">
+        <div className="h-6 w-40 animate-pulse rounded-md bg-muted-fill" />
+        <div className="h-64 animate-pulse rounded-md bg-muted-fill" />
+      </section>
+    );
+  }
   return (
     <section className="space-y-5">
       <div>
@@ -22,6 +41,7 @@ export default function NewJobPage() {
         </h1>
       </div>
       <JobForm
+        defaultScreening={defaults}
         submitLabel="Create job"
         onSubmit={async (values) => {
           const created = await api.jobs.create(values);

@@ -16,6 +16,15 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
+    companyApi: {
+      ...original.companyApi,
+      summary: vi.fn().mockResolvedValue({
+        slug: "acme",
+        name: "Acme",
+        mode: "single",
+        screening_questions: [],
+      }),
+    },
     api: {
       ...original.api,
       jobs: {
@@ -36,6 +45,7 @@ const mockedJobs = vi.mocked(api.jobs);
 
 function makeJob(overrides: Partial<JobOut>): JobOut {
   return {
+    screening_questions: [],
     id: "11111111-1111-1111-1111-111111111111",
     slug: "senior-frontend-engineer",
     title: "Senior Frontend Engineer",

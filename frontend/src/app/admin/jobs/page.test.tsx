@@ -35,6 +35,7 @@ const CLOSED_ID = "33333333-3333-3333-3333-333333333333";
 
 function makeJob(overrides: Partial<JobOut>): JobOut {
   return {
+    screening_questions: [],
     id: LIVE_ID,
     slug: "job",
     title: "Job",

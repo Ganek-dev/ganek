@@ -86,6 +86,7 @@ const OLDER = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
 function makeApp(overrides: Partial<ApplicationOut>): ApplicationOut {
   return {
+    screening_answers: [],
     id: "app-1",
     job_id: "job-1",
     candidate: {

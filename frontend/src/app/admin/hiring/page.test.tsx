@@ -22,6 +22,7 @@ const mocked = vi.mocked(companyApi);
 
 function makeCompany(settings: CompanyAdmin["settings"] = {}): CompanyAdmin {
   return {
+    screening_questions: [],
     slug: "acmelabs",
     mode: "single" as const,
     smtp_configured: true,
@@ -79,5 +80,41 @@ describe("HiringSettingsPage", () => {
       "aria-checked",
       "true",
     );
+  });
+});
+
+describe("HiringSettingsPage default screening questions", () => {
+  const PERMIT = {
+    id: "sq_0000aa01",
+    type: "yes_no" as const,
+    prompt: "Can you work in Germany?",
+    options: null,
+    preferred: "yes",
+    required: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.get.mockResolvedValue({ ...makeCompany(), screening_questions: [PERMIT] });
+    mocked.updateSettings.mockResolvedValue({ ...makeCompany(), screening_questions: [] });
+  });
+
+  it("loads the company set into the editor and explains the copy rule", async () => {
+    render(<HiringSettingsPage />);
+    expect(await screen.findByLabelText("Prompt")).toHaveValue("Can you work in Germany?");
+    expect(
+      screen.getByText("New jobs start with these. Existing jobs keep their own list."),
+    ).toBeInTheDocument();
+  });
+
+  it("saves the edited set as the whole list", async () => {
+    render(<HiringSettingsPage />);
+    await screen.findByLabelText("Prompt");
+    await userEvent.click(screen.getByRole("button", { name: "Remove question 1" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save default questions" }));
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenCalledWith({ screening_questions: [] }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved");
   });
 });
