@@ -215,3 +215,9 @@ def test_no_questions_no_answers_is_empty_and_extra_answers_refused() -> None:
     assert build_answers([], []) == []
     with pytest.raises(InvalidAnswers):
         build_answers([], [A("sq_00000001", "yes")])
+
+
+def test_non_object_elements_are_refused_not_crashed() -> None:
+    for bad in (["x"], [1], [None], [{"type": "yes_no", "prompt": "ok"}, "x"]):
+        with pytest.raises(ValueError, match="object"):
+            validate_questions(bad)  # type: ignore[arg-type]
