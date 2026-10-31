@@ -92,3 +92,12 @@ describe("PrivacyNotice", () => {
     expect(screen.getByText(/sets no cookies and runs no analytics/)).toBeInTheDocument();
   });
 });
+
+describe("PrivacyNotice screening questions", () => {
+  it("lists the answers to the job's screening questions among the application data", () => {
+    render(<PrivacyNotice notice={makeNotice()} backHref="/" />);
+    expect(
+      screen.getByText(/your answers to the job's screening questions/),
+    ).toBeInTheDocument();
+  });
+});
