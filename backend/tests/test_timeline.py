@@ -3,6 +3,7 @@
 the quiz attempts into one trail, newest first. One test per event source.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -179,7 +180,42 @@ async def test_emails_come_from_the_outbox_with_their_state(client: AsyncClient)
         payload = row["payload"]
         assert isinstance(payload, dict)
         assert payload["status"] in {"queued", "sent", "failed", "suppressed"}
-        assert set(payload) == {"template", "status", "attempts", "last_error"}
+        assert set(payload) == {"template", "status", "attempts", "last_error", "subject", "text"}
+    # the eager test path renders at delivery, so the text is on the row (PR 4)
+    reminder = emails[0]["payload"]
+    assert isinstance(reminder, dict)
+    assert str(reminder["subject"]).startswith("Your assessment link expires")
+    # the candidate's signed link is masked: members read the mail, never
+    # hold the capability (same rule as the preview)
+    link = re.search(r"Take it now: (\S+)", str(reminder["text"]))
+    assert link is not None and link.group(1).endswith("/quiz/personal-link"), reminder["text"]
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_emails_endpoint_returns_the_rendered_fields(client: AsyncClient) -> None:
+    creds, base = await _company(client, quiz=True)
+    await _apply(client, base)
+    application_id = await _login_and_id(client, creds)
+    assert (await client.post(f"/api/v1/applications/{application_id}/remind")).status_code == 200
+
+    resp = await client.get(f"/api/v1/applications/{application_id}/emails")
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    reminder = next(row for row in rows if row["kind"] == "quiz_reminder")
+    assert set(reminder) == {
+        "id",
+        "kind",
+        "status",
+        "attempts",
+        "last_error",
+        "created_at",
+        "sent_at",
+        "subject",
+        "text",
+    }
+    assert reminder["subject"].startswith("Your assessment link expires")
+    link = re.search(r"Take it now: (\S+)", reminder["text"])
+    assert link is not None and link.group(1).endswith("/quiz/personal-link"), reminder["text"]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

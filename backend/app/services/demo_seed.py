@@ -27,10 +27,12 @@ import random
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import urls
 from app.core.config import settings
 from app.core.db import SessionFactory
 from app.core.security import hash_password
@@ -41,6 +43,8 @@ from app.models import (
     ApplicationStage,
     AttemptAnswer,
     Company,
+    EmailOutbox,
+    EmailStatus,
     Job,
     JobView,
     QuizAttempt,
@@ -49,10 +53,12 @@ from app.models import (
 )
 from app.schemas.jobs import JobCreate, QuizConfigSchema
 from app.schemas.public import ApplicationSubmit
-from app.services import activity, storage
+from app.services import activity, email_render, storage
 from app.services import applications as applications_service
+from app.services import company as company_service
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
+from app.services.email_templates import PREVIEW_LINK_PLACEHOLDER
 
 logger = logging.getLogger(__name__)
 
@@ -472,6 +478,7 @@ async def seed(
         # oldest applicants first in the list, the newest a few hours ago
         days_ago = 20.0 - index * (19.0 / max(1, len(CANDIDATES) - 1)) + rng.uniform(-0.3, 0.3)
         await _backdate(db, application, timedelta(days=max(0.1, days_ago)))
+        await _seed_sent_mail(db, company, application, job, cand.stage)
 
     views = await _seed_views(db, jobs, rng)
     return SeedResult(
@@ -481,6 +488,60 @@ async def seed(
         attempts=attempts,
         views=views,
     )
+
+
+_MAIL_KIND_FOR_STAGE = {
+    ApplicationStage.INTERVIEW: "stage_advance",
+    ApplicationStage.REJECTED: "rejection",
+}
+
+
+async def _seed_sent_mail(
+    db: AsyncSession, company: Company, application: Application, job: Job, stage: ApplicationStage
+) -> None:
+    """One delivered stage mail per interview or rejected applicant, rendered
+    from the built-in template, so the demo timeline shows a subject and the
+    text (PR 4). A demo instance never mails, so the rows are written here.
+    The links carry the preview placeholder, never a real token."""
+    kind = _MAIL_KIND_FOR_STAGE.get(stage)
+    if kind is None:
+        return
+    await db.refresh(application, ["candidate", "quiz_attempts", "stage_changed_at"])
+    context: dict[str, Any] = {
+        "candidate_name": application.candidate.name,
+        "job_title": job.title,
+        "company_name": company.name,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
+    if kind == "stage_advance":
+        context.update(
+            brand_primary=(company.theme or {}).get("primary_color"),
+            status_url=urls.status_url(company, PREVIEW_LINK_PLACEHOLDER),
+        )
+    else:
+        attempt = application.quiz_attempt
+        context.update(
+            careers_url=urls.careers_url(company),
+            completed_assessment=attempt is not None and attempt.completed_at is not None,
+        )
+    rendered = email_render.render(kind, email_render.BUILTIN[kind], context)
+    sent_at = application.stage_changed_at + timedelta(minutes=1)
+    db.add(
+        EmailOutbox(
+            company_id=company.id,
+            application_id=application.id,
+            kind=kind,
+            payload={"to": application.candidate.email, "ref": str(application.id), **context},
+            status=EmailStatus.SENT,
+            attempts=1,
+            created_at=sent_at,
+            sent_at=sent_at,
+            rendered_subject=rendered.subject,
+            rendered_text=rendered.text,
+        )
+    )
+    await db.commit()
 
 
 async def _seed_views(db: AsyncSession, jobs: list[Job], rng: random.Random) -> int:

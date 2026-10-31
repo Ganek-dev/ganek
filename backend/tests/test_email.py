@@ -48,6 +48,26 @@ def test_noop_without_smtp_host(monkeypatch: pytest.MonkeyPatch) -> None:
     email_service.send_email(to="x@example.com", subject="s", body="b")
 
 
+def test_send_email_sets_reply_to_header_and_records_the_rendering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_email(
+        to="jane@example.com",
+        subject="Quick question",
+        body="Hi Jane",
+        reply_to="erika@acme.example",
+    )
+    assert FakeSMTP.sent[0]["Reply-To"] == "erika@acme.example"
+    # outbox.dispatch reads this to store the mail text on the row (PR 4)
+    assert email_service.last_rendered.get() == ("Quick question", "Hi Jane")
+
+    email_service.send_email(to="jane@example.com", subject="s", body="b")
+    assert FakeSMTP.sent[1]["Reply-To"] is None
+
+
 def test_sends_via_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
     monkeypatch.setattr(settings, "smtp_user", "mailer")

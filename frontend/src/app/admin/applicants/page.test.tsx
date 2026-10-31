@@ -40,6 +40,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
       accessLog: vi.fn(),
       remind: vi.fn(),
       emailPreview: vi.fn(),
+      sendMessage: vi.fn(),
+      messagePreview: vi.fn(),
       bulkReject: vi.fn(),
       bulkStage: vi.fn(),
       eraseCandidate: vi.fn(),
@@ -221,6 +223,7 @@ describe("ApplicantsPage", () => {
       subject: "Your application to ACME Ganek",
       text: "Thank you, Jane Applicant",
       html: "",
+      body: "Thank you, Jane Applicant",
     });
     mockedApps.bulkStage.mockResolvedValue({ updated: 2, skipped: 0 });
     mockedApps.eraseCandidate.mockResolvedValue({ applications: 2, google_event_failures: 0 });
@@ -564,6 +567,58 @@ describe("ApplicantsPage", () => {
       expect(screen.queryByRole("dialog", { name: "Reject Jane Applicant" })).not.toBeInTheDocument(),
     );
     expect(mockedApps.setStage).not.toHaveBeenCalled();
+  });
+
+  it("an edited rejection email reaches setStage as subject and body", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit this email" }));
+    const subject = within(dialog).getByRole("textbox", { name: "Subject" });
+    await userEvent.clear(subject);
+    await userEvent.type(subject, "About your application");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reject and send email" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith(
+        "app-1",
+        "rejected",
+        true,
+        expect.objectContaining({ subject: "About your application", body: "Thank you, Jane Applicant" }),
+      ),
+    );
+  });
+
+  it("Send a message opens the dialog, sends, toasts and refetches the timeline", async () => {
+    mockedApps.sendMessage.mockResolvedValue({ queued: true });
+    mockedApps.messagePreview.mockResolvedValue({
+      kind: "message",
+      subject: "Quick question",
+      body: "Hi Jane",
+      text: "Hi Jane\n\n- ACME Ganek\n",
+      html: "",
+    });
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    const timelineCalls = mockedApps.timeline.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Send a message" }));
+    const dialog = await screen.findByRole("dialog", { name: "Message to Jane Applicant" });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Subject" }), "Quick question");
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Body" }), "Hi Jane");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(mockedApps.sendMessage).toHaveBeenCalledWith("app-1", {
+        subject: "Quick question",
+        body: "Hi Jane",
+      }),
+    );
+    expect(await screen.findByText("Message sent.")).toBeInTheDocument();
+    await waitFor(() => expect(mockedApps.timeline.mock.calls.length).toBeGreaterThan(timelineCalls));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Message to Jane Applicant" })).not.toBeInTheDocument(),
+    );
   });
 
   it("Reject with the checkbox sends the reason with the email", async () => {

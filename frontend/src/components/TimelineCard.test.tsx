@@ -129,4 +129,56 @@ describe("TimelineCard", () => {
     expect(await screen.findByText("The timeline could not be loaded.")).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
+
+  it("shows the subject under an email row and the text behind Show text", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({
+        kind: "email",
+        payload: {
+          template: "rejection",
+          status: "sent",
+          attempts: 1,
+          last_error: null,
+          subject: "Your application to ACME",
+          text: "Thank you, Jane\n\nSee open positions: https://x",
+        },
+      }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const [row] = await screen.findAllByRole("listitem");
+    expect(row).toHaveTextContent("Rejection email sent");
+    expect(screen.getByText("Your application to ACME")).toBeInTheDocument();
+    const disclosure = screen.getByText("Show text");
+    expect(disclosure.tagName).toBe("SUMMARY");
+    expect(screen.getByText(/See open positions: https:\/\/x/)).toBeInTheDocument();
+  });
+
+  it("shows no subject or disclosure while the text is not rendered yet", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "email", payload: { template: "quiz_invite", status: "queued", attempts: 0, last_error: null, subject: null, text: null } }),
+      event({ kind: "email", payload: { template: "rejection", status: "suppressed", attempts: 0, last_error: "suppressed", subject: null, text: null } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Assessment invite email queued");
+    expect(items[1]).toHaveTextContent("Rejection email skipped: address suppressed");
+    expect(screen.queryByText("Show text")).not.toBeInTheDocument();
+    for (const item of items) expect(item.textContent).not.toContain("null");
+  });
+
+  it("labels a one-off message and its activity row", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "email.message", at: "2026-10-29T11:50:00Z", payload: { subject: "Quick question" }, ...ERIKA }),
+      event({
+        kind: "email",
+        at: "2026-10-29T11:49:00Z",
+        payload: { template: "message", status: "sent", attempts: 1, last_error: null, subject: "Quick question", text: "Hi Jane" },
+      }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Erika Muster sent a message");
+    expect(items[1]).toHaveTextContent("Message email sent");
+    expect(items[1]).toHaveTextContent("Quick question");
+  });
 });

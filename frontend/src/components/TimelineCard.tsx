@@ -29,6 +29,7 @@ const EMAIL_LABELS: Record<string, string> = {
   rejection: "Rejection",
   interview_invite: "Interview booking link",
   interview_cancelled: "Interview cancellation",
+  message: "Message",
 };
 
 type Tone = "stage" | "quiz" | "note" | "sent" | "waiting" | "failed" | "neutral";
@@ -66,11 +67,18 @@ function stageName(value: unknown): string {
   return STAGE_LABELS[String(value)] ?? String(value);
 }
 
+function nonEmpty(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 export function describeEvent(event: TimelineEvent): {
   text: string;
   tone: Tone;
-  /** A second line under the row: the internal rejection note. */
+  /** A second line under the row: the internal rejection note, or an
+   * email's subject. */
   detail?: string;
+  /** The email's plain text, behind a "Show text" disclosure (PR 4). */
+  body?: string;
 } {
   const p = event.payload;
   switch (event.kind) {
@@ -108,8 +116,16 @@ export function describeEvent(event: TimelineEvent): {
     case "email": {
       const state = EMAIL_STATE[String(p.status)] ?? EMAIL_STATE.queued;
       const name = EMAIL_LABELS[String(p.template)] ?? String(p.template);
-      return { text: `${name} email ${state.label(p)}`, tone: state.tone };
+      // subject and text are set once the row was rendered at delivery
+      return {
+        text: `${name} email ${state.label(p)}`,
+        tone: state.tone,
+        detail: nonEmpty(p.subject),
+        body: nonEmpty(p.text),
+      };
     }
+    case "email.message":
+      return { text: `${who(event)} sent a message`, tone: "sent" };
     case "note.added":
       return { text: `${who(event)} added a note`, tone: "note" };
     case "interview.requested":
@@ -187,7 +203,7 @@ export function TimelineCard({
         <>
           <ol className="mt-2.5 space-y-1.5">
             {visible.map((event) => {
-              const { text, tone, detail } = describeEvent(event);
+              const { text, tone, detail, body } = describeEvent(event);
               return (
                 <li key={event.id} className="text-[13px]">
                   <div className="flex items-baseline gap-2">
@@ -206,6 +222,16 @@ export function TimelineCard({
                   </div>
                   {detail ? (
                     <p className="ml-3.5 whitespace-pre-wrap text-[12px] text-g500">{detail}</p>
+                  ) : null}
+                  {body ? (
+                    <details className="ml-3.5">
+                      <summary className="cursor-pointer text-[12px] text-g600 underline hover:text-accent">
+                        Show text
+                      </summary>
+                      <pre className="mt-1 rounded-md border border-edge bg-muted-fill p-2 font-mono text-[11.5px] leading-[17px] whitespace-pre-wrap text-g700">
+                        {body}
+                      </pre>
+                    </details>
                   ) : null}
                 </li>
               );

@@ -45,6 +45,9 @@ class OutboundMessage:
     # outbox row id, when known: rides along as the provider's custom id so
     # bounce and complaint events can be mapped back to the row
     outbox_id: str | None = None
+    # one-off messages answer to the recruiter who wrote them (PR 4);
+    # stage mail carries none
+    reply_to: str | None = None
 
 
 class EmailProvider(Protocol):
@@ -71,6 +74,8 @@ class SmtpProvider:
         mime["From"] = settings.email_from
         mime["To"] = message.to
         mime["Subject"] = message.subject
+        if message.reply_to is not None:
+            mime["Reply-To"] = message.reply_to
         mime.set_content(message.text)
         if message.html is not None:
             mime.add_alternative(message.html, subtype="html")
@@ -135,6 +140,8 @@ class MailjetProvider:
             entry["HTMLPart"] = message.html
         if message.outbox_id is not None:
             entry["CustomID"] = message.outbox_id
+        if message.reply_to is not None:
+            entry["ReplyTo"] = {"Email": message.reply_to}
         credentials = f"{settings.mailjet_api_key}:{settings.mailjet_secret_key}".encode()
         response = _http_post_json(
             MAILJET_SEND_URL,

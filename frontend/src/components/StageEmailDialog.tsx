@@ -47,6 +47,8 @@ type State =
 type Fetched = { templateId: string; state: State };
 const PREVIEW_DEBOUNCE_MS = 300;
 export const BUILTIN_TEMPLATE = "builtin";
+export const EDIT_HELPER =
+  "Edited for this send. The link and the privacy footer are always added by Ganek.";
 
 export function StageEmailDialog({
   open,
@@ -73,6 +75,10 @@ export function StageEmailDialog({
   const [templates, setTemplates] = useState<EmailTemplate[] | null>(null);
   const [templateId, setTemplateId] = useState(BUILTIN_TEMPLATE);
   const [fetched, setFetched] = useState<Fetched | null>(null);
+  // "Edit this email" (PR 4): the recruiter's literal text for this send
+  // only, prefilled from the rendered preview; null while the template text
+  // is used as is
+  const [edit, setEdit] = useState<{ subject: string; body: string } | null>(null);
   const kind = KIND_FOR[stage];
 
   useEffect(() => {
@@ -121,11 +127,13 @@ export function StageEmailDialog({
   const state: State =
     fetched !== null && fetched.templateId === templateId ? fetched.state : { kind: "loading" };
 
+  const editBlank = edit !== null && (!edit.subject.trim() || !edit.body.trim());
   const confirm = () =>
     onConfirm({
       rejectionReason: reason || null,
       rejectionNote: note.trim() || null,
       ...(hasTemplates ? { templateId } : {}),
+      ...(edit ? { subject: edit.subject.trim(), body: edit.body.trim() } : {}),
     });
 
   return (
@@ -149,8 +157,10 @@ export function StageEmailDialog({
               Template
               <select
                 value={templateId}
+                disabled={edit !== null}
+                title={edit ? "Leave the edit to pick a template" : undefined}
                 onChange={(e) => setTemplateId(e.target.value)}
-                className="mt-1 block h-8 w-full rounded-md border border-edge bg-surface px-2 text-[13px] font-normal text-foreground"
+                className="mt-1 block h-8 w-full rounded-md border border-edge bg-surface px-2 text-[13px] font-normal text-foreground disabled:opacity-60"
               >
                 <option value={BUILTIN_TEMPLATE}>Ganek default</option>
                 {templates?.map((template) => (
@@ -161,7 +171,40 @@ export function StageEmailDialog({
               </select>
             </label>
           ) : null}
-          {state.kind === "loading" ? (
+          {edit ? (
+            <div className="space-y-2">
+              <label className="block text-[13px] font-medium text-g700">
+                Subject
+                <input
+                  type="text"
+                  value={edit.subject}
+                  maxLength={200}
+                  onChange={(e) => setEdit({ ...edit, subject: e.target.value })}
+                  className="mt-1 block h-8 w-full rounded-md border border-edge bg-surface px-2 text-[13px] font-normal text-foreground"
+                />
+              </label>
+              <label className="block text-[13px] font-medium text-g700">
+                Body
+                <textarea
+                  value={edit.body}
+                  maxLength={10000}
+                  rows={8}
+                  onChange={(e) => setEdit({ ...edit, body: e.target.value })}
+                  className="mt-1 block w-full rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[12px] leading-[18px] font-normal text-foreground"
+                />
+              </label>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11.5px] text-g500">{EDIT_HELPER}</p>
+                <button
+                  type="button"
+                  onClick={() => setEdit(null)}
+                  className="shrink-0 text-[12px] text-g600 underline hover:text-accent"
+                >
+                  Use the template text
+                </button>
+              </div>
+            </div>
+          ) : state.kind === "loading" ? (
             <div aria-busy="true" aria-label="Loading preview" className="space-y-2">
               <div className="h-5 w-64 animate-pulse rounded-sm bg-muted-fill" />
               <div className="h-40 animate-pulse rounded-md bg-muted-fill" />
@@ -181,6 +224,15 @@ export function StageEmailDialog({
               >
                 {state.preview.text}
               </pre>
+              <button
+                type="button"
+                onClick={() =>
+                  setEdit({ subject: state.preview.subject, body: state.preview.body })
+                }
+                className="mt-2 text-[12px] text-g600 underline hover:text-accent"
+              >
+                Edit this email
+              </button>
             </>
           )}
         </div>
@@ -225,7 +277,7 @@ export function StageEmailDialog({
           <button
             type="button"
             onClick={confirm}
-            disabled={email && state.kind === "loading"}
+            disabled={(email && state.kind === "loading") || editBlank}
             className="inline-flex h-8 items-center rounded-md bg-accent px-3.5 text-[13px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
           >
             {email ? CONFIRM_LABEL[stage] : CONFIRM_LABEL_SILENT[stage]}

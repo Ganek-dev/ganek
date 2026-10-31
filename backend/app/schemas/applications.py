@@ -143,16 +143,36 @@ class RejectionFields(BaseModel):
         return self.rejection_reason is not None or self.rejection_note is not None
 
 
+def _blank_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 class StageUpdate(RejectionFields):
     stage: ApplicationStage
     # opt-in: emails the candidate for stages with a template (22a/22b);
     # silently ignored for the rest
     notify_candidate: bool = False
+    # one-off edit of this send (PR 4): literal text, no placeholder
+    # processing, never saved to a template; both or neither
+    subject: str | None = Field(default=None, max_length=200)
+    body: str | None = Field(default=None, max_length=10000)
+
+    @field_validator("subject", "body")
+    @classmethod
+    def _strip_override(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
 
     @model_validator(mode="after")
     def _reason_needs_rejected(self) -> "StageUpdate":
         if self.has_reason and self.stage is not ApplicationStage.REJECTED:
             raise ValueError("rejection reason needs the rejected stage")
+        if (self.subject is None) != (self.body is None):
+            raise ValueError("Subject and body go together")
+        if self.subject is not None and ("\n" in self.subject or "\r" in self.subject):
+            raise ValueError("Subject must be one line")
         return self
 
 
@@ -196,25 +216,64 @@ class BulkStageOut(BaseModel):
 
 
 EmailKind = Literal["quiz_invite", "quiz_reminder", "stage_advance", "rejection"]
+# a preview can also be a one-off message (PR 4); only the four stage kinds
+# are templated and selectable on GET /email-preview
+PreviewKind = EmailKind | Literal["message"]
 
 
 class EmailPreviewOut(BaseModel):
     """A candidate stage mail rendered for one application: what the
     recruiter reads in the preview and what the sender delivers."""
 
-    kind: EmailKind
+    kind: PreviewKind
     subject: str
     text: str
     html: str
+    # the template part alone (before the fixed action block): what "Edit
+    # this email" prefills (PR 4)
+    body: str
+
+
+class MessageIn(BaseModel):
+    """A recruiter's one-off message to a candidate (PR 4): literal text,
+    no placeholders, stripped; a blank field is a 422 naming it."""
+
+    subject: str = Field(max_length=200)
+    body: str = Field(max_length=10000)
+
+    @field_validator("subject")
+    @classmethod
+    def _subject(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Subject is required")
+        if "\n" in stripped or "\r" in stripped:
+            raise ValueError("Subject must be one line")
+        return stripped
+
+    @field_validator("body")
+    @classmethod
+    def _body(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Body is required")
+        return stripped
+
+
+class MessageOut(BaseModel):
+    # False on a demo instance, where nothing is ever mailed
+    queued: bool
 
 
 class EmailDeliveryOut(BaseModel):
     """One outbox row for the applicant panel's delivery trail (M5.7 H4).
 
     Deliberately WITHOUT the payload - the panel needs kind + state, not
-    the stored kwargs (which carry capability URLs)."""
+    the stored kwargs (which carry capability URLs). ``subject`` and
+    ``text`` are the mail as rendered at delivery (PR 4), None before, with
+    the candidate's signed links masked like the preview."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: uuid.UUID
     kind: str
@@ -223,6 +282,8 @@ class EmailDeliveryOut(BaseModel):
     last_error: str | None
     created_at: datetime
     sent_at: datetime | None
+    subject: str | None = Field(default=None, validation_alias="rendered_subject")
+    text: str | None = Field(default=None, validation_alias="rendered_text")
 
 
 class CvDownload(BaseModel):

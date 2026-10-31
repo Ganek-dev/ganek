@@ -486,6 +486,10 @@ export interface RejectionFields {
  * for the kind's default. Undefined keys are not sent at all. */
 export interface StageFields extends RejectionFields {
   templateId?: string | null;
+  /** One-off edit of this send (PR 4): literal text, both or neither,
+   * never saved to the template. Single moves only; bulk ignores them. */
+  subject?: string;
+  body?: string;
 }
 
 function rejectionBody(fields: StageFields): Record<string, unknown> {
@@ -493,6 +497,8 @@ function rejectionBody(fields: StageFields): Record<string, unknown> {
   if (fields.rejectionReason !== undefined) body.rejection_reason = fields.rejectionReason;
   if (fields.rejectionNote !== undefined) body.rejection_note = fields.rejectionNote;
   if (fields.templateId !== undefined) body.template_id = fields.templateId;
+  if (fields.subject !== undefined) body.subject = fields.subject;
+  if (fields.body !== undefined) body.body = fields.body;
   return body;
 }
 
@@ -611,12 +617,22 @@ function applicationParams(filters: ApplicationFilters | undefined): URLSearchPa
 }
 
 export type EmailKind = "quiz_invite" | "quiz_reminder" | "stage_advance" | "rejection";
+/** A preview can also be a one-off message (PR 4). */
+export type PreviewKind = EmailKind | "message";
 
 export interface EmailPreview {
-  kind: EmailKind;
+  kind: PreviewKind;
   subject: string;
   text: string;
   html: string;
+  /** The template part alone, before the fixed action block: what "Edit
+   * this email" prefills. */
+  body: string;
+}
+
+export interface MessageInput {
+  subject: string;
+  body: string;
 }
 
 export const applications = {
@@ -655,6 +671,19 @@ export const applications = {
       `/api/v1/applications/${id}/email-preview?kind=${kind}` +
         (templateId ? `&template_id=${encodeURIComponent(templateId)}` : ""),
     ),
+  /** A one-off message to the candidate (PR 4); replies go to the sender.
+   * `queued` is false on a demo instance, where nothing is mailed. */
+  sendMessage: (id: string, payload: MessageInput) =>
+    request<{ queued: boolean }>(`/api/v1/applications/${id}/message`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  /** The one-off message as the candidate would receive it; nothing is queued. */
+  messagePreview: (id: string, payload: MessageInput) =>
+    request<EmailPreview>(`/api/v1/applications/${id}/message/preview`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
   remind: (id: string) =>

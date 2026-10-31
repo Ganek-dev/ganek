@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Clock,
   Download,
+  Mail,
   FileText,
   X,
 } from "lucide-react";
@@ -22,10 +23,10 @@ import {
   emailTemplates,
   type ApplicationOut,
   type ApplicationStage,
+  type MessageInput,
   type EmailKind,
   type EmailKindInfo,
   type EmailTemplate,
-  type RejectionFields,
   type StageFields,
   type IntegrityFlag,
   type JobOut,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/applicant-filters";
 import { relativeTime } from "@/lib/time";
 import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/ApplicantChips";
+import { MessageDialog } from "@/components/MessageDialog";
 import { BUILTIN_TEMPLATE, REASON_HELPER, StageEmailDialog } from "@/components/StageEmailDialog";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
@@ -785,18 +787,21 @@ function DetailPanel({
   onExport,
   onErase,
   onUpdateEmail,
+  onSendMessage,
   now,
   trailTick,
 }: {
   app: ApplicationOut;
   jobTitle: string;
   answers: QuizAnswerReview[] | null;
-  onStage: (stage: ApplicationStage, notify: boolean, fields?: RejectionFields) => void;
+  onStage: (stage: ApplicationStage, notify: boolean, fields?: StageFields) => void;
   onDownloadCv: () => void;
   onRemind: () => Promise<boolean>;
   onExport: () => void;
   onErase: () => Promise<boolean>;
   onUpdateEmail: (email: string) => Promise<string | null>;
+  /** A one-off message (PR 4): resolves to an error to show, or null. */
+  onSendMessage: (fields: MessageInput) => Promise<string | null>;
   now: Date;
   trailTick: number;
 }) {
@@ -822,6 +827,9 @@ function DetailPanel({
   const [confirmingErase, setConfirmingErase] = useState(false);
   const [eraseBusy, setEraseBusy] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  // "Send a message" (PR 4): the counter re-keys the dialog per opening
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [messageOpening, setMessageOpening] = useState(0);
   const [emailDraft, setEmailDraft] = useState(app.candidate.email);
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -941,6 +949,17 @@ function DetailPanel({
             </Menu>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setMessageOpening((n) => n + 1);
+                setMessageOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-accent hover:underline"
+            >
+              <Mail aria-hidden className="h-3 w-3" />
+              Send a message
+            </button>
             {app.quiz_attempt?.status === "pending" ? (
               reminded ? (
                 <span className="font-mono text-[11px] text-g500">Reminder sent</span>
@@ -1036,6 +1055,18 @@ function DetailPanel({
           </form>
         </DialogContent>
       </Dialog>
+      <MessageDialog
+        key={`message-${messageOpening}`}
+        open={messageOpen}
+        applicationId={app.id}
+        candidateName={app.candidate.name}
+        onSend={async (fields) => {
+          const result = await onSendMessage(fields);
+          if (result === null) setMessageOpen(false);
+          return result;
+        }}
+        onCancel={() => setMessageOpen(false)}
+      />
       <StageEmailDialog
         key={dialog ? `${dialog.stage}-${dialog.email}` : "closed"}
         open={dialog !== null}
@@ -1306,7 +1337,7 @@ function ApplicantsContent() {
     id: string,
     stage: ApplicationStage,
     notify: boolean,
-    fields?: RejectionFields,
+    fields?: StageFields,
   ) {
     setError(null);
     const before = items?.find((row) => row.id === id) ?? null;
@@ -1356,6 +1387,17 @@ function ApplicantsContent() {
       setError(err instanceof Error ? err.message : "Reminder failed");
       return false;
     }
+  }
+
+  async function sendMessage(id: string, fields: MessageInput): Promise<string | null> {
+    try {
+      await applications.sendMessage(id, fields);
+    } catch (err) {
+      return err instanceof Error ? err.message : "Message failed";
+    }
+    setTrailTick((tick) => tick + 1);
+    setToast({ id: Date.now(), text: "Message sent." });
+    return null;
   }
 
   async function downloadCv(id: string) {
@@ -1662,6 +1704,7 @@ function ApplicantsContent() {
             onExport={() => void downloadDsar(selected)}
             onErase={() => eraseCandidate(selected.id)}
             onUpdateEmail={(email) => updateCandidateEmail(selected.id, email)}
+            onSendMessage={(fields) => sendMessage(selected.id, fields)}
             now={now}
             trailTick={trailTick}
           />

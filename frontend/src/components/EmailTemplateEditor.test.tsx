@@ -46,6 +46,7 @@ describe("EmailTemplateEditor", () => {
       kind: "rejection" as const,
       subject: subject.replace("{{candidate_first_name}}", "Alex"),
       text: body.replace("{{candidate_first_name}}", "Alex") + "\n\nSee open positions",
+      body: body.replace("{{candidate_first_name}}", "Alex"),
       html: "<p>x</p>",
     }));
     mocked.create.mockResolvedValue({

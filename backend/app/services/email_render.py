@@ -64,6 +64,9 @@ class Rendered:
     subject: str
     text: str
     html: str
+    # the template part alone (paragraphs before the action block): what
+    # "Edit this email" prefills (PR 4)
+    body: str = ""
 
 
 class TemplateError(ValueError):
@@ -168,22 +171,27 @@ def _values(kind: str, context: dict[str, Any]) -> dict[str, str]:
 _BOLD = '<b style="font-weight: 600;">'
 
 
-def _substitute(text: str, values: dict[str, str], *, html: bool = False) -> str:
+def _substitute(
+    text: str, values: dict[str, str], *, html: bool = False, literal: bool = False
+) -> str:
     """Resolve placeholders. In HTML mode every literal segment and every
     value is escaped separately (a template is plain text, never markup),
-    and the job title keeps the designed bold span."""
+    and the job title keeps the designed bold span. ``literal`` keeps the
+    text as typed, braces included (one-off edits, PR 4)."""
+    if literal:
+        return _text(text) if html else text
     out: list[str] = []
     position = 0
     for match in _TOKEN.finditer(text):
         name = match.group(1)
         if name not in values:
             raise KeyError(f"no value for placeholder {name!r}")
-        literal = text[position : match.start()]
+        segment = text[position : match.start()]
         value = values[name]
         if html:
-            literal = _text(literal)
+            segment = _text(segment)
             value = _BOLD + _text(value) + "</b>" if name == "job_title" else _text(value)
-        out.append(literal)
+        out.append(segment)
         out.append(value)
         position = match.end()
     tail = text[position:]
@@ -280,18 +288,22 @@ def _action_block(
     return text, html
 
 
-def render(kind: str, template: Template, context: dict[str, Any]) -> Rendered:
+def render(
+    kind: str, template: Template, context: dict[str, Any], *, literal: bool = False
+) -> Rendered:
     """Subject, plain text and HTML for one candidate email.
 
     ``context`` is the sender's keyword arguments minus ``to`` and ``ref``.
+    ``literal`` renders the template's text as typed, no placeholder
+    processing: a recruiter's one-off edit of a send (PR 4).
     """
     if kind not in PLACEHOLDERS:
         raise ValueError(f"unknown email kind {kind!r}")
     values = _values(kind, context)
-    subject = _substitute(template.subject, values)
-    paragraphs = _paragraphs(_substitute(template.body, values))
+    subject = _substitute(template.subject, values, literal=literal)
+    paragraphs = _paragraphs(_substitute(template.body, values, literal=literal))
     heading, rest = (paragraphs[0], paragraphs[1:]) if paragraphs else ("", [])
-    html_paragraphs = _paragraphs(_substitute(template.body, values, html=True))
+    html_paragraphs = _paragraphs(_substitute(template.body, values, html=True, literal=literal))
     html_heading, html_rest = (
         (html_paragraphs[0], html_paragraphs[1:]) if html_paragraphs else ("", [])
     )
@@ -304,12 +316,8 @@ def render(kind: str, template: Template, context: dict[str, Any]) -> Rendered:
         bar = brand
     action_text, action_html = _action_block(kind, context, values, brand, brand_fg)
 
-    text = (
-        "\n\n".join([heading, *rest])
-        + "\n\n"
-        + action_text
-        + privacy_text(context.get("privacy_url"))
-    )
+    body = "\n\n".join([heading, *rest])
+    text = body + "\n\n" + action_text + privacy_text(context.get("privacy_url"))
     content = (
         f'<h1 style="{_H1_STYLE}">{html_heading}</h1>'
         + "".join(paragraph(part.replace("\n", "<br>")) for part in html_rest)
@@ -325,4 +333,27 @@ def render(kind: str, template: Template, context: dict[str, Any]) -> Rendered:
         safe_controller=_text(str(controller)) if controller else None,
         privacy_url=context.get("privacy_url"),
     )
-    return Rendered(subject=subject, text=text, html=html)
+    return Rendered(subject=subject, text=text, html=html, body=body)
+
+
+def render_message(subject: str, body: str, context: dict[str, Any]) -> Rendered:
+    """A recruiter's one-off message (PR 4): literal text in the neutral
+    card, no heading, no action block, the company sign-off and the privacy
+    footer. ``context`` carries ``company_name``, ``controller_name`` and
+    ``privacy_url``."""
+    company = str(context.get("company_name") or "")
+    paragraphs = _paragraphs(body)
+    body_text = "\n\n".join(paragraphs)
+    text = body_text + f"\n\n- {company}\n" + privacy_text(context.get("privacy_url"))
+    content = "".join(paragraph(_text(part).replace("\n", "<br>")) for part in paragraphs)
+    controller = context.get("controller_name")
+    html = card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=_text(company),
+        content=content,
+        safe_controller=_text(str(controller)) if controller else None,
+        privacy_url=context.get("privacy_url"),
+    )
+    return Rendered(subject=subject, text=text, html=html, body=body_text)

@@ -160,7 +160,7 @@ describe("EmailsSettingsPage", () => {
   });
 
   it("Duplicate on Ganek default opens the editor prefilled with the built-in text", async () => {
-    mocked.preview.mockResolvedValue({ kind: "rejection", subject: "x", text: "y", html: "" });
+    mocked.preview.mockResolvedValue({ kind: "rejection", subject: "x", text: "y", html: "", body: "y" });
     render(<EmailsSettingsPage />);
     await screen.findByRole("heading", { name: "Emails" });
     const [builtin] = within(section("Rejection")).getAllByRole("listitem");
@@ -173,7 +173,7 @@ describe("EmailsSettingsPage", () => {
   });
 
   it("Edit opens the editor on the template and Save refetches with a flash", async () => {
-    mocked.preview.mockResolvedValue({ kind: "rejection", subject: "x", text: "y", html: "" });
+    mocked.preview.mockResolvedValue({ kind: "rejection", subject: "x", text: "y", html: "", body: "y" });
     mocked.update.mockResolvedValue(template({ id: "t-a" }));
     render(<EmailsSettingsPage />);
     await screen.findByRole("heading", { name: "Emails" });

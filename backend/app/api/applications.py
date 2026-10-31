@@ -48,6 +48,8 @@ from app.schemas.applications import (
     EmailPreviewOut,
     EraseCandidateOut,
     ExtraTimeIn,
+    MessageIn,
+    MessageOut,
     NoteCreate,
     NoteOut,
     QuizAnswerReview,
@@ -358,7 +360,15 @@ async def set_stage(
         note=payload.rejection_note,
     )
     if payload.notify_candidate and stage_changed:
-        await _queue_stage_email(db, company, application, payload.stage, payload.template_id)
+        await _queue_stage_email(
+            db,
+            company,
+            application,
+            payload.stage,
+            payload.template_id,
+            override_subject=payload.subject,
+            override_body=payload.body,
+        )
     return updated
 
 
@@ -834,6 +844,9 @@ async def _queue_rejection_email(
     company: CurrentCompany,
     application: Application,
     template_id: templates_service.TemplateRef = None,
+    *,
+    override_subject: str | None = None,
+    override_body: str | None = None,
 ) -> None:
     """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
     await outbox_service.queue_email(
@@ -842,8 +855,17 @@ async def _queue_rejection_email(
         company_id=company.id,
         application_id=application.id,
         template_id=template_id,
+        **_override_kwargs(override_subject, override_body),
         **_rejection_kwargs(company, application),
     )
+
+
+def _override_kwargs(subject: str | None, body: str | None) -> dict[str, str]:
+    """The one-off edit of a single send (PR 4), only when the recruiter made
+    one, so untouched payloads keep their exact key set."""
+    if subject is None or body is None:
+        return {}
+    return {"override_subject": subject, "override_body": body}
 
 
 MAIL_KIND_FOR_STAGE: dict[ApplicationStage, str] = {
@@ -906,6 +928,9 @@ async def _queue_stage_email(
     application: Application,
     stage: ApplicationStage,
     template_id: templates_service.TemplateRef = None,
+    *,
+    override_subject: str | None = None,
+    override_body: str | None = None,
 ) -> None:
     """Queue 22a/22b for stages with a template; other stages are a no-op."""
     if stage is ApplicationStage.INTERVIEW:
@@ -915,10 +940,18 @@ async def _queue_stage_email(
             company_id=company.id,
             application_id=application.id,
             template_id=template_id,
+            **_override_kwargs(override_subject, override_body),
             **_stage_advance_kwargs(company, application),
         )
     elif stage is ApplicationStage.REJECTED:
-        await _queue_rejection_email(db, company, application, template_id)
+        await _queue_rejection_email(
+            db,
+            company,
+            application,
+            template_id,
+            override_subject=override_subject,
+            override_body=override_body,
+        )
 
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)
@@ -982,7 +1015,11 @@ async def email_preview(
         kind, await _preview_template(db, company, kind, template_id), context
     )
     return EmailPreviewOut(
-        kind=kind, subject=rendered.subject, text=rendered.text, html=rendered.html
+        kind=kind,
+        subject=rendered.subject,
+        text=rendered.text,
+        html=rendered.html,
+        body=rendered.body,
     )
 
 
@@ -1012,6 +1049,74 @@ async def _preview_template(
 
 NO_ASSESSMENT = "No assessment to preview"
 PREVIEW_LINK_PLACEHOLDER = templates_service.PREVIEW_LINK_PLACEHOLDER
+
+
+def _message_kwargs(company: Company, application: Application) -> dict[str, Any]:
+    """Keyword arguments of ``email.send_message`` minus the text (PR 4)."""
+    return {
+        "to": application.candidate.email,
+        "ref": str(application.id),
+        "company_name": company.name,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
+
+
+@router.post("/{application_id}/message", response_model=MessageOut)
+async def send_message(
+    application_id: uuid.UUID,
+    payload: MessageIn,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> MessageOut:
+    """A one-off message to the candidate from the panel (card "Candidate
+    emails", PR 4): queued like every candidate mail, Reply-To set to the
+    recruiter who wrote it. A session user only: an API key has no inbox."""
+    application = await _get_or_404(db, company, application_id)
+    row = await outbox_service.queue_email(
+        db,
+        kind="message",
+        company_id=company.id,
+        application_id=application.id,
+        subject=payload.subject,
+        body=payload.body,
+        reply_to=user.email,
+        **_message_kwargs(company, application),
+    )
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.EMAIL_MESSAGE,
+        actor_user_id=user.id,
+        application_id=application.id,
+        payload={"subject": payload.subject},
+    )
+    await db.commit()
+    return MessageOut(queued=row is not None)
+
+
+@router.post("/{application_id}/message/preview", response_model=EmailPreviewOut)
+async def message_preview(
+    application_id: uuid.UUID,
+    payload: MessageIn,
+    db: DbSession,
+    company: CurrentCompany,
+    user: CurrentUser,
+) -> EmailPreviewOut:
+    """The one-off message as the candidate would receive it; nothing is
+    queued. The same render the sender runs, so the preview is the mail."""
+    application = await _get_or_404(db, company, application_id)
+    kwargs = _message_kwargs(company, application)
+    context = {key: value for key, value in kwargs.items() if key not in ("to", "ref")}
+    rendered = email_render.render_message(payload.subject, payload.body, context)
+    return EmailPreviewOut(
+        kind="message",
+        subject=rendered.subject,
+        text=rendered.text,
+        html=rendered.html,
+        body=rendered.body,
+    )
 
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])

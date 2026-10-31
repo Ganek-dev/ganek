@@ -79,6 +79,8 @@ async def test_preview_rejection_renders_for_the_candidate(client: AsyncClient) 
     assert "Jane Applicant" in body["text"]
     assert "Backend Engineer" in body["text"]
     assert "</h1>" in body["html"]
+    # the template part alone, what "Edit this email" prefills (PR 4)
+    assert body["text"].startswith(body["body"] + "\n\nSee open positions:")
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
