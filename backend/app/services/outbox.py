@@ -140,9 +140,16 @@ def dispatch(row: EmailOutbox) -> None:
     """Actually send one outbox row (sync transport). Raises on transport errors."""
     sender: Callable[..., None] = getattr(email_service, SENDER_NAMES[row.kind])
     token = email_service.current_outbox_id.set(str(row.id))
+    rendered_token = email_service.last_rendered.set(None)
     try:
         sender(**_deserialize(row.payload))
     finally:
+        # keep what the sender rendered even when the transport failed: the
+        # timeline shows the attempted mail next to its state (PR 4)
+        rendered = email_service.last_rendered.get()
+        if rendered is not None:
+            row.rendered_subject, row.rendered_text = rendered
+        email_service.last_rendered.reset(rendered_token)
         email_service.current_outbox_id.reset(token)
 
 

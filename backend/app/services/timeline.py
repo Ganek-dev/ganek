@@ -82,6 +82,9 @@ def _email_event(row: EmailOutbox) -> TimelineEvent:
             "status": row.status.value,
             "attempts": row.attempts,
             "last_error": row.last_error,
+            # the rendered mail (PR 4): None until the row was delivered
+            "subject": row.rendered_subject,
+            "text": row.rendered_text,
         },
     )
 

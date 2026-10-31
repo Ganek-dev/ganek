@@ -37,6 +37,11 @@ logger = logging.getLogger(__name__)
 # row id to the provider (Mailjet CustomID) for bounce/complaint mapping
 current_outbox_id: ContextVar[str | None] = ContextVar("current_outbox_id", default=None)
 
+# (subject, text) of the last mail a sender handed to send_email, set before
+# the transport runs (or is skipped): outbox.dispatch stores it on the row so
+# the timeline shows the mail without re-rendering (PR 4)
+last_rendered: ContextVar[tuple[str, str] | None] = ContextVar("last_rendered", default=None)
+
 # Mirrors frontend lib/brand.ts: per-company brand color with a
 # luminance-computed foreground; near-black default.
 
@@ -54,7 +59,9 @@ def send_email(
     html: str | None = None,
     ref: str | None = None,
     outbox_id: str | None = None,
+    reply_to: str | None = None,
 ) -> None:
+    last_rendered.set((subject, body))
     if not configured():
         logger.info("email not configured; skipping email %r (ref=%s)", subject, ref)
         return
@@ -68,6 +75,7 @@ def send_email(
             text=body,
             html=html,
             outbox_id=outbox_id or current_outbox_id.get(),
+            reply_to=reply_to,
         )
     )
 

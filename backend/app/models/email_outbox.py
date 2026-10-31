@@ -56,3 +56,8 @@ class EmailOutbox(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # the mail as the sender rendered it, filled by outbox.dispatch at
+    # delivery (PR 4): the timeline and GET /applications/{id}/emails show
+    # what the candidate read without re-rendering; empty until delivered
+    rendered_subject: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rendered_text: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -403,3 +403,92 @@ async def test_test_email_endpoint(client: AsyncClient, monkeypatch: pytest.Monk
     resp = await client.post("/api/v1/company/test-email")
     assert resp.status_code == 502
     assert "Email send failed" in resp.json()["detail"]
+
+
+def _rejection_payload(company: Company) -> dict[str, object]:
+    """The kwargs ``send_rejection`` takes, as the stage route queues them."""
+    return outbox_service._serialize(
+        {
+            "to": "jane@ganek-ci.dev",
+            "ref": "r-1",
+            "candidate_name": "Jane Applicant",
+            "job_title": "Backend Engineer",
+            "company_name": company.name,
+            "careers_url": "https://jobs.example/outbox-co",
+            "completed_assessment": False,
+            "controller_name": None,
+            "privacy_url": None,
+        }
+    )
+
+
+async def _fresh(db: AsyncSession, row_id: object) -> EmailOutbox:
+    db.expire_all()
+    return (await db.execute(select(EmailOutbox).where(EmailOutbox.id == row_id))).scalar_one()
+
+
+@pytest.mark.usefixtures("migrated_db", "real_outbox", "smtp_ok")
+async def test_delivery_stores_the_rendered_subject_and_text(
+    db_session: AsyncSession, ctx: Any
+) -> None:
+    from app.worker import deliver_email
+
+    company = await _company(db_session)
+    row = await _queued(db_session, company, kind="rejection", payload=_rejection_payload(company))
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+
+    fresh = await _fresh(db_session, row_id)
+    assert fresh.status is EmailStatus.SENT
+    assert fresh.rendered_subject == "Your application to Outbox Co"
+    assert fresh.rendered_text is not None
+    assert fresh.rendered_text.startswith("Thank you, Jane Applicant")
+    assert "See open positions: https://jobs.example/outbox-co" in fresh.rendered_text
+    mime = FakeSMTP.sent[0]
+    assert mime["Subject"] == fresh.rendered_subject
+    plain = mime.get_body(preferencelist=("plain",))
+    assert plain is not None
+    assert plain.get_content().rstrip("\n") == fresh.rendered_text.rstrip("\n")
+
+
+@pytest.mark.usefixtures("migrated_db", "real_outbox")
+async def test_dispatch_stores_the_rendering_even_when_transport_fails(
+    db_session: AsyncSession, ctx: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.worker import deliver_email
+
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", ExplodingSMTP)
+    company = await _company(db_session)
+    row = await _queued(db_session, company, kind="rejection", payload=_rejection_payload(company))
+    row_id = row.id
+    with pytest.raises(Retry):
+        await deliver_email(ctx, str(row_id))
+
+    fresh = await _fresh(db_session, row_id)
+    assert fresh.status is EmailStatus.QUEUED
+    assert fresh.attempts == 1
+    assert "boom" in (fresh.last_error or "")
+    # the timeline shows what was attempted next to "failed"
+    assert fresh.rendered_subject == "Your application to Outbox Co"
+    assert fresh.rendered_text is not None and "Thank you, Jane Applicant" in fresh.rendered_text
+
+
+@pytest.mark.usefixtures("migrated_db", "real_outbox")
+async def test_unconfigured_instance_still_records_nothing_before_the_sender(
+    db_session: AsyncSession, ctx: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Documents the current behaviour: deliver_email parks the row as
+    "Email not configured" BEFORE dispatch, so nothing was rendered."""
+    from app.worker import deliver_email
+
+    monkeypatch.setattr(settings, "smtp_host", None)
+    company = await _company(db_session)
+    row = await _queued(db_session, company, kind="rejection", payload=_rejection_payload(company))
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+
+    fresh = await _fresh(db_session, row_id)
+    assert fresh.status is EmailStatus.FAILED
+    assert fresh.last_error == "Email not configured"
+    assert fresh.rendered_subject is None and fresh.rendered_text is None

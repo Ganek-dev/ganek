@@ -212,9 +212,10 @@ class EmailDeliveryOut(BaseModel):
     """One outbox row for the applicant panel's delivery trail (M5.7 H4).
 
     Deliberately WITHOUT the payload - the panel needs kind + state, not
-    the stored kwargs (which carry capability URLs)."""
+    the stored kwargs (which carry capability URLs). ``subject`` and
+    ``text`` are the mail as rendered at delivery (PR 4), None before."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: uuid.UUID
     kind: str
@@ -223,6 +224,8 @@ class EmailDeliveryOut(BaseModel):
     last_error: str | None
     created_at: datetime
     sent_at: datetime | None
+    subject: str | None = Field(default=None, validation_alias="rendered_subject")
+    text: str | None = Field(default=None, validation_alias="rendered_text")
 
 
 class CvDownload(BaseModel):

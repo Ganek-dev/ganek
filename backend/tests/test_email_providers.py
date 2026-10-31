@@ -86,6 +86,17 @@ def test_mailjet_omits_optional_parts(mailjet: list[dict[str, Any]]) -> None:
     assert "CustomID" not in entry
 
 
+def test_mailjet_sends_reply_to_when_given(mailjet: list[dict[str, Any]]) -> None:
+    email_service.send_email(
+        to="jane@example.com", subject="Hello", body="plain", reply_to="erika@acme.example"
+    )
+    entry = mailjet[0]["body"]["Messages"][0]
+    assert entry["ReplyTo"] == {"Email": "erika@acme.example"}
+
+    email_service.send_email(to="jane@example.com", subject="Hello", body="plain")
+    assert "ReplyTo" not in mailjet[1]["body"]["Messages"][0]
+
+
 def test_mailjet_per_message_rejection_raises(
     mailjet: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
