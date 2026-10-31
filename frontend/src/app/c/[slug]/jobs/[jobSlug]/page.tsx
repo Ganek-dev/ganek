@@ -114,6 +114,7 @@ export default async function CompanyJobPage({ params, searchParams }: Props) {
               <ApplyForm
                 apiBasePath={`/api/v1/public/companies/${slug}/jobs/${job.slug}`}
                 jobTitle={job.title}
+                screeningQuestions={job.screening_questions}
                 companyName={page.company.name}
                 demo={demo}
                 privacyHref={`/c/${slug}/privacy`}

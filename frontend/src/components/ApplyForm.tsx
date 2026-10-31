@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { Check, FileText } from "lucide-react";
 
 import { ApiError, publicApply } from "@/lib/api";
+import type { PublicScreeningQuestion } from "@/lib/public-api";
 
 import { Captcha, isCaptchaError } from "./Captcha";
 
@@ -33,6 +34,102 @@ const ASSESSMENT_FACTS: [string, string][] = [
   ["24h", "start any time in the next 24 hours"],
 ];
 
+/** The posted answer for one question: null when an optional one was left
+ * blank; a ticked acknowledgment is `true`. Required ones never reach here
+ * empty: the browser's own validation stops the submit first. */
+function screeningAnswer(
+  question: PublicScreeningQuestion,
+  data: FormData,
+): { question_id: string; answer: string | boolean | null } {
+  const raw = data.get(`sq_${question.id}`);
+  if (question.type === "acknowledgment") {
+    return { question_id: question.id, answer: raw === "true" ? true : null };
+  }
+  const text = typeof raw === "string" ? raw.trim() : "";
+  return { question_id: question.id, answer: text === "" ? null : text };
+}
+
+const RequiredMark = () => (
+  <span aria-hidden className="text-brand">
+    {" "}
+    *
+  </span>
+);
+
+function ScreeningField({ question }: { question: PublicScreeningQuestion }) {
+  const name = `sq_${question.id}`;
+  const radioCls = "h-4 w-4 accent-[var(--brand-primary)]";
+  if (question.type === "acknowledgment") {
+    return (
+      <label className="flex items-start gap-2.5 text-[14.5px] leading-[22px]">
+        <input type="checkbox" name={name} value="true" required className={`mt-1 ${radioCls}`} />
+        <span>
+          {question.prompt}
+          <RequiredMark />
+        </span>
+      </label>
+    );
+  }
+  if (question.type === "short_text") {
+    return (
+      <label className="block space-y-2">
+        <span className={labelCls}>
+          {question.prompt}
+          {question.required ? <RequiredMark /> : null}
+        </span>
+        <input name={name} maxLength={500} required={question.required} className={inputCls} />
+      </label>
+    );
+  }
+  const choices =
+    question.type === "yes_no"
+      ? [
+          { value: "yes", label: "Yes" },
+          { value: "no", label: "No" },
+        ]
+      : (question.options ?? []).map((option) => ({ value: option, label: option }));
+  if (question.type === "single_choice" && choices.length > 5) {
+    return (
+      <label className="block space-y-2">
+        <span className={labelCls}>
+          {question.prompt}
+          {question.required ? <RequiredMark /> : null}
+        </span>
+        <select name={name} required={question.required} defaultValue="" className={inputCls}>
+          <option value="">Choose...</option>
+          {choices.map((choice) => (
+            <option key={choice.value} value={choice.value}>
+              {choice.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  return (
+    <fieldset className="space-y-2">
+      <legend className={labelCls}>
+        {question.prompt}
+        {question.required ? <RequiredMark /> : null}
+      </legend>
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
+        {choices.map((choice) => (
+          <label key={choice.value} className="flex items-center gap-2 text-[14.5px]">
+            <input
+              type="radio"
+              name={name}
+              value={choice.value}
+              required={question.required}
+              className={radioCls}
+            />
+            {choice.label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 export function ApplyForm({
   apiBasePath,
   jobTitle,
@@ -40,6 +137,7 @@ export function ApplyForm({
   privacyHref,
   demo = false,
   source = null,
+  screeningQuestions = [],
 }: {
   apiBasePath: string;
   jobTitle?: string;
@@ -49,6 +147,9 @@ export function ApplyForm({
   demo?: boolean;
   /** where the visit came from, resolved by the page (lib/source.ts); never typed here */
   source?: string | null;
+  /** the job's screening questions (never carry the preferred answer); rendered
+   * between the links and the message, answers posted as screening_answers */
+  screeningQuestions?: PublicScreeningQuestion[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [altcha, setAltcha] = useState<string | null>(null);
@@ -133,6 +234,9 @@ export function ApplyForm({
         ...(cv.status === "ready" ? { cv_object_key: cv.objectKey, cv_filename: cv.file.name } : {}),
         altcha,
         source,
+        ...(screeningQuestions.length > 0
+          ? { screening_answers: screeningQuestions.map((q) => screeningAnswer(q, data)) }
+          : {}),
       });
       setDone({
         firstName: str("name").split(/\s+/)[0] ?? "",
@@ -341,6 +445,18 @@ export function ApplyForm({
             <input name="portfolio" type="url" placeholder="https://" className={inputCls} />
           </label>
         </div>
+        {screeningQuestions.length > 0 ? (
+          <div className="mt-8">
+            <span className="overline text-g500">
+              A few questions from {companyName ?? "the company"}
+            </span>
+            <div className="mt-3 flex flex-col gap-4">
+              {screeningQuestions.map((question) => (
+                <ScreeningField key={question.id} question={question} />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <label className="mt-4 block space-y-2">
           <span className={labelCls}>Message (optional)</span>
           <textarea
