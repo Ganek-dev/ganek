@@ -1007,6 +1007,28 @@ async def _queue_booking_mails(
     )
 
 
+@router.get(
+    "/interviews/{token}/invite.ics",
+    dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+)
+async def interview_invite_ics(token: str, db: DbSession) -> Response:
+    """The booked interview as a calendar file (METHOD:PUBLISH: a plain
+    "add to calendar", no organiser handshake) for clients that strip the
+    mailed attachment."""
+    interview = await _interview_by_token_or_404(db, token)
+    if interview.status is not InterviewStatus.BOOKED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="not-booked")
+    company = await _interview_company(db, interview)
+    event = interviews_service.candidate_event(
+        interview, company, booking_url=urls.interview_url(company, token)
+    )
+    return Response(
+        content=ics.render(event, method="PUBLISH"),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="interview.ics"'},
+    )
+
+
 def _scheduling_unavailable() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

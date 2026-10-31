@@ -627,3 +627,38 @@ async def test_sequences_stay_monotonic(
     assert by_kind["interview_confirmed"] == [0, 1, 2]
     assert by_kind["interview_scheduled"] == [0, 1, 2]
     assert by_kind["interview_cancelled_interviewer"] == [3]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_invite_ics_download_when_booked(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    resp = await client.get(f"/api/v1/public/interviews/{token}/invite.ics")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/calendar")
+    assert resp.headers["content-disposition"] == 'attachment; filename="interview.ics"'
+    lines = resp.text.replace("\r\n ", "").split("\r\n")
+    assert "METHOD:PUBLISH" in lines
+    assert f"UID:interview-{interview_id}@ganek" in lines
+    assert "SEQUENCE:0" in lines
+    assert any(line.startswith("ATTENDEE;CN=Marta Vidal") for line in lines)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_invite_ics_409_when_pending(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, _ = await _booking_token(client, db_session, monkeypatch)
+    resp = await client.get(f"/api/v1/public/interviews/{token}/invite.ics")
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "not-booked"
+
+
+async def test_invite_ics_404_bad_token(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/public/interviews/garbage/invite.ics")
+    assert resp.status_code == 404
