@@ -27,7 +27,7 @@ with this template; skipping it is hard to defend.
 skill quiz per job, and scheduling interviews.
 
 **Data subjects.** Job applicants (external), plus `{company}` recruiting
-staff (accounts, calendar connections).
+staff (accounts, saved availability).
 
 **Categories of data (candidates).**
 
@@ -64,8 +64,9 @@ at their deadline; rejected/withdrawn applications are purged
 are token-scrubbed and rotation-capped.
 
 **Recipients.** Recruiting staff (role-restricted); `{hosting provider}`;
-`{email relay}`; Google LLC - only when an interview is scheduled and only
-the event data (name, email, time, meeting place or link).
+`{email relay}`; the interviewer, who receives the candidate's calendar
+invite (name, email, time, meeting place or link) when an interview is
+booked.
 
 **Transfers.** None built-in: interview invites are plain emails with a
 calendar file, no calendar provider is involved (the Google Calendar leg
@@ -85,7 +86,7 @@ hosting/email choices.}`
 - **Transparency.** Layered notices: privacy-notice block on the apply form
   (above Submit), full notice page per company, complete monitoring
   disclosure on the quiz start gate (desktop and mobile) *before* the
-  attempt starts, Google disclosure on the booking page, controller
+  attempt starts, invite disclosure on the booking page, controller
   identity + notice link in every candidate email.
 - **Minimization.** Three telemetry event types and no more; no IP/UA in
   candidate records; quiz answers stored with correctness but answer keys

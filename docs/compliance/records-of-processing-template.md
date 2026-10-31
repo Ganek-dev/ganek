@@ -19,8 +19,8 @@ Assessed {date}."}`
 **Shared technical and organisational measures (Art. 32), referenced by
 every activity below:** TLS everywhere (`{confirm}`); tenant isolation
 enforced at query level; role-based admin access; argon2 password hashing;
-signed, purpose-bound, expiring candidate links (status 30 days); Google
-refresh tokens stored encrypted; per-IP rate limiting; access logs
+signed, purpose-bound, expiring candidate links (status 30 days); 2FA
+secrets stored encrypted; per-IP rate limiting; access logs
 token-scrubbed and rotation-capped; per-candidate read-access trail (who
 opened a profile, CV, answers or data bundle, and when); application logs
 carry internal IDs,

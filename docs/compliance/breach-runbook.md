@@ -33,9 +33,10 @@ wrong address, ransomware making data unavailable: all breaches.
   stored 2FA secrets (recruiters re-enrol their authenticator).
 - **Rotate `GANEK_ENCRYPTION_KEY`** (if set) - invalidates stored 2FA
   secrets only; recruiters re-enrol their authenticator.
-- **Revoke Google access** at the account level (Google Account →
-  Security → third-party access) for affected recruiters, and/or delete
-  the OAuth client's credentials in Google Cloud Console.
+- **Revoke Google sign-in access** (if you use it) at the account level
+  (Google Account → Security → third-party access) for affected
+  recruiters, and/or rotate the OAuth client's credentials in Google
+  Cloud Console.
 - **Rotate infrastructure credentials**: database password, S3/MinIO keys
   (both the app pair and the root pair), SMTP credentials, Redis password.
 - **Deactivate compromised admin accounts** (Team page - deactivation cuts

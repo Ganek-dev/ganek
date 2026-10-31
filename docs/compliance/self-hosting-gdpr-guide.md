@@ -20,9 +20,9 @@ Concretely, being the controller means:
   buttons; you own the response.
 - Your lawful bases, retention choice, and security posture are yours to
   document - the templates in this pack pre-fill the Ganek-shaped parts.
-- If you engage others to process the data (hosting provider, email relay,
-  Google for interviews), they are **your** processors/recipients and
-  belong in your records.
+- If you engage others to process the data (hosting provider, email
+  relay), they are **your** processors/recipients and belong in your
+  records.
 - Error reporting is off by default. If you set `GANEK_SENTRY_DSN`, the
   Sentry host you point it at (Sentry's cloud, or a self-hosted
   Sentry/GlitchTip) becomes a processor of error reports. Ganek scrubs
@@ -78,7 +78,7 @@ Work through this once, before the careers page goes public.
       them), TLS SMTP relay, change the MinIO defaults and don't expose its
       ports, keep the backend behind your reverse proxy, Redis AUTH outside
       the bundled compose network, and consider a separate
-      `GANEK_ENCRYPTION_KEY` for stored Google credentials.
+      `GANEK_ENCRYPTION_KEY` for stored 2FA secrets.
 - [ ] Turn on **two-factor authentication** for every admin account
       (**Settings → Account**, any TOTP authenticator app; keep the recovery
       codes offline). The same card signs out every other session if a
@@ -177,8 +177,8 @@ colleague names) and it goes with the application on erasure.
 **Offboarding recruiters.** You are also the controller for your own
 staff's accounts. **Team → ⋯ → Remove & anonymize…** tombstones the user:
 email replaced with a random placeholder, password and Google sign-in
-severed, saved interview availability wiped, calendar connection revoked
-and deleted, account deactivated and sessions cut. It refuses while the
+severed, saved interview availability and default meeting place wiped,
+account deactivated and sessions cut. It refuses while the
 user still has upcoming interviews (cancel those first - there is no
 reassign) or is the last admin. One honest limit: activity-log entries
 written while they worked keep the staff email snapshotted in their
