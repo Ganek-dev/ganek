@@ -24,7 +24,8 @@ from app.services import invites as invites_service
 from app.services import outbox as outbox_service
 from app.services import users as users_service
 
-# every route requires an admin of the current company
+# routes require an admin of the current company, except the team list (any role:
+# interviewer pickers and scorecard labels need it)
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[])
 
 
@@ -63,7 +64,7 @@ async def set_availability(
 
 
 @router.get("", response_model=list[TeamUserOut])
-async def list_users(db: DbSession, company: CurrentCompany, _admin: AdminUser) -> list[User]:
+async def list_users(db: DbSession, company: CurrentCompany, _user: CurrentUser) -> list[User]:
     return await users_service.list_users(db, company)
 
 

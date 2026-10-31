@@ -171,6 +171,35 @@ describe("AdminLayout", () => {
     expect(mockedCompany.get).not.toHaveBeenCalled();
   });
 
+  it("shows Team and Settings to admins and hides them from members", async () => {
+    const admin = render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("page content");
+    expect(screen.getByRole("link", { name: /Team/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Settings/ })).toBeInTheDocument();
+    admin.unmount();
+
+    mockedApi.me.mockResolvedValue({
+      id: "u2",
+      company_id: "c1",
+      email: "member@acme.dev",
+      has_password: true,
+      role: "member",
+    });
+    render(
+      <AdminLayout>
+        <p>member content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("member content");
+    expect(screen.getByRole("link", { name: /Jobs/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Team/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
+  });
+
   it("shows a retryable error when the backend is unreachable", async () => {
     mockedApi.me.mockRejectedValueOnce(new TypeError("fetch failed"));
     render(

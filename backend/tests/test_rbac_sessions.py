@@ -5,6 +5,7 @@ from httpx import AsyncClient
 
 from app.core import lockout, ratelimit
 from app.core.config import settings
+from app.schemas.users import TeamUserOut
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -52,8 +53,15 @@ async def test_admin_creates_member_who_lacks_admin_rights(client: AsyncClient) 
     assert (
         await client.post("/api/v1/auth/login", json={"email": member_email, "password": member_pw})
     ).status_code == 200
-    # member cannot list/create users, create questions, delete jobs
-    assert (await client.get("/api/v1/users")).status_code == 403
+    # member can read the team list (slim TeamUserOut) but not create users,
+    # create questions or delete jobs
+    team = await client.get("/api/v1/users")
+    assert team.status_code == 200, team.text
+    assert {u["email"] for u in team.json()} == {admin["email"], member_email}
+    assert all(set(u) == set(TeamUserOut.model_fields) for u in team.json())
+    assert (
+        await client.post("/api/v1/users/invites", json={"email": "x@acme.example"})
+    ).status_code == 403
     assert (
         await client.post(
             "/api/v1/questions",
