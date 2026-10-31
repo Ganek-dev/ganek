@@ -7,13 +7,22 @@ import { useCallback, useEffect, useState } from "react";
 import { JobForm } from "@/components/JobForm";
 import { StatusPill } from "@/components/JobStatus";
 import { JobStatusCard } from "@/components/JobStatusCard";
-import { api, type JobOut } from "@/lib/api";
+import { api, companyApi, type JobOut, type ScreeningQuestion } from "@/lib/api";
 
 export default function EditJobPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<JobOut | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // for "Reset to company defaults" in the screening editor; a failed fetch
+  // only hides that button
+  const [defaults, setDefaults] = useState<ScreeningQuestion[] | undefined>(undefined);
+  useEffect(() => {
+    companyApi
+      .summary()
+      .then((summary) => setDefaults(summary.screening_questions))
+      .catch(() => setDefaults(undefined));
+  }, []);
 
   const reload = useCallback(() => {
     api.jobs
@@ -71,6 +80,7 @@ export default function EditJobPage() {
 
       <JobForm
         initial={job}
+        defaultScreening={defaults}
         submitLabel="Save changes"
         onSubmit={async (values) => {
           await api.jobs.update(job.id, values);

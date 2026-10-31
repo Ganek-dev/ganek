@@ -16,6 +16,15 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     api: { ...original.api, jobs: { ...original.api.jobs, create: vi.fn() } },
+    companyApi: {
+      ...original.companyApi,
+      summary: vi.fn().mockResolvedValue({
+        slug: "acme",
+        name: "Acme",
+        mode: "single",
+        screening_questions: [],
+      }),
+    },
     questionnaires: { ...original.questionnaires, list: vi.fn() },
     questions: { ...original.questions, resolve: vi.fn() },
   };
@@ -31,7 +40,7 @@ describe("NewJobPage", () => {
   it("opens the new job's overview after creating it", async () => {
     vi.mocked(api.jobs.create).mockResolvedValue({ id: "abc" } as JobOut);
     render(<NewJobPage />);
-    await userEvent.type(screen.getByLabelText("Job title"), "Platform Engineer");
+    await userEvent.type(await screen.findByLabelText("Job title"), "Platform Engineer");
     await userEvent.click(screen.getByRole("button", { name: "Create job" }));
     expect(api.jobs.create).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Platform Engineer" }),

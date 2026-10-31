@@ -16,6 +16,15 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
+    companyApi: {
+      ...original.companyApi,
+      summary: vi.fn().mockResolvedValue({
+        slug: "acme",
+        name: "Acme",
+        mode: "single",
+        screening_questions: [],
+      }),
+    },
     api: {
       ...original.api,
       jobs: {

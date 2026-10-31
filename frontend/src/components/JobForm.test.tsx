@@ -291,3 +291,53 @@ describe("JobForm", () => {
     expect(screen.getByLabelText(/Question tags/)).toBeInTheDocument();
   });
 });
+
+describe("JobForm screening questions", () => {
+  const PERMIT = {
+    id: "sq_0000aa01",
+    type: "yes_no" as const,
+    prompt: "Can you work in Germany?",
+    options: null,
+    preferred: "yes",
+    required: true,
+  };
+
+  it("submits the edited list", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Engineer");
+    await userEvent.click(screen.getByRole("button", { name: "Add question" }));
+    await userEvent.type(screen.getByLabelText("Prompt"), "Can you work in Germany?");
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    const values = onSubmit.mock.calls[0]![0];
+    expect(values.screening_questions).toHaveLength(1);
+    expect(values.screening_questions[0]).toMatchObject({
+      type: "yes_no",
+      prompt: "Can you work in Germany?",
+      required: false,
+    });
+  });
+
+  it("starts a new job from the company defaults and can reset to them", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} defaultScreening={[PERMIT]} />);
+    expect(screen.getByLabelText("Prompt")).toHaveValue("Can you work in Germany?");
+    await userEvent.click(screen.getByRole("button", { name: "Remove question 1" }));
+    expect(screen.queryByLabelText("Prompt")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reset to company defaults" }));
+    expect(screen.getByLabelText("Prompt")).toHaveValue("Can you work in Germany?");
+  });
+
+  it("prefills from the existing job, not from the company defaults", () => {
+    render(
+      <JobForm
+        initial={makeJob({ screening_questions: [{ ...PERMIT, prompt: "Notice period?" }] })}
+        submitLabel="Save changes"
+        onSubmit={vi.fn()}
+        defaultScreening={[PERMIT]}
+      />,
+    );
+    expect(screen.getByLabelText("Prompt")).toHaveValue("Notice period?");
+  });
+});

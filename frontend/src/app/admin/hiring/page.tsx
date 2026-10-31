@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { SettingsTabs } from "@/components/SettingsTabs";
-import { companyApi } from "@/lib/api";
+import { companyApi, type ScreeningQuestion } from "@/lib/api";
 
 /** Hiring behavior settings (D6): what happens when a candidate's expired
  * assessment link asks for a re-issue (27c). Companion to the branding tab;
@@ -30,11 +31,17 @@ export default function HiringSettingsPage() {
   const [mode, setMode] = useState<ReissueMode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // the company default screening questions: new jobs start with a copy
+  const [defaults, setDefaults] = useState<ScreeningQuestion[] | null>(null);
+  const [savingDefaults, setSavingDefaults] = useState(false);
 
   useEffect(() => {
     companyApi
       .get()
-      .then((company) => setMode(company.settings.quiz_expired_reissue ?? "manual"))
+      .then((company) => {
+        setMode(company.settings.quiz_expired_reissue ?? "manual");
+        setDefaults(company.screening_questions);
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load settings"),
       );
@@ -71,6 +78,41 @@ export default function HiringSettingsPage() {
           {notice}
         </p>
       ) : null}
+
+      <div className="card p-4">
+        <p className="text-[13.5px] font-semibold">Default screening questions</p>
+        <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
+          New jobs start with these. Existing jobs keep their own list.
+        </p>
+        {defaults === null ? (
+          <div aria-busy="true" className="mt-3 h-16 animate-pulse rounded-md bg-muted-fill" />
+        ) : (
+          <div className="mt-3">
+            <ScreeningQuestionsEditor value={defaults} onChange={setDefaults} />
+            <button
+              type="button"
+              disabled={savingDefaults}
+              onClick={async () => {
+                setError(null);
+                setNotice(null);
+                setSavingDefaults(true);
+                try {
+                  const saved = await companyApi.updateSettings({ screening_questions: defaults });
+                  setDefaults(saved.screening_questions);
+                  setNotice("Saved");
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Failed to save");
+                } finally {
+                  setSavingDefaults(false);
+                }
+              }}
+              className="mt-3 inline-flex h-8 items-center justify-center rounded-md bg-inverse px-3 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
+            >
+              Save default questions
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="card p-4">
         <p className="text-[13.5px] font-semibold">Expired assessment links</p>
