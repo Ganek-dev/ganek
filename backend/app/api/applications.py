@@ -386,8 +386,9 @@ async def erase_candidate(
     admin: AdminUser,
 ) -> EraseCandidateOut:
     """Art. 17: erases the whole CANDIDATE - every application they hold with
-    this company, their CVs in storage and (best-effort) their calendar
-    events - not just the application the panel happened to be showing."""
+    this company and their CVs in storage - not just the application the
+    panel happened to be showing. Interviewers with a booked future
+    interview get a calendar cancel notice without candidate data."""
     application = await _get_or_404(db, company, application_id)
     summary = await erasure_service.erase_candidate(
         db, company, application.candidate_id, actor_user_id=admin.id
@@ -395,7 +396,7 @@ async def erase_candidate(
     assert summary is not None  # the application existed, so its candidate does
     return EraseCandidateOut(
         applications=summary.applications,
-        google_event_failures=summary.google_event_failures,
+        cancel_notices=summary.cancel_notices,
     )
 
 

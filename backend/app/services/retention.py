@@ -67,7 +67,7 @@ class PurgeSummary:
     privacy_tasks: int
     emails: int
     unverified_companies: int
-    google_event_failures: int
+    cancel_notices: int
 
     def __str__(self) -> str:  # worker log line
         return (
@@ -75,14 +75,14 @@ class PurgeSummary:
             f"invites={self.invites} cv_objects={self.cv_objects} "
             f"privacy_tasks={self.privacy_tasks} emails={self.emails} "
             f"unverified_companies={self.unverified_companies} "
-            f"google_event_failures={self.google_event_failures}"
+            f"cancel_notices={self.cancel_notices}"
         )
 
 
 async def purge_company(
     db: AsyncSession, company: Company, *, now: datetime
 ) -> tuple[int, int, int]:
-    """Purge one tenant. Returns (applications, candidates, google_failures).
+    """Purge one tenant. Returns (applications, candidates, cancel_notices).
 
     Commits its own transaction so one company's outcome never entangles
     another's.
@@ -104,17 +104,17 @@ async def purge_company(
         .all()
     )
     purged = 0
-    google_failures = 0
+    notices: list[erasure.CancelNotice] = []
     for application in expired:
         try:
-            _, failures = await erasure.erase_application(db, application)
+            owed = await erasure.erase_application(db, application)
         except Exception:  # noqa: BLE001 - storage down etc.: retry next night
             logger.warning(
                 "retention: skipping application %s (storage cleanup failed)", application.id
             )
             continue
         purged += 1
-        google_failures += failures
+        notices.extend(owed)
 
     # RETURNING keeps the not-exists predicate atomic with the delete AND
     # tells us exactly whose privacy-request tasks to scrub afterwards
@@ -146,13 +146,14 @@ async def purge_company(
             payload={"applications": purged, "candidates": removed_candidates},
         )
     await db.commit()
-    return purged, removed_candidates, google_failures
+    await erasure.queue_cancel_notices(db, notices)  # after the commit above
+    return purged, removed_candidates, len(notices)
 
 
 async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
     total_apps = 0
     total_candidates = 0
-    total_google_failures = 0
+    total_notices = 0
     # only visit tenants with potential work - candidate purges (terminal apps
     # with a ticking clock) or orphaned candidate rows - so the nightly run is
     # O(actual work), not O(all companies ever created
@@ -173,14 +174,14 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
     )
     for company in companies:
         try:
-            apps, candidates, google_failures = await purge_company(db, company, now=now)
+            apps, candidates, notices = await purge_company(db, company, now=now)
         except Exception:  # noqa: BLE001 - one tenant must never block the rest
             logger.exception("retention: purge failed for company %s", company.id)
             await db.rollback()
             continue
         total_apps += apps
         total_candidates += candidates
-        total_google_failures += google_failures
+        total_notices += notices
 
     swept_invites = (
         cast(
@@ -258,5 +259,5 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
         privacy_tasks=swept_tasks,
         emails=swept_emails,
         unverified_companies=swept_unverified,
-        google_event_failures=total_google_failures,
+        cancel_notices=total_notices,
     )

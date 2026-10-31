@@ -97,7 +97,7 @@ async def test_erase_removes_rows_cv_and_writes_receipt(
 
     resp = await client.post(f"/api/v1/applications/{app_ids[0]}/erase-candidate")
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"applications": 2, "google_event_failures": 0}
+    assert resp.json() == {"applications": 2, "cancel_notices": 0}
 
     # every application of the candidate is gone, tenant-wide
     for app_id in app_ids:
@@ -324,3 +324,68 @@ async def test_email_update_409_when_taken_by_other_candidate(
     # original untouched
     body = (await client.get(f"/api/v1/applications/{app_id}")).json()
     assert body["candidate"]["email"] != taken
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_erase_queues_cancel_notice_for_future_booked_interview(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """A booked future interview leaves the candidate's name and email in the
+    interviewer's calendar; erasure sends a METHOD:CANCEL notice without any
+    candidate data. A past booking gets nothing."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import Application, EmailOutbox, Interview
+    from app.models.interview import InterviewStatus
+
+    await _company_with_applications(client, n_jobs=2)
+    me = (await client.get("/api/v1/auth/me")).json()
+    apps = (await client.get("/api/v1/applications")).json()["items"]
+    app_ids = [a["id"] for a in apps]
+    company_id = (
+        await db_session.execute(select(Application.company_id).where(Application.id == app_ids[0]))
+    ).scalar_one()
+    for app_id, start in (
+        (app_ids[0], datetime.now(UTC) + timedelta(days=3)),
+        (app_ids[1], datetime.now(UTC) - timedelta(days=3)),
+    ):
+        db_session.add(
+            Interview(
+                company_id=company_id,
+                application_id=app_id,
+                interviewer_user_id=me["id"],
+                duration_minutes=30,
+                timezone="Europe/Berlin",
+                status=InterviewStatus.BOOKED,
+                scheduled_start=start,
+                ics_sequence=2,
+                location="Room 2",
+            )
+        )
+    await db_session.commit()
+
+    resp = await client.post(f"/api/v1/applications/{app_ids[0]}/erase-candidate")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"applications": 2, "cancel_notices": 1}
+
+    rows = (
+        (
+            await db_session.execute(
+                select(EmailOutbox).where(
+                    EmailOutbox.company_id == company_id,
+                    EmailOutbox.kind == "interview_cancelled_interviewer",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    payload = rows[0].payload
+    assert rows[0].application_id is None  # the application is gone
+    assert payload["to"] == me["email"]
+    assert payload["candidate_name"] == ""
+    assert payload["candidate_email"] == ""
+    assert payload["sequence"] == 3
+    assert payload["cancelled_by"] == "The application was deleted"
+    assert "Erika" not in str(payload)

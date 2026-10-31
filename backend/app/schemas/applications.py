@@ -294,7 +294,7 @@ class CvDownload(BaseModel):
 
 class EraseCandidateOut(BaseModel):
     applications: int
-    google_event_failures: int
+    cancel_notices: int
 
 
 class CandidateEmailUpdate(BaseModel):
