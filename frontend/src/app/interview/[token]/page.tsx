@@ -3,19 +3,23 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CalendarX2, Check, Clock, Video } from "lucide-react";
+import { CalendarX2, Check, Clock, Download, Link2, MapPin } from "lucide-react";
 
 import { ApiError, publicInterviews, type InterviewPublic } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
+
+function isUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
 
 /** Candidate interview scheduling, handoff screen 23: interviewer panel +
  * Calendly-style day strip (role="tablist") + wrapped time-pill list for the
  * active day (selected = brand fill) + confirm bar. Booked state offers
  * reschedule (same picker) and a two-step cancel. All times render in the
  * CANDIDATE's browser timezone - selecting a time triggers a silent
- * refetch so a just-taken slot is caught before confirm. The calendar
- * invite Google sends after booking still uses the interview's stored
- * timezone server-side. */
+ * refetch so a just-taken slot is caught before confirm. After booking
+ * both sides get an email with an invite.ics; the booked card also offers
+ * the file for download. */
 
 function initials(display: string): string {
   const parts = display.split(/\s+/).filter(Boolean);
@@ -361,10 +365,22 @@ export default function InterviewBookingPage() {
                     <Clock aria-hidden className="h-3.5 w-3.5" />
                     {interview.duration_minutes} minutes
                   </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Video aria-hidden className="h-3.5 w-3.5" />
-                    Google Meet - invite lands in your inbox
-                  </span>
+                  {interview.location ? (
+                    isUrl(interview.location) ? (
+                      <a
+                        href={interview.location}
+                        className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
+                      >
+                        <Link2 aria-hidden className="h-3.5 w-3.5" />
+                        {interview.location.replace(/^https?:\/\//i, "")}
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin aria-hidden className="h-3.5 w-3.5" />
+                        {interview.location}
+                      </span>
+                    )
+                  ) : null}
                 </p>
               </div>
               <span className="rounded-full border border-edge px-2.5 py-1 font-mono text-[11px] text-g500">
@@ -377,8 +393,8 @@ export default function InterviewBookingPage() {
               ) : null}
               {/* Art. 13 recipients disclosure at the touchpoint (M5.6 G1) */}
               <p className="w-full border-t border-edge pt-3 text-[12px] leading-[17px] text-g500">
-                Booking adds a calendar event with your name and email to {interview.company_name}
-                &apos;s Google Calendar - the invite email comes from Google.
+                Confirming sends a calendar invite with your name and email to you and your
+                interviewer by email.
               </p>
             </div>
 
@@ -397,17 +413,26 @@ export default function InterviewBookingPage() {
                     : "Booked"}
                 </p>
                 <p className="mt-1 text-[12.5px] text-g500">
-                  {tzShortName(localZone, interview.scheduled_start ?? undefined)} · Google Meet
+                  {tzShortName(localZone, interview.scheduled_start ?? undefined)}
+                  {interview.location && !isUrl(interview.location) ? ` · ${interview.location}` : ""}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  {interview.meet_url ? (
+                  {interview.location && isUrl(interview.location) ? (
                     <a
-                      href={interview.meet_url}
+                      href={interview.location}
                       className="inline-flex h-9 items-center rounded-md bg-brand px-4 text-[13.5px] font-semibold text-brand-foreground hover:brightness-[0.94]"
                     >
-                      Open Meet link
+                      Open link
                     </a>
                   ) : null}
+                  <a
+                    href={`/api/v1/public/interviews/${token}/invite.ics`}
+                    download
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-edge px-4 text-[13.5px] font-medium hover:bg-muted-fill/50"
+                  >
+                    <Download aria-hidden className="h-3.5 w-3.5" />
+                    Download .ics
+                  </a>
                   <button
                     type="button"
                     onClick={() => setRescheduling(true)}
@@ -471,7 +496,7 @@ export default function InterviewBookingPage() {
                         {endTime(selected, interview.duration_minutes, localZone)}
                       </span>{" "}
                       <span className="font-mono text-[11.5px] text-g500">
-                        {tzShortName(localZone, selected)} · Google Meet
+                        {tzShortName(localZone, selected)}
                       </span>
                     </p>
                     <button
