@@ -21,7 +21,7 @@ export default defineConfig({
         },
         {
           label: "Extend it",
-          items: [{ slug: "question-packs" }, { slug: "api-embed" }],
+          items: [{ slug: "question-packs" }, { slug: "api-embed" }, { slug: "ats-handoff" }],
         },
         {
           label: "Compliance pack",
