@@ -443,14 +443,16 @@ describe("ApplicantsPage", () => {
     await waitFor(() => expect(status).toHaveTextContent("Moved Jane Applicant back to New."));
   });
 
-  it("the toast says when an email went out with the move", async () => {
+  it("the toast stays quiet about email on a move that sends none", async () => {
+    // the checkbox is on, but only interview and rejection carry a mail:
+    // a move to screening must not claim one went out (QA pass 2026-10-31)
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
     await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
     await userEvent.click(screen.getByRole("button", { name: "Advance" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Moved Jane Applicant to Screening. Email sent."),
-    );
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(status).toHaveTextContent("Moved Jane Applicant to Screening."));
+    expect(status).not.toHaveTextContent("Email sent");
   });
 
   it("shows how long the applicant has sat in the current stage", async () => {
@@ -507,6 +509,12 @@ describe("ApplicantsPage", () => {
         rejectionNote: null,
         templateId: "t-a",
       }),
+    );
+    // a rejection with the checkbox on does send one, and the toast says so
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Moved Jane Applicant to Rejected. Email sent.",
+      ),
     );
   });
 
