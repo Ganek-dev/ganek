@@ -8,6 +8,7 @@ import { Check, FileText } from "lucide-react";
 import { ApiError, publicApply } from "@/lib/api";
 import type { PublicScreeningQuestion } from "@/lib/public-api";
 
+
 import { Captcha, isCaptchaError } from "./Captcha";
 
 /** Apply flow, screens 03 (form + CV upload states) and 04 (assessment
@@ -47,6 +48,28 @@ function screeningAnswer(
   }
   const text = typeof raw === "string" ? raw.trim() : "";
   return { question_id: question.id, answer: text === "" ? null : text };
+}
+
+/** The apply route's 422 for screening answers is a list of
+ * `{question_id, reason}`. Name the question for ids this page knows; an id
+ * it does not know means the recruiter changed the questions after the page
+ * loaded, and the honest advice is to reload. */
+export function screeningErrorMessage(
+  body: unknown,
+  questions: PublicScreeningQuestion[],
+): string | null {
+  if (!Array.isArray(body) || body.length === 0) return null;
+  const items = body.filter(
+    (item): item is { question_id: string; reason?: string } =>
+      typeof item === "object" && item !== null && typeof (item as { question_id?: unknown }).question_id === "string",
+  );
+  if (items.length !== body.length) return null;
+  const known = new Map(questions.map((q) => [q.id, q.prompt]));
+  if (items.some((item) => !known.has(item.question_id))) {
+    return "The questions on this form changed since you opened it - please reload the page and apply again.";
+  }
+  const prompts = items.map((item) => `"${known.get(item.question_id)}"`);
+  return `Please check your answer to ${prompts.join(" and ")} and submit again.`;
 }
 
 const RequiredMark = () => (
@@ -244,7 +267,13 @@ export function ApplyForm({
         statusToken: received.status_token,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Something went wrong - please try again";
+      const screening =
+        err instanceof ApiError && err.status === 422
+          ? screeningErrorMessage(err.body, screeningQuestions)
+          : null;
+      const message =
+        screening ??
+        (err instanceof Error ? err.message : "Something went wrong - please try again");
       const captcha = isCaptchaError(message);
       setCaptchaError(captcha);
       if (!captcha) setError(message);

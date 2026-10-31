@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { publicApply } from "@/lib/api";
+import { ApiError, publicApply } from "@/lib/api";
 
 import { ApplyForm } from "./ApplyForm";
 
@@ -322,5 +322,57 @@ describe("ApplyForm screening questions", () => {
     expect(form.checkValidity()).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
     expect(mocked.submit).not.toHaveBeenCalled();
+  });
+});
+
+describe("ApplyForm screening answer errors from the server", () => {
+  const QUESTIONS = [
+    {
+      id: "sq_0000aa01",
+      type: "yes_no" as const,
+      prompt: "Can you work in Germany?",
+      options: null,
+      required: true,
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.uploadTicket.mockResolvedValue({
+      upload_url: "http://minio.test/ganek-cvs",
+      upload_fields: { key: "cvs/co/abc.pdf", policy: "p", "Content-Type": "application/pdf" },
+      object_key: "cvs/co/abc.pdf",
+      content_type: "application/pdf",
+      max_size_mb: 10,
+    });
+    mocked.uploadCv.mockResolvedValue(undefined);
+  });
+
+  async function submitWith(detail: unknown) {
+    mocked.submit.mockRejectedValue(new ApiError(422, "Unprocessable Content", detail));
+    render(
+      <ApplyForm
+        apiBasePath="/api/v1/public/company/jobs/dev"
+        companyName="ACME"
+        screeningQuestions={QUESTIONS}
+      />,
+    );
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    return screen.findByRole("alert");
+  }
+
+  it("names the question when the server rejects its answer", async () => {
+    const alert = await submitWith([{ question_id: "sq_0000aa01", reason: "required" }]);
+    expect(alert).toHaveTextContent(/Can you work in Germany\?/);
+    expect(alert).not.toHaveTextContent("Unprocessable Content");
+  });
+
+  it("asks for a reload when the server names a question this page does not know", async () => {
+    const alert = await submitWith([{ question_id: "sq_0000ffff", reason: "required" }]);
+    expect(alert).toHaveTextContent(/questions on this form changed/i);
+    expect(alert).toHaveTextContent(/reload/i);
   });
 });
