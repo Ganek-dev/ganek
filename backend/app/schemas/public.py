@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_vali
 
 from app.core import challenge
 from app.models import EmploymentType, RemotePolicy, SalaryPeriod
+from app.services.screening import ScreeningQuestionType
 
 
 class PublicJobSummary(BaseModel):
@@ -29,10 +30,23 @@ class PublicJobSummary(BaseModel):
     published_at: datetime | None
 
 
+class PublicScreeningQuestion(BaseModel):
+    """A screening question as the apply form renders it: never the
+    recruiter's ``preferred`` answer (extra keys are dropped on validation,
+    which is what strips it from the stored JSONB)."""
+
+    id: str
+    type: ScreeningQuestionType
+    prompt: str
+    options: list[str] | None
+    required: bool
+
+
 class PublicJobDetail(PublicJobSummary):
     description_md: str
     # advisory deadline -> JSON-LD validThrough; the posting stays applyable
     closes_at: datetime | None
+    screening_questions: list[PublicScreeningQuestion] = []
 
 
 class PublicCompanyOut(BaseModel):
