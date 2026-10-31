@@ -86,6 +86,7 @@ describe("toApiFilters", () => {
       source: "linkedin",
       flagged: true,
       since_days: 30,
+      screening: "match",
     });
     expect(toApiFilters(DEFAULT_FILTERS)).toEqual({});
   });
