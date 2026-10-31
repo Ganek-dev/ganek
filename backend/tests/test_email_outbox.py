@@ -492,3 +492,40 @@ async def test_unconfigured_instance_still_records_nothing_before_the_sender(
     assert fresh.status is EmailStatus.FAILED
     assert fresh.last_error == "Email not configured"
     assert fresh.rendered_subject is None and fresh.rendered_text is None
+
+
+@pytest.mark.usefixtures("migrated_db", "real_outbox", "smtp_ok")
+async def test_stored_text_masks_the_candidate_links_but_the_mail_keeps_them(
+    db_session: AsyncSession, ctx: Any
+) -> None:
+    """The row's text is for recruiters: the candidate's signed quiz and
+    status links are masked with the preview placeholder, while the mail
+    itself carries the real link."""
+    from app.worker import deliver_email
+
+    company = await _company(db_session)
+    payload = outbox_service._serialize(
+        {
+            "to": "jane@ganek-ci.dev",
+            "ref": "r-1",
+            "candidate_name": "Jane Applicant",
+            "job_title": "Backend Engineer",
+            "company_name": company.name,
+            "brand_primary": None,
+            "quiz_url": "https://jobs.example/quiz/tok-secret-123",
+            "expires_at": datetime.now(UTC) + timedelta(days=2),
+            "days_left": 2,
+            "controller_name": None,
+            "privacy_url": None,
+        }
+    )
+    row = await _queued(db_session, company, kind="quiz_reminder", payload=payload)
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+
+    fresh = await _fresh(db_session, row_id)
+    assert fresh.rendered_text is not None
+    assert "https://jobs.example/quiz/personal-link" in fresh.rendered_text
+    assert "tok-secret-123" not in fresh.rendered_text
+    plain = FakeSMTP.sent[0].get_body(preferencelist=("plain",))
+    assert plain is not None and "https://jobs.example/quiz/tok-secret-123" in plain.get_content()

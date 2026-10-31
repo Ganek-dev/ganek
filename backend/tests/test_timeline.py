@@ -3,6 +3,7 @@
 the quiz attempts into one trail, newest first. One test per event source.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -184,7 +185,10 @@ async def test_emails_come_from_the_outbox_with_their_state(client: AsyncClient)
     reminder = emails[0]["payload"]
     assert isinstance(reminder, dict)
     assert str(reminder["subject"]).startswith("Your assessment link expires")
-    assert "Take it now:" in str(reminder["text"])
+    # the candidate's signed link is masked: members read the mail, never
+    # hold the capability (same rule as the preview)
+    link = re.search(r"Take it now: (\S+)", str(reminder["text"]))
+    assert link is not None and link.group(1).endswith("/quiz/personal-link"), reminder["text"]
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
@@ -210,7 +214,8 @@ async def test_emails_endpoint_returns_the_rendered_fields(client: AsyncClient) 
         "text",
     }
     assert reminder["subject"].startswith("Your assessment link expires")
-    assert "Take it now:" in reminder["text"]
+    link = re.search(r"Take it now: (\S+)", reminder["text"])
+    assert link is not None and link.group(1).endswith("/quiz/personal-link"), reminder["text"]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

@@ -270,7 +270,8 @@ class EmailDeliveryOut(BaseModel):
 
     Deliberately WITHOUT the payload - the panel needs kind + state, not
     the stored kwargs (which carry capability URLs). ``subject`` and
-    ``text`` are the mail as rendered at delivery (PR 4), None before."""
+    ``text`` are the mail as rendered at delivery (PR 4), None before, with
+    the candidate's signed links masked like the preview."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

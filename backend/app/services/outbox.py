@@ -137,6 +137,23 @@ async def suppressed_for(db: AsyncSession, row: EmailOutbox) -> str | None:
     return suppression.skip_message(entry) if entry is not None else None
 
 
+# payload keys whose value is a candidate capability URL (a signed token
+# that opens the assessment, the status page or the booking page)
+CAPABILITY_URL_KEYS: tuple[str, ...] = ("quiz_url", "status_url", "booking_url")
+
+
+def mask_capability_links(text: str, payload: dict[str, Any]) -> str:
+    """The stored rendering is for the team to read, never a capability:
+    every candidate link in ``payload`` is replaced by its placeholder form
+    (the same shape the preview endpoint shows), the mail itself untouched."""
+    for key in CAPABILITY_URL_KEYS:
+        url = payload.get(key)
+        if isinstance(url, str) and url:
+            masked = url.rsplit("/", 1)[0] + "/" + email_templates.PREVIEW_LINK_PLACEHOLDER
+            text = text.replace(url, masked)
+    return text
+
+
 def dispatch(row: EmailOutbox) -> None:
     """Actually send one outbox row (sync transport). Raises on transport errors."""
     sender: Callable[..., None] = getattr(email_service, SENDER_NAMES[row.kind])
@@ -149,7 +166,9 @@ def dispatch(row: EmailOutbox) -> None:
         # timeline shows the attempted mail next to its state (PR 4)
         rendered = email_service.last_rendered.get()
         if rendered is not None:
-            row.rendered_subject, row.rendered_text = rendered
+            subject, text = rendered
+            row.rendered_subject = mask_capability_links(subject, row.payload)
+            row.rendered_text = mask_capability_links(text, row.payload)
         email_service.last_rendered.reset(rendered_token)
         email_service.current_outbox_id.reset(token)
 
