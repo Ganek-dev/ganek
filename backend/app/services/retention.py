@@ -146,8 +146,8 @@ async def purge_company(
             payload={"applications": purged, "candidates": removed_candidates},
         )
     await db.commit()
-    await erasure.queue_cancel_notices(db, notices)  # after the commit above
-    return purged, removed_candidates, len(notices)
+    queued = await erasure.queue_cancel_notices(db, notices)  # after the commit above
+    return purged, removed_candidates, queued
 
 
 async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:

@@ -389,3 +389,45 @@ async def test_erase_queues_cancel_notice_for_future_booked_interview(
     assert payload["sequence"] == 3
     assert payload["cancelled_by"] == "The application was deleted"
     assert "Erika" not in str(payload)
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_erase_succeeds_even_when_the_cancel_notice_cannot_be_queued(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The erase is the data-protection action; a failure writing the
+    interviewer's notice afterwards is logged, never surfaced as a failed
+    erase (a retry would 404 on the gone application)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import Application, Interview
+    from app.models.interview import InterviewStatus
+    from app.services import erasure
+
+    await _company_with_applications(client, n_jobs=1)
+    me = (await client.get("/api/v1/auth/me")).json()
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
+    company_id = (
+        await db_session.execute(select(Application.company_id).where(Application.id == app_id))
+    ).scalar_one()
+    db_session.add(
+        Interview(
+            company_id=company_id,
+            application_id=app_id,
+            interviewer_user_id=me["id"],
+            duration_minutes=30,
+            timezone="Europe/Berlin",
+            status=InterviewStatus.BOOKED,
+            scheduled_start=datetime.now(UTC) + timedelta(days=2),
+        )
+    )
+    await db_session.commit()
+
+    async def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(erasure.outbox_service, "queue_email", boom)
+    resp = await client.post(f"/api/v1/applications/{app_id}/erase-candidate")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"applications": 1, "cancel_notices": 0}
+    assert (await client.get(f"/api/v1/applications/{app_id}")).status_code == 404
