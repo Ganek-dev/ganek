@@ -78,7 +78,7 @@ class Scorecard(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     declined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # [{"id", "label", ...}] copied from the job template at request time
     criteria_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
-    # criterion id -> 1..5
+    # criterion id -> 1..4
     ratings: Mapped[dict[str, int]] = mapped_column(JSONB, default=dict)
     recommendation: Mapped[Recommendation | None] = mapped_column(
         Enum(
