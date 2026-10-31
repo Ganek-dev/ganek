@@ -18,7 +18,7 @@ from app.schemas.users import (
     UserCreate,
     UserUpdate,
 )
-from app.services import demo_mode, google_calendar
+from app.services import demo_mode
 from app.services import interviews as interviews_service
 from app.services import invites as invites_service
 from app.services import outbox as outbox_service
@@ -29,22 +29,6 @@ router = APIRouter(prefix="/users", tags=["users"], dependencies=[])
 
 
 # /me routes stay ABOVE any /{user_id} routes so "me" never parses as an id.
-@router.get("/me/google-calendar")
-async def my_google_calendar(db: DbSession, user: CurrentUser) -> dict[str, object]:
-    """Calendar-connection state for the Account card. Never exposes tokens."""
-    credential = await google_calendar.get_credential(db, user)
-    return {
-        "connected": credential is not None,
-        "google_email": credential.google_email if credential is not None else None,
-        "needs_reconnect": bool(credential is not None and credential.last_refresh_error),
-    }
-
-
-@router.delete("/me/google-calendar", status_code=status.HTTP_204_NO_CONTENT)
-async def disconnect_google_calendar(db: DbSession, user: CurrentUser) -> None:
-    await google_calendar.remove_credentials(db, user)
-
-
 @router.get("/me/availability", response_model=AvailabilityOut)
 async def my_availability(user: CurrentUser) -> AvailabilityOut:
     tz, windows = interviews_service.effective_availability(user)

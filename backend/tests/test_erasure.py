@@ -2,8 +2,8 @@
 
 Erasure must be fail-closed on storage (no rows disappear if S3 cleanup
 fails - the cv_object_key pointer is the only way to find the object) and
-best-effort on Google Calendar (events live on the recruiter's personal
-calendar; a failure is reported, never blocking).
+send the interviewer a calendar cancel notice for a booked future
+interview (queued after the commit, no candidate data in it).
 """
 
 from uuid import uuid4

@@ -234,7 +234,6 @@ async def test_demo_locks_the_shared_account_and_leaves_the_rest_open(
         client.patch(f"/api/v1/users/{me['id']}", json={}),
         client.post(f"/api/v1/users/{me['id']}/anonymize"),
         client.get("/api/v1/auth/google/start"),
-        client.get("/api/v1/auth/google/calendar/connect"),
     ]
     for pending in locked:
         resp = await pending
