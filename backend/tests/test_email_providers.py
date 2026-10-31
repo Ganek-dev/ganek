@@ -144,3 +144,51 @@ def test_http_post_json_maps_http_errors(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(urllib.request, "urlopen", failing)
     with pytest.raises(providers.ProviderError, match="HTTP 400: .*nope"):
         providers._http_post_json("https://example.invalid/x", headers={}, body={})
+
+
+def test_mailjet_attaches_calendar_base64(mailjet: list[dict[str, Any]]) -> None:
+    import base64
+
+    content = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n"
+    providers.current().send(
+        providers.OutboundMessage(
+            to="jane@example.com",
+            subject="Confirmed",
+            text="see attached",
+            calendar=providers.CalendarPart(method="REQUEST", content=content),
+        )
+    )
+    entry = mailjet[0]["body"]["Messages"][0]
+    assert entry["Attachments"] == [
+        {
+            "ContentType": "text/calendar",
+            "Filename": "invite.ics",
+            "Base64Content": base64.b64encode(content.encode()).decode(),
+        }
+    ]
+
+
+def test_mailjet_without_calendar_sends_no_attachments(mailjet: list[dict[str, Any]]) -> None:
+    providers.current().send(
+        providers.OutboundMessage(to="jane@example.com", subject="Plain", text="hi")
+    )
+    assert "Attachments" not in mailjet[0]["body"]["Messages"][0]
+
+
+def test_send_email_passes_calendar(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[providers.OutboundMessage] = []
+
+    class Capture:
+        name = "capture"
+
+        def configured(self) -> bool:
+            return True
+
+        def send(self, message: providers.OutboundMessage) -> None:
+            sent.append(message)
+
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(providers, "current", lambda: Capture())
+    part = providers.CalendarPart(method="CANCEL", content="BEGIN:VCALENDAR\r\n")
+    email_service.send_email(to="a@b.c", subject="s", body="b", calendar=part)
+    assert sent[0].calendar is part

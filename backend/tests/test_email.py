@@ -8,6 +8,7 @@ import pytest
 
 from app.core.config import settings
 from app.services import email as email_service
+from app.services import email_providers
 
 
 class FakeSMTP:
@@ -485,3 +486,37 @@ def test_stage_senders_send_exactly_what_the_renderer_produces(
     assert message["Subject"] == expected.subject
     assert text.rstrip("\n") == expected.text.rstrip("\n")
     assert html.rstrip("\n") == expected.html.rstrip("\n")
+
+
+def test_smtp_adds_text_calendar_alternative_and_ics_attachment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    content = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n"
+    email_service.send_email(
+        to="jane@example.com",
+        subject="Confirmed",
+        body="plain",
+        html="<p>html</p>",
+        calendar=email_providers.CalendarPart(method="REQUEST", content=content),
+    )
+    message = FakeSMTP.sent[0]
+    parts = {part.get_content_type(): part for part in message.walk() if not part.is_multipart()}
+    assert set(parts) == {"text/plain", "text/html", "text/calendar", "application/ics"}
+    assert parts["text/calendar"].get_param("method") == "REQUEST"
+    # the email package normalises line endings on read-back; the wire form is CRLF
+    assert parts["text/calendar"].get_content().replace("\r\n", "\n") == content.replace(
+        "\r\n", "\n"
+    )
+    assert parts["application/ics"].get_filename() == "invite.ics"
+    assert parts["application/ics"].get_payload(decode=True) == content.encode()
+
+
+def test_smtp_without_calendar_has_only_text_and_html(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    email_service.send_email(to="jane@example.com", subject="Plain", body="plain", html="<p>x</p>")
+    message = FakeSMTP.sent[0]
+    types = [part.get_content_type() for part in message.walk() if not part.is_multipart()]
+    assert types == ["text/plain", "text/html"]
