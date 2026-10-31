@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import hash_password
 from app.models import Company, Interview, InterviewStatus, User, UserRole
 from app.schemas.users import UserCreate, UserUpdate
-from app.services import activity, google_calendar
+from app.services import activity
 
 
 class EmailTakenError(Exception):
@@ -134,14 +134,12 @@ async def anonymize_user(
     ).first()
     if upcoming is not None:
         raise HasUpcomingInterviewsError
-    # best-effort Google revoke + credential row delete (commits internally,
-    # so it runs before the tombstone transaction)
-    await google_calendar.remove_credentials(db, user)
     user.email = f"deleted-{uuid.uuid4().hex}@invalid"  # emails are globally unique
     user.display_name = None
     user.password_hash = None
     user.google_sub = None
-    user.interview_availability = None  # creds are gone; no slot generation either way
+    user.interview_availability = None  # a tombstone offers no slots
+    user.interview_location = None
     user.is_active = False
     user.token_version += 1  # kill live sessions immediately
     activity.record(

@@ -827,7 +827,7 @@ def send_interview_reminder(
 
 
 # ---- interview invites with a calendar part (card: scheduling without
-# Google Calendar). One UID per interview; REQUEST on booking and on every
+# on ICS only). One UID per interview; REQUEST on booking and on every
 # reschedule (SEQUENCE + 1), CANCEL on cancellation. The organiser is the
 # sending address: replies are not tracked, the booking page is where a
 # candidate changes or cancels.

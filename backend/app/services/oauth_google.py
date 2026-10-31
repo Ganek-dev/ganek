@@ -54,22 +54,10 @@ def redirect_uri() -> str:
     return urls.google_oauth_redirect_uri()
 
 
-# events CRUD alone does NOT cover freebusy.query - that needs its own
-# granular scope (Google's freebusy reference lists calendar.freebusy;
-# calendar.events is absent from its authorization list)
-CALENDAR_SCOPES = (
-    "https://www.googleapis.com/auth/calendar.events "
-    "https://www.googleapis.com/auth/calendar.freebusy"
-)
-
-
-def build_authorization_request(*, calendar: bool = False) -> tuple[str, str, str, str]:
-    """Return (authorization_url, state, code_verifier, nonce).
-
-    calendar=True is the incremental-auth consent for Calendar access:
-    offline access forces a refresh token (prompt=consent re-issues one on
-    reconnect), and include_granted_scopes folds in the sign-in grant.
-    """
+def build_authorization_request() -> tuple[str, str, str, str]:
+    """Return (authorization_url, state, code_verifier, nonce) for sign-in.
+    Only ``openid email`` is ever requested: no Calendar scope (interview
+    invites travel as .ics files), so no sensitive-scope verification."""
     state = secrets.token_urlsafe(32)
     code_verifier = secrets.token_urlsafe(64)
     nonce = secrets.token_urlsafe(32)
@@ -90,11 +78,6 @@ def build_authorization_request(*, calendar: bool = False) -> tuple[str, str, st
         "code_challenge_method": "S256",
         "prompt": "select_account",
     }
-    if calendar:
-        params["scope"] = f"openid email {CALENDAR_SCOPES}"
-        params["access_type"] = "offline"
-        params["prompt"] = "consent"
-        params["include_granted_scopes"] = "true"
     return f"{GOOGLE_AUTH_ENDPOINT}?{urlencode(params)}", state, code_verifier, nonce
 
 

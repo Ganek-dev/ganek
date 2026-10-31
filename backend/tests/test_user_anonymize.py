@@ -53,20 +53,9 @@ async def _company_with_member(
 async def test_anonymize_tombstones_revokes_and_kills_sessions(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    from app.models import User, UserGoogleCredential
+    from app.models import User
 
     admin, member, member_id = await _company_with_member(client)
-
-    # a stored Google credential (undecryptable → no network on revoke)
-    db_session.add(
-        UserGoogleCredential(
-            user_id=member_id,
-            refresh_token_encrypted="not-decryptable",
-            google_email=member["email"],
-            connected_at=datetime.now(UTC),
-        )
-    )
-    await db_session.commit()
 
     # capture a live member session cookie to prove it dies
     assert (await client.post("/api/v1/auth/login", json=member)).status_code == 200
@@ -89,14 +78,6 @@ async def test_anonymize_tombstones_revokes_and_kills_sessions(
     assert row.google_sub is None
     assert row.interview_availability is None
     assert row.is_active is False
-
-    # google credential deleted
-    cred = (
-        await db_session.execute(
-            select(UserGoogleCredential).where(UserGoogleCredential.user_id == member_id)
-        )
-    ).scalar_one_or_none()
-    assert cred is None
 
     # the captured session no longer works (token_version bumped)
     resp = await client.get("/api/v1/auth/me", headers={"Cookie": f"ganek_session={member_cookie}"})
