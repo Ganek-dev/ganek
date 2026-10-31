@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Company, Job, JobStatus, Questionnaire
 from app.schemas.jobs import JobCreate, JobUpdate
+from app.schemas.scorecards import ensure_criterion_ids
 from app.services.slugs import slugify, with_random_suffix
 
 
@@ -63,6 +64,12 @@ async def create_job(db: AsyncSession, company: Company, payload: JobCreate) -> 
         if payload.screening_questions is not None
         else list(company.screening_questions or [])
     )
+    # scorecard criteria: same copy-on-create rule
+    values["scorecard_template"] = (
+        ensure_criterion_ids(payload.scorecard_template)
+        if payload.scorecard_template is not None
+        else list(company.scorecard_template or [])
+    )
     job = Job(
         company_id=company.id,
         slug=await _unique_slug(db, company.id, slugify(payload.title)),
@@ -98,6 +105,10 @@ async def update_job(db: AsyncSession, company: Company, job: Job, payload: JobU
         values["screening_questions"] = [q.model_dump() for q in payload.screening_questions]
     else:
         values.pop("screening_questions", None)
+    if payload.scorecard_template is not None:
+        values["scorecard_template"] = ensure_criterion_ids(payload.scorecard_template)
+    else:
+        values.pop("scorecard_template", None)
     for field, value in values.items():
         setattr(job, field, value)
     if (
