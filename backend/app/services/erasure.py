@@ -68,31 +68,50 @@ class CancelNotice:
     sequence: int
 
 
-async def queue_cancel_notices(db: AsyncSession, notices: list[CancelNotice]) -> None:
+async def queue_cancel_notices(db: AsyncSession, notices: list[CancelNotice]) -> int:
     """Queue the interviewer notices collected by ``erase_application``.
-    Call AFTER the caller's commit: ``outbox.queue_email`` commits."""
+    Call AFTER the caller's commit: ``outbox.queue_email`` commits. Returns
+    how many were queued; a failure is logged and never fails the erase
+    that already happened (a retry would only 404 on the gone rows)."""
+    queued = 0
     for notice in notices:
-        await outbox_service.queue_email(
-            db,
-            kind="interview_cancelled_interviewer",
-            company_id=notice.company_id,
-            application_id=None,
-            to=notice.interviewer_email,
-            ref=None,
-            candidate_name="",
-            candidate_email="",
-            interviewer_name=notice.interviewer_name,
-            job_title=notice.job_title,
-            company_name=notice.company_name,
-            title=notice.title,
-            start=notice.start,
-            duration_minutes=notice.duration_minutes,
-            timezone=notice.timezone,
-            location=notice.location,
-            uid=notice.uid,
-            sequence=notice.sequence,
-            cancelled_by="The application was deleted",
-        )
+        try:
+            await queue_one_cancel_notice(db, notice)
+        except Exception:  # noqa: BLE001 - the erase succeeded; the notice is best-effort
+            logger.warning(
+                "erasure: could not queue the interviewer cancel notice for %s (uid %s)",
+                notice.interviewer_email,
+                notice.uid,
+                exc_info=True,
+            )
+            await db.rollback()
+            continue
+        queued += 1
+    return queued
+
+
+async def queue_one_cancel_notice(db: AsyncSession, notice: CancelNotice) -> None:
+    await outbox_service.queue_email(
+        db,
+        kind="interview_cancelled_interviewer",
+        company_id=notice.company_id,
+        application_id=None,
+        to=notice.interviewer_email,
+        ref=None,
+        candidate_name="",
+        candidate_email="",
+        interviewer_name=notice.interviewer_name,
+        job_title=notice.job_title,
+        company_name=notice.company_name,
+        title=notice.title,
+        start=notice.start,
+        duration_minutes=notice.duration_minutes,
+        timezone=notice.timezone,
+        location=notice.location,
+        uid=notice.uid,
+        sequence=notice.sequence,
+        cancelled_by="The application was deleted",
+    )
 
 
 def _like_literal(text: str) -> str:
@@ -229,10 +248,10 @@ async def erase_candidate(
         payload={"applications": len(applications), "tasks": scrubbed_tasks},
     )
     await db.commit()
-    await queue_cancel_notices(db, notices)
+    queued = await queue_cancel_notices(db, notices)
     return EraseSummary(
         applications=len(applications),
         cv_objects=cv_objects,
-        cancel_notices=len(notices),
+        cancel_notices=queued,
         tasks=scrubbed_tasks,
     )
