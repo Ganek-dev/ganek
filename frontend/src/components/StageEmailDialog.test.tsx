@@ -46,8 +46,9 @@ function tpl(id: string, name: string, is_default = false): EmailKindInfo["templ
 const REJECTION = {
   kind: "rejection" as const,
   subject: "Your application to ACME",
-  text: "Thank you, Jane\n\nWe've finished reviewing applications.",
+  text: "Thank you, Jane\n\nWe've finished reviewing applications.\n\nSee open positions: https://x",
   html: "<h1>x</h1>",
+  body: "Thank you, Jane\n\nWe've finished reviewing applications.",
 };
 
 function renderDialog(

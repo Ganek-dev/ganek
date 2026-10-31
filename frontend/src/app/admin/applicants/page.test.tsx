@@ -221,6 +221,7 @@ describe("ApplicantsPage", () => {
       subject: "Your application to ACME Ganek",
       text: "Thank you, Jane Applicant",
       html: "",
+      body: "Thank you, Jane Applicant",
     });
     mockedApps.bulkStage.mockResolvedValue({ updated: 2, skipped: 0 });
     mockedApps.eraseCandidate.mockResolvedValue({ applications: 2, google_event_failures: 0 });
