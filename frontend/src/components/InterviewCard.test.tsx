@@ -31,7 +31,7 @@ function interview(overrides: Partial<InterviewAdmin> = {}): InterviewAdmin {
     duration_minutes: 45,
     timezone: "Europe/Berlin",
     scheduled_start: null,
-    meet_url: null,
+    location: "",
     created_at: "2026-08-08T10:00:00Z",
     ...overrides,
   };
@@ -68,6 +68,7 @@ describe("InterviewCard", () => {
     mockedInterviews.preview.mockResolvedValue({
       schedule_summary: "Mon-Fri 09:00-17:00",
       open_slot_count: 23,
+      default_location: "",
     });
     mockedInterviews.create.mockResolvedValue(interview());
     mockedInterviews.cancel.mockResolvedValue(interview({ status: "cancelled" }));
@@ -77,6 +78,7 @@ describe("InterviewCard", () => {
     mockedInterviews.preview.mockResolvedValue({
       schedule_summary: "Mon-Fri 09:00-17:00",
       open_slot_count: 23,
+      default_location: "",
     });
     await openDialog();
 
@@ -96,6 +98,7 @@ describe("InterviewCard", () => {
     mockedInterviews.preview.mockResolvedValue({
       schedule_summary: "Mon-Fri 09:00-17:00",
       open_slot_count: 0,
+      default_location: "",
     });
     await openDialog();
 
@@ -120,12 +123,36 @@ describe("InterviewCard", () => {
     );
   });
 
-  it("explains the calendar-not-connected error", async () => {
-    mockedInterviews.preview.mockRejectedValue(
-      new ApiError(409, "Interviewer has not connected Google Calendar"),
-    );
+  it("prefills the location from the interviewer default and sends it", async () => {
+    mockedInterviews.preview.mockResolvedValue({
+      schedule_summary: "Mon-Fri 09:00-17:00",
+      open_slot_count: 23,
+      default_location: "Room 2",
+    });
     await openDialog();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Account page under Settings/);
+    const where = await screen.findByLabelText("Where");
+    await waitFor(() => expect(where).toHaveValue("Room 2"));
+    await userEvent.clear(where);
+    await userEvent.type(where, "https://zoom.example/j/1");
+    await userEvent.click(screen.getByRole("button", { name: /send invite/i }));
+    await waitFor(() =>
+      expect(mockedInterviews.create).toHaveBeenCalledWith(
+        "app1",
+        expect.objectContaining({ location: "https://zoom.example/j/1" }),
+      ),
+    );
+  });
+
+  it("says both sides get a calendar invite and never mentions Google", async () => {
+    await openDialog();
+    expect(screen.getByText(/both of you get a calendar invite/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Google/)).not.toBeInTheDocument();
+  });
+
+  it("surfaces a preview error as-is", async () => {
+    mockedInterviews.preview.mockRejectedValue(new ApiError(422, "Unknown timezone"));
+    await openDialog();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unknown timezone");
   });
 
   it("shows availability-based pending copy", async () => {
@@ -146,19 +173,28 @@ describe("InterviewCard", () => {
     expect(await screen.findByRole("button", { name: "Schedule interview" })).toBeInTheDocument();
   });
 
-  it("renders the booked state with the Meet link", async () => {
+  it("shows the location as a link when it is a URL", async () => {
     mockedInterviews.get.mockResolvedValue(
       interview({
         status: "booked",
         scheduled_start: SLOT_B,
-        meet_url: "https://meet.google.com/abc",
+        location: "https://teams.example/room-2",
       }),
     );
     render(<InterviewCard applicationId="app1" />);
     expect(await screen.findByText(/14:00/)).toBeInTheDocument(); // Berlin time
-    expect(screen.getByRole("link", { name: /Meet/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /teams\.example/ })).toHaveAttribute(
       "href",
-      "https://meet.google.com/abc",
+      "https://teams.example/room-2",
     );
+  });
+
+  it("shows the location as text otherwise", async () => {
+    mockedInterviews.get.mockResolvedValue(
+      interview({ status: "booked", scheduled_start: SLOT_B, location: "Room 2, 3rd floor" }),
+    );
+    render(<InterviewCard applicationId="app1" />);
+    expect(await screen.findByText("Room 2, 3rd floor")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Room 2/ })).not.toBeInTheDocument();
   });
 });

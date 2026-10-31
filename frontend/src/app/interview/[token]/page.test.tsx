@@ -59,7 +59,7 @@ function interview(overrides: Partial<InterviewPublic> = {}): InterviewPublic {
     interviewer_display: "Dana Kowalska",
     available_slots: [SLOT_A, SLOT_B, SLOT_C],
     scheduled_start: null,
-    meet_url: null,
+    location: "",
     ...overrides,
   };
 }
@@ -99,16 +99,30 @@ describe("InterviewBookingPage", () => {
     expect(screen.getByRole("button", { name: "14:00" })).toBeInTheDocument();
     // Wed's slot isn't shown until its day chip is active
     expect(screen.queryByRole("button", { name: "11:30" })).not.toBeInTheDocument();
-    // Google recipients disclosure at the booking touchpoint (M5.6 G1)
+    // Art. 13 recipients disclosure at the booking touchpoint (M5.6 G1)
     expect(
-      screen.getByText(/your name and email to .*Google Calendar/),
+      screen.getByText(/calendar invite with your name and email to you and your interviewer/),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Google/)).not.toBeInTheDocument();
+  });
+
+  it("shows the location when set, as a link for a URL and as text otherwise", async () => {
+    mocked.get.mockResolvedValue(interview({ location: "https://teams.example/room-2" }));
+    const { unmount } = render(<InterviewBookingPage />);
+    expect(await screen.findByRole("link", { name: /teams\.example\/room-2/ })).toHaveAttribute(
+      "href",
+      "https://teams.example/room-2",
+    );
+    unmount();
+    mocked.get.mockResolvedValue(interview({ location: "Room 2, 3rd floor" }));
+    render(<InterviewBookingPage />);
+    expect(await screen.findByText("Room 2, 3rd floor")).toBeInTheDocument();
   });
 
   it("groups slots into a day strip in the visitor's timezone and books from the time list", async () => {
     mocked.get.mockResolvedValue(withSlots([MON_1, MON_2, MON_3, TUE_1, TUE_2]));
     mocked.book.mockResolvedValue(
-      interview({ status: "booked", scheduled_start: MON_1, meet_url: "https://meet.g/x" }),
+      interview({ status: "booked", scheduled_start: MON_1, location: "https://meet.example/x" }),
     );
     render(<InterviewBookingPage />);
     const mondayTab = await screen.findByRole("tab", { name: /mon.*3/i });
@@ -140,7 +154,7 @@ describe("InterviewBookingPage", () => {
 
   it("books the selected slot", async () => {
     mocked.book.mockResolvedValue(
-      interview({ status: "booked", scheduled_start: SLOT_B, meet_url: "https://meet.g/x" }),
+      interview({ status: "booked", scheduled_start: SLOT_B, location: "https://meet.example/x" }),
     );
     render(<InterviewBookingPage />);
     await userEvent.click(await screen.findByRole("button", { name: "14:00" }));
@@ -148,10 +162,14 @@ describe("InterviewBookingPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm interview" }));
     await waitFor(() => expect(mocked.book).toHaveBeenCalledWith("iv-tok", SLOT_B));
     expect(await screen.findByRole("heading", { name: "You're booked in" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Meet link" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open link" })).toHaveAttribute(
       "href",
-      "https://meet.g/x",
+      "https://meet.example/x",
     );
+    const download = screen.getByRole("link", { name: "Download .ics" });
+    expect(download).toHaveAttribute("href", "/api/v1/public/interviews/iv-tok/invite.ics");
+    expect(download).toHaveAttribute("download");
+    expect(screen.queryByText(/Google/)).not.toBeInTheDocument();
   });
 
   it("recovers when the slot was just taken at confirm time", async () => {
@@ -180,7 +198,7 @@ describe("InterviewBookingPage", () => {
       .mockResolvedValueOnce(interview()) // initial mount load
       .mockImplementationOnce(() => staleGet.promise); // re-check GET from selecting the slot - left pending
     mocked.book.mockResolvedValue(
-      interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),
+      interview({ status: "booked", scheduled_start: SLOT_A, location: "https://meet.example/x" }),
     );
     render(<InterviewBookingPage />);
     // clicking the slot fires the (still-pending) re-check GET, then confirm
@@ -224,7 +242,7 @@ describe("InterviewBookingPage", () => {
     // the in-flight booking still lands normally once it resolves
     await act(async () => {
       bookDeferred.resolve(
-        interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),
+        interview({ status: "booked", scheduled_start: SLOT_A, location: "https://meet.example/x" }),
       );
       await bookDeferred.promise;
     });
@@ -233,10 +251,10 @@ describe("InterviewBookingPage", () => {
 
   it("reschedules from the booked state", async () => {
     mocked.get.mockResolvedValue(
-      interview({ status: "booked", scheduled_start: SLOT_A, meet_url: "https://meet.g/x" }),
+      interview({ status: "booked", scheduled_start: SLOT_A, location: "https://meet.example/x" }),
     );
     mocked.reschedule.mockResolvedValue(
-      interview({ status: "booked", scheduled_start: SLOT_C, meet_url: "https://meet.g/x" }),
+      interview({ status: "booked", scheduled_start: SLOT_C, location: "https://meet.example/x" }),
     );
     render(<InterviewBookingPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Reschedule" }));

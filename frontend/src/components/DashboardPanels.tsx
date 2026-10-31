@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { Activity, CalendarDays, ListTodo, Plus, Video, X } from "lucide-react";
+import { Activity, CalendarDays, Link2, ListTodo, MapPin, Plus, X } from "lucide-react";
 
 import {
   dashboard,
@@ -15,8 +15,9 @@ import {
 } from "@/lib/api";
 import { relativeTime } from "@/lib/time";
 
-/** Dashboard 06 right-rail trio: Today (calendar), Your queue (derived +
- * manual tasks), Activity feed. Each panel fetches its own data. */
+/** Dashboard 06 right-rail trio: Today (this user's booked interviews),
+ * Your queue (derived + manual tasks), Activity feed. Each panel fetches
+ * its own data. */
 
 function timeOf(iso: string | null): string {
   if (!iso) return "-";
@@ -38,7 +39,7 @@ export function TodayPanel() {
     dashboard
       .today(tz)
       .then(setData)
-      .catch(() => setData({ source: "ganek", events: [] }));
+      .catch(() => setData({ events: [] }));
   }, []);
 
   return (
@@ -46,25 +47,11 @@ export function TodayPanel() {
       <h2 className={headCls}>
         <CalendarDays aria-hidden className="h-3.5 w-3.5" />
         Today
-        {data?.source === "google" ? (
-          <span className="ml-auto normal-case tracking-normal text-g400">Google Calendar</span>
-        ) : null}
       </h2>
       {data === null ? (
         <div aria-busy="true" className="mt-3 h-20 animate-pulse rounded-md bg-muted-fill" />
       ) : data.events.length === 0 ? (
-        <p className="mt-3 text-[12.5px] text-g500">
-          Nothing scheduled today.
-          {data.source === "ganek" ? (
-            <>
-              {" "}
-              <Link href="/admin/account" className="text-accent hover:underline">
-                Connect Google Calendar
-              </Link>{" "}
-              to see your whole day here.
-            </>
-          ) : null}
-        </p>
+        <p className="mt-3 text-[12.5px] text-g500">Nothing scheduled today.</p>
       ) : (
         <ul className="mt-3 space-y-2.5">
           {data.events.map((event, index) => (
@@ -74,14 +61,21 @@ export function TodayPanel() {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium">{event.summary}</p>
-                {event.hangout_link ? (
-                  <a
-                    href={event.hangout_link}
-                    className="inline-flex items-center gap-1 text-[11.5px] text-accent hover:underline"
-                  >
-                    <Video aria-hidden className="h-3 w-3" />
-                    Meet
-                  </a>
+                {event.location ? (
+                  /^https?:\/\//i.test(event.location) ? (
+                    <a
+                      href={event.location}
+                      className="inline-flex items-center gap-1 text-[11.5px] text-accent hover:underline"
+                    >
+                      <Link2 aria-hidden className="h-3 w-3" />
+                      {event.location.replace(/^https?:\/\//i, "")}
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11.5px] text-g500">
+                      <MapPin aria-hidden className="h-3 w-3" />
+                      {event.location}
+                    </span>
+                  )
                 ) : null}
               </div>
             </li>

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { CalendarPlus, Video } from "lucide-react";
+import { CalendarPlus, Link2, MapPin } from "lucide-react";
 
-import { interviews, team, type InterviewAdmin, type TeamUser } from "@/lib/api";
+import { interviews, team, type InterviewAdmin, type SlotPreview, type TeamUser } from "@/lib/api";
 
 import {
   Dialog,
@@ -22,6 +22,32 @@ applicants page stays lean. States: none -> schedule dialog -> pending ->
 booked -> (cancel) -> back to none. */
 
 const DURATIONS = [15, 30, 45, 60] as const;
+
+export function isUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+/** The interview location: a link when it is one, plain text otherwise. */
+export function LocationLine({ location, className = "" }: { location: string; className?: string }) {
+  if (!location) return null;
+  if (isUrl(location)) {
+    return (
+      <a
+        href={location}
+        className={`inline-flex items-center gap-1 font-medium text-accent hover:underline ${className}`}
+      >
+        <Link2 aria-hidden className="h-3.5 w-3.5" />
+        {location.replace(/^https?:\/\//i, "")}
+      </a>
+    );
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 ${className}`}>
+      <MapPin aria-hidden className="h-3.5 w-3.5 text-g500" />
+      {location}
+    </span>
+  );
+}
 
 function fmt(iso: string, timezone: string): string {
   const d = new Date(iso);
@@ -52,6 +78,9 @@ function ScheduleDialogBody({
   const [interviewer, setInterviewer] = useState("");
   const [duration, setDuration] = useState<number>(45);
   const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  // once the recruiter types a location, interviewer changes stop overwriting it
+  const [locationTouched, setLocationTouched] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,7 +91,7 @@ function ScheduleDialogBody({
   // `react-hooks/set-state-in-effect`; see JobForm.tsx for the same pattern).
   const [previewResult, setPreviewResult] = useState<{
     key: string;
-    preview?: { schedule_summary: string; open_slot_count: number };
+    preview?: SlotPreview;
     error?: string;
   } | null>(null);
 
@@ -88,23 +117,20 @@ function ScheduleDialogBody({
       .then((result) => {
         if (cancelled) return;
         setPreviewResult({ key, preview: result });
+        // prefill from the interviewer's default until the recruiter edits it
+        setLocation((current) => (locationTouched ? current : result.default_location));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         setPreviewResult({
           key,
-          error:
-            err instanceof Error && /calendar/i.test(err.message)
-              ? "Interviewer needs to connect Google Calendar on the Account page under Settings first."
-              : err instanceof Error
-                ? err.message
-                : "Failed to load availability",
+          error: err instanceof Error ? err.message : "Failed to load availability",
         });
       });
     return () => {
       cancelled = true;
     };
-  }, [applicationId, interviewer, duration, timezone]);
+  }, [applicationId, interviewer, duration, timezone, locationTouched]);
 
   const isPreviewCurrent = previewResult !== null && previewResult.key === previewKey;
   const preview = isPreviewCurrent ? (previewResult?.preview ?? null) : null;
@@ -120,6 +146,7 @@ function ScheduleDialogBody({
         duration_minutes: duration,
         timezone,
         description,
+        location: location.trim(),
       });
       onCreated(created);
     } catch (err) {
@@ -172,6 +199,20 @@ function ScheduleDialogBody({
         </span>
       </div>
       <label className="flex flex-col gap-1.5">
+        <span className="text-[12.5px] font-medium">Where</span>
+        <input
+          type="text"
+          value={location}
+          maxLength={500}
+          onChange={(event) => {
+            setLocationTouched(true);
+            setLocation(event.target.value);
+          }}
+          placeholder="Teams link, Zoom link or room"
+          className="h-9 rounded-md border border-edge bg-surface px-2.5 text-[13px] outline-none focus:border-accent"
+        />
+      </label>
+      <label className="flex flex-col gap-1.5">
         <span className="text-[12.5px] font-medium">What to expect (shown to the candidate)</span>
         <textarea
           value={description}
@@ -194,8 +235,8 @@ function ScheduleDialogBody({
 
       {noOpenTimes ? (
         <p className="text-[12.5px] text-amber-600 dark:text-amber-400">
-          No open times in the next 2 weeks - ask them to clear some calendar space or widen
-          their availability.
+          No open times in the next 2 weeks - ask them to widen their availability on the
+          Account page.
         </p>
       ) : null}
 
@@ -280,7 +321,8 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
             <DialogContent>
               <DialogTitle>Schedule interview</DialogTitle>
               <DialogDescription>
-                The invite email lets the candidate pick one of your open times.
+                The invite email lets the candidate pick one of your open times. Both of you
+                get a calendar invite when they confirm.
               </DialogDescription>
               <ScheduleDialogBody
                 applicationId={applicationId}
@@ -310,15 +352,7 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
               <span className="text-g500">
                 {interview.duration_minutes}m · {interview.interviewer_email}
               </span>
-              {interview.meet_url ? (
-                <a
-                  href={interview.meet_url}
-                  className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
-                >
-                  <Video aria-hidden className="h-3.5 w-3.5" />
-                  Meet
-                </a>
-              ) : null}
+              <LocationLine location={interview.location} />
             </p>
           )}
           {confirmingCancel ? (

@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { AvailabilityCard } from "@/components/AvailabilityCard";
@@ -28,34 +27,14 @@ function initials(email: string, displayName?: string | null): string {
   return source.toUpperCase();
 }
 
-type CalendarStatus = {
-  connected: boolean;
-  google_email: string | null;
-  needs_reconnect: boolean;
-};
-
-const CALENDAR_NOTICES: Record<string, { tone: "ok" | "bad"; text: string }> = {
-  connected: { tone: "ok", text: "Google Calendar connected." },
-  failed: { tone: "bad", text: "Connecting Google Calendar didn't complete. Please try again." },
-  "wrong-account": {
-    tone: "bad",
-    text: "That Google account belongs to a different Ganek user. Pick the account you sign in with.",
-  },
-};
-
 function AccountContent() {
-  const searchParams = useSearchParams();
   const [user, setUser] = useState<UserOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [nameBusy, setNameBusy] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
-  const [googleEnabled, setGoogleEnabled] = useState(false);
-  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [demo, setDemo] = useState(false);
-
-  const calendarNotice = CALENDAR_NOTICES[searchParams.get("calendar") ?? ""] ?? null;
 
   useEffect(() => {
     api
@@ -67,18 +46,10 @@ function AccountContent() {
     api
       .providers()
       .then((p) => {
-        setGoogleEnabled(p.google);
         setDemo(p.demo === true);
       })
       .catch(() => {
         /* card stays hidden */
-      });
-    api
-      .googleCalendar
-      .status()
-      .then(setCalendar)
-      .catch(() => {
-        /* card renders the disconnected state */
       });
   }, []);
 
@@ -94,15 +65,6 @@ function AccountContent() {
       /* the field keeps the typed value; a retry re-submits */
     } finally {
       setNameBusy(false);
-    }
-  }
-
-  async function disconnectCalendar() {
-    try {
-      await api.googleCalendar.disconnect();
-      setCalendar({ connected: false, google_email: null, needs_reconnect: false });
-    } catch {
-      /* leave state as-is; a refresh re-syncs */
     }
   }
 
@@ -259,73 +221,6 @@ function AccountContent() {
       </div>
 
       {user ? <TwoFactorCard user={user} onUserChange={setUser} locked={demo} /> : null}
-
-      {googleEnabled ? (
-        <div className="card p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">Google Calendar</p>
-              <p className="mt-0.5 text-[12.5px] text-g500">
-                {calendar?.connected ? (
-                  <>
-                    Connected as{" "}
-                    <span className="font-mono text-[12px] text-g600">
-                      {calendar.google_email}
-                    </span>
-                  </>
-                ) : (
-                  "Connect to schedule interviews with Meet links and see your day on the dashboard."
-                )}
-              </p>
-            </div>
-            {calendar?.connected ? (
-              <button
-                type="button"
-                onClick={disconnectCalendar}
-                className="inline-flex h-8 shrink-0 items-center rounded-md border border-edge px-3.5 text-[13px] font-medium hover:bg-muted-fill/50"
-              >
-                Disconnect
-              </button>
-            ) : demo ? (
-              <span
-                aria-disabled="true"
-                title="Off on the demo workspace"
-                className="inline-flex h-8 shrink-0 cursor-not-allowed items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground opacity-50"
-              >
-                Connect Google Calendar
-              </span>
-            ) : (
-              <a
-                href="/api/v1/auth/google/calendar/connect"
-                className="inline-flex h-8 shrink-0 items-center rounded-md bg-inverse px-3.5 text-[13px] font-medium text-inverse-foreground hover:brightness-[0.94]"
-              >
-                Connect Google Calendar
-              </a>
-            )}
-          </div>
-          {calendar?.connected && calendar.needs_reconnect ? (
-            <p className="mt-3 rounded-md border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400">
-              Calendar access expired or was revoked - {" "}
-              <a href="/api/v1/auth/google/calendar/connect" className="font-medium underline">
-                reconnect
-              </a>{" "}
-              to keep scheduling.
-            </p>
-          ) : null}
-          {calendarNotice ? (
-            <p
-              role={calendarNotice.tone === "bad" ? "alert" : undefined}
-              className={
-                calendarNotice.tone === "bad"
-                  ? "mt-3 text-sm text-red-600 dark:text-red-400"
-                  : "mt-3 text-sm text-emerald-700 dark:text-emerald-400"
-              }
-            >
-              {calendarNotice.text}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
       <AvailabilityCard />
 

@@ -33,32 +33,32 @@ describe("TodayPanel", () => {
     vi.clearAllMocks();
   });
 
-  it("renders google events with meet links", async () => {
+  it("renders booked interviews with their location", async () => {
     mocked.today.mockResolvedValue({
-      source: "google",
       events: [
         {
           start: "2026-08-08T11:00:00+02:00",
           summary: "Intro call - Marta Vidal",
-          hangout_link: "https://meet.google.com/abc",
+          location: "https://teams.example/room-2",
         },
+        { start: "2026-08-08T14:00:00+02:00", summary: "Panel - Jonas Weber", location: "Room 2" },
       ],
     });
     render(<TodayPanel />);
     expect(await screen.findByText("Intro call - Marta Vidal")).toBeInTheDocument();
-    expect(screen.getByText("Google Calendar")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Meet/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /teams\.example/ })).toHaveAttribute(
       "href",
-      "https://meet.google.com/abc",
+      "https://teams.example/room-2",
     );
+    expect(screen.getByText("Room 2")).toBeInTheDocument();
+    expect(screen.queryByText(/Google/)).not.toBeInTheDocument();
   });
 
-  it("suggests connecting when empty on the ganek fallback", async () => {
-    mocked.today.mockResolvedValue({ source: "ganek", events: [] });
+  it("says so when nothing is scheduled, without any connect prompt", async () => {
+    mocked.today.mockResolvedValue({ events: [] });
     render(<TodayPanel />);
-    expect(
-      await screen.findByRole("link", { name: "Connect Google Calendar" }),
-    ).toHaveAttribute("href", "/admin/account");
+    expect(await screen.findByText("Nothing scheduled today.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Connect/ })).not.toBeInTheDocument();
   });
 });
 

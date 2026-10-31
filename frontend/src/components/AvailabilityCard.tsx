@@ -7,9 +7,10 @@ import { Clock } from "lucide-react";
 import { api, type Availability, type DayKey, type DayWindow } from "@/lib/api";
 
 /** Account settings card: the recruiter's weekly interview-availability
- * window, used by the slot engine to offer times to candidates. Loads the
+ * window, used by the slot engine to offer times to candidates, plus the
+ * default meeting location copied onto each interview request. Loads the
  * saved (or default Mon-Fri 9-17) schedule, edits happen client-side, Save
- * PUTs the whole week + the browser's IANA zone. */
+ * PUTs the whole week + the browser's IANA zone + the location. */
 
 const DAYS: { key: DayKey; label: string; short: string }[] = [
   { key: "mon", label: "Monday", short: "Mon" },
@@ -41,6 +42,7 @@ const selectCls =
 export function AvailabilityCard() {
   const [loaded, setLoaded] = useState(false);
   const [days, setDays] = useState<Partial<Record<DayKey, DayWindow>>>({});
+  const [location, setLocation] = useState("");
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -55,6 +57,7 @@ export function AvailabilityCard() {
       .then((res: Availability) => {
         if (cancelled) return;
         setDays(res.days);
+        setLocation(res.location ?? "");
         setIsDefault(res.is_default);
         setLoaded(true);
       })
@@ -99,8 +102,13 @@ export function AvailabilityCard() {
     setSaved(false);
     setSaving(true);
     try {
-      const result = await api.availability.set({ timezone: browserZone, days });
+      const result = await api.availability.set({
+        timezone: browserZone,
+        days,
+        location: location.trim(),
+      });
       setDays(result.days);
+      setLocation(result.location ?? "");
       setIsDefault(result.is_default);
       setSaved(true);
     } catch (err) {
@@ -194,6 +202,24 @@ export function AvailabilityCard() {
           );
         })}
       </div>
+
+      <label className="mt-4 flex flex-col gap-1.5">
+        <span className="text-[13px] font-medium">Where your interviews happen</span>
+        <input
+          type="text"
+          value={location}
+          maxLength={500}
+          onChange={(event) => {
+            setSaved(false);
+            setLocation(event.target.value);
+          }}
+          placeholder="A Teams or Zoom link, or a room"
+          className="h-9 rounded-md border border-edge bg-transparent px-2.5 text-[13px] outline-none focus:border-g400"
+        />
+      </label>
+      <p className="mt-1.5 text-[12px] text-g500">
+        Prefilled on every interview you are asked to run; editable per interview.
+      </p>
 
       <div className="mt-4">
         {invalidDay ? (
