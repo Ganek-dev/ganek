@@ -83,10 +83,11 @@ export function PrivacyNotice({
           <h2 className={h2Cls}>What this site collects</h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5">
             <li className={liCls}>
-              <span className={termCls}>Your application</span> - name, email, CV file, and
-              the optional links and message you choose to add. Please don&apos;t include
-              sensitive personal details (health, beliefs, and similar) in your CV or
-              message - they aren&apos;t asked for or wanted.
+              <span className={termCls}>Your application</span> - name, email, CV file,
+              the optional links and message you choose to add, and your answers to the
+              job&apos;s screening questions when the role asks some. Please don&apos;t
+              include sensitive personal details (health, beliefs, and similar) in your CV,
+              message or answers - they aren&apos;t asked for or wanted.
             </li>
             <li className={liCls}>
               <span className={termCls}>Assessment answers</span> - if this role includes a

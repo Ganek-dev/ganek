@@ -19,6 +19,7 @@ const FULL: ApplicantFilters = {
   source: "linkedin",
   flagged: true,
   days: 30,
+  screening: "match",
 };
 
 describe("parseFilters", () => {
@@ -85,6 +86,7 @@ describe("toApiFilters", () => {
       source: "linkedin",
       flagged: true,
       since_days: 30,
+      screening: "match",
     });
     expect(toApiFilters(DEFAULT_FILTERS)).toEqual({});
   });
@@ -98,7 +100,23 @@ describe("countActive", () => {
   it("counts the narrowing filters, not job, stage or sort", () => {
     expect(countActive(DEFAULT_FILTERS)).toBe(0);
     expect(countActive({ ...DEFAULT_FILTERS, job: "j", stage: "new", sort: "name_asc" })).toBe(0);
-    expect(countActive(FULL)).toBe(6);
+    expect(countActive(FULL)).toBe(7);
     expect(countActive({ ...DEFAULT_FILTERS, flagged: false })).toBe(1);
+  });
+});
+
+describe("screening filter", () => {
+  it("round-trips screening and maps it to the API param", () => {
+    const parsed = parseFilters(new URLSearchParams("screening=mismatch"));
+    expect(parsed.screening).toBe("mismatch");
+    expect(filtersToParams(parsed).get("screening")).toBe("mismatch");
+    expect(toApiFilters(parsed).screening).toBe("mismatch");
+    expect(countActive(parsed)).toBe(1);
+  });
+
+  it("drops an unknown screening value and omits the default", () => {
+    expect(parseFilters(new URLSearchParams("screening=sideways")).screening).toBeNull();
+    expect(filtersToParams(DEFAULT_FILTERS).has("screening")).toBe(false);
+    expect(toApiFilters(DEFAULT_FILTERS).screening).toBeUndefined();
   });
 });

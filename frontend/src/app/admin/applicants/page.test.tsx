@@ -1279,3 +1279,28 @@ describe("export", () => {
     );
   });
 });
+
+describe("ApplicantsPage screening answers", () => {
+  const MISMATCH = {
+    question_id: "sq_0000aa01",
+    type: "yes_no" as const,
+    prompt: "Can you work in Germany?",
+    options: null,
+    preferred: "yes",
+    answer: "no",
+    match: false,
+  };
+
+  it("shows the mismatch chip in the list and the answers block in the panel", async () => {
+    mockedApps.list.mockResolvedValue(
+      pageOf([makeApp({ id: "app-1", stage: "new", screening_answers: [MISMATCH] })]),
+    );
+    render(<ApplicantsPage />);
+    const janeButton = await screen.findByRole("button", { name: /Jane Applicant/ });
+    expect(within(janeButton).getByText("1 mismatch")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(await screen.findByText("Screening answers")).toBeInTheDocument();
+    expect(screen.getByText("Can you work in Germany?")).toBeInTheDocument();
+    expect(screen.getByText(/Preferred: Yes/)).toBeInTheDocument();
+  });
+});

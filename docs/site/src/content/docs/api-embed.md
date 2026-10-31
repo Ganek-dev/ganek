@@ -83,6 +83,22 @@ curl -H "Authorization: Bearer gk_..." https://your-instance/api/v1/applications
 
 Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}` and the export above. Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor, and a `GET /api/v1/applications/{id}` with a key lands in that applicant's read-access trail under the key's name. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
 
+### Screening questions
+
+A job can ask a few plain questions on the apply form, below the CV: yes/no, single choice, short text, or an acknowledgment the candidate has to tick. Yes/no and single choice questions may carry a preferred answer. The recruiter sees every answer on the applicant with a mark where it differs from the preferred one, the list shows an "N mismatches" chip and offers a Screening filter. Nothing else happens: no answer ever moves a stage, sends an email or touches the quiz score. Admins keep a default set under Settings, Hiring; every new job starts with a copy of it and edits it freely.
+
+```json
+"screening_questions": [
+  { "id": "sq_7f3a9c2e", "type": "yes_no", "prompt": "Can you work in Germany without sponsorship?", "options": null, "preferred": "yes", "required": true },
+  { "id": "sq_1b2c3d4e", "type": "single_choice", "prompt": "Days on site per week?", "options": ["0", "1-2", "3+"], "preferred": "1-2", "required": false },
+  { "id": "sq_9a8b7c6d", "type": "acknowledgment", "prompt": "I confirm the information above is accurate", "options": null, "preferred": null, "required": true }
+]
+```
+
+The field lives on `POST`/`PATCH`/`GET /api/v1/jobs` and, for the company default set, on `PATCH /api/v1/company/settings` (admins) and `GET /api/v1/company/summary` (every role). At most 20 questions; ids are generated when omitted; an acknowledgment is always required and has no preferred answer. The public job detail carries the questions without `preferred`, and the apply payload takes `screening_answers: [{"question_id": "sq_...", "answer": "no"}]` (a string for choices and text, `true` for an acknowledgment, `null` or omitted for a skipped optional question); the server answers 422 with the offending question ids when a required one is missing or a value does not fit. The stored answers keep a snapshot of the question as it was asked, so editing a question later applies to future applicants only.
+
+`GET /api/v1/applications` and the export accept `screening=match` (every preferred answer matched, none missed), `screening=mismatch` (any missed) or `screening=unanswered` (any skipped). Each application in the admin payload carries `screening_answers` with `preferred` and `match`; the candidate status page and the data-copy bundle show prompt and answer only.
+
 ### Webhooks
 
 Admins register HTTPS endpoints under Settings, Developers and pick events: `application.created`, `stage.changed`, `quiz.completed`. Each event becomes one delivery per subscribed endpoint, posted by the worker as JSON:
@@ -142,7 +158,7 @@ GET /api/v1/applications/export?format=csv        # or format=json
 GET /api/v1/applications/export?format=csv&job_id=<uuid>&stage=screening
 ```
 
-Rows are flat and spreadsheet-shaped: candidate name and email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename and the candidate's message. No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
+Rows are flat and spreadsheet-shaped: candidate name and email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename, the candidate's message and `screening_mismatches` (how many preferred screening answers were missed; blank when the job asked none). No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
 
 ### Extra time on the quiz
 
