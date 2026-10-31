@@ -44,7 +44,7 @@ import {
   type SortKey,
 } from "@/lib/applicant-filters";
 import { relativeTime } from "@/lib/time";
-import { SCORE_TONE, ScoreChip, StagePill, toneFor } from "@/components/ApplicantChips";
+import { SCORE_TONE, ScoreChip, ScreeningChip, StagePill, toneFor } from "@/components/ApplicantChips";
 import { MessageDialog } from "@/components/MessageDialog";
 import { BUILTIN_TEMPLATE, REASON_HELPER, StageEmailDialog } from "@/components/StageEmailDialog";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
@@ -52,6 +52,7 @@ import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
 import { NotesCard } from "@/components/NotesCard";
+import { ScreeningAnswers } from "@/components/ScreeningAnswers";
 import { TimelineCard } from "@/components/TimelineCard";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import {
@@ -1086,6 +1087,8 @@ function DetailPanel({
         <p className="mt-4 text-sm text-g600">{app.message}</p>
       ) : null}
 
+      <ScreeningAnswers answers={app.screening_answers} />
+
       {app.stage !== "rejected" && app.stage !== "withdrawn" ? (
         <div className="mt-4">
           <InterviewCard key={app.id} applicationId={app.id} />
@@ -1665,7 +1668,10 @@ function ApplicantsContent() {
                           applied {relativeTime(app.created_at, now)} · {app.stage}
                         </p>
                       </div>
-                      <ScoreChip result={app.quiz_attempt} />
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <ScreeningChip answers={app.screening_answers} />
+                        <ScoreChip result={app.quiz_attempt} />
+                      </span>
                     </button>
                   </li>
                 );
