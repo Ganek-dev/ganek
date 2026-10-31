@@ -20,7 +20,6 @@ wrong address, ransomware making data unavailable: all breaches.
 | Postgres | Everything: identities, applications, scores, telemetry, notes |
 | S3/MinIO `cvs/` bucket | CV files |
 | Container/host/proxy logs | Token-scrubbed access lines with client IPs (app-side); whatever *your* proxy logs |
-| Recruiters' Google calendars | Interview events: candidate name + email (only if calendar connected) |
 | Email relay / mailboxes | Sent candidate mails incl. quiz/status links |
 | Backups | Copies of the above (`{your inventory}`) |
 
@@ -30,10 +29,10 @@ wrong address, ransomware making data unavailable: all breaches.
   *every* outstanding candidate link (quiz/status/interview/invite) and all
   admin sessions. Recruiters log in again; candidates with live processes
   need re-sent links (quiz links can be re-issued from the applicant view).
-  Unless you set a separate `GANEK_ENCRYPTION_KEY`, this also severs stored
-  Google Calendar connections (recruiters reconnect).
-- **Rotate `GANEK_ENCRYPTION_KEY`** (if set) - invalidates stored Google
-  refresh tokens only; recruiters reconnect their calendars.
+  Unless you set a separate `GANEK_ENCRYPTION_KEY`, this also invalidates
+  stored 2FA secrets (recruiters re-enrol their authenticator).
+- **Rotate `GANEK_ENCRYPTION_KEY`** (if set) - invalidates stored 2FA
+  secrets only; recruiters re-enrol their authenticator.
 - **Revoke Google access** at the account level (Google Account →
   Security → third-party access) for affected recruiters, and/or delete
   the OAuth client's credentials in Google Cloud Console.

@@ -12,7 +12,7 @@ Ganek reads its settings from environment variables, in the compose stack via th
 |---|---|---|
 | `GANEK_MODE` | `single` | `single` for a self-hosted instance with one company; `multi` for the hosted product (public signup, quotas, captcha). |
 | `GANEK_SECRET_KEY` | change it | Signs session tokens and the capability links in candidate emails. `openssl rand -hex 32`. Rotating it signs everyone out. |
-| `GANEK_ENCRYPTION_KEY` | derived from the secret key | Encrypts stored Google refresh tokens and 2FA secrets. Set it separately (`openssl rand -hex 32`) so the two keys rotate independently; rotating this one only means recruiters reconnect their calendars. |
+| `GANEK_ENCRYPTION_KEY` | derived from the secret key | Encrypts stored 2FA secrets. Set it separately (`openssl rand -hex 32`) so the two keys rotate independently; rotating this one only means recruiters re-enrol their authenticator. |
 | `POSTGRES_PASSWORD` | `ganek` | Password of the bundled Postgres. Change it before exposing anything. |
 | `GANEK_DATABASE_URL` | bundled Postgres | `postgresql+asyncpg://user:pass@host:5432/ganek` for an external server. Use a database dedicated to Ganek. |
 
@@ -31,7 +31,7 @@ Ganek reads its settings from environment variables, in the compose stack via th
 | Variable | Default | What it does |
 |---|---|---|
 | `GANEK_PUBLIC_BASE_URL` | unset | The candidate-facing origin, for example `https://jobs.example.com`. Quiz, status and interview links in emails use it; the frontend builds the sitemap and Open Graph URLs from it. Set it as soon as the instance has a hostname. |
-| `GANEK_GOOGLE_CLIENT_ID`, `GANEK_GOOGLE_CLIENT_SECRET` | unset | Google sign-in and Google Calendar scheduling. Create an OAuth web client in Google Cloud Console. |
+| `GANEK_GOOGLE_CLIENT_ID`, `GANEK_GOOGLE_CLIENT_SECRET` | unset | Google sign-in. Create an OAuth web client in Google Cloud Console; only the `openid email` scope is requested. |
 | `GANEK_GOOGLE_REDIRECT_URL` | `${GANEK_PUBLIC_BASE_URL}/api/v1/auth/google/callback` | Override the redirect URI registered with Google. |
 
 ## Email
@@ -45,6 +45,8 @@ Emails are skipped with a warning while no provider is configured. The recruiter
 | `GANEK_SMTP_STARTTLS` | `true` | Disable only for a local plaintext catcher such as Mailhog. |
 | `GANEK_EMAIL_FROM` | unset | Sender address, for example `jobs@example.com`. Set up SPF, DKIM and DMARC for its domain (see [Self-hosting](/self-hosting/#email-deliverability)). |
 | `GANEK_MAILJET_API_KEY`, `GANEK_MAILJET_SECRET_KEY` | unset | Mailjet only: the REST API key pair. |
+
+Interview invites travel as a calendar file in the booking, reschedule and cancellation emails. SMTP sends it as a proper calendar part, so Outlook, Gmail and Apple Calendar update the event in place on a reschedule or cancel. Mailjet carries it as a plain attachment: recipients add it to their calendar, and a later change arrives as a new file.
 | `GANEK_EMAIL_WEBHOOK_SECRET` | unset | Basic-auth password the provider presents on its bounce and complaint webhook (`https://ganek:<secret>@host/api/v1/email/webhooks/mailjet`). Unset means webhooks are off. |
 
 ## Signup challenge (multi mode)

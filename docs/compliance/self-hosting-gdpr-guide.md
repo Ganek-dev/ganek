@@ -52,8 +52,8 @@ Work through this once, before the careers page goes public.
       read it as a candidate would. It renders your settings values,
       including the retention promise. If you set your own policy URL
       instead, make sure your policy actually covers everything the built-in
-      notice does - quiz scoring, integrity telemetry, the Google Calendar
-      leg, retention, and candidate rights.
+      notice does - quiz scoring, integrity telemetry, interview invites
+      by email, retention, and candidate rights.
 
 **Retention**
 
@@ -90,9 +90,9 @@ Work through this once, before the careers page goes public.
       S3 server-side-encryption headers by design - use MinIO KMS/SSE, disk
       encryption, or a provider that encrypts by default, for both the CV
       bucket and the Postgres volume.
-- [ ] Host in the EU/EEA if you can. The only built-in third-country flow
-      is Google Calendar (§6); don't add more by picking US hosting for the
-      database and CV bucket.
+- [ ] Host in the EU/EEA if you can. Ganek has no built-in third-country
+      flow (§6); don't add one by picking US hosting for the database and
+      CV bucket.
 - [ ] Decide your **backup policy before you hold candidate data**:
       encrypted backups, a rotation window at or below your retention
       period, and restores only through `scripts/restore.sh`, which
@@ -128,13 +128,13 @@ fixed via **⋯ → Edit candidate email…** on the applicant.
 
 **Erasure (Art. 17).** **⋯ → Erase candidate…** deletes the person across
 *all* their applications: CV files first (the erasure aborts rather than
-leave an orphaned CV), then best-effort deletion of any Google Calendar
-events (failures are counted and shown - clean those up in the calendar by
-hand), then the database records, leaving one anonymized count-only receipt
-in the activity log. Honest limits - copies Ganek cannot reach:
+leave an orphaned CV), then the database records, leaving one anonymized
+count-only receipt in the activity log. For a booked future interview the
+interviewer gets a calendar cancel notice without candidate data, so the
+event leaves their calendar. Honest limits - copies Ganek cannot reach:
 
-- Emails already sent (in the candidate's and your mailboxes).
-- Google Calendar events where deletion failed (reported to you).
+- Emails already sent (in the candidate's and your mailboxes), including
+  earlier calendar invites the interviewer accepted by hand.
 - Free text your team typed into **your own tasks** (manual tasks aren't
   linked to candidates - check them after an erasure). The privacy-request
   tasks Ganek itself creates are handled for you: erasing a candidate
@@ -312,29 +312,20 @@ If candidates volunteer sensitive data in their message or CV, you didn't
 ask for it (the form nudges them not to include it) - don't copy it into
 notes, and weigh it for nothing.
 
-## 6. The Google Calendar leg
+## 6. Interview invites: no calendar provider
 
-Only relevant if your recruiters connect Google Calendar for interview
-scheduling. When they do:
+Interview scheduling needs no calendar connection. Slots come from the
+recruiter's saved weekly availability; when a candidate books, Ganek
+emails both sides a calendar invitation (.ics) with the candidate's name
+and email, the time and the meeting place or video link the recruiter
+entered. A reschedule or cancellation sends the matching update, and
+erasing a candidate with a booked future interview sends the interviewer
+a cancel notice that carries no candidate data.
 
-- Booking an interview creates an event on the **recruiter's own Google
-  calendar** - your Google tenancy, under the recruiter's OAuth grant -
-  with the candidate's full name in the title, their email as an attendee,
-  and a Meet link. Google emails the invitation to the candidate directly.
-- Availability is computed by reading the connected calendar's free/busy
-  status, and Ganek stores the recruiter's refresh token encrypted. The
-  candidate data Ganek writes to Google is limited to the interview events
-  it creates. (Recruiters also see their own day's calendar events on
-  their own dashboard - their data, shown only to them.)
-- For your records: this is a transfer to Google LLC (US). Mechanisms:
-  Google's data-processing terms incorporate SCCs, and Google is DPF-
-  certified while that framework stands. The candidate-facing booking page
-  and privacy notice already disclose the Google involvement.
-- On erasure, Ganek deletes the events it created **best-effort** and
-  reports failures; sent invitation emails are out of reach (§3).
-
-Don't connect calendars if this transfer doesn't fit your posture -
-interviews then simply happen outside Ganek.
+For your records: the only recipients are your email provider (already
+in your inventory) and the people on the invite. No third-country leg is
+built in. The Google Calendar integration that used to exist was removed
+on 2026-10-31.
 
 ## 7. Do you need a DPO? (Art. 37)
 

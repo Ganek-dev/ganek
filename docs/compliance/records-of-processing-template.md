@@ -103,21 +103,23 @@ default 6 months), enforced by the nightly purge from the decision date.
   removes it - records are deleted immediately with the candidate on
   erasure; logs reference internal IDs only.
 
-## Activity 6 - Interview scheduling via Google Calendar
+## Activity 6 - Interview scheduling (calendar invites by email)
 
-*(Delete this activity if your recruiters never connect Google Calendar.)*
-
-- **Purpose:** offering interview slots from recruiters' real availability;
-  calendar invitations with a Meet link.
+- **Purpose:** offering interview slots from recruiters' saved
+  availability; calendar invitations (.ics) emailed to the candidate and
+  the interviewer, with the meeting place or video link the recruiter
+  entered.
 - **Legal basis:** Art. 6(1)(b) (scheduling a step the candidate requested).
-- **Data:** candidate name (event title), email (attendee), interview
-  time; recruiter free/busy status is read to compute slots.
-- **Recipients:** Google LLC (recruiter's connected calendar; Google sends
-  the invitation email to the candidate directly).
-- **Transfers:** USA - Google's data-processing terms (SCCs); Google is
-  DPF-certified while that framework stands.
-- **Retention:** Ganek deletes its events best-effort on erasure/purge;
-  calendar copies per `{your Google Workspace retention}`.
+- **Data:** candidate name and email (as the invite's attendee),
+  interview time, the meeting place or video link the recruiter entered;
+  slots come from the recruiter's saved availability, no calendar is read.
+- **Recipients:** your email provider (`{email provider}`); the candidate
+  and the interviewer, each receiving the invite.
+- **Transfers:** none built in (your email provider's own terms apply).
+- **Retention:** the invite rows follow the application; on erasure or
+  purge of a booked future interview the interviewer receives a cancel
+  notice without candidate data; copies in mailboxes and calendars are
+  outside Ganek's reach.
 
 ## Activity 7 - Post-decision retention for claims defense
 
@@ -153,14 +155,14 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Legal basis:** Art. 6(1)(b) (employment relationship) / 6(1)(f).
 - **Data subjects:** our recruiting staff.
 - **Data:** email, password hash or Google sign-in linkage, role, last
-  login, saved interview availability, encrypted Google Calendar refresh
-  token (if connected).
-- **Recipients:** `{hosting provider}`; Google LLC (sign-in / calendar, if
+  login, saved interview availability and default meeting place.
+- **Recipients:** `{hosting provider}`; Google LLC (sign-in only, if
   used).
-- **Transfers:** as Activity 6 where Google is used.
+- **Transfers:** Google sign-in, if used (Google's terms; only the
+  account's email and subject id are exchanged).
 - **Retention:** for the employment; on offboarding the account is
-  anonymized in place (email tombstoned, credentials severed, calendar
-  connection revoked and deleted).
+  anonymized in place (email tombstoned, credentials severed,
+  availability and meeting place cleared).
 
 ---
 
