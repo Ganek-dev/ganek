@@ -1,9 +1,10 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
 from app.core.config import settings as app_settings
 from app.services import email_providers
+from app.services.screening import ScreeningQuestion, validate_questions
 
 
 class UsageOut(BaseModel):
@@ -29,6 +30,10 @@ class CompanySummary(BaseModel):
     slug: str
     name: str
     mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
+    # the default screening questions new jobs start with: members create and
+    # edit jobs, so the editor's prefill and "Reset to company defaults" need
+    # the set; preferred answers are recruiter-internal, never candidate-facing
+    screening_questions: list[ScreeningQuestion] = []
 
 
 class CompanyOut(BaseModel):
@@ -44,6 +49,7 @@ class CompanyOut(BaseModel):
     socials: dict[str, Any]
     theme: dict[str, Any]
     settings: dict[str, Any]
+    screening_questions: list[ScreeningQuestion] = []
     # not a column - the instance's deployment mode, so admin surfaces can
     # render the real careers URL (single mode serves it at the root)
     mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
@@ -85,3 +91,16 @@ class CompanySettingsUpdate(BaseModel):
     privacy_contact_email: EmailStr | None = None
     retention_months: int | None = Field(default=None, ge=1, le=24)
     privacy_policy_url: HttpUrl | None = None
+    # a column, not a settings key (0039): the list replaces the company set;
+    # omitted = untouched. Validated like the job's list (ids filled, <= 20).
+    screening_questions: list[ScreeningQuestion] | None = None
+
+    @field_validator("screening_questions", mode="before")
+    @classmethod
+    def _validate_questions(cls, value: object) -> object:
+        if isinstance(value, list):
+            raw: list[dict[str, Any]] = [
+                item.model_dump() if isinstance(item, ScreeningQuestion) else item for item in value
+            ]
+            return validate_questions(raw)
+        return value

@@ -48,7 +48,10 @@ async def update_settings(
 ) -> Company:
     """Merge hiring-behavior keys into ``settings`` (same rules as branding)."""
     merged = dict(company.settings or {})
-    for field in payload.model_fields_set:
+    if payload.screening_questions is not None:
+        # its own column (0039), never a settings key
+        company.screening_questions = [q.model_dump() for q in payload.screening_questions]
+    for field in payload.model_fields_set - {"screening_questions"}:
         value = getattr(payload, field)
         if value is None:
             merged.pop(field, None)
