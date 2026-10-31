@@ -1356,10 +1356,12 @@ function ApplicantsContent() {
     const previous = before.stage;
     const name = before.candidate.name;
     // an email that went out cannot be unsent; the toast says so and
-    // undo moves the row back quietly
+    // undo moves the row back quietly. Only interview and rejection carry
+    // a mail, so the checkbox alone does not make the claim.
+    const emailed = notify && (stage === "interview" || stage === "rejected");
     setToast({
       id: Date.now(),
-      text: `Moved ${name} to ${STAGE_LABELS[stage]}.${notify ? " Email sent." : ""}`,
+      text: `Moved ${name} to ${STAGE_LABELS[stage]}.${emailed ? " Email sent." : ""}`,
       action: {
         label: "Undo",
         run: async () => {
