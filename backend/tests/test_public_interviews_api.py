@@ -14,7 +14,7 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.security import create_interview_token, read_interview_token
-from app.models import Application, Company, Interview, InterviewStatus, User
+from app.models import Application, Company, EmailOutbox, Interview, InterviewStatus, User
 from app.services import interviews as interviews_service
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
@@ -513,3 +513,65 @@ async def test_book_sets_sequence_zero_and_reschedule_increments(
         )
         assert moved.status_code == 200, moved.text
         assert await sequence() == expected
+
+
+async def _outbox_rows(db_session: AsyncSession, interview_id: object) -> list[EmailOutbox]:
+    application_id = (
+        await db_session.execute(
+            select(Interview.application_id).where(Interview.id == interview_id)
+        )
+    ).scalar_one()
+    return list(
+        (
+            await db_session.execute(
+                select(EmailOutbox)
+                .where(EmailOutbox.application_id == application_id)
+                .order_by(EmailOutbox.created_at, EmailOutbox.kind)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_book_queues_confirmation_and_interviewer_invite(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    rows = {row.kind: row for row in await _outbox_rows(db_session, interview_id)}
+    assert {"interview_invite", "interview_confirmed", "interview_scheduled"} <= set(rows)
+    confirmed = rows["interview_confirmed"].payload
+    scheduled = rows["interview_scheduled"].payload
+    assert confirmed["to"].startswith("cand-")
+    assert scheduled["to"].startswith("admin-")
+    assert confirmed["uid"] == scheduled["uid"] == f"interview-{interview_id}@ganek"
+    assert confirmed["sequence"] == scheduled["sequence"] == 0
+    assert confirmed["rescheduled"] is False
+    assert confirmed["booking_url"].endswith(f"/interview/{token}")
+    assert scheduled["applicant_url"].endswith(f"/admin/applicants?selected={confirmed['ref']}")
+    assert confirmed["start"] == {
+        "$dt": datetime.fromisoformat(slots[0]).astimezone(UTC).isoformat()
+    }
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_reschedule_queues_both_with_sequence_one(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/reschedule", json={"start": slots[2]})
+    ).status_code == 200
+    rows = await _outbox_rows(db_session, interview_id)
+    moved = [row for row in rows if row.payload.get("rescheduled") is True]
+    assert sorted(row.kind for row in moved) == ["interview_confirmed", "interview_scheduled"]
+    assert all(row.payload["sequence"] == 1 for row in moved)

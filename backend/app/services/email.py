@@ -9,13 +9,15 @@ from a request path - queue it.
 
 import logging
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timedelta
+from email.utils import parseaddr
 from html import escape
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.services import email_providers as providers
-from app.services import email_render
+from app.services import email_render, ics
 from app.services.email_frame import (
     DEFAULT_BRAND_PRIMARY,
     NEUTRAL_BAR,
@@ -563,8 +565,8 @@ def send_interview_invite(
         f"\n"
         f"Pick a time that suits you: {booking_url}\n"
         f"\n"
-        f"Once you confirm, a calendar invite with the meeting link lands\n"
-        f"in your inbox. You can reschedule or cancel from the same page.\n"
+        f"Once you confirm, you and your interviewer both receive a calendar\n"
+        f"invite by email. You can reschedule or cancel from the same page.\n"
         f"\n"
         f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
     )
@@ -581,8 +583,8 @@ def send_interview_invite(
         f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
         f"Pick a time</a>"
         + _paragraph(
-            "Once you confirm, a calendar invite with the meeting link lands in your "
-            "inbox. You can reschedule or cancel from the same page."
+            "Once you confirm, you and your interviewer both receive a calendar invite "
+            "by email. You can reschedule or cancel from the same page."
         )
     )
     html = _card_html(
@@ -708,3 +710,225 @@ def send_interview_reminder(
         privacy_url=privacy_url,
     )
     send_email(to=to, subject=subject, body=body, html=html, ref=ref)
+
+
+# ---- interview invites with a calendar part (card: scheduling without
+# Google Calendar). One UID per interview; REQUEST on booking and on every
+# reschedule (SEQUENCE + 1), CANCEL on cancellation. The organiser is the
+# sending address: replies are not tracked, the booking page is where a
+# candidate changes or cancels.
+
+
+def _organizer_email() -> str:
+    return parseaddr(settings.email_from)[1] or settings.email_from
+
+
+def _local_when(start: datetime, timezone: str) -> str:
+    try:
+        local = start.astimezone(ZoneInfo(timezone))
+    except Exception:  # noqa: BLE001 - a bad stored zone must not kill the mail
+        local = start
+    return f"{local:%a}, {local:%b} {local.day} · {local:%H:%M}"
+
+
+def _calendar_part(
+    *,
+    method: ics.Method,
+    uid: str,
+    sequence: int,
+    start: datetime,
+    duration_minutes: int,
+    summary: str,
+    description: str,
+    location: str,
+    company_name: str,
+    attendees: tuple[tuple[str, str], ...],
+    url: str | None,
+) -> providers.CalendarPart:
+    text = "\n".join(
+        part for part in (description, f"Location: {location}" if location else "") if part
+    )
+    event = ics.CalendarEvent(
+        uid=uid,
+        sequence=sequence,
+        start=start,
+        end=start + timedelta(minutes=duration_minutes),
+        summary=summary,
+        description=text,
+        location=location,
+        organizer_email=_organizer_email(),
+        organizer_name=company_name,
+        attendees=attendees,
+        url=url,
+    )
+    return providers.CalendarPart(method=method, content=ics.render(event, method=method))
+
+
+def send_interview_confirmed(
+    *,
+    to: str,
+    ref: str | None = None,
+    candidate_name: str,
+    interviewer_name: str,
+    job_title: str,
+    company_name: str,
+    title: str,
+    description: str,
+    start: datetime,
+    duration_minutes: int,
+    timezone: str,
+    location: str,
+    uid: str,
+    sequence: int,
+    booking_url: str,
+    interviewer_email: str,
+    rescheduled: bool,
+    brand_primary: str | None,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
+) -> None:
+    """Candidate copy of the booking (or reschedule) with the invite.ics."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    when = _local_when(start, timezone)
+    verb = "Rescheduled" if rescheduled else "Confirmed"
+    subject = f"{verb}: your interview for {job_title} at {company_name}"
+    where_text = f"Where: {location}\n" if location else ""
+
+    body = (
+        f"Hi {candidate_name},\n"
+        f"\n"
+        f"Your {title} for the {job_title} position at {company_name} is "
+        f"{verb.lower()}:\n"
+        f"{when} ({timezone}), {duration_minutes} minutes, with {interviewer_name}.\n"
+        + where_text
+        + f"\n"
+        f"The attached calendar invite adds it to your calendar. Change or\n"
+        f"cancel the time any time: {booking_url}\n"
+        f"\n"
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"{verb}, {safe_candidate}</h1>"
+        + _paragraph(
+            f'Your {escape(title)} for the <b style="font-weight: 600;">{safe_job}</b> '
+            f'position at {safe_company}: <b style="font-weight: 600;">{when}</b> '
+            f'<span style="font-family: monospace; font-size: 12px;">({escape(timezone)})</span>, '
+            f"{duration_minutes} minutes, with {escape(interviewer_name)}."
+        )
+        + (_paragraph(f"Where: {escape(location)}") if location else "")
+        + f'<a href="{booking_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Change or cancel the time</a>"
+        + _paragraph("The attached calendar invite adds the interview to your calendar.")
+    )
+    html = _card_html(
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
+    )
+    calendar = _calendar_part(
+        method="REQUEST",
+        uid=uid,
+        sequence=sequence,
+        start=start,
+        duration_minutes=duration_minutes,
+        summary=f"{title} - {job_title} at {company_name}",
+        description=description,
+        location=location,
+        company_name=company_name,
+        attendees=((candidate_name, to), (interviewer_name, interviewer_email)),
+        url=booking_url,
+    )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref, calendar=calendar)
+
+
+def send_interview_scheduled(
+    *,
+    to: str,
+    ref: str | None = None,
+    candidate_name: str,
+    candidate_email: str,
+    interviewer_name: str,
+    job_title: str,
+    company_name: str,
+    title: str,
+    description: str,
+    start: datetime,
+    duration_minutes: int,
+    timezone: str,
+    location: str,
+    uid: str,
+    sequence: int,
+    applicant_url: str,
+    rescheduled: bool,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
+) -> None:
+    """Interviewer copy of the booking (or reschedule) with the invite.ics."""
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    when = _local_when(start, timezone)
+    verb = "moved" if rescheduled else "booked"
+    subject = f"Interview {verb}: {candidate_name} - {job_title}"
+    where_text = f"Where: {location}\n" if location else ""
+
+    body = (
+        f"Hi {interviewer_name},\n"
+        f"\n"
+        f"{candidate_name} {verb} the {title} for the {job_title} position:\n"
+        f"{when} ({timezone}), {duration_minutes} minutes.\n" + where_text + f"\n"
+        f"The attached calendar invite adds it to your calendar.\n"
+        f"Open the applicant: {applicant_url}\n"
+        f"\n"
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+    )
+    content = (
+        f'<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"Interview {verb}</h1>"
+        + _paragraph(
+            f'<b style="font-weight: 600;">{safe_candidate}</b> {verb} the {escape(title)} '
+            f'for the {safe_job} position: <b style="font-weight: 600;">{when}</b> '
+            f'<span style="font-family: monospace; font-size: 12px;">({escape(timezone)})</span>, '
+            f"{duration_minutes} minutes."
+        )
+        + (_paragraph(f"Where: {escape(location)}") if location else "")
+        + f'<a href="{applicant_url}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {DEFAULT_BRAND_PRIMARY}; color: #ffffff; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Open the applicant</a>"
+        + _paragraph("The attached calendar invite adds the interview to your calendar.")
+    )
+    html = _card_html(
+        bar_color=NEUTRAL_BAR,
+        brand=DEFAULT_BRAND_PRIMARY,
+        brand_fg="#ffffff",
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
+    )
+    calendar = _calendar_part(
+        method="REQUEST",
+        uid=uid,
+        sequence=sequence,
+        start=start,
+        duration_minutes=duration_minutes,
+        summary=f"{title} - {candidate_name} ({job_title})",
+        description=description,
+        location=location,
+        company_name=company_name,
+        attendees=((candidate_name, candidate_email), (interviewer_name, to)),
+        url=applicant_url,
+    )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref, calendar=calendar)
