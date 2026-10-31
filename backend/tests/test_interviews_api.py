@@ -1,6 +1,5 @@
-"""Interview admin endpoints; Google Calendar is faked at the service seam."""
+"""Interview admin endpoints: slot preview, request, cancel, tenancy."""
 
-from datetime import datetime
 from uuid import uuid4
 
 import pytest
@@ -11,8 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import read_interview_token
 from app.models import User
-from app.services import google_calendar
-from app.services import interviews as interviews_service
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 
@@ -27,16 +24,6 @@ PDF_BYTES = b"%PDF-1.4 interview flow"
 @pytest.fixture
 def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
-
-
-@pytest.fixture
-def quiet_freebusy(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def freebusy(
-        db: AsyncSession, user: User, start: datetime, end: datetime
-    ) -> list[tuple[datetime, datetime]]:
-        return []
-
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", freebusy)
 
 
 async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
@@ -75,37 +62,7 @@ async def _company_with_applicant(client: AsyncClient) -> tuple[str, str, str]:
     return application_id, admin_user_id, creds["email"]
 
 
-async def _connect_calendar(db: AsyncSession, user_id: str, email: str) -> User:
-    user = (await db.execute(select(User).where(User.email == email))).scalar_one()
-    await google_calendar.store_credentials(db, user, refresh_token="1//r", google_email=email)
-    return user
-
-
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
-async def test_slot_preview_requires_connected_calendar(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    application_id, admin_id, admin_email = await _company_with_applicant(client)
-
-    async def no_credential(
-        db: AsyncSession, user: User, start: datetime, end: datetime
-    ) -> list[tuple[datetime, datetime]]:
-        raise google_calendar.NeedsReconnectError("not connected")
-
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", no_credential)
-    resp = await client.post(
-        f"/api/v1/applications/{application_id}/interview/slot-preview",
-        json={
-            "interviewer_user_id": admin_id,
-            "duration_minutes": 45,
-            "timezone": "Europe/Berlin",
-        },
-    )
-    assert resp.status_code == 409
-    assert "Calendar" in resp.json()["detail"]
-
-
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_slot_preview_returns_summary(client: AsyncClient) -> None:
     application_id, admin_id, _ = await _company_with_applicant(client)
     resp = await client.post(
@@ -122,14 +79,13 @@ async def test_slot_preview_returns_summary(client: AsyncClient) -> None:
     assert body["open_slot_count"] > 0
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_create_interview_sends_booking_email(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.services import email as email_service
 
     application_id, admin_id, admin_email = await _company_with_applicant(client)
-    await _connect_calendar(db_session, admin_id, admin_email)
     sent: list[dict[str, object]] = []
     monkeypatch.setattr(
         email_service,
@@ -159,8 +115,13 @@ async def test_create_interview_sends_booking_email(
     assert got.json()["id"] == body["id"]
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
-async def test_create_interview_requires_connected_calendar(client: AsyncClient) -> None:
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_create_without_calendar_connection_succeeds(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
     application_id, admin_id, _ = await _company_with_applicant(client)
     resp = await client.post(
         f"/api/v1/applications/{application_id}/interview",
@@ -170,17 +131,59 @@ async def test_create_interview_requires_connected_calendar(client: AsyncClient)
             "timezone": "Europe/Berlin",
         },
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["location"] == ""
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_slot_preview_returns_default_location(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    application_id, admin_id, admin_email = await _company_with_applicant(client)
+    body = {"interviewer_user_id": admin_id, "duration_minutes": 45, "timezone": "Europe/Berlin"}
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview/slot-preview", json=body
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["default_location"] == ""
+
+    user = (await db_session.execute(select(User).where(User.email == admin_email))).scalar_one()
+    user.interview_location = "Room 2, 3rd floor"
+    await db_session.commit()
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview/slot-preview", json=body
+    )
+    assert resp.json()["default_location"] == "Room 2, 3rd floor"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_create_stores_location(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
+    application_id, admin_id, _ = await _company_with_applicant(client)
+    resp = await client.post(
+        f"/api/v1/applications/{application_id}/interview",
+        json={
+            "interviewer_user_id": admin_id,
+            "duration_minutes": 30,
+            "timezone": "Europe/Berlin",
+            "location": "https://zoom.example/j/123",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["location"] == "https://zoom.example/j/123"
+    got = await client.get(f"/api/v1/applications/{application_id}/interview")
+    assert got.json()["location"] == "https://zoom.example/j/123"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_second_active_interview_conflicts(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.services import email as email_service
 
     application_id, admin_id, admin_email = await _company_with_applicant(client)
-    await _connect_calendar(db_session, admin_id, admin_email)
     monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
     payload = {
         "interviewer_user_id": admin_id,
@@ -193,14 +196,13 @@ async def test_second_active_interview_conflicts(
     assert second.status_code == 409
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_cancel_interview_notifies_and_allows_recreate(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.services import email as email_service
 
     application_id, admin_id, admin_email = await _company_with_applicant(client)
-    await _connect_calendar(db_session, admin_id, admin_email)
     monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
     cancelled: list[dict[str, object]] = []
     monkeypatch.setattr(
@@ -224,14 +226,14 @@ async def test_cancel_interview_notifies_and_allows_recreate(
     assert again.status_code == 201
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_cancel_without_active_interview_404s(client: AsyncClient) -> None:
     application_id, _, _ = await _company_with_applicant(client)
     resp = await client.post(f"/api/v1/applications/{application_id}/interview/cancel")
     assert resp.status_code == 404
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_freebusy")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_interview_endpoints_are_tenant_scoped(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -242,7 +244,6 @@ async def test_interview_endpoints_are_tenant_scoped(
     from app.services import email as email_service
 
     application_id, admin_id, admin_email = await _company_with_applicant(client)
-    await _connect_calendar(db_session, admin_id, admin_email)
     monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: None)
     created = await client.post(
         f"/api/v1/applications/{application_id}/interview",

@@ -48,6 +48,8 @@ SENDER_NAMES: dict[str, str] = {
     "team_invite": "send_team_invite",
     "google_linked": "send_google_linked",
     "interview_invite": "send_interview_invite",
+    "interview_confirmed": "send_interview_confirmed",
+    "interview_scheduled": "send_interview_scheduled",
     "interview_cancelled": "send_interview_cancelled",
     "password_reset": "send_password_reset",
     "email_verification": "send_email_verification",

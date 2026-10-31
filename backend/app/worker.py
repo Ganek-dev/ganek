@@ -143,7 +143,7 @@ async def send_interview_reminder(
             company_name=company.name,
             start=start,
             timezone=interview.timezone,
-            meet_url=interview.meet_url,
+            location=interview.location,
             brand_primary=(company.theme or {}).get("primary_color"),
             controller_name=company_service.controller_name(company),
             privacy_url=urls.privacy_notice_url(company),

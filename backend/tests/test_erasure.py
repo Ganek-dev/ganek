@@ -6,7 +6,6 @@ best-effort on Google Calendar (events live on the recruiter's personal
 calendar; a failure is reported, never blocking).
 """
 
-from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -205,70 +204,6 @@ async def test_scrub_matches_email_literally(db_session: AsyncSession) -> None:
         .all()
     )
     assert remaining == [lookalike_id]
-
-
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
-async def test_erase_deletes_google_events_best_effort(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from app.models import Application, Interview, User
-    from app.models.interview import InterviewStatus
-    from app.services import erasure, google_calendar
-
-    await _company_with_applications(client, n_jobs=1)
-    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
-    application = (
-        await db_session.execute(select(Application).where(Application.id == app_id))
-    ).scalar_one()
-    admin = (
-        (await db_session.execute(select(User).where(User.company_id == application.company_id)))
-        .scalars()
-        .first()
-    )
-    assert admin is not None
-    db_session.add(
-        Interview(
-            company_id=application.company_id,
-            application_id=application.id,
-            interviewer_user_id=admin.id,
-            duration_minutes=30,
-            timezone="Europe/Warsaw",
-            status=InterviewStatus.BOOKED,
-            scheduled_start=datetime.now(UTC) + timedelta(days=2),
-            google_event_id="evt-1",
-        )
-    )
-    db_session.add(
-        Interview(
-            company_id=application.company_id,
-            application_id=application.id,
-            interviewer_user_id=admin.id,
-            duration_minutes=30,
-            timezone="Europe/Warsaw",
-            status=InterviewStatus.CANCELLED,
-            google_event_id="evt-2",
-        )
-    )
-    await db_session.commit()
-
-    deleted: list[str] = []
-
-    async def fake_delete(db: object, user: object, event_id: str) -> None:
-        deleted.append(event_id)
-        if event_id == "evt-1":
-            raise google_calendar.GoogleCalendarError("google says no")
-
-    monkeypatch.setattr(erasure.google_calendar, "delete_event", fake_delete)
-
-    resp = await client.post(f"/api/v1/applications/{app_id}/erase-candidate")
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["applications"] == 1
-    assert body["google_event_failures"] == 1
-    # every row with an event id is attempted, even cancelled history rows
-    assert sorted(deleted) == ["evt-1", "evt-2"]
-    # a Google failure never blocks the erasure itself
-    assert (await client.get(f"/api/v1/applications/{app_id}")).status_code == 404
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

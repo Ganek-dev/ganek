@@ -1,4 +1,5 @@
-"""Candidate booking endpoints; Google faked at the google_calendar seam."""
+"""Candidate booking endpoints: slots, booking, reschedule, cancel, the
+concurrency guarantees, and the mails the routes queue."""
 
 import asyncio
 import uuid
@@ -12,9 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.core.security import read_interview_token
-from app.models import Application, Company, Interview, InterviewStatus, User
-from app.services import google_calendar
+from app.core.security import create_interview_token, read_interview_token
+from app.models import Application, Company, EmailOutbox, Interview, InterviewStatus, User
 from app.services import interviews as interviews_service
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
@@ -30,31 +30,6 @@ PDF_BYTES = b"%PDF-1.4 booking flow"
 @pytest.fixture
 def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "mode", "multi")
-
-
-@pytest.fixture
-def quiet_google(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Silence Google: empty free/busy + a canned Meet event everywhere."""
-
-    async def freebusy(
-        db: AsyncSession, user: User, start: datetime, end: datetime
-    ) -> list[tuple[datetime, datetime]]:
-        return []
-
-    async def create_meet_event(*args: object, **kwargs: object) -> tuple[str, str]:
-        return "evt-1", "https://meet.google.com/abc-defg-hij"
-
-    async def patch_event_time(*args: object, **kwargs: object) -> None:
-        return None
-
-    async def delete_event(*args: object, **kwargs: object) -> None:
-        return None
-
-    for module in (interviews_service.google_calendar,):
-        monkeypatch.setattr(module, "freebusy", freebusy)
-        monkeypatch.setattr(module, "create_meet_event", create_meet_event)
-        monkeypatch.setattr(module, "patch_event_time", patch_event_time)
-        monkeypatch.setattr(module, "delete_event", delete_event)
 
 
 async def _register_and_publish(
@@ -110,10 +85,6 @@ async def _booking_token(
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     application_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
 
-    user = (await db_session.execute(select(User).where(User.email == creds["email"]))).scalar_one()
-    await google_calendar.store_credentials(
-        db_session, user, refresh_token="1//r", google_email=creds["email"]
-    )
     captured: list[dict[str, object]] = []
     monkeypatch.setattr(email_service, "send_interview_invite", lambda **kw: captured.append(kw))
     resp = await client.post(
@@ -166,12 +137,11 @@ async def _two_applications(
     return interviewer, company, application_one, application_two
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
-async def test_booked_ganek_interview_blocks_second_booking_despite_freebusy_lag(
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_booked_interview_blocks_second_booking_of_the_same_slot(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    """Two candidates, same interviewer, same slot; Google freebusy stays empty
-    (simulating propagation lag) - the ganek-side booked row must still win."""
+    """Two candidates, same interviewer, same slot: the booked row wins."""
     interviewer, company, application_one, application_two = await _two_applications(
         client, db_session
     )
@@ -211,15 +181,14 @@ async def test_booked_ganek_interview_blocks_second_booking_despite_freebusy_lag
         await interviews_service.book(db_session, contested_view, start=target)
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_book_rechecks_status_under_lock_against_concurrent_commit(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    client: AsyncClient, db_session: AsyncSession
 ) -> None:
     """Double-submit / two-tabs race: a concurrent session books the
     interview and commits AFTER our caller loaded `interview` (which is
     stale in-memory, expire_on_commit=False) but BEFORE `book()` runs. The
-    post-lock re-read must catch this - no second Meet event, no
-    overwritten scheduled_start/google_event_id."""
+    post-lock re-read must catch this - no overwritten scheduled_start."""
     interviewer, company, application_one, _ = await _two_applications(client, db_session)
     interview = await interviews_service.create_interview(
         db_session,
@@ -246,38 +215,22 @@ async def test_book_rechecks_status_under_lock_against_concurrent_commit(
     async with other_factory() as other_db:
         await other_db.execute(
             text(
-                "UPDATE interviews SET status = 'booked', scheduled_start = :start, "
-                "google_event_id = 'evt-concurrent', "
-                "meet_url = 'https://meet.example/concurrent' WHERE id = :id"
+                "UPDATE interviews SET status = 'booked', scheduled_start = :start WHERE id = :id"
             ),
             {"start": slots[1], "id": interview.id},
         )
         await other_db.commit()
     await other_engine.dispose()
 
-    calls: list[object] = []
-
-    async def tracking_create_meet_event(*args: object, **kwargs: object) -> tuple[str, str]:
-        calls.append((args, kwargs))
-        return "evt-should-not-happen", "https://meet.example/should-not-happen"
-
-    monkeypatch.setattr(
-        interviews_service.google_calendar, "create_meet_event", tracking_create_meet_event
-    )
-
     with pytest.raises(interviews_service.AlreadyBookedError):
         await interviews_service.book(db_session, stale_view, start=slots[0])
 
-    assert calls == []  # no orphaned second Meet event was ever created
     row = (
         await db_session.execute(
-            select(Interview.status, Interview.scheduled_start, Interview.google_event_id).where(
-                Interview.id == interview.id
-            )
+            select(Interview.status, Interview.scheduled_start).where(Interview.id == interview.id)
         )
     ).one()
     assert row.status == InterviewStatus.BOOKED
-    assert row.google_event_id == "evt-concurrent"
     assert row.scheduled_start == slots[1]
 
 
@@ -292,13 +245,12 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
     above, both of which drive their two `book()` calls sequentially and so
     never actually contend on the lock).
 
-    `google_calendar.freebusy` sleeps on every call, and since card A8 it
-    runs BEFORE the lock: both callers see the slot free at the same time,
-    then contend on `pg_advisory_xact_lock`. The winner books and commits;
-    the loser gets the lock afterwards and `_require_unbooked` finds the
-    winner's row. Delete `_lock_interviewer` (or the under-lock DB
-    re-check) and both commits land - two successes, two Meet events -
-    which is what this test would then catch instead of passing by
+    `_require_available` is slowed down so both callers see the slot free
+    at the same time, then contend on `pg_advisory_xact_lock`. The winner
+    books and commits; the loser gets the lock afterwards and
+    `_require_unbooked` finds the winner's row. Delete `_lock_interviewer`
+    (or the under-lock DB re-check) and both commits land - two successes
+    - which is what this test would then catch instead of passing by
     accident of execution order.
     """
     interviewer, company, application_one, application_two = await _two_applications(
@@ -325,28 +277,20 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
         timezone="Europe/Berlin",
     )
 
-    async def slow_freebusy(
-        db: AsyncSession, user: User, start: datetime, end: datetime
-    ) -> list[tuple[datetime, datetime]]:
-        await asyncio.sleep(0.2)
-        return []
+    real_require_available = interviews_service._require_available
 
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", slow_freebusy)
+    async def slow_require_available(
+        db: AsyncSession, interview: Interview, start: datetime
+    ) -> None:
+        await asyncio.sleep(0.2)
+        await real_require_available(db, interview, start)
+
+    monkeypatch.setattr(interviews_service, "_require_available", slow_require_available)
 
     slots = await interviews_service.generate_slots(
         db_session, interviewer, duration_minutes=30, timezone="Europe/Berlin"
     )
     target = slots[0]
-
-    meet_calls: list[tuple[object, ...]] = []
-
-    async def tracking_create_meet_event(*args: object, **kwargs: object) -> tuple[str, str]:
-        meet_calls.append(args)
-        return f"evt-race-{len(meet_calls) + 1}", "https://meet.google.com/race"
-
-    monkeypatch.setattr(
-        interviews_service.google_calendar, "create_meet_event", tracking_create_meet_event
-    )
 
     other_engine = create_async_engine(settings.database_url, poolclass=NullPool)
     other_factory = async_sessionmaker(other_engine, expire_on_commit=False)
@@ -374,7 +318,6 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
     assert len(successes) == 1, results
     assert len(failures) == 1, results
     assert isinstance(failures[0], interviews_service.SlotUnavailableError), results
-    assert len(meet_calls) == 1  # no orphaned second Meet event
 
     booked_rows = (
         (
@@ -392,7 +335,7 @@ async def test_book_lock_serializes_concurrent_booking_across_applications(
     assert len(booked_rows) == 1
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_booking_context(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -405,11 +348,11 @@ async def test_booking_context(
     assert body["duration_minutes"] == 45
     assert body["timezone"] == "Europe/Berlin"
     assert len(body["available_slots"]) > 0
-    assert body["meet_url"] is None
+    assert body["location"] == ""
     assert "Book Co" in body["company_name"]
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_book_happy_path(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -418,7 +361,6 @@ async def test_book_happy_path(
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["status"] == "booked"
-    assert body["meet_url"] == "https://meet.google.com/abc-defg-hij"
     assert body["scheduled_start"] is not None
 
     again = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
@@ -426,45 +368,7 @@ async def test_book_happy_path(
     assert again.json()["detail"] == "already-booked"
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
-async def test_book_calls_google_before_taking_the_lock(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Card A8: the advisory lock's hold time must not include Google's
-    free/busy latency. Mock ordering proves it: free/busy is recorded
-    before the lock, and nothing asks Google for free/busy once the lock
-    is held (the under-lock re-check is DB-only)."""
-    token, slots = await _booking_token(client, db_session, monkeypatch)
-    order: list[str] = []
-    real_lock = interviews_service._lock_interviewer
-
-    async def freebusy(
-        db: AsyncSession, user: User, start: datetime, end: datetime
-    ) -> list[tuple[datetime, datetime]]:
-        order.append("freebusy")
-        return []
-
-    async def lock(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
-        order.append("lock")
-        await real_lock(db, interviewer_id)
-
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", freebusy)
-    monkeypatch.setattr(interviews_service, "_lock_interviewer", lock)
-
-    # the service directly: the public route recomputes live slots for its
-    # response after the commit, which is a legitimate post-lock Google call
-    interview_id = read_interview_token(token)
-    assert interview_id is not None
-    interview = await interviews_service.get_by_id_public(db_session, interview_id)
-    assert interview is not None
-    booked = await interviews_service.book(
-        db_session, interview, start=datetime.fromisoformat(slots[1])
-    )
-    assert booked.status is InterviewStatus.BOOKED
-    assert order == ["freebusy", "lock"]
-
-
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_book_rejects_unoffered_slot(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -475,25 +379,51 @@ async def test_book_rejects_unoffered_slot(
     assert resp.json()["detail"] == "slot-taken"
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
-async def test_book_rejects_busy_slot(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_book_rejects_slot_booked_meanwhile(
+    client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    token, slots = await _booking_token(client, db_session, monkeypatch)
-    chosen = datetime.fromisoformat(slots[0])
+    """The slot list the candidate saw is stale: another candidate of the
+    same interviewer booked the window in between."""
+    interviewer, company, application_one, application_two = await _two_applications(
+        client, db_session
+    )
+    first = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_one,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+    second = await interviews_service.create_interview(
+        db_session,
+        company,
+        application_two,
+        interviewer=interviewer,
+        title="Hiring manager interview",
+        description="",
+        duration_minutes=30,
+        timezone="Europe/Berlin",
+    )
+    slots = await interviews_service.generate_slots(
+        db_session, interviewer, duration_minutes=30, timezone="Europe/Berlin"
+    )
+    second_view = await interviews_service.get_by_id_public(db_session, second.id)
+    assert second_view is not None
+    await interviews_service.book(db_session, second_view, start=slots[0])
 
-    async def busy_now(
-        db: AsyncSession, user: User, start: datetime, end: datetime
-    ) -> list[tuple[datetime, datetime]]:
-        return [(chosen, chosen + timedelta(minutes=45))]
-
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", busy_now)
-    resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    token = create_interview_token(first.id)
+    resp = await client.post(
+        f"/api/v1/public/interviews/{token}/book", json={"start": slots[0].isoformat()}
+    )
     assert resp.status_code == 409
     assert resp.json()["detail"] == "slot-taken"
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_reschedule_and_cancel(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -518,6 +448,12 @@ async def test_reschedule_and_cancel(
         slots[2]
     )
 
+    interview_id = read_interview_token(token)
+    row = (
+        await db_session.execute(select(Interview.ics_sequence).where(Interview.id == interview_id))
+    ).scalar_one()
+    assert row == 1  # booked at 0, one reschedule
+
     cancelled = await client.post(f"/api/v1/public/interviews/{token}/cancel")
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == "cancelled"
@@ -528,37 +464,6 @@ async def test_reschedule_and_cancel(
     assert context.json()["available_slots"] == []
 
 
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
-async def test_book_when_google_breaks_is_503(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    token, slots = await _booking_token(client, db_session, monkeypatch)
-
-    async def broken(*args: object, **kwargs: object) -> tuple[str, str]:
-        raise google_calendar.NeedsReconnectError("consent revoked")
-
-    monkeypatch.setattr(interviews_service.google_calendar, "create_meet_event", broken)
-    resp = await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
-    assert resp.status_code == 503
-
-
-@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "quiet_google")
-async def test_public_get_survives_calendar_outage(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A candidate opening the booking page must still get a 200 with an
-    empty slot list when Google is down - not a 503 (live_slots swallows it)."""
-    token, _ = await _booking_token(client, db_session, monkeypatch)
-
-    async def boom(*args: object, **kwargs: object) -> None:
-        raise google_calendar.GoogleCalendarError("down")
-
-    monkeypatch.setattr(interviews_service.google_calendar, "freebusy", boom)
-    resp = await client.get(f"/api/v1/public/interviews/{token}")
-    assert resp.status_code == 200
-    assert resp.json()["available_slots"] == []
-
-
 async def test_bad_token_404s(client: AsyncClient) -> None:
     resp = await client.get("/api/v1/public/interviews/garbage")
     assert resp.status_code == 404
@@ -566,8 +471,8 @@ async def test_bad_token_404s(client: AsyncClient) -> None:
 
 @pytest.mark.usefixtures("migrated_db")
 async def test_lock_timeout_fails_fast_as_lock_busy(monkeypatch: pytest.MonkeyPatch) -> None:
-    """M5.7 H4: the booking lock is held across the Google HTTP call - a
-    hung holder must produce a fast retryable error, not park every waiter."""
+    """M5.7 H4: a hung lock holder must produce a fast retryable error, not
+    park every waiter."""
     monkeypatch.setattr(interviews_service, "LOCK_TIMEOUT_MS", 150)
     interviewer_id = uuid.uuid4()
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
@@ -580,3 +485,93 @@ async def test_lock_timeout_fails_fast_as_lock_busy(monkeypatch: pytest.MonkeyPa
                     await interviews_service._lock_interviewer(waiter, interviewer_id)
     finally:
         await engine.dispose()
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_book_sets_sequence_zero_and_reschedule_increments(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+
+    async def sequence() -> int:
+        value = (
+            await db_session.execute(
+                select(Interview.ics_sequence).where(Interview.id == interview_id)
+            )
+        ).scalar_one()
+        return int(value)
+
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    assert await sequence() == 0
+    # non-overlapping targets: a 45-minute booking blocks the next 30-minute grid slot
+    for expected, slot in ((1, slots[2]), (2, slots[4])):
+        moved = await client.post(
+            f"/api/v1/public/interviews/{token}/reschedule", json={"start": slot}
+        )
+        assert moved.status_code == 200, moved.text
+        assert await sequence() == expected
+
+
+async def _outbox_rows(db_session: AsyncSession, interview_id: object) -> list[EmailOutbox]:
+    application_id = (
+        await db_session.execute(
+            select(Interview.application_id).where(Interview.id == interview_id)
+        )
+    ).scalar_one()
+    return list(
+        (
+            await db_session.execute(
+                select(EmailOutbox)
+                .where(EmailOutbox.application_id == application_id)
+                .order_by(EmailOutbox.created_at, EmailOutbox.kind)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_book_queues_confirmation_and_interviewer_invite(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    rows = {row.kind: row for row in await _outbox_rows(db_session, interview_id)}
+    assert {"interview_invite", "interview_confirmed", "interview_scheduled"} <= set(rows)
+    confirmed = rows["interview_confirmed"].payload
+    scheduled = rows["interview_scheduled"].payload
+    assert confirmed["to"].startswith("cand-")
+    assert scheduled["to"].startswith("admin-")
+    assert confirmed["uid"] == scheduled["uid"] == f"interview-{interview_id}@ganek"
+    assert confirmed["sequence"] == scheduled["sequence"] == 0
+    assert confirmed["rescheduled"] is False
+    assert confirmed["booking_url"].endswith(f"/interview/{token}")
+    assert scheduled["applicant_url"].endswith(f"/admin/applicants?selected={confirmed['ref']}")
+    assert confirmed["start"] == {
+        "$dt": datetime.fromisoformat(slots[0]).astimezone(UTC).isoformat()
+    }
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_reschedule_queues_both_with_sequence_one(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token, slots = await _booking_token(client, db_session, monkeypatch)
+    interview_id = read_interview_token(token)
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/book", json={"start": slots[0]})
+    ).status_code == 200
+    assert (
+        await client.post(f"/api/v1/public/interviews/{token}/reschedule", json={"start": slots[2]})
+    ).status_code == 200
+    rows = await _outbox_rows(db_session, interview_id)
+    moved = [row for row in rows if row.payload.get("rescheduled") is True]
+    assert sorted(row.kind for row in moved) == ["interview_confirmed", "interview_scheduled"]
+    assert all(row.payload["sequence"] == 1 for row in moved)

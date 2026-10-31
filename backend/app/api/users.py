@@ -52,7 +52,12 @@ async def my_availability(user: CurrentUser) -> AvailabilityOut:
         day: DayWindow(start=f"{start:%H:%M}", end=f"{end:%H:%M}")
         for day, (start, end) in windows.items()
     }
-    return AvailabilityOut(timezone=tz or "", days=days, is_default=tz is None)
+    return AvailabilityOut(
+        timezone=tz or "",
+        days=days,
+        is_default=tz is None,
+        location=user.interview_location or "",
+    )
 
 
 @router.put("/me/availability", response_model=AvailabilityOut)
@@ -63,8 +68,14 @@ async def set_availability(
         "timezone": payload.timezone,
         "days": {day: {"start": w.start, "end": w.end} for day, w in payload.days.items()},
     }
+    user.interview_location = payload.location.strip() or None
     await db.commit()
-    return AvailabilityOut(timezone=payload.timezone, days=payload.days, is_default=False)
+    return AvailabilityOut(
+        timezone=payload.timezone,
+        days=payload.days,
+        is_default=False,
+        location=user.interview_location or "",
+    )
 
 
 @router.get("", response_model=list[TeamUserOut])

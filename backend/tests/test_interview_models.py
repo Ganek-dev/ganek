@@ -69,7 +69,19 @@ async def test_interview_roundtrip_defaults(db_session: AsyncSession) -> None:
     assert interview.status is InterviewStatus.PENDING
     assert interview.title == "Hiring manager interview"
     assert interview.scheduled_start is None
-    assert interview.meet_url is None
+    assert interview.location == ""
+    assert interview.ics_sequence == 0
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_user_interview_location_roundtrip(db_session: AsyncSession) -> None:
+    _, _, interviewer = await _fixture(db_session)
+    assert interviewer.interview_location is None
+    interviewer.interview_location = "https://teams.example/room-2"
+    await db_session.commit()
+    db_session.expire(interviewer)
+    await db_session.refresh(interviewer)
+    assert interviewer.interview_location == "https://teams.example/room-2"
 
 
 @pytest.mark.usefixtures("migrated_db")

@@ -44,6 +44,12 @@ CASES: list[tuple[str, Builder, str, str]] = [
     ("verify", lambda c: urls.email_verify_url(c, "tok"), "/verify?token=tok", "/verify?token=tok"),
     ("reset", lambda c: urls.password_reset_url(c, "tok"), "/reset?token=tok", "/reset?token=tok"),
     (
+        "applicant",
+        lambda c: urls.admin_applicant_url(c, "app-1"),
+        "/admin/applicants?selected=app-1",
+        "/admin/applicants?selected=app-1",
+    ),
+    (
         "logo",
         lambda c: urls.logo_url(c, "0123456789abcdef"),
         "/api/v1/public/companies/acme/logo/0123456789abcdef",

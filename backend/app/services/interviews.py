@@ -1,9 +1,11 @@
 """Interview scheduling (single-round v1).
 
 Slots are always computed live from the interviewer's saved availability
-(``effective_availability``) plus Google free/busy plus ganek's own booked
-interviews - never frozen on the interview row. Booking re-checks the
-chosen slot against live free/busy before creating the calendar event.
+(``effective_availability``) minus Ganek's own booked interviews - never
+frozen on the interview row. Booking re-checks the chosen slot against the
+live slot set under a per-interviewer lock. No calendar connection is
+involved: the invite travels as an .ics in Ganek's own mails (the routes
+queue them after the booking commits).
 """
 
 import hashlib
@@ -19,7 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core import queue
 from app.models import Application, Company, Interview, InterviewStatus, User
-from app.services import activity, google_calendar
+from app.services import activity
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +102,7 @@ class SlotUnavailableError(Exception):
 async def _booked_windows(
     db: AsyncSession, interviewer_id: uuid.UUID, window_start: datetime, window_end: datetime
 ) -> list[tuple[datetime, datetime]]:
-    """Busy windows from ganek's own BOOKED interviews - freebusy-lag insurance."""
+    """Busy windows from Ganek's own BOOKED interviews for this interviewer."""
     rows = (
         (
             await db.execute(
@@ -136,7 +138,7 @@ async def generate_slots(
     interviewer's saved weekly availability (default Mon-Fri 09:00-17:00).
     `timezone` is the fallback zone when the schedule has none saved.
 
-    Raises ValueError for an unknown IANA zone; NeedsReconnectError bubbles.
+    Raises ValueError for an unknown IANA zone.
     """
     saved_tz, windows = effective_availability(interviewer)
     try:
@@ -149,8 +151,7 @@ async def generate_slots(
     first_day = now.date() + timedelta(days=1)
     window_start = datetime.combine(first_day, time.min, tzinfo=zone)
     window_end = window_start + timedelta(days=HORIZON_DAYS)
-    busy = await google_calendar.freebusy(db, interviewer, window_start, window_end)
-    busy = busy + await _booked_windows(db, interviewer.id, window_start, window_end)
+    busy = await _booked_windows(db, interviewer.id, window_start, window_end)
 
     duration = timedelta(minutes=duration_minutes)
     slots: list[datetime] = []
@@ -175,7 +176,7 @@ async def generate_slots(
 
 
 async def live_slots(db: AsyncSession, interview: Interview) -> list[datetime]:
-    """Candidate-visible slots, computed fresh. Empty on cancelled or calendar trouble."""
+    """Candidate-visible slots, computed fresh. Empty once cancelled or on a bad zone."""
     if interview.status is InterviewStatus.CANCELLED:
         return []
     try:
@@ -185,7 +186,7 @@ async def live_slots(db: AsyncSession, interview: Interview) -> list[datetime]:
             duration_minutes=interview.duration_minutes,
             timezone=interview.timezone,
         )
-    except (ValueError, google_calendar.GoogleCalendarError):
+    except ValueError:
         logger.warning("live slot computation failed for interview %s", interview.id, exc_info=True)
         return []
 
@@ -215,6 +216,7 @@ async def create_interview(
     description: str,
     duration_minutes: int,
     timezone: str,
+    location: str = "",
     actor_user_id: uuid.UUID | None = None,
 ) -> Interview:
     if await get_for_application(db, company, application.id) is not None:
@@ -228,6 +230,7 @@ async def create_interview(
         description=description,
         duration_minutes=duration_minutes,
         timezone=saved_tz or timezone,
+        location=location.strip(),
     )
     db.add(interview)
     activity.record(
@@ -250,14 +253,8 @@ async def cancel_interview(
     interviewer: User,
     actor_user_id: uuid.UUID | None = None,
 ) -> None:
-    """Cancel the request; a booked calendar event is removed best-effort."""
-    if interview.google_event_id is not None:
-        try:
-            await google_calendar.delete_event(db, interviewer, interview.google_event_id)
-        except google_calendar.GoogleCalendarError:
-            logger.warning(
-                "calendar event delete failed for interview %s", interview.id, exc_info=True
-            )
+    """Cancel the request. The caller mails the cancel notices (with the
+    METHOD:CANCEL part when a time existed)."""
     interview.status = InterviewStatus.CANCELLED
     activity.record(
         db,
@@ -286,10 +283,9 @@ async def get_by_id_public(db: AsyncSession, interview_id: uuid.UUID) -> Intervi
 async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None:
     """Serialize bookings per interviewer for the rest of the transaction.
 
-    Taken AFTER the Google free/busy call (card A8), so the hold time is
-    the DB re-check plus the Meet event write, not Google's latency on
-    free/busy as well. lock_timeout still turns a hung holder into a fast,
-    retryable failure for the waiters.
+    Taken after the slot computation, so the hold time is the DB re-check
+    and the status write only. lock_timeout turns a hung holder into a
+    fast, retryable failure for the waiters.
     """
     key = int.from_bytes(hashlib.sha256(interviewer_id.bytes).digest()[:8], "big", signed=True)
     await db.execute(text(f"SET LOCAL lock_timeout = '{int(LOCK_TIMEOUT_MS)}ms'"))
@@ -300,10 +296,10 @@ async def _lock_interviewer(db: AsyncSession, interviewer_id: uuid.UUID) -> None
 
 
 async def _require_unbooked(db: AsyncSession, interview: Interview, start: datetime) -> None:
-    """DB-side conflict check for under the lock: no BOOKED ganek interview
-    of this interviewer overlaps the chosen window. Google was consulted
-    before the lock; what can change between that call and the lock being
-    granted is only what other bookers commit here."""
+    """DB-side conflict check for under the lock: no BOOKED Ganek interview
+    of this interviewer overlaps the chosen window. The slot set was
+    computed before the lock; what can change between that computation and
+    the lock being granted is only what other bookers commit here."""
     duration = timedelta(minutes=interview.duration_minutes)
     busy = await _booked_windows(
         db,
@@ -317,7 +313,7 @@ async def _require_unbooked(db: AsyncSession, interview: Interview, start: datet
 
 async def _require_available(db: AsyncSession, interview: Interview, start: datetime) -> None:
     """The chosen instant must be in the freshly-computed live slot set
-    (Google free/busy plus ganek's own bookings). Called BEFORE the lock."""
+    (availability minus Ganek's own bookings). Called BEFORE the lock."""
     slots = await generate_slots(
         db,
         interview.interviewer,
@@ -329,7 +325,7 @@ async def _require_available(db: AsyncSession, interview: Interview, start: date
 
 
 async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
-    """T-24h candidate reminder; the job re-validates, so stale ones no-op."""
+    """T-24h reminder to both sides; the job re-validates, so stale ones no-op."""
     fire_at = start - timedelta(hours=24)
     if fire_at <= datetime.now(UTC):
         return None  # booked within 24h of the slot - no reminder needed
@@ -345,17 +341,15 @@ async def _queue_reminder(interview: Interview, start: datetime) -> str | None:
 
 
 async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
-    """Candidate picks a slot: re-check live free/busy, create the Meet event.
-
-    Google emails the calendar invite (sendUpdates=all) - that is the
-    design's "invite lands in your inbox".
+    """Candidate picks a slot: re-check the live slot set, lock, write the
+    booking. The route queues the confirmation and the interviewer invite
+    (each with the .ics) after this commits.
     """
     if interview.status is InterviewStatus.BOOKED:
         raise AlreadyBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
-    # Google first, lock second (card A8): free/busy is the slow call and
-    # needs no serialization; only the DB-side conflicts get re-checked
-    # once the lock is ours.
+    # slot computation first, lock second: only the DB-side conflicts get
+    # re-checked once the lock is ours.
     await _require_available(db, interview, start)
     await _lock_interviewer(db, interview.interviewer_user_id)
     # authoritative re-check: another request may have booked this same
@@ -366,21 +360,9 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
     if status_after_lock is InterviewStatus.BOOKED:
         raise AlreadyBookedError
     await _require_unbooked(db, interview, start)
-    candidate = interview.application.candidate
-    event_id, meet_url = await google_calendar.create_meet_event(
-        db,
-        interview.interviewer,
-        summary=f"{interview.title} - {candidate.name}",
-        description=interview.description,
-        start=start,
-        end=start + timedelta(minutes=interview.duration_minutes),
-        attendee_email=candidate.email,
-        timezone=interview.timezone,
-    )
     interview.status = InterviewStatus.BOOKED
     interview.scheduled_start = start
-    interview.google_event_id = event_id
-    interview.meet_url = meet_url
+    interview.ics_sequence = 0
     activity.record(
         db,
         company_id=interview.company_id,
@@ -389,62 +371,36 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
         payload={"start": start.isoformat()},
     )
     interview.reminder_job_id = await _queue_reminder(interview, start)
-    interviewer_id = interview.interviewer_user_id
-    try:
-        await db.commit()
-    except Exception:
-        # the Meet event exists (Google already emailed the invite) but the
-        # booking never landed - best-effort delete so the candidate isn't
-        # left holding a phantom invite; sendUpdates=all emails the removal
-        await db.rollback()
-        try:
-            interviewer = await db.get(User, interviewer_id)
-            if interviewer is not None:
-                await google_calendar.delete_event(db, interviewer, event_id)
-        except Exception:
-            logger.warning("orphaned google event %s after failed booking commit", event_id)
-        raise
+    await db.commit()
     return interview
 
 
 async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
-    if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
+    """Move a booked interview. Bumps the iTIP sequence so the new invite
+    replaces the old event in both calendars; the route mails it."""
+    if interview.status is not InterviewStatus.BOOKED:
         raise NotBookedError  # cheap pre-lock fast path
     start = start.astimezone(UTC)
-    await _require_available(db, interview, start)  # Google before the lock, as in book()
+    await _require_available(db, interview, start)  # slot set before the lock, as in book()
     await _lock_interviewer(db, interview.interviewer_user_id)
     # authoritative re-check under lock, same reasoning as book(); also
-    # refreshes google_event_id so a concurrently-changed event id (e.g.
-    # this interview got rescheduled again) is what we actually patch.
-    await db.refresh(interview, attribute_names=["status", "google_event_id"])
-    if interview.status is not InterviewStatus.BOOKED or interview.google_event_id is None:
+    # refreshes ics_sequence so a concurrent reschedule is built upon.
+    await db.refresh(interview, attribute_names=["status", "ics_sequence"])
+    if interview.status is not InterviewStatus.BOOKED:
         raise NotBookedError
     await _require_unbooked(db, interview, start)
-    await google_calendar.patch_event_time(
-        db,
-        interview.interviewer,
-        interview.google_event_id,
-        start=start,
-        end=start + timedelta(minutes=interview.duration_minutes),
-        timezone=interview.timezone,
-    )
     interview.scheduled_start = start
+    interview.ics_sequence = interview.ics_sequence + 1
     interview.reminder_job_id = await _queue_reminder(interview, start)
     await db.commit()
     return interview
 
 
 async def candidate_cancel(db: AsyncSession, interview: Interview) -> Interview:
-    """Candidate-side cancel; the recruiter can issue a fresh request later."""
+    """Candidate-side cancel; the recruiter can issue a fresh request later.
+    The route mails the interviewer's cancel notice."""
     if interview.status is InterviewStatus.CANCELLED:
         return interview
-    if interview.google_event_id is not None:
-        try:
-            await google_calendar.delete_event(db, interview.interviewer, interview.google_event_id)
-        except google_calendar.GoogleCalendarError:
-            logger.warning(
-                "calendar event delete failed for interview %s", interview.id, exc_info=True
-            )
     interview.status = InterviewStatus.CANCELLED
     activity.record(
         db,

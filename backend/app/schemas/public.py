@@ -316,4 +316,4 @@ class InterviewPublicOut(BaseModel):
     interviewer_display: str
     available_slots: list[datetime]
     scheduled_start: datetime | None
-    meet_url: str | None
+    location: str

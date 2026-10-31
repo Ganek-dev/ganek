@@ -10,6 +10,7 @@ from app.core import challenge, urls
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
+    create_interview_token,
     create_quiz_token,
     create_status_token,
     read_interview_token,
@@ -64,7 +65,7 @@ from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import (
     activity,
     demo_mode,
-    google_calendar,
+    ics,
     quotas,
     rejection_reasons,
     screening,
@@ -921,7 +922,6 @@ async def _interview_public(
 ) -> InterviewPublicOut:
     candidate = interview.application.candidate
     display = interview.interviewer.display_label  # display name, else email local part
-    booked = interview.status is InterviewStatus.BOOKED
     return InterviewPublicOut(
         company_name=company.name,
         brand_primary=(company.theme or {}).get("primary_color"),
@@ -936,7 +936,7 @@ async def _interview_public(
         interviewer_display=display,
         available_slots=await interviews_service.live_slots(db, interview),
         scheduled_start=interview.scheduled_start,
-        meet_url=interview.meet_url if booked else None,
+        location=interview.location,
     )
 
 
@@ -955,6 +955,56 @@ async def interview_context(token: str, db: DbSession) -> InterviewPublicOut:
     """Candidate booking page (screen 23) behind its signed magic-link token."""
     interview = await _interview_by_token_or_404(db, token)
     return await _interview_public(db, interview, await _interview_company(db, interview))
+
+
+async def _queue_booking_mails(
+    db: DbSession, interview: Interview, company: Company, *, rescheduled: bool
+) -> None:
+    """Confirmation to the candidate and invite to the interviewer, each with
+    the invite.ics (same UID, current SEQUENCE). Called after the booking
+    or reschedule committed; the outbox snapshots every value."""
+    assert interview.scheduled_start is not None
+    candidate = interview.application.candidate
+    interviewer = interview.interviewer
+    common: dict[str, object] = {
+        "ref": str(interview.application_id),
+        "candidate_name": candidate.name,
+        "interviewer_name": interviewer.display_label,
+        "job_title": interview.application.job.title,
+        "company_name": company.name,
+        "title": interview.title,
+        "description": interview.description,
+        "start": interview.scheduled_start,
+        "duration_minutes": interview.duration_minutes,
+        "timezone": interview.timezone,
+        "location": interview.location,
+        "uid": ics.interview_uid(interview.id),
+        "sequence": interview.ics_sequence,
+        "rescheduled": rescheduled,
+        "controller_name": company_service.controller_name(company),
+        "privacy_url": urls.privacy_notice_url(company),
+    }
+    await outbox_service.queue_email(
+        db,
+        kind="interview_confirmed",
+        company_id=company.id,
+        application_id=interview.application_id,
+        to=candidate.email,
+        booking_url=urls.interview_url(company, create_interview_token(interview.id)),
+        interviewer_email=interviewer.email,
+        brand_primary=(company.theme or {}).get("primary_color"),
+        **common,
+    )
+    await outbox_service.queue_email(
+        db,
+        kind="interview_scheduled",
+        company_id=company.id,
+        application_id=interview.application_id,
+        to=interviewer.email,
+        candidate_email=candidate.email,
+        applicant_url=urls.admin_applicant_url(company, interview.application_id),
+        **common,
+    )
 
 
 def _scheduling_unavailable() -> HTTPException:
@@ -985,9 +1035,9 @@ async def interview_book(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
     except interviews_service.LockBusyError:
         raise _scheduling_unavailable() from None
-    except google_calendar.GoogleCalendarError:
-        raise _scheduling_unavailable() from None
-    return await _interview_public(db, interview, await _interview_company(db, interview))
+    company = await _interview_company(db, interview)
+    await _queue_booking_mails(db, interview, company, rescheduled=False)
+    return await _interview_public(db, interview, company)
 
 
 @router.post(
@@ -1007,9 +1057,9 @@ async def interview_reschedule(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="slot-taken") from None
     except interviews_service.LockBusyError:
         raise _scheduling_unavailable() from None
-    except google_calendar.GoogleCalendarError:
-        raise _scheduling_unavailable() from None
-    return await _interview_public(db, interview, await _interview_company(db, interview))
+    company = await _interview_company(db, interview)
+    await _queue_booking_mails(db, interview, company, rescheduled=True)
+    return await _interview_public(db, interview, company)
 
 
 @router.post(
@@ -1022,7 +1072,5 @@ async def interview_cancel(token: str, db: DbSession) -> InterviewPublicOut:
     try:
         interview = await interviews_service.candidate_cancel(db, interview)
     except interviews_service.LockBusyError:
-        raise _scheduling_unavailable() from None
-    except google_calendar.GoogleCalendarError:
         raise _scheduling_unavailable() from None
     return await _interview_public(db, interview, await _interview_company(db, interview))

@@ -69,6 +69,11 @@ def interview_url(company: Company, interview_token: str) -> str:
     return f"{_base(company)}/interview/{interview_token}"
 
 
+def admin_applicant_url(company: Company, application_id: object) -> str:
+    """The applicant open in the admin list (interviewer mails and invites)."""
+    return f"{_base(company)}/admin/applicants?selected={application_id}"
+
+
 def invite_url(company: Company, invite_token: str) -> str:
     return f"{_base(company)}/invite/{invite_token}"
 
