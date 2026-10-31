@@ -25,7 +25,8 @@ never of software alone. Ganek ships as **GDPR-ready**:
   applications after your configured window (default 6 months). On by
   default; you can raise the window, not silently disable deletion.
 - **Erasure tooling**: a one-click admin erasure that deletes the database
-  records, the CV file, and (best-effort) Google Calendar events.
+  records and the CV file, and sends the interviewer a calendar cancel
+  notice for a booked future interview.
 - **DSAR export**: a per-candidate JSON bundle of everything Ganek holds
   about them, including quiz answers, scores, and integrity events.
 - **Candidate request routes**: the application status page lets candidates
@@ -38,8 +39,8 @@ never of software alone. Ganek ships as **GDPR-ready**:
 - **No automated decisions**: scores and integrity flags inform humans;
   Ganek never auto-rejects, auto-advances, or auto-filters anyone.
 - **EU-hostable**: one compose stack you can run entirely on EU
-  infrastructure. The only third-country flow is Google Calendar/Meet, and
-  only if your recruiters connect it.
+  infrastructure. Interview invites are plain emails with a calendar
+  file: no third-country flow is built in.
 
 ## What's in the pack
 

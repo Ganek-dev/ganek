@@ -58,7 +58,7 @@ The [GDPR guide](/compliance/self-hosting-gdpr-guide/) has the policy wording fo
 
 ## Email deliverability
 
-Candidate emails (quiz invites, status updates, interview invites) only help when they land. For the sender domain in `GANEK_EMAIL_FROM`:
+Candidate emails (quiz invites, status updates, interview invites with their calendar file) only help when they land. The interviewer receives the same calendar file, so no calendar connection is needed on either side. For the sender domain in `GANEK_EMAIL_FROM`:
 
 - Publish SPF for your relay or for Mailjet, sign with DKIM, and add a DMARC record.
 - With `GANEK_EMAIL_PROVIDER=mailjet`, set `GANEK_EMAIL_WEBHOOK_SECRET` and point Mailjet's event webhook at `https://ganek:<secret>@your-host/api/v1/email/webhooks/mailjet`. Bounced and complained addresses go on a suppression list and are skipped from then on; the email trail on each application shows the state.

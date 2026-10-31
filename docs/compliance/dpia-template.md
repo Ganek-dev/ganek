@@ -27,7 +27,7 @@ with this template; skipping it is hard to defend.
 skill quiz per job, and scheduling interviews.
 
 **Data subjects.** Job applicants (external), plus `{company}` recruiting
-staff (accounts, calendar connections).
+staff (accounts, saved availability).
 
 **Categories of data (candidates).**
 
@@ -37,7 +37,7 @@ staff (accounts, calendar connections).
 | Application content | CV file, links (portfolio/profiles), free-text message | Apply form |
 | Assessment | Per-question answers with correctness, total and per-tag scores, time used | Quiz engine (server-side scoring) |
 | Integrity telemetry | Events of exactly three types - window focus lost (with duration), paste occurred, window resized - each tied to the question that was open; derived review flags | Quiz page during an attempt |
-| Scheduling | Chosen interview slot, timezone; Google Calendar event with name + email (only if used) | Booking page |
+| Scheduling | Chosen interview slot, timezone, meeting place or link; a calendar invite (.ics) emailed to the candidate and the interviewer | Booking page |
 | Pipeline metadata | Stage history, decision timestamps, recruiter notes about the candidate, activity entries | Recruiting staff |
 | Page views (aggregate, not personal data) | Daily total of job-page loads per job and per source label (for example linkedin, google, direct, a tracked-link name, a referring site's domain; name tracked links after channels, never after a person); no IP, user agent, cookie or visitor identifier | Server render of the job page |
 
@@ -53,8 +53,8 @@ candidates to omit sensitive personal details).
 **Flows.** Candidate applies (CV to object storage via presigned upload) →
 optional quiz (questions served one at a time; timing and scoring
 server-side; answer keys never sent to the client) → human review →
-optional interview booking (event on the recruiter's Google calendar; Google
-emails the invite) → decision, communicated by opt-in email.
+optional interview booking (Ganek emails both sides a calendar invite as
+an .ics file) → decision, communicated by opt-in email.
 
 **Storage & TTLs.** Postgres (application data) and S3-compatible object
 storage (CVs), both under `{company}`'s control at `{hosting provider /
@@ -64,12 +64,14 @@ at their deadline; rejected/withdrawn applications are purged
 are token-scrubbed and rotation-capped.
 
 **Recipients.** Recruiting staff (role-restricted); `{hosting provider}`;
-`{email relay}`; Google LLC - only when an interview is scheduled and only
-the event data (name, email, time, Meet link).
+`{email relay}`; the interviewer, who receives the candidate's calendar
+invite (name, email, time, meeting place or link) when an interview is
+booked.
 
-**Transfers.** None built-in except the Google Calendar leg (US) - SCCs
-via Google's data-processing terms, DPF certification while that framework
-stands. `{Add any transfer created by your hosting/email choices.}`
+**Transfers.** None built-in: interview invites are plain emails with a
+calendar file, no calendar provider is involved (the Google Calendar leg
+was removed on 2026-10-31). `{Add any transfer created by your
+hosting/email choices.}`
 
 ## 3. Necessity and proportionality
 
@@ -84,12 +86,13 @@ stands. `{Add any transfer created by your hosting/email choices.}`
 - **Transparency.** Layered notices: privacy-notice block on the apply form
   (above Submit), full notice page per company, complete monitoring
   disclosure on the quiz start gate (desktop and mobile) *before* the
-  attempt starts, Google disclosure on the booking page, controller
+  attempt starts, invite disclosure on the booking page, controller
   identity + notice link in every candidate email.
 - **Minimization.** Three telemetry event types and no more; no IP/UA in
   candidate records; quiz answers stored with correctness but answer keys
-  never exposed; Google receives only event-level data; recruiter accounts
-  hold no more than login + calendar linkage.
+  never exposed; interview invites carry name, email, time and meeting
+  place only; recruiter accounts hold no more than login, availability
+  and a default meeting place.
 - **Retention.** Single configured window (`{retention_months}` months,
   default 6), automatically enforced, decision-anchored, no off switch;
   hired candidates transition to employee-record retention
@@ -115,9 +118,9 @@ the mitigation column states what Ganek already does - add your own.
 | 1 | Unfair inference from integrity telemetry (a flagged event read as cheating) | Flags are informational only, reviewed by humans seeing the full context; complete prior disclosure at the gate; no auto-consequences; [LIA](telemetry-legitimate-interests.md) | `{}` | `{}` | `{}` |
 | 2 | Assessment reduced to the score (de-facto automated rejection) | No auto-reject/filter/sort-cutoff in product; full application always displayed; pass-lines are visualization only; staff training `{yours}` | `{}` | `{}` | `{}` |
 | 3 | Leaked candidate link (quiz/status/interview token) | Links are single-purpose signed tokens; status links expire in 30 days; no bulk PII behind any candidate link (DSAR is admin-mediated); tokens scrubbed from access logs; HTTPS `{confirm}` | `{}` | `{}` | `{}` |
-| 4 | Breach of hiring data (DB, CV bucket, backups) | Tenancy isolation, RBAC, argon2 password hashing, encrypted Google tokens, rate limiting, hardening checklist applied `{confirm}`, storage-layer encryption `{confirm}`, [breach runbook](breach-runbook.md) | `{}` | `{}` | `{}` |
+| 4 | Breach of hiring data (DB, CV bucket, backups) | Tenancy isolation, RBAC, argon2 password hashing, encrypted 2FA secrets, rate limiting, hardening checklist applied `{confirm}`, storage-layer encryption `{confirm}`, [breach runbook](breach-runbook.md) | `{}` | `{}` | `{}` |
 | 5 | Sensitive data volunteered in CV/message being used | Form guidance asks candidates to omit it; not copied into notes (policy `{confirm}`); weighed for nothing; erased with the application | `{}` | `{}` | `{}` |
-| 6 | US transfer via Google Calendar | Only on interview scheduling; SCCs + DPF; event-level data only; best-effort deletion on erasure; disclosed at booking; alternative: don't connect calendars | `{}` | `{}` | `{}` |
+| 6 | Interview invite by email (name, email, time) to the candidate and the interviewer | No third-country leg; a cancel notice goes to the interviewer on erasure of a booked future interview; disclosed at booking | `{}` | `{}` | `{}` |
 | 7 | Data kept longer than justified | Automatic decision-anchored purge, notice states the window, no silent off switch; backups rotation ≤ window `{confirm}` | `{}` | `{}` | `{}` |
 | 8 | Candidate unable to exercise rights | Status page carries request routes with 14-day task deadline; export/erase/rectify are one-click admin actions; one-month response tracked `{your process}` | `{}` | `{}` | `{}` |
 
