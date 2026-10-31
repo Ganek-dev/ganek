@@ -86,6 +86,10 @@ def validate_questions(raw: list[dict[str, Any]]) -> list[ScreeningQuestion]:
     duplicates and the sanity ceiling refused (ValueError -> 422)."""
     if len(raw) > MAX_QUESTIONS:
         raise ValueError(f"at most {MAX_QUESTIONS} screening questions")
+    if any(not isinstance(item, dict) for item in raw):
+        # a bare string or null would TypeError on the unpack below, which
+        # pydantic does not turn into a 422
+        raise ValueError("each screening question must be an object")
     questions = [
         ScreeningQuestion.model_validate({**item, "id": item.get("id") or new_question_id()})
         for item in raw

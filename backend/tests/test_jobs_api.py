@@ -334,3 +334,16 @@ async def test_new_job_copies_company_default_questions(client: AsyncClient) -> 
     assert [q["prompt"] for q in copied] == [q["prompt"] for q in SCREENING]
     explicit = (await client.post("/api/v1/jobs", json=_job_payload(screening_questions=[]))).json()
     assert explicit["screening_questions"] == []
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_non_object_screening_questions_are_422_not_500(client: AsyncClient) -> None:
+    await _register(client)
+    for bad in (["x"], [1], [None]):
+        resp = await client.post("/api/v1/jobs", json=_job_payload(screening_questions=bad))
+        assert resp.status_code == 422, (bad, resp.status_code, resp.text)
+    job = (await client.post("/api/v1/jobs", json=_job_payload())).json()
+    resp = await client.patch(f"/api/v1/jobs/{job['id']}", json={"screening_questions": ["x"]})
+    assert resp.status_code == 422, resp.text
+    resp = await client.patch("/api/v1/company/settings", json={"screening_questions": [None]})
+    assert resp.status_code == 422, resp.text
