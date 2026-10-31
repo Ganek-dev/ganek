@@ -138,6 +138,9 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public detail: string,
+    /** The response's raw `detail` when it was not a string (FastAPI's
+     * validation list, the apply route's per-question errors). */
+    public body?: unknown,
   ) {
     super(detail);
   }
@@ -152,8 +155,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!resp.ok) {
     let detail = resp.statusText;
+    let rawDetail: unknown;
     try {
       const body = (await resp.json()) as { detail?: unknown };
+      rawDetail = body.detail;
       if (typeof body.detail === "string") {
         detail = body.detail;
       } else if (Array.isArray(body.detail)) {
@@ -174,7 +179,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ) {
       window.location.assign("/login");
     }
-    throw new ApiError(resp.status, detail);
+    throw new ApiError(resp.status, detail, rawDetail);
   }
   if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
