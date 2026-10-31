@@ -197,11 +197,14 @@ export interface Availability {
   timezone: string;
   days: Partial<Record<DayKey, DayWindow>>;
   is_default: boolean;
+  /** Default room or video link for this user's interviews; "" when none. */
+  location: string;
 }
 
 export interface AvailabilityIn {
   timezone: string;
   days: Partial<Record<DayKey, DayWindow>>;
+  location: string;
 }
 
 export const api = {
@@ -264,14 +267,6 @@ export const api = {
     }),
   me: () => request<UserOut>("/api/v1/auth/me"),
   providers: () => request<Providers>("/api/v1/auth/providers"),
-  googleCalendar: {
-    status: () =>
-      request<{ connected: boolean; google_email: string | null; needs_reconnect: boolean }>(
-        "/api/v1/users/me/google-calendar",
-      ),
-    disconnect: () =>
-      request<void>("/api/v1/users/me/google-calendar", { method: "DELETE" }),
-  },
   availability: {
     get: () => request<Availability>("/api/v1/users/me/availability"),
     set: (payload: AvailabilityIn) =>
@@ -916,7 +911,8 @@ export interface InterviewPublic {
   interviewer_display: string;
   available_slots: string[];
   scheduled_start: string | null;
-  meet_url: string | null;
+  /** Room or video link; "" when the interviewer set none. */
+  location: string;
 }
 
 export const publicInterviews = {
@@ -947,8 +943,15 @@ export interface InterviewAdmin {
   duration_minutes: number;
   timezone: string;
   scheduled_start: string | null;
-  meet_url: string | null;
+  location: string;
   created_at: string;
+}
+
+export interface SlotPreview {
+  schedule_summary: string;
+  open_slot_count: number;
+  /** The interviewer's default location, prefilled into the dialog. */
+  default_location: string;
 }
 
 export const interviews = {
@@ -956,7 +959,7 @@ export const interviews = {
     applicationId: string,
     body: { interviewer_user_id: string; duration_minutes: number; timezone: string },
   ) =>
-    request<{ schedule_summary: string; open_slot_count: number }>(
+    request<SlotPreview>(
       `/api/v1/applications/${applicationId}/interview/slot-preview`,
       {
         method: "POST",
@@ -970,6 +973,7 @@ export const interviews = {
       duration_minutes: number;
       timezone: string;
       description: string;
+      location: string;
     },
   ) =>
     request<InterviewAdmin>(`/api/v1/applications/${applicationId}/interview`, {
@@ -1257,8 +1261,7 @@ export interface TaskItem {
 }
 
 export interface TodayPanelData {
-  source: "google" | "ganek";
-  events: { start: string | null; summary: string; hangout_link: string | null }[];
+  events: { start: string | null; summary: string; location: string }[];
 }
 
 export type QueueItemKind = "job-quiz" | "integrity" | "unbooked";
