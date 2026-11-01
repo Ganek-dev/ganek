@@ -30,8 +30,8 @@ PW = "a-long-secure-password"
 RECRUITER_ONLY = "This action requires a recruiter account"
 ADMIN_ONLY = "This action requires an admin account"
 
-# Authenticated routes a reviewer session may reach (spec 4.1). Task 14 adds
-# the /review routes here. Everything session-gated and not listed must 403.
+# Authenticated routes a reviewer session may reach (spec 4.1). Everything
+# session-gated and not listed must 403.
 REVIEWER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
     {
         ("GET", "/api/v1/auth/me"),
@@ -50,6 +50,8 @@ REVIEWER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/v1/scorecards/mine"),
         ("PUT", "/api/v1/scorecards/applications/{application_id}/mine"),
         ("POST", "/api/v1/scorecards/applications/{application_id}/mine/decline"),
+        ("GET", "/api/v1/review/applications"),
+        ("GET", "/api/v1/review/applications/{application_id}"),
     }
 )
 
