@@ -87,9 +87,14 @@ def waiting_on(
     if interview is not None:
         if interview.status is InterviewStatus.BOOKED and interview.scheduled_start:
             end = interview.scheduled_start + timedelta(minutes=interview.duration_minutes)
+            # a held interview stays booked forever: once the stage moved on after
+            # its end, the stage rows decide
             if end <= now:
-                return Waiting("team", end)
-        return Waiting("candidate", interview.created_at)
+                if stage_changed_at <= end:
+                    return Waiting("team", end)
+                interview = None
+        if interview is not None:
+            return Waiting("candidate", interview.created_at)
     if stage is ApplicationStage.NEW:
         if attempt is not None:
             if attempt.status is AttemptStatus.IN_PROGRESS:

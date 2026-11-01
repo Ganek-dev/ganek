@@ -33,7 +33,8 @@ Every live candidate is waiting on exactly one side, counted from a date. The fi
 |---|---|---|
 | An interview was requested and is not booked yet, at any stage | Candidate | The request |
 | An interview is booked and has not ended yet, at any stage | Candidate | The request |
-| An interview is booked and has ended, at any stage | You | The end of the interview |
+| An interview is booked and has ended, and the candidate has not moved stage since | You | The end of the interview |
+| An interview is booked and has ended, but the candidate moved stage after it | The stage rows below decide | |
 | Stage New, quiz sent and not expired, or in progress | Candidate | The quiz invitation |
 | Stage New, anything else (no quiz, quiz completed, expired or invalidated) | You | The completion, the expiry, or the move into the stage |
 | Stage Screening, no interview | You | The move into the stage |
@@ -48,14 +49,14 @@ The stage limit is 7 days by default and can be set from 1 to 60. An admin chang
 
 ## Reports
 
-Reports (`/admin/reports`) is for admins and recruiters; reviewers do not see it. Filter by period (30 days, 90 days, 12 months, all) and optionally by job.
+Reports (`/admin/reports`) is for admins and members; reviewers do not see it. Filter by period (30 days, 90 days, 12 months, all) and optionally by job.
 
-The period picks a cohort: the applications created in that window. Every number on the page is about that cohort, and the deltas compare it with the previous period of the same length. With "all" there are no deltas.
+The period picks a cohort: the applications created in that window. Every number on the page is about that cohort, and the deltas compare it with the previous period of the same length. With "all" there are no deltas. Rejected and withdrawn applications leave Reports when the workspace retention window deletes them, so long periods overstate pass-through.
 
 - **Funnel.** Steps are Applied, Screening, Interview, Offer, Hired. A candidate counts as having reached a step if their history or current stage is that step or a later one, so a skipped stage still counts as reached. Rejected and withdrawn are outcomes, not steps: for each step Reports shows how many were rejected from there, withdrew from there, and how many are still here, meaning live at that stage right now. A line under the funnel counts quizzes invited, completed and expired.
 - **Time in stage.** The median number of days in each stage, over completed stays only. Beside it, the oldest live candidate per stage, so you look at the slowest case and not just the count.
 - **Time to hire.** The median days from application to hire, for hires in the cohort.
-- **Sources** and the **score distribution** and **applications per week** charts, for the same cohort.
+- **Sources** and the **score distribution** and **applications per week** charts, for the same cohort. For all time, Applications per week shows the last year.
 
 Every median is shown with its n. Below 3 data points it shows "-" instead of a number, because a median of one or two cases says nothing.
 

@@ -63,6 +63,16 @@ def test_held_interview_at_screening_is_team_since_end():
     )
 
 
+def test_held_interview_then_moved_to_offer_is_candidate_since_stage_changed():
+    iv = _interview(InterviewStatus.BOOKED, start=NOW - timedelta(days=5), minutes=60)
+    assert _wait(ApplicationStage.OFFER, interview=iv) == Waiting("candidate", CHANGED)
+
+
+def test_held_interview_then_moved_to_screening_is_team_since_stage_changed():
+    iv = _interview(InterviewStatus.BOOKED, start=NOW - timedelta(days=5), minutes=60)
+    assert _wait(ApplicationStage.SCREENING, interview=iv) == Waiting("team", CHANGED)
+
+
 def test_cancelled_interview_is_ignored_team_since_stage_changed():
     assert interview_view(None) is None
     # a cancelled row maps to None, so the stage row applies
