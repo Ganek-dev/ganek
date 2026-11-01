@@ -3,7 +3,7 @@
 - `ci_local.sh` - mirror the full GitHub CI pipeline locally before
   pushing: question-bank validation, advisory audits, frontend
   lint/typecheck/test/build under Node 22 (nvm), the backend matrix
-  (ruff + mypy + pytest on py3.12 AND py3.14 against throwaway
+  (ruff + mypy + pytest on py3.12, with `--python "3.12 3.14"` for both legs as in CI, against throwaway
   postgres/minio containers - never touches dev data), and both e2e
   legs on a scratch compose stack (stops a running dev stack and
   restores it afterwards). Stage-selectable: `scripts/ci_local.sh
