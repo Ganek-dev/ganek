@@ -8,7 +8,7 @@ Ganek sits in front of your applicant tracking system, not instead of it. Once a
 
 ## Which candidates cross over
 
-Not every applicant belongs in the ATS. The webhook fires `stage.changed` on every move, so the recipe filters on the stage you treat as "screened", usually `interview`. Applicants you reject or leave in `screening` never leave Ganek. If you want every application mirrored, subscribe to `application.created` instead and skip the filter.
+Not every applicant belongs in the ATS. The webhook fires `stage.changed` on every move, so the recipe filters on the stage you treat as "screened", usually `interview`. Applicants you reject or leave in `screening` never leave Ganek. If you want every application mirrored, subscribe to `application.created` instead and skip the stage filter, but keep the `data__test` condition from the recipes below.
 
 ## What the webhook carries
 
@@ -69,10 +69,11 @@ Make answers every delivery with `200 Accepted`, which Ganek records as delivere
 The payload carries `data.cv.url`, which is not the file: it is the key-protected route `GET /api/v1/applications/{id}/cv`, because a delivery can be retried for over an hour and a download link inside it would have expired by then. Fetch it with a read API key and hand the file to your ATS:
 
 1. In Ganek, open Settings, Developers and create an API key with scope `read`. Copy the secret; it is shown once.
-2. In Zapier, add a **Webhooks by Zapier, GET** step after the filter, with the URL `data__cv__url` and the header `Authorization: Bearer gk_...`. Leave follow redirects on. In Make, use **HTTP, Get a file** on `data.cv.url` with the same header.
-3. Map the file from that step to the resume or CV field of the ATS action. Greenhouse and Recruitee take a file or a URL; Personio and Lever take the file.
+2. In Zapier, add a **Webhooks by Zapier, GET** step after the filter, with the URL `data__cv__url` and the header `Authorization: Bearer gk_...`. Leave follow redirects on. In Make, use **HTTP, Get a file** on `data.cv.url` with the same header. The redirect goes to your object storage, and that link needs no header. If your client keeps the `Authorization` header on the hop (a 400 from S3 is the symptom), it also sends the key to the storage host, so use two steps instead: `GET .../cv-url` with the key, then fetch its `download_url` with no header.
+3. Map the file from that step to the resume or CV field of the ATS action. Greenhouse and Recruitee take a file or a URL; Personio and Lever take the file. Do not map `data.cv.url` itself into the ATS: the ATS has no key and would get a 401.
+4. To set up the CV step, test it with a delivery from a real applicant (for example move a test application to the stage), because the sample that **Send test** posts has a `cv.url` that answers 404.
 
-Every fetch lands in the applicant's read-access trail under the key's name. The sample delivery that **Send test** posts describes an applicant that does not exist, so its link answers 404; the filter keeps it away from the CV step anyway.
+Fetches land in the applicant's read-access trail under the key's name; repeats by the same key inside ten minutes count once. The sample delivery describes an applicant that does not exist, so keep the `data__test` condition in the filter: it keeps the sample away from the CV step. Connecting a webhook or key to a third party makes it your recipient: see the [GDPR guide](/compliance/self-hosting-gdpr-guide/) paragraph on webhooks, automations and ATS targets.
 
 ## CSV route
 
