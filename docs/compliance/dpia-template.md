@@ -64,7 +64,7 @@ at their deadline; rejected/withdrawn applications are purged
 are token-scrubbed and rotation-capped.
 
 **Recipients.** Recruiting staff (role-restricted); `{hosting provider}`;
-`{email relay}`; the interviewer, who receives the candidate's calendar
+`{email relay}`; `{webhook, automation or ATS targets, if configured}`; the interviewer, who receives the candidate's calendar
 invite (name, email, time, meeting place or link) when an interview is
 booked.
 

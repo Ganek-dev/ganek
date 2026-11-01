@@ -45,7 +45,7 @@ default 6 months), enforced by the nightly purge from the decision date.
   google, direct, a tracked-link name, or the referring site's domain;
   never the full referring URL).
 - **Recipients:** recruiting staff; `{hosting provider}` (infrastructure);
-  `{email relay}` (transactional email).
+  `{email relay}` (transactional email); `{webhook, automation or ATS targets, if configured}`.
 - **Transfers:** none (see Activity 6 for the only built-in transfer).
   `{Adjust if your hosting/email providers are outside the EU/EEA.}`
 - **Retention:** W months after rejection/withdrawal; hired → employee
