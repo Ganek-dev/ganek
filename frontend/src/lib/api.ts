@@ -755,6 +755,8 @@ export const applications = {
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
   /** What happened to this application, newest first (card "Candidate timeline"). */
   timeline: (id: string) => request<TimelineEvent[]>(`/api/v1/applications/${id}/timeline`),
+  /** The delivery trail: every mail queued for this application, newest first. */
+  emails: (id: string) => request<EmailDelivery[]>(`/api/v1/applications/${id}/emails`),
   /** Cancels a rejection mail still waiting for its send time (409 once sent). */
   cancelEmail: (id: string, emailId: string) =>
     request<EmailDelivery>(`/api/v1/applications/${id}/emails/${emailId}/cancel`, {

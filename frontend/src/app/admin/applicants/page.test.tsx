@@ -10,6 +10,7 @@ import {
   scorecards,
   type ApplicationOut,
   type ApplicationStage,
+  type EmailDelivery,
   type QuizAnswerReview,
   emailTemplates,
   type EmailKindInfo,
@@ -38,6 +39,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       cvUrl: vi.fn(),
       quizAnswers: vi.fn(),
       timeline: vi.fn(),
+      emails: vi.fn(),
       accessLog: vi.fn(),
       remind: vi.fn(),
       emailPreview: vi.fn(),
@@ -86,6 +88,23 @@ function templateKinds(): { kinds: EmailKindInfo[] } {
 
 const RECENT = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 const OLDER = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+function makeDelivery(overrides: Partial<EmailDelivery>): EmailDelivery {
+  return {
+    id: "mail-1",
+    kind: "rejection",
+    status: "sent",
+    attempts: 1,
+    last_error: null,
+    created_at: RECENT,
+    sent_at: RECENT,
+    send_after: null,
+    cancelled_at: null,
+    subject: null,
+    text: null,
+    ...overrides,
+  };
+}
 
 function makeApp(overrides: Partial<ApplicationOut>): ApplicationOut {
   return {
@@ -246,6 +265,7 @@ describe("ApplicantsPage", () => {
     mockedNotes.list.mockResolvedValue([]);
     mockedScorecards.list.mockResolvedValue([]);
     mockedApps.timeline.mockResolvedValue([]);
+    mockedApps.emails.mockResolvedValue([]);
     mockedApps.accessLog.mockResolvedValue([]);
     mockedNotes.add.mockResolvedValue({
       id: "note-1",
@@ -543,6 +563,7 @@ describe("ApplicantsPage", () => {
         rejectionReason: null,
         rejectionNote: null,
         templateId: "t-a",
+        sendAfter: null,
       }),
     );
     // a rejection with the checkbox on does send one, and the toast says so
@@ -681,7 +702,107 @@ describe("ApplicantsPage", () => {
         rejectionReason: "skills_gap",
         rejectionNote: null,
         templateId: "t-a",
+        sendAfter: null,
       }),
+    );
+  });
+
+  it("a rejected row without a rejection mail offers Send rejection email", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockResolvedValueOnce([]);
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    const button = await screen.findByRole("button", { name: "Send rejection email" });
+    expect(mockedApps.emails).toHaveBeenCalledWith("app-1");
+
+    mockedApps.emails.mockResolvedValue([makeDelivery({ status: "scheduled" })]);
+    await userEvent.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Send rejection email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send email" }));
+    await waitFor(() =>
+      expect(mockedApps.setStage).toHaveBeenCalledWith(
+        "app-1",
+        "rejected",
+        true,
+        expect.objectContaining({ sendAfter: null }),
+      ),
+    );
+    // the trail reloads and the button goes away
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Send rejection email" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it.each(["scheduled", "queued", "sent"])(
+    "no Send rejection email while a rejection mail is %s",
+    async (status) => {
+      mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+      mockedApps.emails.mockResolvedValue([makeDelivery({ status })]);
+      render(<ApplicantsPage />);
+      await screen.findByRole("heading", { name: "Jane Applicant" });
+      await waitFor(() => expect(mockedApps.emails).toHaveBeenCalled());
+      expect(screen.queryByRole("button", { name: "Send rejection email" })).not.toBeInTheDocument();
+    },
+  );
+
+  it("a cancelled rejection mail brings the button back; other mail kinds do not hide it", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockResolvedValue([
+      makeDelivery({ id: "m2", status: "cancelled", cancelled_at: RECENT }),
+      makeDelivery({ id: "m3", kind: "quiz_invite", status: "sent" }),
+    ]);
+    render(<ApplicantsPage />);
+    expect(await screen.findByRole("button", { name: "Send rejection email" })).toBeInTheDocument();
+  });
+
+  it("no Send rejection email when the trail fails to load or the row is not rejected", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockRejectedValue(new Error("boom"));
+    const { unmount } = render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await waitFor(() => expect(mockedApps.emails).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Send rejection email" })).not.toBeInTheDocument();
+    unmount();
+
+    mockedApps.emails.mockClear();
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "screening" })]));
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    expect(screen.queryByRole("button", { name: "Send rejection email" })).not.toBeInTheDocument();
+    expect(mockedApps.emails).not.toHaveBeenCalled();
+  });
+
+  it("a 409 from mail-again shows the server detail", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.setStage.mockRejectedValue(new ApiError(409, "A rejection email is already scheduled."));
+    render(<ApplicantsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Send rejection email" }));
+    const dialog = await screen.findByRole("dialog", { name: "Send rejection email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send email" }));
+    expect(await screen.findByText("A rejection email is already scheduled.")).toBeInTheDocument();
+  });
+
+  it("the toast names the scheduled time after a delayed reject, and undo says it was cancelled", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /email the candidate/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: /Email to Jane Applicant/ });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Tomorrow morning/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reject and email tomorrow morning" }));
+    const status = await screen.findByRole("status");
+    await waitFor(() =>
+      expect(status).toHaveTextContent(
+        /Moved Jane Applicant to Rejected\. Email scheduled for [A-Z][a-z]{2} (\d{1,2} [A-Z][a-z]{2} )?09:00\./,
+      ),
+    );
+    expect(status).not.toHaveTextContent("Email sent");
+    await userEvent.click(within(status).getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(status).toHaveTextContent("Moved Jane Applicant back to New. Scheduled email cancelled."),
     );
   });
 
@@ -778,6 +899,7 @@ describe("ApplicantsPage", () => {
         rejectionReason: null,
         rejectionNote: null,
         templateId: "t-a",
+        sendAfter: expect.stringMatching(/T09:00:00/),
       }),
     );
     await waitFor(() => expect(mockedApps.list).toHaveBeenCalledTimes(2));
@@ -868,8 +990,54 @@ describe("ApplicantsPage", () => {
         rejectionReason: null,
         rejectionNote: null,
         templateId: "builtin",
+        sendAfter: expect.stringMatching(/T09:00:00/),
       }),
     );
+  });
+
+  it("bulk reject with email defaults to tomorrow morning and passes send_after", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    expect(screen.getByRole("radio", { name: /Tomorrow morning/ })).toBeChecked();
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
+    await waitFor(() => expect(mockedApps.bulkReject).toHaveBeenCalled());
+    const fields = mockedApps.bulkReject.mock.calls[0][2];
+    expect(fields?.sendAfter).toMatch(/T09:00:00/);
+  });
+
+  it("send now in the bulk bar passes sendAfter null", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    await userEvent.click(screen.getByRole("radio", { name: /Send now/ }));
+    mockedApps.list.mockResolvedValueOnce(pageOf([]));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, reject" }));
+    await waitFor(() => expect(mockedApps.bulkReject).toHaveBeenCalled());
+    expect(mockedApps.bulkReject.mock.calls[0][2]).toHaveProperty("sendAfter", null);
+  });
+
+  it("the bulk When choice resets to tomorrow each time the confirm step opens, and is absent without email", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    expect(screen.queryByRole("radio", { name: /Send now/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Keep them" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Send now/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep them" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(await screen.findByRole("radio", { name: /Tomorrow morning/ })).toBeChecked();
   });
 
   it("bulk move to interview carries the stage_advance template", async () => {
