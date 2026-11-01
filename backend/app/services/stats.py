@@ -81,25 +81,34 @@ async def _application_counts(db: AsyncSession, company: Company) -> Application
 SCORE_BUCKETS = 10  # 10-point-wide histogram buckets over 0-100
 
 
-def _attempt_scope(company: Company, job_id: uuid.UUID | None) -> list[ColumnElement[bool]]:
-    """Where-conditions for one company's attempts, narrowed to one job when
-    asked (QuizAttempt has no job_id; the join rides Application)."""
+def _attempt_scope(
+    company: Company, job_id: uuid.UUID | None, since: datetime | None = None
+) -> list[ColumnElement[bool]]:
+    """Where-conditions for one company's attempts, narrowed to one job and to
+    applications created since a moment when asked (QuizAttempt has neither;
+    the join rides Application)."""
     conditions: list[ColumnElement[bool]] = [
         QuizAttempt.company_id == company.id,
         # a re-issue invalidates the earlier attempt: audit history, not a stat
         QuizAttempt.status != AttemptStatus.INVALIDATED,
     ]
-    if job_id is not None:
+    if job_id is not None or since is not None:
         conditions.append(Application.id == QuizAttempt.application_id)
+    if job_id is not None:
         conditions.append(Application.job_id == job_id)
+    if since is not None:
+        conditions.append(Application.created_at >= since)
     return conditions
 
 
 async def _quiz_counts(
-    db: AsyncSession, company: Company, job_id: uuid.UUID | None = None
+    db: AsyncSession,
+    company: Company,
+    job_id: uuid.UUID | None = None,
+    since: datetime | None = None,
 ) -> QuizCounts:
     completed_filter = QuizAttempt.status == AttemptStatus.COMPLETED
-    scope = _attempt_scope(company, job_id)
+    scope = _attempt_scope(company, job_id, since)
     row = (
         await db.execute(
             select(
@@ -188,14 +197,20 @@ async def _per_job(db: AsyncSession, company: Company) -> list[PerJobStats]:
 
 
 async def _weekly(
-    db: AsyncSession, company: Company, job_id: uuid.UUID | None = None
+    db: AsyncSession,
+    company: Company,
+    job_id: uuid.UUID | None = None,
+    since: datetime | None = None,
+    weeks: int = WEEKS,
 ) -> list[WeeklyPoint]:
     now = datetime.now(UTC)
-    start = _week_start(now) - timedelta(weeks=WEEKS - 1)
+    start = _week_start(now) - timedelta(weeks=weeks - 1)
     bucket = func.date_trunc("week", Application.created_at)
     conditions = [Application.company_id == company.id, Application.created_at >= start]
     if job_id is not None:
         conditions.append(Application.job_id == job_id)
+    if since is not None:
+        conditions.append(Application.created_at >= since)
     rows = (
         await db.execute(select(bucket, func.count()).where(*conditions).group_by(bucket))
     ).all()
@@ -205,7 +220,7 @@ async def _weekly(
             week_start=(start + timedelta(weeks=i)).date(),
             count=counts.get((start + timedelta(weeks=i)).date(), 0),
         )
-        for i in range(WEEKS)
+        for i in range(weeks)
     ]
 
 

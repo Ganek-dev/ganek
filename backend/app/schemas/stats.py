@@ -135,3 +135,57 @@ class BoardOut(BaseModel):
     stage_limit_days: int
     totals: BoardTotals
     jobs: list[BoardJob]
+
+
+Period = Literal["30d", "90d", "12m", "all"]
+
+
+class CohortKpis(BaseModel):
+    applications: int
+    reached_interview: int
+    hires: int
+    median_time_to_hire_days: float | None  # None below n = 3
+    hires_n: int  # hires the median is based on
+
+
+class FunnelStep(BaseModel):
+    stage: ApplicationStage
+    reached: int  # held this stage or a later one, ever (a skipped stage counts)
+    pass_through: float | None  # percent (0-100) reached next / reached this; None when undefined
+    rejected_from: int
+    withdrawn_from: int
+    still_here: int  # live at this stage now
+
+
+class QuizLine(BaseModel):
+    invited: int
+    completed: int
+    expired: int
+
+
+class StageTime(BaseModel):
+    stage: ApplicationStage
+    median_days: float | None  # None below n = 3
+    n: int  # completed stays
+    oldest_live_days: int | None  # longest current stay among live candidates
+
+
+class SourceRow(BaseModel):
+    source: str  # NULL shows as "direct"
+    applications: int
+    reached_interview: int
+    hires: int
+
+
+class ReportsOut(BaseModel):
+    period: Period
+    job_id: uuid.UUID | None
+    cohort: CohortKpis
+    previous: CohortKpis | None  # None for "all"
+    funnel: list[FunnelStep]
+    quiz: QuizLine
+    time_in_stage: list[StageTime]
+    sources: list[SourceRow]
+    diagnosis: list[str]
+    quiz_scores: QuizCounts
+    weekly: list[WeeklyPoint]

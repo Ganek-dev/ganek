@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -8,8 +9,8 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import CurrentCompany, CurrentUser, DbSession, StaffCompany, StaffUser
 from app.models import Application, Interview, InterviewStatus
 from app.schemas.dashboard import QueueDismiss, QueueOut, TodayEvent, TodayOut
-from app.schemas.stats import BoardOut, StatsOverview
-from app.services import pipeline_signals
+from app.schemas.stats import BoardOut, Period, ReportsOut, StatsOverview
+from app.services import pipeline_signals, reports
 from app.services import queue as queue_service
 from app.services import stats as stats_service
 
@@ -26,6 +27,18 @@ async def stats_board(db: DbSession, company: StaffCompany) -> BoardOut:
     """Dashboard open roles board: one row per published job (and closed jobs
     that still hold live candidates), with the stalled/attention chip."""
     return await pipeline_signals.board(db, company)
+
+
+@router.get("/reports", response_model=ReportsOut)
+async def stats_reports(
+    db: DbSession,
+    company: StaffCompany,
+    period: Period = "90d",
+    job_id: uuid.UUID | None = None,
+) -> ReportsOut:
+    """Reports page: the cohort of applications created in the period, its
+    funnel, time in stage, time to hire and sources, against the previous period."""
+    return await reports.reports(db, company, period=period, job_id=job_id)
 
 
 @router.get("/today", response_model=TodayOut)
