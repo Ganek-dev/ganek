@@ -48,11 +48,14 @@ from app.models import (
     Job,
     JobView,
     QuizAttempt,
+    Scorecard,
     User,
     UserRole,
 )
+from app.models.scorecard import Recommendation
 from app.schemas.jobs import JobCreate, QuizConfigSchema
 from app.schemas.public import ApplicationSubmit
+from app.schemas.scorecards import ScorecardCriterion, ensure_criterion_ids
 from app.services import activity, email_render, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
@@ -201,6 +204,13 @@ VIEW_SHARES = (
 )
 NEWSLETTER_DAYS_AGO = 10
 VIEW_DAYS = 30
+
+# the default scorecard template every seeded job copies (spec scorecards 6)
+SCORECARD_CRITERIA = ("Problem solving", "Communication", "Role knowledge")
+
+# index into CANDIDATES: Mia (interview) holds the submitted scorecard, Hanna
+# (screening, quiz and CV) Max's open request, Karol (interview) Erika's task
+SCORECARD_DONE, SCORECARD_WAITING, SCORECARD_MINE = 0, 3, 2
 
 NOTES = (
     (0, "erika", "Strong on the pipeline questions. Pair her with Jonas for the systems round."),
@@ -382,6 +392,9 @@ async def seed(
             "contact_email": f"privacy@{domain}",
             "quiz_expired_reissue": "auto",
         },
+        scorecard_template=ensure_criterion_ids(
+            [ScorecardCriterion(label=label) for label in SCORECARD_CRITERIA]
+        ),
     )
     db.add(company)
     await db.flush()
@@ -401,7 +414,16 @@ async def seed(
         is_active=True,
         display_name="Jonas",
     )
-    db.add_all([erika, jonas])
+    # a reviewer seat: sees only the candidates he holds a scorecard on
+    max_berger = User(
+        company_id=company.id,
+        email=f"max@{domain}",
+        password_hash=hash_password(password),
+        role=UserRole.REVIEWER,
+        is_active=True,
+        display_name="Max Berger",
+    )
+    db.add_all([erika, jonas, max_berger])
     await db.commit()
     authors = {"erika": erika, "jonas": jonas}
 
@@ -480,6 +502,7 @@ async def seed(
         await _backdate(db, application, timedelta(days=max(0.1, days_ago)))
         await _seed_sent_mail(db, company, application, job, cand.stage)
 
+    await _seed_scorecards(db, applications, erika, jonas, max_berger)
     views = await _seed_views(db, jobs, rng)
     return SeedResult(
         created=True,
@@ -488,6 +511,73 @@ async def seed(
         attempts=attempts,
         views=views,
     )
+
+
+async def _seed_scorecards(
+    db: AsyncSession,
+    applications: list[Application],
+    erika: User,
+    jonas: User,
+    max_berger: User,
+) -> None:
+    """Three rows, dates relative to now so the nightly reset keeps them
+    fresh: Max's submitted Yes, Max's request four days old (the queue reads
+    "Waiting on Max Berger"), and one for Erika from Jonas. Rows are written
+    directly, like the seeded mail: a demo instance never sends any.
+    The old request carries ``reminded_at`` so remind_scorecards never
+    queues a mail to the fictional address."""
+    now = datetime.now(UTC)
+    plan = (
+        # application, reviewer, requester, requested, due_from, submitted
+        (SCORECARD_DONE, max_berger, erika, now - timedelta(days=6), now - timedelta(days=5)),
+        (SCORECARD_WAITING, max_berger, erika, now - timedelta(days=4), None),
+        (SCORECARD_MINE, erika, jonas, now - timedelta(hours=3), None),
+    )
+    for index, reviewer, requester, due_from, submitted_at in plan:
+        application = applications[index]
+        job = await db.get(Job, application.job_id)
+        assert job is not None
+        snapshot = [dict(c) for c in job.scorecard_template]
+        row = Scorecard(
+            company_id=application.company_id,
+            application_id=application.id,
+            job_id=job.id,
+            reviewer_user_id=reviewer.id,
+            requested_by_user_id=requester.id,
+            requested_at=due_from,
+            due_from=due_from,
+            criteria_snapshot=snapshot,
+            created_at=due_from,
+            updated_at=due_from,
+        )
+        if reviewer is max_berger and submitted_at is None:
+            row.reminded_at = now - timedelta(days=1)
+        if submitted_at is not None:
+            row.ratings = {
+                str(c["id"]): rating for c, rating in zip(snapshot, (4, 3, 3), strict=True)
+            }
+            row.recommendation = Recommendation.YES
+            row.comment = "Clear thinker, explains trade-offs well. Happy to see this one go on."
+            row.submitted_at = submitted_at
+            row.updated_at = submitted_at
+        db.add(row)
+        await db.flush()
+        label = reviewer.display_label
+        events = [(activity.SCORECARD_REQUESTED, requester, due_from)]
+        if submitted_at is not None:
+            events.append((activity.SCORECARD_SUBMITTED, reviewer, submitted_at))
+        for kind, actor, at in events:
+            db.add(
+                ActivityLog(
+                    company_id=application.company_id,
+                    actor_user_id=actor.id,
+                    application_id=application.id,
+                    type=kind,
+                    payload={"scorecard_id": str(row.id), "reviewer_label": label},
+                    created_at=at,
+                )
+            )
+    await db.commit()
 
 
 _MAIL_KIND_FOR_STAGE = {
