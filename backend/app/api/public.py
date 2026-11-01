@@ -1001,9 +1001,7 @@ async def _queue_booking_mails(
         company_id=company.id,
         application_id=interview.application_id,
         to=interviewer.email,
-        candidate_email=interviews_service.candidate_email_for_interviewer(
-            interviewer, candidate.email
-        ),
+        candidate_email=candidate.email,
         applicant_url=interviews_service.applicant_url_for_interviewer(
             company, interviewer, interview.application_id
         ),
@@ -1113,9 +1111,7 @@ async def interview_cancel(token: str, db: DbSession) -> InterviewPublicOut:
             to=interviewer.email,
             ref=str(interview.application_id),
             candidate_name=candidate.name,
-            candidate_email=interviews_service.candidate_email_for_interviewer(
-                interviewer, candidate.email
-            ),
+            candidate_email=candidate.email,
             interviewer_name=interviewer.display_label,
             job_title=interview.application.job.title,
             company_name=company.name,

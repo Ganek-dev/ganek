@@ -1,8 +1,7 @@
-"""Interview mails to a reviewer-role interviewer (spec 1, ruling R9): every
-path keeps the candidate's email out of what is sent and what is logged, and
-links to the slim review page. A staff interviewer's mail is unchanged."""
+"""Interview mails to a reviewer-role interviewer: the invite lists the candidate
+as an attendee as it does for staff (owner decision 2026-11-01), the links go to
+the slim review page. A staff interviewer's mail is unchanged."""
 
-import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -162,26 +161,6 @@ def _assert_message_clean(message: providers.OutboundMessage, setup: Setup) -> N
         assert setup.candidate_email not in message.calendar.content.replace("\r\n ", "")
 
 
-async def _assert_log_clean(db: AsyncSession, setup: Setup) -> None:
-    """Sender kwargs and the stored rendering of every mail to this person."""
-    rows = [
-        row
-        for row in (
-            await db.execute(select(EmailOutbox).where(EmailOutbox.company_id == setup.company_id))
-        )
-        .scalars()
-        .all()
-        if row.payload.get("to") == setup.interviewer_email
-    ]
-    assert rows
-    for row in rows:
-        await db.refresh(row)
-        assert setup.candidate_email not in json.dumps(row.payload), row.kind
-        assert row.rendered_text is not None
-        assert setup.candidate_email not in row.rendered_text, row.kind
-        assert setup.candidate_email not in (row.rendered_subject or ""), row.kind
-
-
 @pytest.mark.usefixtures("migrated_db", "bucket")
 async def test_booking_mail_to_a_reviewer(
     client: AsyncClient, db_session: AsyncSession, sent: list[providers.OutboundMessage]
@@ -194,15 +173,15 @@ async def test_booking_mail_to_a_reviewer(
     message = mails[0]
     lines = _ics_lines(message)
     _assert_valid_ics(lines, method="REQUEST")
-    assert _attendees(lines) == [setup.interviewer_email]
+    assert _attendees(lines) == [setup.candidate_email, setup.interviewer_email]
     assert _field(lines, "URL").endswith(f"/review/{setup.application_id}")
     assert f"/review/{setup.application_id}" in message.text
     assert f'/review/{setup.application_id}"' in (message.html or "")
     assert "/admin/" not in message.text + (message.html or "") + "\n".join(lines)
-    # the scorecard request that fires with the booking goes under the same rule
+    # the scorecard request that fires with the booking carries no address
     for mail in _to(sent, setup):
-        _assert_message_clean(mail, setup)
-    await _assert_log_clean(db_session, setup)
+        if mail.calendar is None:
+            _assert_message_clean(mail, setup)
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket")
@@ -238,11 +217,9 @@ async def test_reschedule_mail_to_a_reviewer_updates_the_same_event(
     _assert_valid_ics(after, method="REQUEST")
     assert _field(after, "UID") == _field(before, "UID")
     assert (_field(before, "SEQUENCE"), _field(after, "SEQUENCE")) == ("0", "1")
-    assert _attendees(after) == [setup.interviewer_email]
+    assert _attendees(after) == [setup.candidate_email, setup.interviewer_email]
     assert _field(after, "URL").endswith(f"/review/{setup.application_id}")
     assert f"/review/{setup.application_id}" in moved.text
-    _assert_message_clean(moved, setup)
-    await _assert_log_clean(db_session, setup)
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket")
@@ -283,12 +260,10 @@ async def test_cancel_mail_to_a_reviewer(
     _assert_valid_ics(lines, method="CANCEL")
     assert _field(lines, "UID") == _field(_ics_lines(invite), "UID")
     assert _field(lines, "SEQUENCE") == "1"
-    assert _attendees(lines) == [setup.interviewer_email]
+    assert _attendees(lines) == [setup.candidate_email, setup.interviewer_email]
     # the cancellation carries no link for anybody: nothing to open any more
     assert not [line for line in lines if line.startswith("URL")]
     assert "/admin/" not in cancel.text + (cancel.html or "")
-    _assert_message_clean(cancel, setup)
-    await _assert_log_clean(db_session, setup)
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket")
@@ -330,7 +305,7 @@ async def test_teammate_demoted_after_the_booking_can_still_cancel_the_event(
     lines = _ics_lines(cancel)
     _assert_valid_ics(lines, method="CANCEL")
     assert _field(lines, "UID") == _field(_ics_lines(invite), "UID")
-    assert _attendees(lines) == [setup.interviewer_email]
+    assert _attendees(lines) == [setup.candidate_email, setup.interviewer_email]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket")
