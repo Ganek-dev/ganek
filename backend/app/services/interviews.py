@@ -24,6 +24,7 @@ from app.core import queue
 from app.core.config import settings
 from app.models import Application, Company, Interview, InterviewStatus, User
 from app.services import activity, ics
+from app.services import scorecards as scorecards_service
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +318,7 @@ async def cancel_interview(
         actor_user_id=actor_user_id,
         application_id=interview.application_id,
     )
+    await scorecards_service.dismiss_for_interview(db, interview, actor_user_id=actor_user_id)
     await db.commit()
 
 
@@ -425,8 +427,37 @@ async def book(db: AsyncSession, interview: Interview, *, start: datetime) -> In
         payload={"start": start.isoformat()},
     )
     interview.reminder_job_id = await _queue_reminder(interview, start)
-    await db.commit()
+    await _request_scorecard(db, interview, start)
+    await db.commit()  # also commits the scorecard row (request runs with notify=False)
     return interview
+
+
+async def _request_scorecard(db: AsyncSession, interview: Interview, start: datetime) -> None:
+    """Ask the interviewer for a scorecard once the slot is booked (spec 4.3).
+    Reached from the public route, so nothing here may fail the booking."""
+    interviewer = interview.interviewer
+    if not interviewer.is_active:
+        return
+    application = (
+        await db.execute(
+            select(Application).where(
+                Application.id == interview.application_id,
+                Application.company_id == interview.company_id,
+            )
+        )
+    ).scalar_one()
+    try:
+        await scorecards_service.request(
+            db,
+            application=application,
+            reviewer=interviewer,
+            requested_by=None,
+            interview_id=interview.id,
+            due_from=start + timedelta(minutes=interview.duration_minutes),
+            notify=False,
+        )
+    except scorecards_service.AlreadyOpenError:
+        pass  # an open or submitted row already exists for this reviewer
 
 
 async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime) -> Interview:
@@ -446,6 +477,7 @@ async def reschedule(db: AsyncSession, interview: Interview, *, start: datetime)
     interview.scheduled_start = start
     interview.ics_sequence = interview.ics_sequence + 1
     interview.reminder_job_id = await _queue_reminder(interview, start)
+    await scorecards_service.reschedule_for_interview(db, interview, start=start)
     await db.commit()
     return interview
 
@@ -461,6 +493,9 @@ async def candidate_cancel(db: AsyncSession, interview: Interview) -> Interview:
         company_id=interview.company_id,
         type=activity.INTERVIEW_CANCELLED,
         application_id=interview.application_id,
+    )
+    await scorecards_service.dismiss_for_interview(
+        db, interview, actor_user_id=None, reason="interview_cancelled"
     )
     await db.commit()
     return interview

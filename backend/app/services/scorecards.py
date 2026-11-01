@@ -232,8 +232,11 @@ async def dismiss(
     row: Scorecard,
     *,
     actor_user_id: uuid.UUID | None,
+    reason: str | None = None,
     now: datetime | None = None,
 ) -> None:
+    """``reason`` replaces the reviewer label in the payload for system
+    dismissals that have no actor (candidate cancelled the interview)."""
     if state_of(row) != "open":
         raise NotOpenError
     row.dismissed_at = now or datetime.now(UTC)
@@ -244,7 +247,11 @@ async def dismiss(
         type=activity.SCORECARD_DISMISSED,
         actor_user_id=actor_user_id,
         application_id=row.application_id,
-        payload={"reviewer_label": reviewer_label(row.reviewer)},
+        payload=(
+            {"reason": reason}
+            if reason is not None
+            else {"reviewer_label": reviewer_label(row.reviewer)}
+        ),
     )
     await db.flush()
 
@@ -303,7 +310,11 @@ async def _open_rows(db: AsyncSession, *conditions: object) -> list[Scorecard]:
 
 
 async def dismiss_for_interview(
-    db: AsyncSession, interview: Interview, *, actor_user_id: uuid.UUID | None
+    db: AsyncSession,
+    interview: Interview,
+    *,
+    actor_user_id: uuid.UUID | None,
+    reason: str | None = None,
 ) -> None:
     """The interview was cancelled: withdraw the request it created."""
     for row in await _open_rows(
@@ -311,7 +322,25 @@ async def dismiss_for_interview(
         Scorecard.company_id == interview.company_id,
         Scorecard.interview_id == interview.id,
     ):
-        await dismiss(db, row, actor_user_id=actor_user_id)
+        await dismiss(db, row, actor_user_id=actor_user_id, reason=reason)
+
+
+async def reschedule_for_interview(
+    db: AsyncSession, interview: Interview, *, start: datetime, now: datetime | None = None
+) -> None:
+    """The interview moved: the clock starts at the new end while the row is
+    open; the reminder stamp resets only if that end is still ahead."""
+    now = now or datetime.now(UTC)
+    end = start + timedelta(minutes=interview.duration_minutes)
+    for row in await _open_rows(
+        db,
+        Scorecard.company_id == interview.company_id,
+        Scorecard.interview_id == interview.id,
+    ):
+        row.due_from = end
+        if end > now:
+            row.reminded_at = None
+    await db.flush()
 
 
 async def dismiss_open_for_reviewer(
