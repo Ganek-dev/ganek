@@ -33,6 +33,8 @@ const EMAIL_LABELS: Record<string, string> = {
   interview_cancelled: "Interview cancellation",
   interview_cancelled_interviewer: "Interviewer cancel notice",
   message: "Message",
+  scorecard_request: "Scorecard request",
+  scorecard_reminder: "Scorecard reminder",
 };
 
 type Tone = "stage" | "quiz" | "note" | "sent" | "waiting" | "failed" | "neutral";
@@ -64,6 +66,12 @@ const COLLAPSED_ROWS = 8;
 
 function who(event: TimelineEvent, fallback = "A former teammate"): string {
   return event.actor_label || event.actor_email || fallback;
+}
+
+/** The reviewer's label as the payload carries it; a row written before the
+ * label existed, or one missing the key, reads "A reviewer", never "undefined". */
+function reviewerName(payload: Record<string, unknown>): string {
+  return nonEmpty(payload.reviewer_label) ?? "A reviewer";
 }
 
 function stageName(value: unknown): string {
@@ -127,6 +135,14 @@ export function describeEvent(event: TimelineEvent): {
         body: nonEmpty(p.text),
       };
     }
+    case "scorecard.requested":
+      return { text: `Scorecard requested from ${reviewerName(p)}`, tone: "neutral" };
+    case "scorecard.submitted":
+      return { text: `Scorecard submitted by ${reviewerName(p)}`, tone: "sent" };
+    case "scorecard.declined":
+      return { text: `Scorecard declined by ${reviewerName(p)}`, tone: "neutral" };
+    case "scorecard.dismissed":
+      return { text: "Scorecard request withdrawn", tone: "neutral" };
     case "email.message":
       return { text: `${who(event)} sent a message`, tone: "sent" };
     case "note.added":

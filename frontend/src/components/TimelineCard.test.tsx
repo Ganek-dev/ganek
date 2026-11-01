@@ -195,3 +195,68 @@ describe("TimelineCard", () => {
     expect(items[1]).toHaveTextContent("Quick question");
   });
 });
+
+describe("TimelineCard scorecard rows", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("names the reviewer on request, submit and decline rows and hides the scorecard id", async () => {
+    const SCORECARD_ID = "5f0c2a7e-1b7d-4d0e-9a51-0c8f3f2b7e10";
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "scorecard.requested", at: "2026-10-29T11:50:00Z", payload: { scorecard_id: SCORECARD_ID, reviewer_label: "Erika Muster" } }),
+      event({ kind: "scorecard.submitted", at: "2026-10-29T11:40:00Z", payload: { scorecard_id: SCORECARD_ID, reviewer_label: "Jonas Weber" } }),
+      event({ kind: "scorecard.declined", at: "2026-10-29T11:30:00Z", payload: { scorecard_id: SCORECARD_ID, reviewer_label: "Marta Vidal" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Scorecard requested from Erika Muster/);
+    expect(items[1]).toHaveTextContent(/^Scorecard submitted by Jonas Weber/);
+    expect(items[2]).toHaveTextContent(/^Scorecard declined by Marta Vidal/);
+    expect(document.body.textContent).not.toContain(SCORECARD_ID);
+  });
+
+  it("says the request was withdrawn, without the reason or the scorecard id", async () => {
+    const SCORECARD_ID = "5f0c2a7e-1b7d-4d0e-9a51-0c8f3f2b7e10";
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "scorecard.dismissed", at: "2026-10-29T11:50:00Z", payload: { scorecard_id: SCORECARD_ID, reason: "candidate_cancelled" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Scorecard request withdrawn/);
+    expect(document.body.textContent).not.toContain("candidate_cancelled");
+    expect(document.body.textContent).not.toContain(SCORECARD_ID);
+  });
+
+  it("falls back to a generic reviewer when the payload has no reviewer_label", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "scorecard.requested", at: "2026-10-29T11:50:00Z", payload: { scorecard_id: "sc1" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Scorecard requested from A reviewer/);
+    expect(document.body.textContent).not.toContain("undefined");
+  });
+
+  it("labels the scorecard request and reminder mails", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "email", at: "2026-10-29T11:50:00Z", payload: { template: "scorecard_reminder", status: "sent", attempts: 1, last_error: null } }),
+      event({ kind: "email", at: "2026-10-29T11:40:00Z", payload: { template: "scorecard_request", status: "sent", attempts: 1, last_error: null } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Scorecard reminder email sent/);
+    expect(items[1]).toHaveTextContent(/^Scorecard request email sent/);
+  });
+
+  it("does not say sent for a queued or failed scorecard mail", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "email", at: "2026-10-29T11:50:00Z", payload: { template: "scorecard_request", status: "queued", attempts: 0, last_error: null } }),
+      event({ kind: "email", at: "2026-10-29T11:40:00Z", payload: { template: "scorecard_reminder", status: "failed", attempts: 3, last_error: "timeout" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Scorecard request email queued/);
+    expect(items[0].textContent).not.toMatch(/sent/);
+    expect(items[1]).toHaveTextContent(/^Scorecard reminder email failed/);
+    expect(items[1].textContent).not.toMatch(/sent/);
+  });
+});

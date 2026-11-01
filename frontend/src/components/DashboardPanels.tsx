@@ -3,12 +3,23 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { Activity, CalendarDays, Link2, ListTodo, MapPin, Plus, X } from "lucide-react";
+import {
+  Activity,
+  CalendarDays,
+  ClipboardList,
+  Hourglass,
+  Link2,
+  ListTodo,
+  MapPin,
+  Plus,
+  X,
+} from "lucide-react";
 
 import {
   dashboard,
   type ActivityItem,
   type QueueItem,
+  type QueueItemKind,
   type StatsOverview,
   type TaskItem,
   type TodayPanelData,
@@ -84,6 +95,30 @@ export function TodayPanel() {
       )}
     </section>
   );
+}
+
+/** Scorecard entries carry an icon; the derived kinds render without one. */
+function queueIcon(kind: QueueItemKind) {
+  switch (kind) {
+    case "scorecard":
+      return (
+        <ClipboardList
+          aria-hidden
+          data-testid="queue-icon-scorecard"
+          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-g500"
+        />
+      );
+    case "scorecard-waiting":
+      return (
+        <Hourglass
+          aria-hidden
+          data-testid="queue-icon-scorecard-waiting"
+          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-g500"
+        />
+      );
+    default:
+      return null;
+  }
 }
 
 export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
@@ -167,6 +202,7 @@ export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
         ))}
         {queue.map((item) => (
           <li key={item.key} className="flex items-start gap-2">
+            {queueIcon(item.kind)}
             <Link href={item.href} className="group min-w-0 flex-1">
               <p className="truncate text-[13px] font-medium group-hover:underline">
                 {item.title}

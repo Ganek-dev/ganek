@@ -257,3 +257,48 @@ describe("ActivityPanel", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("QueuePanel scorecard items", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.tasks.list.mockResolvedValue([]);
+  });
+
+  it("shows a clipboard icon for a scorecard and an hourglass for a waiting one", async () => {
+    mocked.queue.list.mockResolvedValue({
+      items: [
+        {
+          key: "scorecard:s1",
+          kind: "scorecard" as const,
+          title: "Score Marta Vidal",
+          hint: "SRE",
+          href: "/review/app1",
+          since: null,
+        },
+        {
+          key: "scorecard-waiting:s2",
+          kind: "scorecard-waiting" as const,
+          title: "Waiting on Jonas Weber",
+          hint: "SRE",
+          href: "/admin/applicants?selected=app2",
+          since: null,
+        },
+        {
+          key: "job-quiz:j2",
+          kind: "job-quiz" as const,
+          title: "Add a quiz to SRE",
+          hint: "Published without screening",
+          href: "/admin/jobs/j2",
+          since: null,
+        },
+      ],
+    });
+    render(<QueuePanel overview={null} />);
+    await screen.findByText("Score Marta Vidal");
+    expect(screen.getByTestId("queue-icon-scorecard")).toBeInTheDocument();
+    expect(screen.getByTestId("queue-icon-scorecard-waiting")).toBeInTheDocument();
+    // existing kinds keep their rendering: no icon element
+    const quizRow = screen.getByRole("link", { name: /Add a quiz to SRE/ }).closest("li");
+    expect(quizRow?.querySelector("[data-testid]")).toBeNull();
+  });
+});

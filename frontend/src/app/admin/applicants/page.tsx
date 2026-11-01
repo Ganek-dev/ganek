@@ -52,6 +52,7 @@ import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
 import { NotesCard } from "@/components/NotesCard";
+import { ScorecardsCard } from "@/components/ScorecardsCard";
 import { ScreeningAnswers } from "@/components/ScreeningAnswers";
 import { TimelineCard } from "@/components/TimelineCard";
 import { Toast, type ToastMessage } from "@/components/Toast";
@@ -806,6 +807,7 @@ function DetailPanel({
   now: Date;
   trailTick: number;
 }) {
+  const searchParams = useSearchParams();
   const [notify, setNotify] = useState(false);
   // Reject always goes through the dialog (the internal reason, PR 2, plus
   // the email preview when the checkbox is on); interview shows the email
@@ -1094,6 +1096,12 @@ function DetailPanel({
           <InterviewCard key={app.id} applicationId={app.id} />
         </div>
       ) : null}
+
+      <ScorecardsCard
+        key={`scorecards-${app.id}`}
+        applicationId={app.id}
+        autoOpen={searchParams.get("scorecard") === "1"}
+      />
 
       {app.quiz_attempt && app.quiz_attempt.status === "completed" ? (
         <>
