@@ -20,6 +20,7 @@ function item(over: Partial<ReviewApplicationListItem>): ReviewApplicationListIt
     stage_label: "Interview",
     scorecard_state: "open",
     scorecard_due_from: null,
+    scorecard_submitted_at: null,
     interview_start: null,
     ...over,
   };
@@ -61,17 +62,16 @@ describe("ReviewListPage", () => {
     expect(screen.getAllByText("Backend Engineer")).toHaveLength(3);
   });
 
-  it("says Submitted without a date: the list payload has no submitted_at", async () => {
+  it("shows the submitted date, and Declined for declined rows", async () => {
     mocked.list.mockResolvedValue([
       item({
         scorecard_state: "submitted",
-        scorecard_due_from: new Date(2026, 9, 31, 12, 0).toISOString(),
+        scorecard_submitted_at: new Date(2026, 9, 31, 12, 0).toISOString(),
       }),
       item({ application_id: "a9", candidate_name: "Linus", scorecard_state: "declined" }),
     ]);
     render(<ReviewListPage />);
-    expect(await screen.findByText("Submitted")).toBeInTheDocument();
-    expect(screen.queryByText(/31 Oct/)).not.toBeInTheDocument();
+    expect(await screen.findByText("Submitted 31 Oct 2026")).toBeInTheDocument();
     expect(screen.getByText("Declined")).toBeInTheDocument();
   });
 

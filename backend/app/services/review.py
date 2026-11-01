@@ -89,6 +89,7 @@ async def list_applications(db: AsyncSession, user: User) -> list[ReviewApplicat
                 stage_label=application.stage.value.capitalize(),
                 scorecard_state=scorecards_service.state_of(row) if row else None,
                 scorecard_due_from=row.due_from if row else None,
+                scorecard_submitted_at=row.submitted_at if row else None,
                 interview_start=starts.get(application.id),
             )
         )

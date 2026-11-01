@@ -888,6 +888,7 @@ export interface ReviewApplicationListItem {
   stage_label: string;
   scorecard_state: ScorecardState | null;
   scorecard_due_from: string | null;
+  scorecard_submitted_at: string | null;
   interview_start: string | null;
 }
 

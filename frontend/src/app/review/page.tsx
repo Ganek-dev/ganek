@@ -5,15 +5,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { review, type ReviewApplicationListItem } from "@/lib/api";
-import { formatDateTime } from "@/lib/time";
+import { formatDateTime, formatDay } from "@/lib/time";
 
 /** The reviewer's candidate list (scorecards spec 5.2). Status line: the
  * reviewer's own scorecard first, then the interview. No pass/fail reading. */
 
 function statusLine(item: ReviewApplicationListItem): string {
   if (item.scorecard_state === "open") return "Scorecard due";
-  // The list payload carries no submitted_at, so no date here.
-  if (item.scorecard_state === "submitted") return "Submitted";
+  if (item.scorecard_state === "submitted")
+    return item.scorecard_submitted_at
+      ? `Submitted ${formatDay(item.scorecard_submitted_at)}`
+      : "Submitted";
   if (item.scorecard_state === "declined") return "Declined";
   if (item.interview_start) return `Interview ${formatDateTime(item.interview_start)}`;
   return item.stage_label;
