@@ -20,7 +20,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import queue
@@ -193,13 +193,16 @@ def dispatch(row: EmailOutbox) -> None:
 async def stuck_rows(
     db: AsyncSession, *, older_than: datetime, limit: int = 200
 ) -> list[uuid.UUID]:
-    """Queued rows whose enqueue was lost (redis down at queue time)."""
+    """Queued rows whose enqueue was lost (redis down at queue time). A row
+    released from a hold counts from its send time, not its creation: created
+    days ago, it would otherwise look stuck during its retry backoff."""
     return list(
         (
             await db.execute(
                 select(EmailOutbox.id)
                 .where(
-                    EmailOutbox.status == EmailStatus.QUEUED, EmailOutbox.created_at < older_than
+                    EmailOutbox.status == EmailStatus.QUEUED,
+                    func.coalesce(EmailOutbox.send_after, EmailOutbox.created_at) < older_than,
                 )
                 .order_by(EmailOutbox.created_at)
                 .limit(limit)

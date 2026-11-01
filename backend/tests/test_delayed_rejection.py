@@ -9,13 +9,15 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.models import Application
+from app.models import Application, EmailOutbox, EmailStatus
 from app.services import email as email_service
+from app.services import outbox as outbox_service
+from app.services import scheduled_emails
 from tests.db import database_reachable, s3_reachable
 from tests.test_bulk_reject import _company_with_applicants, _ids_by_email
 
@@ -244,7 +246,7 @@ async def test_cancel_is_tenant_scoped_and_session_only(client: AsyncClient) -> 
 async def test_unreject_cancels_the_scheduled_mail(
     client: AsyncClient, sent: list[dict[str, Any]]
 ) -> None:
-    applicants, _ = await _company_with_applicants(client, 2)
+    applicants, creds = await _company_with_applicants(client, 2)
     ids = await _ids_by_email(client)
     a, b = (ids[app["email"]] for app in applicants)
     scheduled = await _schedule(client, a)
@@ -271,12 +273,44 @@ async def test_unreject_cancels_the_scheduled_mail(
         x for x in (await client.get("/api/v1/activity")).json() if x["type"] == "email.cancelled"
     ]
     assert len(cancelled) == 1
+    assert cancelled[0]["actor_email"] == creds["email"]
     assert len(sent) == 1
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
-async def test_bulk_stage_out_of_rejected_cancels(client: AsyncClient) -> None:
+async def test_unreject_cancels_before_queueing_the_new_stage_mail(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, sent: list[dict[str, Any]]
+) -> None:
     applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    await _schedule(client, app_id)
+    monkeypatch.setattr(email_service, "send_stage_advance", lambda **kw: None)
+    calls: list[str] = []
+    real_cancel = scheduled_emails.cancel_for_application
+    real_queue = outbox_service.queue_email
+
+    async def spy_cancel(*args: Any, **kw: Any) -> int:
+        calls.append("cancel")
+        return await real_cancel(*args, **kw)
+
+    async def spy_queue(*args: Any, **kw: Any) -> Any:
+        calls.append("queue")
+        return await real_queue(*args, **kw)
+
+    monkeypatch.setattr(scheduled_emails, "cancel_for_application", spy_cancel)
+    monkeypatch.setattr(outbox_service, "queue_email", spy_queue)
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "interview", "notify_candidate": True},
+    )
+    assert resp.status_code == 200, resp.text
+    assert calls == ["cancel", "queue"]
+    assert [r["status"] for r in await _emails(client, app_id)] == ["cancelled"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_bulk_stage_out_of_rejected_cancels(client: AsyncClient) -> None:
+    applicants, creds = await _company_with_applicants(client, 1)
     app_id = (await _ids_by_email(client))[applicants[0]["email"]]
     await _schedule(client, app_id)
 
@@ -287,6 +321,30 @@ async def test_bulk_stage_out_of_rejected_cancels(client: AsyncClient) -> None:
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"updated": 1, "skipped": 0}
     assert [r["status"] for r in await _emails(client, app_id)] == ["cancelled"]
+    (cancelled,) = [
+        x for x in (await client.get("/api/v1/activity")).json() if x["type"] == "email.cancelled"
+    ]
+    assert cancelled["actor_email"] == creds["email"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_cancel_route_on_a_sent_row_is_409_and_leaves_it(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True},
+    )
+    assert resp.status_code == 200, resp.text
+    (before,) = await _emails(client, app_id)
+    assert before["status"] == "sent"
+
+    resp = await client.post(_cancel_url(app_id, before["id"]))
+    assert resp.status_code == 409
+    assert resp.json() == {"detail": "This email is not scheduled"}
+    assert await _emails(client, app_id) == [before]
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
@@ -419,3 +477,99 @@ async def test_mail_again_twice_is_409_and_keeps_one_scheduled_row(
     assert second.status_code == 409
     assert second.json() == {"detail": "A rejection email is already scheduled"}
     assert [r["status"] for r in await _emails(client, app_id)] == ["scheduled"]
+
+
+async def _set_row_status(email_id: str, status: EmailStatus) -> None:
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            await db.execute(
+                update(EmailOutbox).where(EmailOutbox.id == UUID(email_id)).values(status=status)
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+@pytest.mark.parametrize("status", [EmailStatus.QUEUED, EmailStatus.SENT])
+async def test_mail_again_is_409_when_a_rejection_is_queued_or_sent(
+    client: AsyncClient, sent: list[dict[str, Any]], status: EmailStatus
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    row = await _schedule(client, app_id)
+    await _set_row_status(row["id"], status)
+
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True},
+    )
+    assert resp.status_code == 409
+    assert resp.json() == {"detail": "A rejection email was already sent"}
+    assert sent == []
+    assert len(await _emails(client, app_id)) == 1
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+@pytest.mark.parametrize(
+    "status",
+    [
+        EmailStatus.CANCELLED,
+        EmailStatus.FAILED,
+        EmailStatus.SUPPRESSED,
+        EmailStatus.BOUNCED,
+        EmailStatus.COMPLAINED,
+    ],
+)
+async def test_mail_again_is_allowed_after_an_undelivered_rejection(
+    client: AsyncClient, sent: list[dict[str, Any]], status: EmailStatus
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    row = await _schedule(client, app_id)
+    await _set_row_status(row["id"], status)
+
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True},
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(sent) == 1
+    assert len(await _emails(client, app_id)) == 2
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_corrected_address_reaches_only_this_candidates_scheduled_mail(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, sent: list[dict[str, Any]]
+) -> None:
+    from app.worker import deliver_email
+
+    applicants, _ = await _company_with_applicants(client, 2)
+    ids = await _ids_by_email(client)
+    a, b = (ids[app["email"]] for app in applicants)
+    row_a = await _schedule(client, a)
+    row_b = await _schedule(client, b)
+    new_address = f"fixed-{uuid4().hex[:8]}@ganek-ci.dev"
+
+    resp = await client.patch(
+        f"/api/v1/applications/{a}/candidate-email", json={"email": new_address}
+    )
+    assert resp.status_code == 200, resp.text
+
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as db:
+            await db.execute(
+                update(EmailOutbox)
+                .where(EmailOutbox.id.in_([UUID(row_a["id"]), UUID(row_b["id"])]))
+                .values(send_after=datetime.now(UTC) - timedelta(minutes=1))
+            )
+            await db.commit()
+        await deliver_email({"session_factory": factory}, row_a["id"])
+        await deliver_email({"session_factory": factory}, row_b["id"])
+    finally:
+        await engine.dispose()
+    assert [kw["to"] for kw in sent] == [new_address, applicants[1]["email"]]

@@ -317,8 +317,11 @@ async def reset_demo(ctx: dict[str, Any]) -> None:
 
 
 async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
-    """Send one outbox row. Self-validating: only rows still `queued` are
-    touched, so duplicate enqueues (sweeper races) are harmless.
+    """Send one outbox row. Self-validating: only rows still `queued`, or
+    `scheduled` and due (released to `queued` here), are touched, so duplicate
+    enqueues (sweeper races) are harmless. A held rejection (send_after set)
+    whose application is no longer rejected is cancelled on every attempt,
+    retries included, instead of sent.
 
     Retry policy lives HERE, not in arq's max_tries: each transport failure
     is recorded on the row, retried with backoff via Retry, and parked as
@@ -338,18 +341,22 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
             # never early: a deferred job firing ahead of send_after is a no-op
             if row.send_after is None or row.send_after > datetime.now(UTC):
                 return
-            if row.kind == "rejection" and row.application_id is not None:
-                stage = await db.scalar(
-                    select(Application.stage).where(Application.id == row.application_id)
-                )
-                if stage is not ApplicationStage.REJECTED:
-                    # the un-reject's cancel commit lost the race: never mail
-                    # a candidate who is no longer rejected
-                    await scheduled_emails.cancel(db, row=row, actor_user_id=None)
-                    return
             row.status = EmailStatus.QUEUED
         if row.status is not EmailStatus.QUEUED:
             return
+        if (
+            row.kind == scheduled_emails.REJECTION_KIND
+            and row.send_after is not None
+            and row.application_id is not None
+        ):
+            stage = await db.scalar(
+                select(Application.stage).where(Application.id == row.application_id)
+            )
+            if stage is not ApplicationStage.REJECTED:
+                # the un-reject's cancel commit lost the race, or the move came
+                # between two attempts: never mail a candidate no longer rejected
+                await scheduled_emails.cancel_locked(db, row=row, actor_user_id=None)
+                return
         if not email_service.configured():
             # not retryable by waiting: an operator has to configure a provider
             row.status = EmailStatus.FAILED

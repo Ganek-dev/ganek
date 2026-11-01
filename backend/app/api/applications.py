@@ -376,14 +376,18 @@ async def set_stage(
         and payload.stage is ApplicationStage.REJECTED
         and payload.notify_candidate
     ):
-        # mail again on an already rejected row (a silent reject, or a cancelled
-        # hold): queue the email only; no stage move, activity or webhook
+        # mail again on an already rejected row whose mail never reached the
+        # candidate (a silent reject, or a cancelled, failed, suppressed, bounced
+        # or complained row): queue the email only; no stage move, activity or
+        # webhook
         if payload.has_reason:
             raise HTTPException(
                 status_code=422, detail="A reason or note cannot change with the email"
             )
         if await scheduled_emails.scheduled_rejection(db, application) is not None:
             raise HTTPException(status_code=409, detail="A rejection email is already scheduled")
+        if await scheduled_emails.rejection_queued_or_sent(db, application):
+            raise HTTPException(status_code=409, detail="A rejection email was already sent")
         await _check_template(db, company, payload.stage, payload.template_id)
         await _queue_stage_email(
             db,
@@ -406,6 +410,15 @@ async def set_stage(
         reason=payload.rejection_reason,
         note=payload.rejection_note,
     )
+    unrejected = previous_stage is ApplicationStage.REJECTED
+    if unrejected and payload.stage is not ApplicationStage.REJECTED:
+        # un-reject (the undo toast, a manual move): a held rejection mail must not
+        # go out; cancelled before the new stage's mail is queued, as bulk does
+        await scheduled_emails.cancel_for_application(
+            db,
+            application=application,
+            actor_user_id=actor.user.id if actor.user is not None else None,
+        )
     if payload.notify_candidate and stage_changed:
         await _queue_stage_email(
             db,
@@ -416,14 +429,6 @@ async def set_stage(
             override_subject=payload.subject,
             override_body=payload.body,
             send_after=payload.send_after,
-        )
-    unrejected = previous_stage is ApplicationStage.REJECTED
-    if unrejected and payload.stage is not ApplicationStage.REJECTED:
-        # un-reject (the undo toast, a manual move): a held rejection mail must not go out
-        await scheduled_emails.cancel_for_application(
-            db,
-            application=application,
-            actor_user_id=actor.user.id if actor.user is not None else None,
         )
     return updated
 
