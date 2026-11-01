@@ -88,6 +88,16 @@ async def _row(
     return row
 
 
+async def test_own_task_links_a_reviewer_to_the_review_page(db_session: AsyncSession) -> None:
+    env = await _env(db_session)
+    reviewer = _user(env.company, UserRole.REVIEWER, "reviewer")
+    db_session.add(reviewer)
+    await db_session.flush()
+    await _row(db_session, env, due_days_ago=0, requested_by=env.admin, reviewer=reviewer)
+    items = await queue_service._scorecards_mine(db_session, env.company, reviewer, now=NOW)
+    assert [item.href for item in items] == [f"/review/{env.app.id}"]
+
+
 async def test_waiting_item_appears_at_three_days_not_two(db_session: AsyncSession) -> None:
     env = await _env(db_session)
     row = await _row(db_session, env, due_days_ago=2, requested_by=env.admin)

@@ -17,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import urls
-from app.models import Application, Candidate, Company, Interview, Job, User
+from app.models import Application, Candidate, Company, Interview, Job, User, UserRole
 from app.models.application import CLOSED_STAGES
 from app.models.scorecard import Recommendation, Scorecard
 from app.services import activity
@@ -65,9 +65,8 @@ def reviewer_label(user: User | None) -> str:
     return "Former teammate" if user is None else user.display_label
 
 
-def _is_reviewer_role(user: User) -> bool:
-    # UserRole.REVIEWER lands with the reviewer role; compare by value until then
-    return str(user.role) == "reviewer"
+def is_reviewer_role(user: User) -> bool:
+    return user.role is UserRole.REVIEWER
 
 
 async def request(
@@ -163,7 +162,7 @@ async def request(
             requester_label=reviewer_label(requested_by) if requested_by else company.name,
             candidate_name=candidate.name,
             job_title=job.title,
-            url=urls.scorecard_url(company, application.id, reviewer=_is_reviewer_role(reviewer)),
+            url=urls.scorecard_url(company, application.id, reviewer=is_reviewer_role(reviewer)),
             brand_primary=(company.theme or {}).get("primary_color"),
         )
         await db.commit()  # queue_email skips its own commit in demo mode

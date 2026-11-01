@@ -8,10 +8,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models import Scorecard, User
 from app.models.scorecard import Recommendation
+from app.services import scorecards as scorecards_service
 from app.services.scorecards import State
 
 MAX_CRITERIA = 20
+_EDITED_AFTER_SECONDS = 1
 
 
 class ScorecardCriterion(BaseModel):
@@ -86,6 +89,44 @@ class ScorecardOut(BaseModel):
     comment: str | None
     edited: bool
     can_edit: bool
+
+    @classmethod
+    def from_row(cls, row: Scorecard, user: User, *, now: datetime) -> "ScorecardOut":
+        """``user`` is the reader: only the row's own reviewer may edit, inside
+        the window."""
+        state = scorecards_service.state_of(row)
+        submitted = row.submitted_at
+        can_edit = (
+            state == "submitted"
+            and submitted is not None
+            and now - submitted < scorecards_service.EDIT_WINDOW
+            and row.reviewer_user_id == user.id
+        )
+        edited = (
+            submitted is not None
+            and (row.updated_at - submitted).total_seconds() > _EDITED_AFTER_SECONDS
+        )
+        return cls(
+            id=row.id,
+            application_id=row.application_id,
+            reviewer_user_id=row.reviewer_user_id,
+            reviewer_label=scorecards_service.reviewer_label(row.reviewer),
+            requested_by_label=row.requested_by.display_label if row.requested_by else None,
+            interview_id=row.interview_id,
+            requested_at=row.requested_at,
+            due_from=row.due_from,
+            submitted_at=row.submitted_at,
+            dismissed_at=row.dismissed_at,
+            declined_at=row.declined_at,
+            state=state,
+            waiting_days=scorecards_service.waiting_days(row, now=now),
+            criteria=[ScorecardCriterion(**c) for c in row.criteria_snapshot],
+            ratings=dict(row.ratings),
+            recommendation=row.recommendation,
+            comment=row.comment,
+            edited=edited,
+            can_edit=can_edit,
+        )
 
 
 class MyScorecardOut(BaseModel):

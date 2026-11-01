@@ -82,6 +82,40 @@ def test_candidate_schema_has_no_answer_fields() -> None:
     assert not forbidden & set(PracticeQuestionOut.model_fields)
 
 
+def test_review_schemas_have_no_answer_or_recruiter_fields() -> None:
+    """Same guard for the reviewer judging view (spec 4.5), over every nested
+    model. `correct` stays allowed here: the summary's count of right answers."""
+    from app.schemas.review import ReviewApplicationListItem, ReviewApplicationOut
+
+    forbidden = {
+        "correct_key",
+        "explanation_md",
+        "explanation",
+        "options",
+        "answer_key",
+        "email",
+        "candidate_email",
+        "notes",
+        "note",
+        "integrity",
+        "integrity_events",
+        "per_tag_scores",
+        "rejection_reason",
+        "rejection_note",
+        "preferred",
+        "match",
+        "message",
+        "source",
+    }
+    for model in (ReviewApplicationOut, ReviewApplicationListItem):
+        schema = model.model_json_schema()
+        fields = set(schema["properties"])
+        for definition in schema.get("$defs", {}).values():
+            fields |= set(definition.get("properties", {}))
+        assert "candidate_name" in fields
+        assert not forbidden & fields
+
+
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
 async def test_apply_issues_quiz_token_and_full_run(client: AsyncClient) -> None:
     token = await _apply_with_quiz(client, quiz_config=QUIZ_CONFIG)

@@ -336,7 +336,7 @@ def send_message(
 
 # Matches the team page's role select labels (Owner/Recruiter naming is
 # still an open design decision - the shipped UI says Member).
-ROLE_LABELS = {"admin": "Admin", "member": "Member"}
+ROLE_LABELS = {"admin": "Admin", "member": "Member", "reviewer": "Reviewer"}
 
 
 def send_team_invite(
@@ -704,7 +704,9 @@ def send_interview_cancelled_interviewer(
 ) -> None:
     """Interviewer copy of a cancellation with METHOD:CANCEL so the event
     leaves their calendar. With an empty ``candidate_name`` (erasure) the
-    mail and the event carry no personal data about the candidate."""
+    mail and the event carry no personal data about the candidate; with only
+    an empty ``candidate_email`` (a reviewer-role interviewer) the event lists
+    the interviewer alone."""
     safe_job = escape(job_title)
     safe_company = escape(company_name)
     when = _local_when(start, timezone)
@@ -988,7 +990,10 @@ def send_interview_scheduled(
     controller_name: str | None = None,
     privacy_url: str | None = None,
 ) -> None:
-    """Interviewer copy of the booking (or reschedule) with the invite.ics."""
+    """Interviewer copy of the booking (or reschedule) with the invite.ics.
+    An empty ``candidate_email`` (a reviewer-role interviewer) leaves the
+    candidate out of the event; the interviewer stays as its attendee, so the
+    REQUEST and any later update or CANCEL stay valid."""
     safe_candidate = escape(candidate_name)
     safe_job = escape(job_title)
     safe_company = escape(company_name)
@@ -1042,7 +1047,11 @@ def send_interview_scheduled(
         description=description,
         location=location,
         company_name=company_name,
-        attendees=((candidate_name, candidate_email), (interviewer_name, to)),
+        attendees=(
+            ((candidate_name, candidate_email), (interviewer_name, to))
+            if candidate_email
+            else ((interviewer_name, to),)
+        ),
         url=applicant_url,
     )
     send_email(to=to, subject=subject, body=body, html=html, ref=ref, calendar=calendar)

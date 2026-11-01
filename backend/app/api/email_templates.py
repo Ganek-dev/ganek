@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import AdminUser, CurrentCompany, DbSession
+from app.api.deps import AdminUser, DbSession, StaffCompany
 from app.models import EmailTemplate
 from app.schemas.applications import EmailPreviewOut
 from app.schemas.email_templates import (
@@ -30,7 +30,7 @@ def _invalid(exc: templates_service.InvalidTemplate) -> HTTPException:
 
 
 @router.get("", response_model=EmailTemplatesOut)
-async def list_email_templates(db: DbSession, company: CurrentCompany) -> EmailTemplatesOut:
+async def list_email_templates(db: DbSession, company: StaffCompany) -> EmailTemplatesOut:
     rows = await templates_service.list_for(db, company)
     return EmailTemplatesOut(
         kinds=[
@@ -51,7 +51,7 @@ async def list_email_templates(db: DbSession, company: CurrentCompany) -> EmailT
 
 @router.post("", response_model=EmailTemplateOut, status_code=status.HTTP_201_CREATED)
 async def create_email_template(
-    payload: EmailTemplateCreate, db: DbSession, company: CurrentCompany, admin: AdminUser
+    payload: EmailTemplateCreate, db: DbSession, company: StaffCompany, admin: AdminUser
 ) -> EmailTemplate:
     try:
         return await templates_service.create(
@@ -74,7 +74,7 @@ async def create_email_template(
 
 @router.post("/preview", response_model=EmailPreviewOut)
 async def preview_email_template(
-    payload: EmailTemplatePreviewIn, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    payload: EmailTemplatePreviewIn, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> EmailPreviewOut:
     """The editor's live preview: unsaved text rendered with a sample
     candidate and the workspace's own values. Nothing is stored."""
@@ -99,7 +99,7 @@ async def preview_email_template(
 
 @router.post("/builtin/default", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_default_email_template(
-    payload: EmailKindIn, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    payload: EmailKindIn, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> None:
     """Make the Ganek default the kind's default again (no row keeps the
     flag). Literal path, declared before /{template_id} routes."""
@@ -114,7 +114,7 @@ async def update_email_template(
     template_id: uuid.UUID,
     payload: EmailTemplateUpdate,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     _admin: AdminUser,
 ) -> EmailTemplate:
     try:
@@ -134,7 +134,7 @@ async def update_email_template(
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_email_template(
-    template_id: uuid.UUID, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    template_id: uuid.UUID, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> None:
     try:
         await templates_service.delete(db, company, template_id)
@@ -144,7 +144,7 @@ async def delete_email_template(
 
 @router.post("/{template_id}/default", response_model=EmailTemplateOut)
 async def set_default_email_template(
-    template_id: uuid.UUID, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    template_id: uuid.UUID, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> EmailTemplate:
     try:
         return await templates_service.set_default(db, company, template_id)

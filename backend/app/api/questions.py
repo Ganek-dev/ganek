@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.deps import AdminUser, CurrentCompany, DbSession
+from app.api.deps import AdminUser, DbSession, StaffCompany
 from app.models import Question
 from app.schemas.questions import (
     BankQuestionOut,
@@ -16,7 +16,7 @@ from app.services import questions as questions_service
 router = APIRouter(prefix="/questions", tags=["questions"])
 
 
-async def _get_or_404(db: DbSession, company: CurrentCompany, question_id: str) -> Question:
+async def _get_or_404(db: DbSession, company: StaffCompany, question_id: str) -> Question:
     question = await questions_service.get_company_question(db, company, question_id)
     if question is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
@@ -24,14 +24,14 @@ async def _get_or_404(db: DbSession, company: CurrentCompany, question_id: str) 
 
 
 @router.get("", response_model=list[QuestionOut])
-async def list_questions(db: DbSession, company: CurrentCompany) -> list[Question]:
+async def list_questions(db: DbSession, company: StaffCompany) -> list[Question]:
     return await questions_service.list_company_questions(db, company)
 
 
 @router.get("/bank", response_model=BankQuestionPage)
 async def browse_bank(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     tag: str | None = None,
     difficulty: int | None = Query(default=None, ge=1, le=5),
     q: str | None = Query(default=None, max_length=200),
@@ -67,7 +67,7 @@ async def browse_bank(
 @router.get("/usage", response_model=dict[str, int])
 async def question_usage(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     ids: str = Query(
         default="",
         max_length=8000,
@@ -83,7 +83,7 @@ async def question_usage(
 @router.get("/stats", response_model=dict[str, QuestionStatsOut])
 async def question_stats(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     ids: str = Query(
         default="",
         max_length=8000,
@@ -110,7 +110,7 @@ async def question_stats(
 @router.get("/resolve", response_model=list[ResolvedQuestion])
 async def resolve_questions(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     ids: str = Query(
         default="",
         max_length=8000,
@@ -142,7 +142,7 @@ async def resolve_questions(
 
 @router.put("/bank/{question_id}/block", status_code=status.HTTP_204_NO_CONTENT)
 async def block_bank_question(
-    question_id: str, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    question_id: str, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> None:
     """Company-wide: never serve this bank question in any of our quizzes."""
     if not await questions_service.set_bank_block(db, company, question_id, blocked=True):
@@ -151,7 +151,7 @@ async def block_bank_question(
 
 @router.delete("/bank/{question_id}/block", status_code=status.HTTP_204_NO_CONTENT)
 async def unblock_bank_question(
-    question_id: str, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    question_id: str, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> None:
     if not await questions_service.set_bank_block(db, company, question_id, blocked=False):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
@@ -159,7 +159,7 @@ async def unblock_bank_question(
 
 @router.post("", response_model=QuestionOut, status_code=status.HTTP_201_CREATED)
 async def create_question(
-    payload: QuestionCreate, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    payload: QuestionCreate, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> Question:
     return await questions_service.create_company_question(db, company, payload)
 
@@ -169,7 +169,7 @@ async def update_question(
     question_id: str,
     payload: QuestionUpdate,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     _admin: AdminUser,
 ) -> Question:
     question = await _get_or_404(db, company, question_id)
@@ -178,7 +178,7 @@ async def update_question(
 
 @router.delete("/{question_id}", response_model=QuestionOut)
 async def retire_question(
-    question_id: str, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    question_id: str, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> Question:
     """Retire (never hard-delete): attempts may reference the question."""
     question = await _get_or_404(db, company, question_id)

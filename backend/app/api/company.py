@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
-from app.api.deps import AdminUser, CurrentCompany, DbSession
-from app.models import Company
+from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession, StaffCompany
+from app.models import Company, UserRole
 from app.schemas.company import (
     BrandingUpdate,
     CompanyOut,
@@ -18,40 +18,46 @@ router = APIRouter(prefix="/company", tags=["company"])
 
 
 @router.get("", response_model=CompanyOut)
-async def get_company(company: CurrentCompany, _admin: AdminUser) -> Company:
+async def get_company(company: StaffCompany, _admin: AdminUser) -> Company:
     return company
 
 
 @router.get("/summary", response_model=CompanySummary)
-async def get_company_summary(company: CurrentCompany) -> Company:
+async def get_company_summary(
+    company: CurrentCompany, user: CurrentUser
+) -> Company | CompanySummary:
     """Slug, name and instance mode for any role: the job overview builds
-    the public job URL and the share links from these."""
+    the public job URL and the share links from these. The defaults are for
+    job editors; preferred screening answers are recruiter criteria, and a
+    reviewer judges the same candidates, so a reviewer gets them empty."""
+    if user.role is UserRole.REVIEWER:
+        return CompanySummary(slug=company.slug, name=company.name)
     return company
 
 
 @router.get("/usage", response_model=UsageOut)
-async def get_usage(db: DbSession, company: CurrentCompany, _admin: AdminUser) -> UsageOut:
+async def get_usage(db: DbSession, company: StaffCompany, _admin: AdminUser) -> UsageOut:
     """Abuse-guard counters for the admin banner (STRATEGY §8)."""
     return UsageOut(**await quotas.usage(db, company))
 
 
 @router.patch("/branding", response_model=CompanyOut)
 async def update_branding(
-    payload: BrandingUpdate, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    payload: BrandingUpdate, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> Company:
     return await company_service.update_branding(db, company, payload)
 
 
 @router.patch("/settings", response_model=CompanyOut)
 async def update_settings(
-    payload: CompanySettingsUpdate, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    payload: CompanySettingsUpdate, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> Company:
     return await company_service.update_settings(db, company, payload)
 
 
 @router.post("/logo", response_model=CompanyOut)
 async def upload_logo(
-    file: UploadFile, db: DbSession, company: CurrentCompany, _admin: AdminUser
+    file: UploadFile, db: DbSession, company: StaffCompany, _admin: AdminUser
 ) -> Company:
     """Branding logo (screen 10). Validated by content, stored in the app
     bucket, served via the public logo endpoint (option B: zero extra
@@ -66,12 +72,12 @@ async def upload_logo(
 
 
 @router.delete("/logo", response_model=CompanyOut)
-async def remove_logo(db: DbSession, company: CurrentCompany, _admin: AdminUser) -> Company:
+async def remove_logo(db: DbSession, company: StaffCompany, _admin: AdminUser) -> Company:
     return await company_service.remove_logo(db, company)
 
 
 @router.post("/test-email", response_model=dict[str, bool])
-async def send_test_email(company: CurrentCompany, admin: AdminUser) -> dict[str, bool]:
+async def send_test_email(company: StaffCompany, admin: AdminUser) -> dict[str, bool]:
     """Prove the email pipe end to end (M5.7 H4). Synchronous ON PURPOSE -
     the admin clicked a button and wants the transport error, not a row
     parked in the outbox."""

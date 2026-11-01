@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentCompany, CurrentUser, DbSession
+from app.api.deps import CurrentCompany, CurrentUser, DbSession, StaffCompany, StaffUser
 from app.models import Application, Interview, InterviewStatus
 from app.schemas.dashboard import QueueDismiss, QueueOut, TodayEvent, TodayOut
 from app.schemas.stats import StatsOverview
@@ -16,14 +16,12 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 
 
 @router.get("/overview", response_model=StatsOverview)
-async def stats_overview(db: DbSession, company: CurrentCompany) -> StatsOverview:
+async def stats_overview(db: DbSession, company: StaffCompany) -> StatsOverview:
     return await stats_service.overview(db, company)
 
 
 @router.get("/today", response_model=TodayOut)
-async def today(
-    db: DbSession, company: CurrentCompany, user: CurrentUser, tz: str = "UTC"
-) -> TodayOut:
+async def today(db: DbSession, company: StaffCompany, user: StaffUser, tz: str = "UTC") -> TodayOut:
     """Dashboard Today panel: the signed-in user's booked interviews for the
     day. Never 500s on a weird browser timezone - falls back to UTC."""
     try:

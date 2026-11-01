@@ -63,6 +63,30 @@ async def get_current_company(user: CurrentUser, db: DbSession) -> Company:
 CurrentCompany = Annotated[Company, Depends(get_current_company)]
 
 
+def _forbid_reviewer(user: User) -> None:
+    if user.role is UserRole.REVIEWER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This action requires a recruiter account",
+        )
+
+
+async def require_staff(user: CurrentUser) -> User:
+    """Admin or member: the recruiter routes a reviewer never reaches (spec 4.1)."""
+    _forbid_reviewer(user)
+    return user
+
+
+StaffUser = Annotated[User, Depends(require_staff)]
+
+
+async def get_staff_company(user: StaffUser, db: DbSession) -> Company:
+    return await get_current_company(user, db)
+
+
+StaffCompany = Annotated[Company, Depends(get_staff_company)]
+
+
 def _bearer(request: Request) -> str | None:
     header = request.headers.get("authorization", "")
     scheme, _, token = header.partition(" ")
@@ -87,13 +111,25 @@ async def _key_and_company(db: AsyncSession, token: str, *, write: bool) -> tupl
         ) from None
 
 
+async def _staff_session_user(request: Request, db: DbSession) -> User:
+    """The session branch of the routes a key may use: a key stays
+    unrestricted, a reviewer session stays out."""
+    user = await get_current_user(request, db)
+    _forbid_reviewer(user)
+    return user
+
+
+async def _staff_session_company(request: Request, db: DbSession) -> Company:
+    return await get_current_company(await _staff_session_user(request, db), db)
+
+
 async def get_api_company(request: Request, db: DbSession) -> Company:
     """Read access for integrations (card D4): a bearer API key OR the
     session cookie. Routers use this only on read endpoints."""
     token = _bearer(request)
     if token is not None:
         return await _company_for_key(db, token, write=False)
-    return await get_current_company(await get_current_user(request, db), db)
+    return await _staff_session_company(request, db)
 
 
 ApiCompany = Annotated[Company, Depends(get_api_company)]
@@ -114,7 +150,7 @@ async def get_read_principal(request: Request, db: DbSession) -> ReadPrincipal:
     if token is not None:
         key, company = await _key_and_company(db, token, write=False)
         return ReadPrincipal(company, None, key)
-    user = await get_current_user(request, db)
+    user = await _staff_session_user(request, db)
     return ReadPrincipal(await get_current_company(user, db), user, None)
 
 
@@ -134,7 +170,7 @@ async def get_write_principal(request: Request, db: DbSession) -> WritePrincipal
     token = _bearer(request)
     if token is not None:
         return WritePrincipal(await _company_for_key(db, token, write=True), None)
-    user = await get_current_user(request, db)
+    user = await _staff_session_user(request, db)
     return WritePrincipal(await get_current_company(user, db), user)
 
 

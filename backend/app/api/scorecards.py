@@ -6,12 +6,11 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentCompany, CurrentUser, DbSession
+from app.api.deps import CurrentCompany, CurrentUser, DbSession, StaffCompany, StaffUser
 from app.core import urls
 from app.models import Application, Scorecard, User
 from app.schemas.scorecards import (
     MyScorecardOut,
-    ScorecardCriterion,
     ScorecardOut,
     ScorecardRequestIn,
     ScorecardSubmitIn,
@@ -21,47 +20,9 @@ from app.services import scorecards as scorecards_service
 
 router = APIRouter(prefix="/scorecards", tags=["scorecards"])
 
-_EDITED_AFTER_SECONDS = 1
-
-
-def _to_out(row: Scorecard, user: User, *, now: datetime) -> ScorecardOut:
-    state = scorecards_service.state_of(row)
-    submitted = row.submitted_at
-    can_edit = (
-        state == "submitted"
-        and submitted is not None
-        and now - submitted < scorecards_service.EDIT_WINDOW
-        and row.reviewer_user_id == user.id
-    )
-    edited = (
-        submitted is not None
-        and (row.updated_at - submitted).total_seconds() > _EDITED_AFTER_SECONDS
-    )
-    return ScorecardOut(
-        id=row.id,
-        application_id=row.application_id,
-        reviewer_user_id=row.reviewer_user_id,
-        reviewer_label=scorecards_service.reviewer_label(row.reviewer),
-        requested_by_label=row.requested_by.display_label if row.requested_by else None,
-        interview_id=row.interview_id,
-        requested_at=row.requested_at,
-        due_from=row.due_from,
-        submitted_at=row.submitted_at,
-        dismissed_at=row.dismissed_at,
-        declined_at=row.declined_at,
-        state=state,
-        waiting_days=scorecards_service.waiting_days(row, now=now),
-        criteria=[ScorecardCriterion(**c) for c in row.criteria_snapshot],
-        ratings=dict(row.ratings),
-        recommendation=row.recommendation,
-        comment=row.comment,
-        edited=edited,
-        can_edit=can_edit,
-    )
-
 
 async def _application_or_404(
-    db: DbSession, company: CurrentCompany, application_id: uuid.UUID
+    db: DbSession, company: StaffCompany, application_id: uuid.UUID
 ) -> Application:
     application = await applications_service.get_application(db, company, application_id)
     if application is None:
@@ -104,7 +65,7 @@ async def my_scorecards(
     )
     by_id = {a.id: a for a in apps}
     now = datetime.now(UTC)
-    reviewer_role = str(user.role) == "reviewer"
+    reviewer_role = scorecards_service.is_reviewer_role(user)
     out: list[MyScorecardOut] = []
     for row in rows:
         application = by_id[row.application_id]
@@ -128,14 +89,14 @@ async def my_scorecards(
 
 @router.get("/applications/{application_id}", response_model=list[ScorecardOut])
 async def list_scorecards(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> list[ScorecardOut]:
     application = await _application_or_404(db, company, application_id)
     rows = await scorecards_service.list_for_application(
         db, company_id=company.id, application_id=application.id
     )
     now = datetime.now(UTC)
-    return [_to_out(r, user, now=now) for r in rows]
+    return [ScorecardOut.from_row(r, user, now=now) for r in rows]
 
 
 @router.post(
@@ -147,8 +108,8 @@ async def request_scorecard(
     application_id: uuid.UUID,
     payload: ScorecardRequestIn,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> ScorecardOut:
     application = await _application_or_404(db, company, application_id)
     reviewer = (
@@ -176,12 +137,12 @@ async def request_scorecard(
             detail="This reviewer already has a scorecard request",
         ) from None
     await db.refresh(row)  # request committed; reload for the response
-    return _to_out(row, user, now=datetime.now(UTC))
+    return ScorecardOut.from_row(row, user, now=datetime.now(UTC))
 
 
 @router.post("/{scorecard_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 async def dismiss_scorecard(
-    scorecard_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
+    scorecard_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> Response:
     row = (
         await db.execute(
@@ -229,7 +190,7 @@ async def submit_my_scorecard(
         ) from None
     await db.commit()
     await db.refresh(row)
-    return _to_out(row, user, now=datetime.now(UTC))
+    return ScorecardOut.from_row(row, user, now=datetime.now(UTC))
 
 
 @router.post("/applications/{application_id}/mine/decline", status_code=status.HTTP_204_NO_CONTENT)
