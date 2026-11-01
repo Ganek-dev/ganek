@@ -218,7 +218,7 @@ async def _scorecards_mine(
             .limit(PER_SOURCE_LIMIT)
         )
     ).all()
-    is_reviewer = scorecard_service._is_reviewer_role(user)
+    is_reviewer = scorecard_service.is_reviewer_role(user)
     items: list[QueueItem] = []
     for row, requester_user, application_id, candidate_name, job_title in rows:
         # no requester row: the booking path (candidate booked the interview)

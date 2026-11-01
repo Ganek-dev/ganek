@@ -13,10 +13,10 @@ from sqlalchemy import select
 from app.api.deps import (
     AdminUser,
     ApiCompany,
-    CurrentCompany,
-    CurrentUser,
     DbSession,
     ReadActor,
+    StaffCompany,
+    StaffUser,
     WriteActor,
     get_current_user,
 )
@@ -84,7 +84,7 @@ async def _session_user_or_none(request: Request, db: DbSession) -> User | None:
 
 
 async def _get_or_404(
-    db: DbSession, company: CurrentCompany, application_id: uuid.UUID
+    db: DbSession, company: StaffCompany, application_id: uuid.UUID
 ) -> Application:
     application = await applications_service.get_application(db, company, application_id)
     if application is None:
@@ -251,8 +251,8 @@ async def export_applications(
 async def bulk_reject_applications(
     payload: BulkRejectIn,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> BulkRejectOut:
     # literal path - must stay declared before /{application_id} routes,
     # which would otherwise shadow it (FastAPI matches in declaration order)
@@ -278,8 +278,8 @@ async def bulk_reject_applications(
 async def bulk_stage_applications(
     payload: BulkStageIn,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> BulkStageOut:
     # literal path, declared before /{application_id} like bulk-reject
     if payload.notify_candidates:
@@ -319,7 +319,7 @@ async def get_application(
 async def application_access_log(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     _admin: AdminUser,
 ) -> list[AccessLog]:
     """Who looked at this candidate, newest first (admins only). Reading
@@ -330,7 +330,7 @@ async def application_access_log(
 
 @router.get("/{application_id}/timeline", response_model=list[TimelineEventOut])
 async def application_timeline(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany
 ) -> list[TimelineEventOut]:
     """What happened to this application, newest first: stage moves with
     the actor, emails with delivery state, quiz milestones, notes,
@@ -382,7 +382,7 @@ async def set_stage(
 async def erase_candidate(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     admin: AdminUser,
 ) -> EraseCandidateOut:
     """Art. 17: erases the whole CANDIDATE - every application they hold with
@@ -404,7 +404,7 @@ async def erase_candidate(
 async def dsar_export(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     admin: AdminUser,
 ) -> DsarBundle:
     """Art. 15/20: the full bundle for the CANDIDATE behind this application -
@@ -427,7 +427,7 @@ async def update_candidate_email(
     application_id: uuid.UUID,
     payload: CandidateEmailUpdate,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     admin: AdminUser,
 ) -> Application:
     """Art. 16: the email address is the delivery channel for every candidate
@@ -448,7 +448,7 @@ async def update_candidate_email(
 async def remind_candidate(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
 ) -> dict[str, bool]:
     """Manually resend the assessment link (17b) while the attempt is untouched."""
     application = await _get_or_404(db, company, application_id)
@@ -492,7 +492,7 @@ def _reminder_kwargs(
 
 @router.get("/{application_id}/notes", response_model=list[NoteOut])
 async def list_notes(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany
 ) -> list[ApplicationNote]:
     await _get_or_404(db, company, application_id)
     return list(
@@ -516,8 +516,8 @@ async def add_note(
     application_id: uuid.UUID,
     payload: NoteCreate,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> ApplicationNote:
     await _get_or_404(db, company, application_id)
     note = ApplicationNote(
@@ -544,8 +544,8 @@ async def delete_note(
     application_id: uuid.UUID,
     note_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> None:
     note = (
         await db.execute(
@@ -571,8 +571,8 @@ async def delete_note(
 async def reissue_quiz(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> QuizAttempt:
     """Invalidate & re-invite to a fresh quiz (screen 24; also the expired-link
     path). The superseded attempt stays as history; the candidate gets a new
@@ -640,7 +640,7 @@ async def grant_extra_time(
     application_id: uuid.UUID,
     payload: ExtraTimeIn,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     admin: AdminUser,
 ) -> QuizAttempt:
     """Extra-time accommodation (1.5x or 2x per question; 1 removes it).
@@ -673,8 +673,8 @@ async def grant_extra_time(
 async def dismiss_quiz_flags(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> QuizAttempt:
     """Screen 24 'looks fine': record who reviewed the flags and when."""
     application = await _get_or_404(db, company, application_id)
@@ -685,7 +685,7 @@ async def dismiss_quiz_flags(
 
 
 async def _interviewer_or_404(
-    db: DbSession, company: CurrentCompany, interviewer_user_id: uuid.UUID
+    db: DbSession, company: StaffCompany, interviewer_user_id: uuid.UUID
 ) -> User:
     interviewer = (
         await db.execute(
@@ -706,7 +706,7 @@ async def interview_slot_preview(
     application_id: uuid.UUID,
     payload: SlotPreviewRequest,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
 ) -> SlotPreviewOut:
     """Availability summary + open slot count for the modal - nothing is persisted."""
     await _get_or_404(db, company, application_id)
@@ -743,8 +743,8 @@ async def create_interview(
     application_id: uuid.UUID,
     payload: InterviewCreate,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> object:
     application = await _get_or_404(db, company, application_id)
     interviewer = await _interviewer_or_404(db, company, payload.interviewer_user_id)
@@ -793,9 +793,7 @@ async def create_interview(
 
 
 @router.get("/{application_id}/interview", response_model=InterviewOut | None)
-async def get_interview(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
-) -> object:
+async def get_interview(application_id: uuid.UUID, db: DbSession, company: StaffCompany) -> object:
     await _get_or_404(db, company, application_id)
     return await interviews_service.get_for_application(db, company, application_id)
 
@@ -804,8 +802,8 @@ async def get_interview(
 async def cancel_interview(
     application_id: uuid.UUID,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> object:
     application = await _get_or_404(db, company, application_id)
     interview = await interviews_service.get_for_application(db, company, application_id)
@@ -869,7 +867,7 @@ async def cancel_interview(
 
 async def _queue_rejection_email(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     application: Application,
     template_id: templates_service.TemplateRef = None,
     *,
@@ -952,7 +950,7 @@ def _stage_advance_kwargs(company: Company, application: Application) -> dict[st
 
 async def _queue_stage_email(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     application: Application,
     stage: ApplicationStage,
     template_id: templates_service.TemplateRef = None,
@@ -984,7 +982,7 @@ async def _queue_stage_email(
 
 @router.get("/{application_id}/cv-url", response_model=CvDownload)
 async def cv_download_url(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> CvDownload:
     application = await _get_or_404(db, company, application_id)
     await access_log.record(
@@ -1004,7 +1002,7 @@ async def email_preview(
     application_id: uuid.UUID,
     kind: EmailKind,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     template_id: str | None = None,
 ) -> EmailPreviewOut:
     """The stage mail as this candidate would receive it (card "Candidate
@@ -1095,8 +1093,8 @@ async def send_message(
     application_id: uuid.UUID,
     payload: MessageIn,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> MessageOut:
     """A one-off message to the candidate from the panel (card "Candidate
     emails", PR 4): queued like every candidate mail, Reply-To set to the
@@ -1129,8 +1127,8 @@ async def message_preview(
     application_id: uuid.UUID,
     payload: MessageIn,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> EmailPreviewOut:
     """The one-off message as the candidate would receive it; nothing is
     queued. The same render the sender runs, so the preview is the mail."""
@@ -1149,7 +1147,7 @@ async def message_preview(
 
 @router.get("/{application_id}/emails", response_model=list[EmailDeliveryOut])
 async def email_deliveries(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany
 ) -> list[EmailOutbox]:
     """Delivery trail for the applicant panel (M5.7 H4): whether the mails
     this application depends on actually went out, newest first."""
@@ -1172,7 +1170,7 @@ async def email_deliveries(
 
 @router.get("/{application_id}/quiz-answers", response_model=list[QuizAnswerReview])
 async def quiz_answers(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> list[QuizAnswerReview]:
     application = await _get_or_404(db, company, application_id)
     await access_log.record(

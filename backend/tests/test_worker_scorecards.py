@@ -153,14 +153,9 @@ async def test_claim_alone_stops_second_run(
 
 @pytest.mark.usefixtures("migrated_db")
 async def test_reviewer_role_gets_review_link(
-    ctx: Any,
-    db_session: AsyncSession,
-    sent: list[dict[str, Any]],
-    monkeypatch: pytest.MonkeyPatch,
+    ctx: Any, db_session: AsyncSession, sent: list[dict[str, Any]]
 ) -> None:
-    # UserRole.REVIEWER lands with the reviewer role; the link choice is role-based
-    monkeypatch.setattr(svc, "_is_reviewer_role", lambda user: True)
-    env = await _env(db_session)
+    env = await _env(db_session, reviewer_role=UserRole.REVIEWER)
     row = await _request(db_session, env, days=3)
     await remind_scorecards(ctx)
     assert _ours(sent, row)[0]["url"].endswith(f"/review/{env.app.id}")

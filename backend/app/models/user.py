@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 class UserRole(enum.StrEnum):
     ADMIN = "admin"
     MEMBER = "member"
+    REVIEWER = "reviewer"
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):

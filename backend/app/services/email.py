@@ -336,7 +336,7 @@ def send_message(
 
 # Matches the team page's role select labels (Owner/Recruiter naming is
 # still an open design decision - the shipped UI says Member).
-ROLE_LABELS = {"admin": "Admin", "member": "Member"}
+ROLE_LABELS = {"admin": "Admin", "member": "Member", "reviewer": "Reviewer"}
 
 
 def send_team_invite(

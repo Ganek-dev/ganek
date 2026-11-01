@@ -9,7 +9,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Query, Response
 
-from app.api.deps import AdminUser, CurrentCompany, DbSession
+from app.api.deps import AdminUser, DbSession, StaffCompany
 from app.models import AccessLog
 from app.schemas.applications import AccessLogPage, AccessLogRowOut
 from app.services import access_log, activity
@@ -34,7 +34,7 @@ def _row(entry: AccessLog) -> AccessLogRowOut:
 @router.get("", response_model=AccessLogPage)
 async def list_access_log(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     _admin: AdminUser,
     actor_user_id: uuid.UUID | None = None,
     api_key_id: uuid.UUID | None = None,
@@ -54,7 +54,7 @@ async def list_access_log(
 @router.get("/export")
 async def export_access_log(
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
     admin: AdminUser,
     format: Literal["csv"] = "csv",
     actor_user_id: uuid.UUID | None = None,

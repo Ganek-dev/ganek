@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentCompany, CurrentUser, DbSession
+from app.api.deps import CurrentCompany, CurrentUser, DbSession, StaffCompany, StaffUser
 from app.core import urls
 from app.models import Application, Scorecard, User
 from app.schemas.scorecards import (
@@ -61,7 +61,7 @@ def _to_out(row: Scorecard, user: User, *, now: datetime) -> ScorecardOut:
 
 
 async def _application_or_404(
-    db: DbSession, company: CurrentCompany, application_id: uuid.UUID
+    db: DbSession, company: StaffCompany, application_id: uuid.UUID
 ) -> Application:
     application = await applications_service.get_application(db, company, application_id)
     if application is None:
@@ -104,7 +104,7 @@ async def my_scorecards(
     )
     by_id = {a.id: a for a in apps}
     now = datetime.now(UTC)
-    reviewer_role = str(user.role) == "reviewer"
+    reviewer_role = scorecards_service.is_reviewer_role(user)
     out: list[MyScorecardOut] = []
     for row in rows:
         application = by_id[row.application_id]
@@ -128,7 +128,7 @@ async def my_scorecards(
 
 @router.get("/applications/{application_id}", response_model=list[ScorecardOut])
 async def list_scorecards(
-    application_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> list[ScorecardOut]:
     application = await _application_or_404(db, company, application_id)
     rows = await scorecards_service.list_for_application(
@@ -147,8 +147,8 @@ async def request_scorecard(
     application_id: uuid.UUID,
     payload: ScorecardRequestIn,
     db: DbSession,
-    company: CurrentCompany,
-    user: CurrentUser,
+    company: StaffCompany,
+    user: StaffUser,
 ) -> ScorecardOut:
     application = await _application_or_404(db, company, application_id)
     reviewer = (
@@ -181,7 +181,7 @@ async def request_scorecard(
 
 @router.post("/{scorecard_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 async def dismiss_scorecard(
-    scorecard_id: uuid.UUID, db: DbSession, company: CurrentCompany, user: CurrentUser
+    scorecard_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> Response:
     row = (
         await db.execute(

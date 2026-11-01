@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import CurrentCompany, DbSession
+from app.api.deps import DbSession, StaffCompany
 from app.models import Questionnaire
 from app.schemas.questionnaires import (
     QuestionnaireCreate,
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/questionnaires", tags=["questionnaires"])
 
 
 async def _get_or_404(
-    db: DbSession, company: CurrentCompany, questionnaire_id: uuid.UUID
+    db: DbSession, company: StaffCompany, questionnaire_id: uuid.UUID
 ) -> Questionnaire:
     questionnaire = await questionnaires_service.get_questionnaire(db, company, questionnaire_id)
     if questionnaire is None:
@@ -24,13 +24,13 @@ async def _get_or_404(
 
 
 @router.get("", response_model=list[QuestionnaireOut])
-async def list_questionnaires(db: DbSession, company: CurrentCompany) -> list[Questionnaire]:
+async def list_questionnaires(db: DbSession, company: StaffCompany) -> list[Questionnaire]:
     return await questionnaires_service.list_questionnaires(db, company)
 
 
 @router.post("", response_model=QuestionnaireOut, status_code=status.HTTP_201_CREATED)
 async def create_questionnaire(
-    payload: QuestionnaireCreate, db: DbSession, company: CurrentCompany
+    payload: QuestionnaireCreate, db: DbSession, company: StaffCompany
 ) -> Questionnaire:
     try:
         return await questionnaires_service.create_questionnaire(db, company, payload)
@@ -40,7 +40,7 @@ async def create_questionnaire(
 
 @router.get("/{questionnaire_id}", response_model=QuestionnaireOut)
 async def get_questionnaire(
-    questionnaire_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    questionnaire_id: uuid.UUID, db: DbSession, company: StaffCompany
 ) -> Questionnaire:
     return await _get_or_404(db, company, questionnaire_id)
 
@@ -50,7 +50,7 @@ async def update_questionnaire(
     questionnaire_id: uuid.UUID,
     payload: QuestionnaireUpdate,
     db: DbSession,
-    company: CurrentCompany,
+    company: StaffCompany,
 ) -> Questionnaire:
     questionnaire = await _get_or_404(db, company, questionnaire_id)
     try:
@@ -61,7 +61,7 @@ async def update_questionnaire(
 
 @router.delete("/{questionnaire_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_questionnaire(
-    questionnaire_id: uuid.UUID, db: DbSession, company: CurrentCompany
+    questionnaire_id: uuid.UUID, db: DbSession, company: StaffCompany
 ) -> None:
     questionnaire = await _get_or_404(db, company, questionnaire_id)
     await questionnaires_service.delete_questionnaire(db, questionnaire)

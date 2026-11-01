@@ -9,9 +9,12 @@ from app.core.tenancy import (
     PublicCompany,
     ReadActor,
     SingleCompany,
+    StaffCompany,
+    StaffUser,
     WriteActor,
     get_current_user,
     require_admin,
+    require_staff,
 )
 
 __all__ = [
@@ -23,7 +26,10 @@ __all__ = [
     "PublicCompany",
     "ReadActor",
     "SingleCompany",
+    "StaffCompany",
+    "StaffUser",
     "WriteActor",
     "get_current_user",
     "require_admin",
+    "require_staff",
 ]

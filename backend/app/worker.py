@@ -271,7 +271,7 @@ async def remind_scorecards(ctx: dict[str, Any]) -> None:
                     url=urls.scorecard_url(
                         company,
                         application.id,
-                        reviewer=scorecards_service._is_reviewer_role(reviewer),
+                        reviewer=scorecards_service.is_reviewer_role(reviewer),
                     ),
                     waiting_days=days,
                     brand_primary=(company.theme or {}).get("primary_color"),

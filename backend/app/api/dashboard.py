@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.api.deps import CurrentCompany, CurrentUser, DbSession
+from app.api.deps import DbSession, StaffCompany, StaffUser
 from app.models import Task
 from app.schemas.dashboard import ActivityOut, TaskCreate, TaskOut, TaskUpdate
 from app.services import activity as activity_service
@@ -15,9 +15,7 @@ router = APIRouter(tags=["dashboard"])
 
 
 @router.get("/activity", response_model=list[ActivityOut])
-async def list_activity(
-    db: DbSession, company: CurrentCompany, limit: int = 15
-) -> list[ActivityOut]:
+async def list_activity(db: DbSession, company: StaffCompany, limit: int = 15) -> list[ActivityOut]:
     return [
         ActivityOut.model_validate(row)
         for row in await activity_service.list_recent(db, company, limit=max(1, min(limit, 50)))
@@ -26,7 +24,7 @@ async def list_activity(
 
 @router.get("/tasks", response_model=list[TaskOut])
 async def list_tasks(
-    db: DbSession, company: CurrentCompany, include_done: bool = False
+    db: DbSession, company: StaffCompany, include_done: bool = False
 ) -> list[Task]:
     query = select(Task).where(Task.company_id == company.id).order_by(Task.created_at)
     if not include_done:
@@ -36,7 +34,7 @@ async def list_tasks(
 
 @router.post("/tasks", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
 async def create_task(
-    payload: TaskCreate, db: DbSession, company: CurrentCompany, user: CurrentUser
+    payload: TaskCreate, db: DbSession, company: StaffCompany, user: StaffUser
 ) -> Task:
     task = Task(
         company_id=company.id,
@@ -52,7 +50,7 @@ async def create_task(
     return task
 
 
-async def _task_or_404(db: DbSession, company: CurrentCompany, task_id: uuid.UUID) -> Task:
+async def _task_or_404(db: DbSession, company: StaffCompany, task_id: uuid.UUID) -> Task:
     task = (
         await db.execute(select(Task).where(Task.company_id == company.id, Task.id == task_id))
     ).scalar_one_or_none()
@@ -63,7 +61,7 @@ async def _task_or_404(db: DbSession, company: CurrentCompany, task_id: uuid.UUI
 
 @router.patch("/tasks/{task_id}", response_model=TaskOut)
 async def update_task(
-    task_id: uuid.UUID, payload: TaskUpdate, db: DbSession, company: CurrentCompany
+    task_id: uuid.UUID, payload: TaskUpdate, db: DbSession, company: StaffCompany
 ) -> Task:
     task = await _task_or_404(db, company, task_id)
     if payload.title is not None:
@@ -80,7 +78,7 @@ async def update_task(
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_task(task_id: uuid.UUID, db: DbSession, company: CurrentCompany) -> None:
+async def delete_task(task_id: uuid.UUID, db: DbSession, company: StaffCompany) -> None:
     task = await _task_or_404(db, company, task_id)
     await db.delete(task)
     await db.commit()
