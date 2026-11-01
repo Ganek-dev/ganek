@@ -23,6 +23,7 @@ NOTE_ADDED = "note.added"
 BULK_REJECTED = "applications.bulk_rejected"
 CANDIDATE_ERASED = "candidate.erased"
 CANDIDATE_EMAIL_UPDATED = "candidate.email_updated"
+EMAIL_CANCELLED = "email.cancelled"  # a scheduled rejection mail was held back
 EMAIL_MESSAGE = "email.message"  # a recruiter's one-off message (PR 4)
 DATA_REQUESTED = "candidate.data_requested"
 DELETION_REQUESTED = "candidate.deletion_requested"

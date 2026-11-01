@@ -338,12 +338,17 @@ async def test_stage_change_emails_candidate_only_when_asked(
     assert resp.status_code == 200
     assert len(advances) == 1 and len(rejections) == 1
 
-    # re-picking the CURRENT stage never re-sends - parity with bulk-reject,
-    # which silently skips already-rejected rows (M5.7 H5 ledger item)
+    # moving back to rejected is a stage change, so it mails again
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
     assert resp.status_code == 200
     assert len(rejections) == 2
+    # re-picking the CURRENT stage never re-sends a mail that already went out
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
+    assert resp.status_code == 409
+    assert resp.json() == {"detail": "A rejection email was already sent"}
+    assert len(rejections) == 2
+    # ...and without notify it stays a no-op
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": False})
     assert resp.status_code == 200
     assert len(rejections) == 2
 

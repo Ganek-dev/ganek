@@ -68,6 +68,7 @@ from app.services import (
     ics,
     quotas,
     rejection_reasons,
+    scheduled_emails,
     screening,
     storage,
 )
@@ -715,7 +716,11 @@ async def _application_by_status_token_or_404(db: DbSession, token: str) -> Appl
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
 async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
-    """Candidate status page (screen 21) behind its signed magic-link token."""
+    """Candidate status page (screen 21) behind its signed magic-link token.
+
+    While a rejection mail is still scheduled the page keeps showing the stage
+    before the rejection: the candidate must not learn the decision before the
+    mail that announces it."""
     application = await _application_by_status_token_or_404(db, token)
     company = (
         await db.execute(select(Company).where(Company.id == application.company_id))
@@ -733,6 +738,12 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         if attempt is not None
         else None
     )
+    shown_stage = application.stage.value
+    if (
+        application.stage is ApplicationStage.REJECTED
+        and await scheduled_emails.scheduled_rejection(db, application) is not None
+    ):
+        shown_stage = await scheduled_emails.stage_before_rejection(db, application)
     return ApplicationStatusOut(
         company_name=company.name,
         brand_primary=(company.theme or {}).get("primary_color"),
@@ -740,7 +751,7 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         candidate_name=application.candidate.name,
         cv_filename=application.cv_filename,
         applied_at=application.created_at,
-        stage=application.stage.value,
+        stage=shown_stage,
         quiz=quiz,
         decision_expected_by=application.created_at + DECISION_WINDOW,
         retention_months=company_service.privacy_notice(company).retention_months,
@@ -758,9 +769,17 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
 )
 async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
-    """Candidate-initiated withdrawal. Decided applications stay decided."""
+    """Candidate-initiated withdrawal. Decided applications stay decided,
+    except a rejection whose mail is still scheduled: the candidate has not
+    been told, so withdrawing wins and the held mail is cancelled."""
     application = await _application_by_status_token_or_404(db, token)
-    if application.stage in (ApplicationStage.HIRED, ApplicationStage.REJECTED):
+    held_rejection = (
+        application.stage is ApplicationStage.REJECTED
+        and await scheduled_emails.scheduled_rejection(db, application) is not None
+    )
+    if application.stage is ApplicationStage.HIRED or (
+        application.stage is ApplicationStage.REJECTED and not held_rejection
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This application already has a decision",
@@ -781,7 +800,21 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
                 "reason": rejection_reasons.WITHDREW,
             },
         )
-        await db.commit()
+        if held_rejection:
+            # one transaction: the stage move, its activity and the mail cancel
+            # (cancel_for_application commits when it found the scheduled row)
+            cancelled = await scheduled_emails.cancel_for_application(
+                db, application=application, actor_user_id=None
+            )
+            if cancelled == 0:
+                # the worker released the mail meanwhile: the decision is out
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This application already has a decision",
+                )
+        else:
+            await db.commit()
     return {"withdrawn": True}
 
 

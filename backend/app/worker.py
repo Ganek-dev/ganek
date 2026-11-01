@@ -27,6 +27,7 @@ from app.core.observability import init_sentry
 from app.core.security import create_quiz_token
 from app.models import (
     Application,
+    ApplicationStage,
     Candidate,
     Company,
     EmailOutbox,
@@ -41,7 +42,7 @@ from app.models.quiz import AttemptStatus
 from app.models.scorecard import Scorecard
 from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
-from app.services import demo_seed, email_templates
+from app.services import demo_seed, email_templates, scheduled_emails
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import interviews as interviews_service
@@ -316,8 +317,11 @@ async def reset_demo(ctx: dict[str, Any]) -> None:
 
 
 async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
-    """Send one outbox row. Self-validating: only rows still `queued` are
-    touched, so duplicate enqueues (sweeper races) are harmless.
+    """Send one outbox row. Self-validating: only rows still `queued`, or
+    `scheduled` and due (released to `queued` here), are touched, so duplicate
+    enqueues (sweeper races) are harmless. A held rejection (send_after set)
+    whose application is no longer rejected is cancelled on every attempt,
+    retries included, instead of sent.
 
     Retry policy lives HERE, not in arq's max_tries: each transport failure
     is recorded on the row, retried with backoff via Retry, and parked as
@@ -325,11 +329,34 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
     instead of vanishing into a log.
     """
     async with ctx["session_factory"]() as db:
+        # FOR UPDATE: a concurrent cancel must not race this release
         row = (
-            await db.execute(select(EmailOutbox).where(EmailOutbox.id == outbox_id))
+            await db.execute(
+                select(EmailOutbox).where(EmailOutbox.id == outbox_id).with_for_update()
+            )
         ).scalar_one_or_none()
-        if row is None or row.status is not EmailStatus.QUEUED:
+        if row is None:
             return
+        if row.status is EmailStatus.SCHEDULED:
+            # never early: a deferred job firing ahead of send_after is a no-op
+            if row.send_after is None or row.send_after > datetime.now(UTC):
+                return
+            row.status = EmailStatus.QUEUED
+        if row.status is not EmailStatus.QUEUED:
+            return
+        if (
+            row.kind == scheduled_emails.REJECTION_KIND
+            and row.send_after is not None
+            and row.application_id is not None
+        ):
+            stage = await db.scalar(
+                select(Application.stage).where(Application.id == row.application_id)
+            )
+            if stage is not ApplicationStage.REJECTED:
+                # the un-reject's cancel commit lost the race, or the move came
+                # between two attempts: never mail a candidate no longer rejected
+                await scheduled_emails.cancel_locked(db, row=row, actor_user_id=None)
+                return
         if not email_service.configured():
             # not retryable by waiting: an operator has to configure a provider
             row.status = EmailStatus.FAILED
@@ -371,12 +398,18 @@ async def sweep_outbox(ctx: dict[str, Any]) -> None:
         stuck = await outbox_service.stuck_rows(
             db, older_than=datetime.now(UTC) - timedelta(minutes=5)
         )
+        overdue = await outbox_service.due_scheduled_rows(
+            db, before=datetime.now(UTC) - timedelta(minutes=5)
+        )
     for row_id in stuck:
         # no job_id: the original `email-{id}` job may still hold the key;
         # deliver_email's status check makes duplicates no-ops anyway
         await ctx["redis"].enqueue_job("deliver_email", str(row_id))
-    if stuck:
-        logger.info("outbox sweep: re-enqueued %d emails", len(stuck))
+    for row_id in overdue:
+        # same reasoning: no job_id, the original deferred job may hold the key
+        await ctx["redis"].enqueue_job("deliver_email", str(row_id))
+    if stuck or overdue:
+        logger.info("outbox sweep: re-enqueued %d emails", len(stuck) + len(overdue))
 
 
 async def deliver_webhook(ctx: dict[str, Any], delivery_id: str) -> None:

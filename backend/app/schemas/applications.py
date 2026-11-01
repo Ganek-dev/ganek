@@ -1,7 +1,7 @@
 """Recruiter-facing application schemas."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -152,7 +152,32 @@ def _blank_to_none(value: str | None) -> str | None:
     return stripped or None
 
 
-class StageUpdate(RejectionFields):
+SEND_AFTER_MIN = timedelta(seconds=60)
+SEND_AFTER_MAX = timedelta(days=14)
+
+
+class SendAfterField(BaseModel):
+    """Delayed rejection mail: hold the mail until this moment. Aware, at
+    least a minute out and at most 14 days ahead."""
+
+    send_after: datetime | None = None
+
+    @field_validator("send_after")
+    @classmethod
+    def _send_after_window(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("send_after needs a time zone")
+        now = datetime.now(UTC)
+        if value < now + SEND_AFTER_MIN:
+            raise ValueError("send_after must be in the future")
+        if value > now + SEND_AFTER_MAX:
+            raise ValueError("send_after is at most 14 days ahead")
+        return value
+
+
+class StageUpdate(RejectionFields, SendAfterField):
     stage: ApplicationStage
     # opt-in: emails the candidate for stages with a template (22a/22b);
     # silently ignored for the rest
@@ -171,6 +196,8 @@ class StageUpdate(RejectionFields):
     def _reason_needs_rejected(self) -> "StageUpdate":
         if self.has_reason and self.stage is not ApplicationStage.REJECTED:
             raise ValueError("rejection reason needs the rejected stage")
+        if self.send_after is not None and self.stage is not ApplicationStage.REJECTED:
+            raise ValueError("send_after needs the rejected stage")
         if (self.subject is None) != (self.body is None):
             raise ValueError("Subject and body go together")
         if self.subject is not None and ("\n" in self.subject or "\r" in self.subject):
@@ -178,7 +205,7 @@ class StageUpdate(RejectionFields):
         return self
 
 
-class BulkRejectIn(RejectionFields):
+class BulkRejectIn(RejectionFields, SendAfterField):
     application_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
     # opt-in: emails each newly-rejected candidate (22b); already-rejected/
     # withdrawn/foreign/unknown ids are silently skipped, no email either way
@@ -190,7 +217,7 @@ class BulkRejectOut(BaseModel):
     skipped: int
 
 
-class BulkStageIn(RejectionFields):
+class BulkStageIn(RejectionFields, SendAfterField):
     """The bulk bar's "Move to": same cap as bulk reject; withdrawn is the
     candidate's stage and never a recruiter target."""
 
@@ -209,6 +236,8 @@ class BulkStageIn(RejectionFields):
     def _reason_needs_rejected(self) -> "BulkStageIn":
         if self.has_reason and self.stage is not ApplicationStage.REJECTED:
             raise ValueError("rejection reason needs the rejected stage")
+        if self.send_after is not None and self.stage is not ApplicationStage.REJECTED:
+            raise ValueError("send_after needs the rejected stage")
         return self
 
 
@@ -284,6 +313,8 @@ class EmailDeliveryOut(BaseModel):
     last_error: str | None
     created_at: datetime
     sent_at: datetime | None
+    send_after: datetime | None = None
+    cancelled_at: datetime | None = None
     subject: str | None = Field(default=None, validation_alias="rendered_subject")
     text: str | None = Field(default=None, validation_alias="rendered_text")
 

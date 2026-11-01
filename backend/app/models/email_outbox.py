@@ -19,6 +19,10 @@ class EmailStatus(enum.StrEnum):
     # card A7: the provider reported a hard bounce / block, or a complaint
     BOUNCED = "bounced"
     COMPLAINED = "complained"
+    # scheduled = send_after in the future, released by the worker;
+    # cancelled = a staff member or an un-reject stopped it
+    SCHEDULED = "scheduled"
+    CANCELLED = "cancelled"
 
 
 class EmailOutbox(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -62,3 +66,6 @@ class EmailOutbox(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # the candidate's signed links are masked (members never hold them)
     rendered_subject: Mapped[str | None] = mapped_column(Text, nullable=True)
     rendered_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # delayed send: the worker releases a scheduled row once send_after passes
+    send_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 DAYS_PER_MONTH = 31  # never purge earlier than the notice's promise
 UPLOAD_GRACE = timedelta(hours=24)  # upload-first apply flow needs breathing room
 DONE_PRIVACY_TASK_RETENTION = timedelta(days=90)  # completed request tasks name people
-OUTBOX_TERMINAL_RETENTION = timedelta(days=30)  # delivered/failed email records
+OUTBOX_TERMINAL_RETENTION = timedelta(days=30)  # delivered/failed/cancelled email records
 UNVERIFIED_COMPANY_RETENTION = timedelta(days=7)  # multi-mode signups never activated
 PURGEABLE_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN)
 
@@ -221,7 +221,9 @@ async def run_purge(db: AsyncSession, *, now: datetime) -> PurgeSummary:
             "CursorResult[Any]",
             await db.execute(
                 delete(EmailOutbox).where(
-                    EmailOutbox.status.in_((EmailStatus.SENT, EmailStatus.FAILED)),
+                    EmailOutbox.status.in_(
+                        (EmailStatus.SENT, EmailStatus.FAILED, EmailStatus.CANCELLED)
+                    ),
                     EmailOutbox.created_at < now - OUTBOX_TERMINAL_RETENTION,
                 )
             ),

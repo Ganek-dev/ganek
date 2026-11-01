@@ -13,7 +13,15 @@ from sqlalchemy.sql.selectable import ScalarSelect
 
 from app.core.config import settings
 from app.core.sources import normalize_source
-from app.models import Application, ApplicationStage, Candidate, Company, Job
+from app.models import (
+    Application,
+    ApplicationStage,
+    Candidate,
+    Company,
+    EmailOutbox,
+    EmailStatus,
+    Job,
+)
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
 from app.services import activity, rejection_reasons, storage, webhooks
@@ -556,6 +564,29 @@ async def update_candidate_email(
     if existing is not None:
         raise EmailTakenByOtherCandidateError
     application.candidate.email = email
+    # a held mail snapshots its recipient: it must go to the corrected address
+    scheduled = (
+        (
+            await db.execute(
+                select(EmailOutbox)
+                .where(
+                    EmailOutbox.company_id == company.id,
+                    EmailOutbox.status == EmailStatus.SCHEDULED,
+                    EmailOutbox.application_id.in_(
+                        select(Application.id).where(
+                            Application.company_id == company.id,
+                            Application.candidate_id == application.candidate_id,
+                        )
+                    ),
+                )
+                .with_for_update()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in scheduled:
+        row.payload = {**row.payload, "to": email}
     activity.record(
         db,
         company_id=company.id,
