@@ -802,6 +802,7 @@ function DetailPanel({
   onSendMessage,
   now,
   trailTick,
+  onTimelineChanged,
 }: {
   app: ApplicationOut;
   jobTitle: string;
@@ -816,6 +817,8 @@ function DetailPanel({
   onSendMessage: (fields: MessageInput) => Promise<string | null>;
   now: Date;
   trailTick: number;
+  /** The timeline cancelled a scheduled mail: refresh the delivery trail. */
+  onTimelineChanged: () => void;
 }) {
   const searchParams = useSearchParams();
   const [notify, setNotify] = useState(false);
@@ -1207,6 +1210,7 @@ function DetailPanel({
         applicationId={app.id}
         now={now}
         refreshKey={trailTick}
+        onChanged={onTimelineChanged}
       />
       <AccessTrailCard key={`access-${app.id}`} applicationId={app.id} now={now} />
       <NotesCard key={app.id} applicationId={app.id} />
@@ -1787,6 +1791,7 @@ function ApplicantsContent() {
             onSendMessage={(fields) => sendMessage(selected.id, fields)}
             now={now}
             trailTick={trailTick}
+            onTimelineChanged={() => setTrailTick((n) => n + 1)}
           />
         ) : items === null ? (
           <div className="card h-[540px] animate-pulse" />

@@ -40,6 +40,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       quizAnswers: vi.fn(),
       timeline: vi.fn(),
       emails: vi.fn(),
+      cancelEmail: vi.fn(),
       accessLog: vi.fn(),
       remind: vi.fn(),
       emailPreview: vi.fn(),
@@ -442,6 +443,32 @@ describe("ApplicantsPage", () => {
     await waitFor(() => expect(mockedApps.timeline).toHaveBeenCalledTimes(1));
     await userEvent.click(screen.getByRole("button", { name: "Advance" }));
     await waitFor(() => expect(mockedApps.timeline).toHaveBeenCalledTimes(2));
+  });
+
+  it("brings Send rejection email back after the scheduled one is cancelled from the timeline", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.timeline.mockResolvedValue([
+      {
+        id: "email-mail-1",
+        kind: "email",
+        at: RECENT,
+        actor_label: null,
+        actor_email: null,
+        payload: { template: "rejection", status: "scheduled", attempts: 0, last_error: null, send_after: "2026-11-05T09:00:00", cancelled_at: null },
+      },
+    ]);
+    mockedApps.emails.mockResolvedValue([makeDelivery({ status: "scheduled" })]);
+    mockedApps.cancelEmail.mockResolvedValue({} as never);
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    const cancel = await screen.findByRole("button", { name: "Cancel the scheduled rejection email" });
+    await waitFor(() => expect(mockedApps.emails).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Send rejection email" })).toBeNull();
+
+    mockedApps.emails.mockResolvedValue([makeDelivery({ status: "cancelled" })]);
+    await userEvent.click(cancel);
+    await waitFor(() => expect(mockedApps.cancelEmail).toHaveBeenCalledWith("app-1", "mail-1"));
+    expect(await screen.findByRole("button", { name: "Send rejection email" })).toBeInTheDocument();
   });
 
   it("asks for the access trail of the selected applicant", async () => {
