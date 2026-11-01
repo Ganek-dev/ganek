@@ -9,3 +9,31 @@ export function relativeTime(iso: string, now: Date = new Date()): string {
   if (days < 7) return `${days}d ago`;
   return `${Math.round(days / 7)}w ago`;
 }
+
+/** "31 Oct 2026". Local time of the viewer. */
+export function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** "3 Nov 2026, 10:00", in `timeZone` when given (and valid), else the
+ * viewer's local time. */
+export function formatDateTime(iso: string, timeZone?: string): string {
+  const opts: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  };
+  const date = new Date(iso);
+  try {
+    return date.toLocaleString("en-GB", { ...opts, timeZone });
+  } catch {
+    return date.toLocaleString("en-GB", opts);
+  }
+}
