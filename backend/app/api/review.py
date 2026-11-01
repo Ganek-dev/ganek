@@ -38,11 +38,14 @@ async def get_review_application(
     if application is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
     view = await review_service.judging_view(db, company, user, application)
-    await access_log.record(
-        db,
-        company=company,
-        application_id=application.id,
-        action=access_log.VIEW,
-        user=user,
-    )
+    # one row per action, like the staff routes for the same data
+    actions = [access_log.VIEW]
+    if view.cv_url is not None:
+        actions.append(access_log.CV_DOWNLOAD)
+    if view.quiz is not None:
+        actions.append(access_log.QUIZ_ANSWERS)
+    for action in actions:
+        await access_log.record(
+            db, company=company, application_id=application.id, action=action, user=user
+        )
     return view

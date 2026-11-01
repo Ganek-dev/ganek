@@ -161,8 +161,8 @@ async def _book(db: AsyncSession, env: Env, interview: Interview) -> None:
 async def _seed_quiz(
     db: AsyncSession, application_id: str, *, status: AttemptStatus = AttemptStatus.COMPLETED
 ) -> None:
-    """Four questions, one per outcome. Every option text and internal field
-    carries a sentinel the response must not echo."""
+    """Four frozen questions: three resolved, one never served. Every option
+    text and internal field carries a sentinel the response must not echo."""
     application = await db.get(Application, UUID(application_id))
     assert application is not None
     now = datetime.now(UTC)
@@ -189,7 +189,7 @@ async def _seed_quiz(
         status=status,
         question_ids=[q.id for q in questions],
         expires_at=now + timedelta(days=1),
-        score=25.0,
+        score=1 / 3,  # _finalize: correct / resolved, a 0-1 fraction
         per_tag_scores={"TAG-SENTINEL": 25},
         integrity={"events": [{"type": "paste", "note": "INTEGRITY-SENTINEL"}], "paste_count": 3},
     )
@@ -274,6 +274,50 @@ async def test_interview_grant_and_cancel(client: AsyncClient, db_session: Async
     # the cancel also dismissed the auto-request, so no grant remains
     assert (await client.get(url)).status_code == 404
     assert (await client.get(LIST_URL)).json() == []
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_reschedule_keeps_the_grant_and_shows_the_new_time(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    env = await _env(client, db_session)
+    interview = await _booked_interview(db_session, env)
+    await _book(db_session, env, interview)
+    interviewer = await db_session.get(User, UUID(env.reviewer_id))
+    assert interviewer is not None
+    slots = await interviews_service.generate_slots(
+        db_session, interviewer, duration_minutes=45, timezone="Europe/Berlin"
+    )
+    new_start = slots[3]
+    assert new_start != interview.scheduled_start
+    await interviews_service.reschedule(db_session, interview, start=new_start)
+    await db_session.commit()
+
+    resp = await client.get(_detail(env.co.application_id))
+    assert resp.status_code == 200, resp.text
+    shown = datetime.fromisoformat(resp.json()["interview"]["scheduled_start"])
+    assert shown == new_start
+    (item,) = (await client.get(LIST_URL)).json()
+    assert datetime.fromisoformat(item["interview_start"]) == new_start
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_submitted_row_keeps_the_grant_after_a_cancel(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    env = await _env(client, db_session)
+    interview = await _booked_interview(db_session, env)
+    await _book(db_session, env, interview)
+    await _submit(client, env.co)
+    interviewer = await db_session.get(User, UUID(env.reviewer_id))
+    assert interviewer is not None
+    await interviews_service.cancel_interview(db_session, interview, interviewer=interviewer)
+    await db_session.commit()
+
+    resp = await client.get(_detail(env.co.application_id))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["mine"]["state"] == "submitted"
+    assert resp.json()["interview"] is None
 
 
 @pytest.mark.usefixtures("migrated_db")
@@ -552,19 +596,19 @@ async def test_detail_never_leaks_keys(client: AsyncClient, db_session: AsyncSes
     assert body["candidate_name"] == "Marta Vidal"
     assert body["screening_answers"] == [{"prompt": "Work permit?", "answer": "yes"}]
     quiz = body["quiz"]
-    assert quiz["score"] == 25.0
-    assert (quiz["correct"], quiz["total"], quiz["timed_out"]) == (1, 4, 1)
+    assert quiz["score"] == pytest.approx(1 / 3)
+    assert (quiz["correct"], quiz["total"], quiz["timed_out"]) == (1, 3, 1)
     assert quiz["questions"] == [
         {"prompt": "Prompt correct?", "outcome": "correct"},
         {"prompt": "Prompt wrong?", "outcome": "wrong"},
         {"prompt": "Prompt timeout?", "outcome": "timed_out"},
-        {"prompt": "Prompt never?", "outcome": "unanswered"},
     ]
 
     for text in (resp.text, (await client.get(LIST_URL)).text):
         assert candidate.email not in text
         for needle in (
             "correct_key",
+            "Prompt never?",
             "OPTION-",
             "EXPLANATION-SENTINEL",
             "TAG-SENTINEL",
@@ -597,13 +641,41 @@ async def test_unfinished_quiz_has_no_summary(
 
 
 @pytest.mark.usefixtures("migrated_db")
-async def test_expired_quiz_has_a_summary(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_expired_quiz_shows_no_prompts(client: AsyncClient, db_session: AsyncSession) -> None:
+    """EXPIRED is only ever set from PENDING: no answers, no score, and the
+    frozen questions may come back on a re-issue."""
     env = await _env(client, db_session)
-    await _seed_quiz(db_session, env.co.application_id, status=AttemptStatus.EXPIRED)
+    application = await db_session.get(Application, UUID(env.co.application_id))
+    assert application is not None
+    question = Question(
+        id=f"rv-{uuid4().hex[:16]}",
+        company_id=application.company_id,
+        domain="company",
+        tags=["t"],
+        difficulty=2,
+        prompt_md="Prompt never served?",
+        options={"a": "A", "b": "B"},
+        correct_key="a",
+        source=QuestionSource.COMPANY,
+    )
+    db_session.add(question)
+    await db_session.flush()
+    db_session.add(
+        QuizAttempt(
+            company_id=application.company_id,
+            application_id=application.id,
+            status=AttemptStatus.EXPIRED,
+            question_ids=[question.id],
+            expires_at=datetime.now(UTC) - timedelta(days=1),
+        )
+    )
+    await db_session.commit()
     await _request_from_admin(client, env, env.reviewer_id)
     await _login(client, env.reviewer)
     resp = await client.get(_detail(env.co.application_id))
-    assert resp.json()["quiz"]["total"] == 4
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["quiz"] is None
+    assert "Prompt never served?" not in resp.text
 
 
 @pytest.mark.usefixtures("migrated_db")
@@ -657,14 +729,31 @@ async def test_detail_logs_access(client: AsyncClient, db_session: AsyncSession)
     assert (await client.get(LIST_URL)).status_code == 200
     assert await _access_rows(db_session, env.co.application_id) == []
 
+    # no CV and no quiz: only the view row
+    application = await db_session.get(Application, UUID(env.co.application_id))
+    assert application is not None
+    key = application.cv_object_key
+    application.cv_object_key = ""
+    await db_session.commit()
     assert (await client.get(_detail(env.co.application_id))).status_code == 200
     (row,) = await _access_rows(db_session, env.co.application_id)
     assert row.action == "view"
     assert row.actor_user_id == UUID(env.reviewer_id)
 
-    # the helper's collapse window applies, same as the staff detail
+    # a CV and a quiz in the response: one row per action
+    application = await db_session.get(Application, UUID(env.co.application_id))
+    assert application is not None
+    application.cv_object_key = key
+    await db_session.commit()
+    await _seed_quiz(db_session, env.co.application_id)
     assert (await client.get(_detail(env.co.application_id))).status_code == 200
-    assert len(await _access_rows(db_session, env.co.application_id)) == 1
+    rows = await _access_rows(db_session, env.co.application_id)
+    assert sorted(r.action for r in rows) == ["cv_download", "quiz_answers", "view"]
+    assert {r.actor_user_id for r in rows} == {UUID(env.reviewer_id)}
+
+    # the helper's collapse window applies, same as the staff routes
+    assert (await client.get(_detail(env.co.application_id))).status_code == 200
+    assert len(await _access_rows(db_session, env.co.application_id)) == 3
 
 
 @pytest.mark.usefixtures("migrated_db")

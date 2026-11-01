@@ -33,8 +33,6 @@ from app.services import quiz as quiz_service
 from app.services import scorecards as scorecards_service
 from app.services import storage
 
-_SUMMARISED = (AttemptStatus.COMPLETED, AttemptStatus.EXPIRED)
-
 
 async def list_applications(db: AsyncSession, user: User) -> list[ReviewApplicationListItem]:
     granted = await granted_application_ids(db, user)
@@ -98,30 +96,28 @@ async def list_applications(db: AsyncSession, user: User) -> list[ReviewApplicat
 
 
 async def _quiz_summary(db: AsyncSession, application: Application) -> ReviewQuizSummary | None:
-    """The latest attempt once it is over: a live attempt shows nothing, so no
-    prompt circulates while the candidate is still answering. Only the prompt
-    column of a question is ever read here."""
+    """The latest attempt once completed, from resolved answers only, in serve
+    order. A live attempt or an expired one (never started, so no score and no
+    answers) has no summary: a prompt the candidate has not been served may
+    still reach them through a re-issue. Only the prompt column is ever read."""
     attempt = await quiz_service.get_attempt_by_application(db, application.id)
-    if attempt is None or attempt.status not in _SUMMARISED:
+    if attempt is None or attempt.status is not AttemptStatus.COMPLETED:
         return None
+    answers = [a for a in await quiz_service.resolved_answers(db, attempt) if a.answered_at]
     prompts = dict(
         (
             await db.execute(
-                select(Question.id, Question.prompt_md).where(Question.id.in_(attempt.question_ids))
+                select(Question.id, Question.prompt_md).where(
+                    Question.id.in_([a.question_id for a in answers])
+                )
             )
         )
         .tuples()
         .all()
     )
-    answers = {
-        answer.question_id: answer
-        for answer in (
-            await db.execute(select(AttemptAnswer).where(AttemptAnswer.attempt_id == attempt.id))
-        ).scalars()
-    }
     questions = [
-        ReviewQuizQuestion(prompt=prompts[question_id], outcome=_outcome(answers.get(question_id)))
-        for question_id in attempt.question_ids
+        ReviewQuizQuestion(prompt=prompts[answer.question_id], outcome=_outcome(answer))
+        for answer in answers
     ]
     return ReviewQuizSummary(
         score=attempt.score,
@@ -132,10 +128,8 @@ async def _quiz_summary(db: AsyncSession, application: Application) -> ReviewQui
     )
 
 
-def _outcome(answer: AttemptAnswer | None) -> QuizOutcome:
-    # answered_at set = resolved; a resolved row with no key ran out of time
-    if answer is None or answer.answered_at is None:
-        return "unanswered"
+def _outcome(answer: AttemptAnswer) -> QuizOutcome:
+    # a resolved row with no key ran out of time
     if answer.answer_key is None:
         return "timed_out"
     return "correct" if answer.is_correct else "wrong"
