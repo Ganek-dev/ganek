@@ -39,7 +39,7 @@ OUTCOMES = (S.REJECTED, S.WITHDRAWN)
 MIN_N = 3  # a median needs this many values, else "-"
 MIN_COHORT = 10  # the diagnosis needs this many applications
 PERIOD_DAYS: dict[str, int] = {"30d": 30, "90d": 90, "12m": 365}
-PERIOD_WEEKS: dict[str, int] = {"30d": 5, "90d": 13, "12m": 52, "all": 52}
+PERIOD_WEEKS: dict[str, int] = {"30d": 6, "90d": 14, "12m": 53, "all": 53}
 
 
 @dataclass(frozen=True)
@@ -213,8 +213,10 @@ def source_rows(histories: list[AppHistory]) -> list[SourceRow]:
     return sorted(rows, key=lambda row: (-row.applications, row.source))
 
 
-def _label(stage: ApplicationStage) -> str:
-    return stage.value.capitalize()
+def _label(stage: ApplicationStage, *, step: bool = False) -> str:
+    """Stage name for copy. The funnel calls the first step "Applied"; time in
+    stage names the stage itself."""
+    return "Applied" if step and stage is S.NEW else stage.value.capitalize()
 
 
 def diagnosis(steps: list[FunnelStep], times: list[StageTime], cohort_size: int) -> list[str]:
@@ -232,8 +234,8 @@ def diagnosis(steps: list[FunnelStep], times: list[StageTime], cohort_size: int)
     if best is not None and steps[best].pass_through is not None:
         pct = round(steps[best].pass_through or 0)
         lines.append(
-            f"Most candidates leave between {_label(steps[best].stage)} and "
-            f"{_label(steps[best + 1].stage)}: {pct} percent move on."
+            f"Most candidates leave between {_label(steps[best].stage, step=True)} and "
+            f"{_label(steps[best + 1].stage, step=True)}: {pct} percent move on."
         )
     slowest: StageTime | None = None
     for t in times:
@@ -336,13 +338,20 @@ async def _histories(
     ]
 
 
-async def _quiz_line(db: AsyncSession, conditions: list[ColumnElement[bool]]) -> QuizLine:
+async def _quiz_line(
+    db: AsyncSession, conditions: list[ColumnElement[bool]], now: datetime
+) -> QuizLine:
+    # the column flips to expired only when a candidate opens a dead link, so a
+    # pending invite past its window counts as expired too (as timeline.py does)
+    lapsed = (QuizAttempt.status == AttemptStatus.EXPIRED) | (
+        (QuizAttempt.status == AttemptStatus.PENDING) & (QuizAttempt.expires_at < now)
+    )
     row = (
         await db.execute(
             select(
                 func.count(),
                 func.count().filter(QuizAttempt.status == AttemptStatus.COMPLETED),
-                func.count().filter(QuizAttempt.status == AttemptStatus.EXPIRED),
+                func.count().filter(lapsed),
             )
             .join(Application, Application.id == QuizAttempt.application_id)
             .where(QuizAttempt.status != AttemptStatus.INVALIDATED, *conditions)
@@ -377,7 +386,7 @@ async def reports(
         cohort=kpis(cohort),
         previous=previous,
         funnel=steps,
-        quiz=await _quiz_line(db, conditions),
+        quiz=await _quiz_line(db, conditions, now),
         time_in_stage=times,
         sources=source_rows(cohort),
         diagnosis=diagnosis(steps, times, len(cohort)),

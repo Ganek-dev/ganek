@@ -145,7 +145,7 @@ async def test_all_has_no_previous_and_counts_everything(db_session: AsyncSessio
     report = await _report(db_session, company, "all")
     assert report.previous is None
     assert report.cohort.applications == 2
-    assert len(report.weekly) == 52
+    assert len(report.weekly) == 53
 
 
 async def test_job_filter(db_session: AsyncSession) -> None:
@@ -184,7 +184,12 @@ async def test_sources_null_is_direct_sorted(db_session: AsyncSession) -> None:
     ]
 
 
-async def _attempt(db: AsyncSession, application: Application, status: AttemptStatus) -> None:
+async def _attempt(
+    db: AsyncSession,
+    application: Application,
+    status: AttemptStatus,
+    expires_in_days: int = 7,
+) -> None:
     db.add(
         QuizAttempt(
             company_id=application.company_id,
@@ -192,7 +197,7 @@ async def _attempt(db: AsyncSession, application: Application, status: AttemptSt
             status=status,
             question_ids=["q1"],
             time_limit_seconds=None,
-            expires_at=NOW + timedelta(days=7),
+            expires_at=NOW + timedelta(days=expires_in_days),
         )
     )
     await db.commit()
@@ -214,6 +219,19 @@ async def test_quiz_line_excludes_invalidated(db_session: AsyncSession) -> None:
     report = await _report(db_session, company, "90d")
     assert (report.quiz.invited, report.quiz.completed, report.quiz.expired) == (3, 1, 1)
     assert report.quiz_scores.attempts_total == 3  # same cohort and exclusion
+
+
+async def test_quiz_line_counts_a_lapsed_pending_invite_as_expired(
+    db_session: AsyncSession,
+) -> None:
+    company = await _company(db_session)
+    job = await _job(db_session, company)
+    application = await _app(db_session, job)
+    await _attempt(db_session, application, AttemptStatus.PENDING, expires_in_days=-1)
+    await _attempt(db_session, application, AttemptStatus.PENDING, expires_in_days=2)
+    await _attempt(db_session, application, AttemptStatus.EXPIRED)
+    report = await _report(db_session, company, "90d")
+    assert (report.quiz.invited, report.quiz.expired) == (3, 2)
 
 
 async def test_previous_median_below_three_is_none(db_session: AsyncSession) -> None:

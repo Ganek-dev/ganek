@@ -243,6 +243,30 @@ def test_diagnosis_names_largest_left_not_lowest_pass_through() -> None:
     assert lines == ["Most candidates leave between Screening and Interview: 55 percent move on."]
 
 
+def test_diagnosis_calls_the_first_step_applied_but_the_stage_new() -> None:
+    steps = _steps([9, 0, 0, 0, 0], [50.0, None, None, None, None])
+    assert r.diagnosis(steps, [], 20) == [
+        "Most candidates leave between Applied and Screening: 50 percent move on."
+    ]
+    times = _times((S.NEW, 9.0, 4), (S.SCREENING, 2.0, 4))
+    assert r.diagnosis(_steps([0] * 5, [None] * 5), times, 20) == [
+        "Candidates wait longest in New: median 9 days (n = 4)."
+    ]
+
+
+def test_weekly_range_covers_every_day_of_each_window() -> None:
+    from app.services.stats import _week_start
+
+    for period in ("30d", "90d", "12m"):
+        for weekday in range(7):  # now on each day of the week
+            now = datetime(2026, 11, 2 + weekday, 9, 0, tzinfo=UTC)  # Monday..Sunday
+            start, _, _ = r.period_bounds(period, now)
+            assert start is not None
+            chart_start = _week_start(now) - timedelta(weeks=r.PERIOD_WEEKS[period] - 1)
+            assert chart_start <= start, (period, weekday)
+    assert r.PERIOD_WEEKS == {"30d": 6, "90d": 14, "12m": 53, "all": 53}
+
+
 def test_diagnosis_tie_goes_earlier_and_omitted_when_nobody_left() -> None:
     steps = _steps([0, 5, 5, 0, 0], [90.0, 50.0, 40.0, 80.0, None])
     assert r.diagnosis(steps, [], 50)[0].startswith("Most candidates leave between Screening")
