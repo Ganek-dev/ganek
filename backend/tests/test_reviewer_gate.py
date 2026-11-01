@@ -121,6 +121,17 @@ _SESSION_DEPENDENCIES = {
 }
 
 
+# The only /api paths outside /api/v1: health checks and the API docs. None
+# reads tenant data; anything else under /api must sit below /api/v1.
+API_OUTSIDE_V1: frozenset[str] = frozenset(
+    {"/api/health", "/api/health/deep", "/api/docs", "/api/openapi.json"}
+)
+
+# Probes that test_sentry and test_request_id add to the app at import, so they
+# exist only when those modules are collected in the same run.
+TEST_PROBES: frozenset[str] = frozenset({"/api/_test/boom", "/api/_test/log-probe"})
+
+
 def _walk_routes() -> dict[tuple[str, str], Dependant]:
     """Every (method, path) under /api/v1. FastAPI keeps included routers
     behind a wrapper in app.routes, so a plain isinstance(APIRoute) walk
@@ -260,6 +271,32 @@ def test_route_lists_are_honest() -> None:
     # the exclusion list holds only routes that really ignore the session
     assert not [key for key in NOT_SESSION_GATED if _uses_session(routes[key])]
     assert not [key for key in REVIEWER_ALLOWED if not _uses_session(routes[key])]
+
+
+def _api_paths_outside_v1() -> set[str]:
+    return {
+        context.path
+        for context in iter_route_contexts(app.routes)
+        if context.path
+        and context.path.startswith("/api/")
+        and not context.path.startswith("/api/v1/")
+    }
+
+
+def test_every_api_route_is_walked_or_listed() -> None:
+    """_walk_routes only sees /api/v1, so a router mounted under another /api
+    prefix would escape every assertion above."""
+    assert _api_paths_outside_v1() - TEST_PROBES == API_OUTSIDE_V1
+
+
+def test_outside_v1_check_sees_a_stray_route() -> None:
+    async def stray() -> None: ...
+
+    app.router.add_api_route("/api/v2/stray", stray)
+    try:
+        assert "/api/v2/stray" in _api_paths_outside_v1()
+    finally:
+        app.router.routes.pop()
 
 
 def test_walk_is_not_vacuous() -> None:

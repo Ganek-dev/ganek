@@ -627,6 +627,67 @@ async def test_detail_never_leaks_keys(client: AsyncClient, db_session: AsyncSes
 
 
 @pytest.mark.usefixtures("migrated_db")
+async def test_quiz_summary_never_shows_another_company_question(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Hand-written answers past the services: a foreign company's custom
+    question stays out, a global bank question (company_id NULL) stays in."""
+    foreign = await _company(client, db_session)
+    env = await _env(client, db_session)
+    await _seed_quiz(db_session, env.co.application_id)
+    foreign_application = await db_session.get(Application, UUID(foreign.application_id))
+    assert foreign_application is not None
+    extras = {
+        foreign_application.company_id: "FOREIGN-PROMPT-SENTINEL",
+        None: "Global bank prompt?",
+    }
+    attempt = (
+        await db_session.execute(
+            select(QuizAttempt).where(QuizAttempt.application_id == UUID(env.co.application_id))
+        )
+    ).scalar_one()
+    now = datetime.now(UTC)
+    for company_id, prompt in extras.items():
+        question = Question(
+            id=f"rv-{uuid4().hex[:16]}",
+            company_id=company_id,
+            domain="company" if company_id else "general",
+            tags=["TAG-SENTINEL"],
+            difficulty=2,
+            prompt_md=prompt,
+            options={"a": "A", "b": "B"},
+            correct_key="a",
+            source=QuestionSource.COMPANY if company_id else QuestionSource.SEED,
+        )
+        db_session.add(question)
+        await db_session.flush()
+        db_session.add(
+            AttemptAnswer(
+                attempt_id=attempt.id,
+                question_id=question.id,
+                option_order=["a", "b"],
+                served_at=now,
+                deadline_at=now + timedelta(seconds=15),
+                answered_at=now,
+                answer_key="a",
+                is_correct=True,
+            )
+        )
+    await db_session.commit()
+    await _request_from_admin(client, env, env.reviewer_id)
+    await _login(client, env.reviewer)
+
+    resp = await client.get(_detail(env.co.application_id))
+
+    assert resp.status_code == 200, resp.text
+    assert "FOREIGN-PROMPT-SENTINEL" not in resp.text
+    quiz = resp.json()["quiz"]
+    assert "Global bank prompt?" in [q["prompt"] for q in quiz["questions"]]
+    # the foreign row counts nowhere: three seeded, plus the global one
+    assert (quiz["correct"], quiz["total"]) == (2, 4)
+
+
+@pytest.mark.usefixtures("migrated_db")
 @pytest.mark.parametrize("status", [AttemptStatus.PENDING, AttemptStatus.IN_PROGRESS])
 async def test_unfinished_quiz_has_no_summary(
     client: AsyncClient, db_session: AsyncSession, status: AttemptStatus

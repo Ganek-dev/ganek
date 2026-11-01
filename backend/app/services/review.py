@@ -108,7 +108,9 @@ async def _quiz_summary(db: AsyncSession, application: Application) -> ReviewQui
         (
             await db.execute(
                 select(Question.id, Question.prompt_md).where(
-                    Question.id.in_([a.question_id for a in answers])
+                    Question.id.in_([a.question_id for a in answers]),
+                    (Question.company_id.is_(None))
+                    | (Question.company_id == application.company_id),
                 )
             )
         )
@@ -118,6 +120,7 @@ async def _quiz_summary(db: AsyncSession, application: Application) -> ReviewQui
     questions = [
         ReviewQuizQuestion(prompt=prompts[answer.question_id], outcome=_outcome(answer))
         for answer in answers
+        if answer.question_id in prompts
     ]
     return ReviewQuizSummary(
         score=attempt.score,
