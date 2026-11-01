@@ -59,11 +59,23 @@ const EMAIL_STATE: Record<string, { tone: Tone; label: (p: Record<string, unknow
   suppressed: { tone: "waiting", label: () => "skipped: address suppressed" },
 };
 
+/** Scorecard mails: the timeline names the mail itself, not the template. */
+const SCORECARD_MAIL: Record<string, string> = {
+  scorecard_request: "Scorecard request sent",
+  scorecard_reminder: "Scorecard reminder sent",
+};
+
 const NOT_DELIVERED = new Set(["failed", "bounced", "complained"]);
 const COLLAPSED_ROWS = 8;
 
 function who(event: TimelineEvent, fallback = "A former teammate"): string {
   return event.actor_label || event.actor_email || fallback;
+}
+
+/** The reviewer's label as the payload carries it; a row written before the
+ * label existed, or one missing the key, reads "A reviewer", never "undefined". */
+function reviewerName(payload: Record<string, unknown>): string {
+  return nonEmpty(payload.reviewer_label) ?? "A reviewer";
 }
 
 function stageName(value: unknown): string {
@@ -121,12 +133,20 @@ export function describeEvent(event: TimelineEvent): {
       const name = EMAIL_LABELS[String(p.template)] ?? String(p.template);
       // subject and text are set once the row was rendered at delivery
       return {
-        text: `${name} email ${state.label(p)}`,
+        text: SCORECARD_MAIL[String(p.template)] ?? `${name} email ${state.label(p)}`,
         tone: state.tone,
         detail: nonEmpty(p.subject),
         body: nonEmpty(p.text),
       };
     }
+    case "scorecard.requested":
+      return { text: `Scorecard requested from ${reviewerName(p)}`, tone: "neutral" };
+    case "scorecard.submitted":
+      return { text: `Scorecard submitted by ${reviewerName(p)}`, tone: "sent" };
+    case "scorecard.declined":
+      return { text: `Scorecard declined by ${reviewerName(p)}`, tone: "neutral" };
+    case "scorecard.dismissed":
+      return { text: "Scorecard request withdrawn", tone: "neutral" };
     case "email.message":
       return { text: `${who(event)} sent a message`, tone: "sent" };
     case "note.added":
