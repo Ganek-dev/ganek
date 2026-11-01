@@ -6,7 +6,7 @@ import hmac
 import json
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from arq import Retry
@@ -183,6 +183,44 @@ def test_quiz_summary_wording(attempt: QuizAttempt, expected: str) -> None:
     assert webhooks.quiz_summary(attempt) == expected
 
 
+def test_sample_payload_matches_the_real_shape() -> None:
+    company = Company(slug="acme", name="Acme", settings={})
+    real = webhooks.application_payload(payload_application(), sample_company())
+    sample = webhooks.sample_payload(company, "stage.changed", None)
+    assert set(sample) == set(real) | {"previous_stage"}
+    assert set(sample["candidate"]) == set(real["candidate"])
+    assert set(sample["candidate"]["links"]) == set(real["candidate"]["links"])
+    assert set(sample["job"]) == set(real["job"])
+    assert set(sample["quiz"]) == set(real["quiz"])
+    assert sample["job"]["public_url"].endswith("/jobs/sample-job")
+    assert sample["stage"] == "interview" and sample["previous_stage"] == "screening"
+    assert sample["candidate"]["email"] == "sample@example.invalid"
+    # the hand-built summary must not drift from the real wording
+    today = datetime.now(UTC)
+    attempt = QuizAttempt(
+        status=AttemptStatus.COMPLETED,
+        score=0.83,
+        completed_at=today,
+        question_ids=[f"q{i}" for i in range(8)],
+        integrity={},
+    )
+    assert sample["quiz"]["summary"] == webhooks.quiz_summary(attempt)
+    assert sample["quiz"]["score_percent"] == 83 and sample["quiz"]["flags"] == []
+
+
+def test_sample_payload_per_event() -> None:
+    company = sample_company()
+    created = webhooks.sample_payload(company, "application.created", None)
+    assert created["stage"] == "new" and created["quiz"] is None
+    assert "previous_stage" not in created
+    done = webhooks.sample_payload(company, "quiz.completed", None)
+    assert done["stage"] == "screening" and done["quiz"]["status"] == "completed"
+    assert "previous_stage" not in done
+    text = json.dumps([created, done])
+    for forbidden in ("correct_key", "question_ids", "screening_answers", "cv_object_key"):
+        assert forbidden not in text
+
+
 # --- DB-backed -------------------------------------------------------------
 
 pytestmark_db = pytest.mark.skipif(
@@ -242,9 +280,9 @@ async def test_admin_creates_tests_lists_and_deletes_endpoint(client: AsyncClien
 
     ping = await client.post(f"/api/v1/webhooks/{hook['id']}/test")
     assert ping.status_code == 202, ping.text
-    assert ping.json()["event"] == "ping" and ping.json()["status"] == "queued"
+    assert ping.json()["event"] == "application.created" and ping.json()["status"] == "queued"
     deliveries = (await client.get(f"/api/v1/webhooks/{hook['id']}/deliveries")).json()
-    assert [d["event"] for d in deliveries] == ["ping"]
+    assert [d["event"] for d in deliveries] == ["application.created"]
     assert (await client.get("/api/v1/webhooks")).json()[0]["last_delivery"]["status"] == "queued"
 
     assert (await client.delete(f"/api/v1/webhooks/{hook['id']}")).status_code == 204
@@ -252,6 +290,54 @@ async def test_admin_creates_tests_lists_and_deletes_endpoint(client: AsyncClien
     assert (await client.get("/api/v1/webhooks")).json() == []
     types = [a["type"] for a in (await client.get("/api/v1/activity")).json()]
     assert types[:2] == ["webhook.deleted", "webhook.created"]
+
+
+async def _queued_payload(ctx: Any, delivery_id: str) -> dict[str, Any]:
+    async with ctx["session_factory"]() as db:
+        row = await db.get(WebhookDelivery, UUID(delivery_id))
+        assert row is not None
+        return row.payload
+
+
+@pytestmark_db
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_send_test_posts_a_sample_of_the_first_subscribed_event(
+    client: AsyncClient, ctx: Any
+) -> None:
+    slug, _ = await _register(client)
+    sample = (
+        await client.post(
+            "/api/v1/webhooks",
+            json={
+                "name": "Zap",
+                "url": "https://hooks.example.com/zap",
+                "events": ["quiz.completed", "stage.changed"],
+            },
+        )
+    ).json()
+    resp = await client.post(f"/api/v1/webhooks/{sample['id']}/test")
+    assert resp.status_code == 202, resp.text
+    assert resp.json()["event"] == "stage.changed"  # EVENTS order, not subscription order
+    data = (await _queued_payload(ctx, resp.json()["id"]))["data"]
+    assert data["test"] is True
+    assert data["candidate"]["email"] == "sample@example.invalid"
+    assert data["job"]["slug"] == "sample-job"
+
+    # an endpoint with only the legacy ping event keeps the old body (the API
+    # schema rejects it, so the row is created directly)
+    async with ctx["session_factory"]() as db:
+        company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one()
+        endpoint, _secret = webhooks.new_endpoint(
+            company, name="Legacy", url="https://hooks.example.com/ping", events=["ping"]
+        )
+        db.add(endpoint)
+        await db.commit()
+        endpoint_id = endpoint.id
+    legacy = await client.post(f"/api/v1/webhooks/{endpoint_id}/test")
+    assert legacy.status_code == 202, legacy.text
+    assert legacy.json()["event"] == "ping"
+    payload = await _queued_payload(ctx, legacy.json()["id"])
+    assert payload["data"]["message"] == "Test delivery from Ganek"
 
 
 @pytestmark_db

@@ -35,7 +35,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core import queue, urls
 from app.core.crypto import decrypt_secret, encrypt_secret
-from app.models import Application, Company, User
+from app.models import Application, Company, Job, User
+from app.models.job import JobStatus
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 from app.services import activity
@@ -45,6 +46,8 @@ logger = logging.getLogger(__name__)
 
 EVENTS = ("application.created", "stage.changed", "quiz.completed")
 PING = "ping"
+SAMPLE_APPLICATION_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
+SAMPLE_JOB_ID = uuid.UUID("00000000-0000-4000-8000-000000000002")
 HOOK_PREFIX = "whsec_"
 MAX_ATTEMPTS = 5
 RETRY_DELAYS_SECONDS = (60, 300, 900, 3600)
@@ -197,18 +200,74 @@ async def list_deliveries(
 async def queue_test(
     db: AsyncSession, company: Company, endpoint_id: uuid.UUID
 ) -> WebhookDelivery | None:
-    """A ``ping`` delivery so admins can prove the receiver and signature."""
+    """A sample of the first subscribed event (``ping`` when there is none), so
+    admins prove the receiver and signature and Zapier or Make learn every field."""
     endpoint = await get_endpoint(db, company, endpoint_id)
     if endpoint is None:
         return None
-    rows = await _queue(
-        db,
-        company_id=company.id,
-        endpoints=[endpoint],
-        event=PING,
-        data={"endpoint": endpoint.name, "message": "Test delivery from Ganek"},
-    )
+    event = next((e for e in EVENTS if e in endpoint.events), PING)
+    data: dict[str, Any]
+    if event == PING:
+        data = {"endpoint": endpoint.name, "message": "Test delivery from Ganek"}
+    else:
+        job = (
+            await db.execute(
+                select(Job)
+                .where(Job.company_id == company.id, Job.status == JobStatus.PUBLISHED)
+                .order_by(Job.published_at.desc().nulls_last())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        data = sample_payload(company, event, job)
+        data["test"] = True
+    rows = await _queue(db, company_id=company.id, endpoints=[endpoint], event=event, data=data)
     return rows[0]
+
+
+def sample_payload(company: Company, event: str, job: Job | None) -> dict[str, Any]:
+    """Made-up application in the real payload shape, for the test delivery."""
+    now = datetime.now(UTC)
+    quiz: dict[str, Any] | None = None
+    stage, previous_stage = "new", None
+    if event != "application.created":
+        stage = "interview" if event == "stage.changed" else "screening"
+        previous_stage = "screening" if event == "stage.changed" else None
+        quiz = {
+            "status": "completed",
+            "score_percent": 83,
+            "completed_at": now.isoformat(),
+            "flags": [],
+            "summary": (
+                f"Ganek screening: 83% (8 questions), completed {now.date().isoformat()}, "
+                "no integrity notes"
+            ),
+        }
+    if job is not None:
+        job_data = {"id": str(job.id), "title": job.title, "slug": job.slug}
+    else:
+        job_data = {"id": str(SAMPLE_JOB_ID), "title": "Sample Job", "slug": "sample-job"}
+    first_name, last_name = split_name("Sample Candidate")
+    data: dict[str, Any] = {
+        "id": str(SAMPLE_APPLICATION_ID),
+        "stage": stage,
+        "source": "test",
+        "created_at": now.isoformat(),
+        "applied_at": now.isoformat(),
+        "message": "Hello from the Ganek test delivery.",
+        "admin_url": urls.admin_applicant_url(company, SAMPLE_APPLICATION_ID),
+        "candidate": {
+            "name": "Sample Candidate",
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": "sample@example.invalid",
+            "links": {"github": None, "linkedin": None, "portfolio": None},
+        },
+        "job": {**job_data, "public_url": urls.job_url(company, job_data["slug"])},
+        "quiz": quiz,
+    }
+    if previous_stage is not None:
+        data["previous_stage"] = previous_stage
+    return data
 
 
 # --- payloads + emission ---------------------------------------------------

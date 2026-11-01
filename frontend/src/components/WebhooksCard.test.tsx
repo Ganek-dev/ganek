@@ -42,7 +42,7 @@ describe("WebhooksCard", () => {
   });
 
   it("lists endpoints with their events and last delivery, sends a test, removes", async () => {
-    mocked.test.mockResolvedValue({ ...hook.last_delivery!, id: "d2", event: "ping", status: "queued", attempts: 0, last_error: null, response_status: null });
+    mocked.test.mockResolvedValue({ ...hook.last_delivery!, id: "d2", event: "stage.changed", status: "queued", attempts: 0, last_error: null, response_status: null });
     mocked.remove.mockResolvedValue(undefined);
     render(<WebhooksCard />);
     const row = (await screen.findByText("Slack")).closest("li") as HTMLElement;
@@ -52,11 +52,19 @@ describe("WebhooksCard", () => {
 
     await userEvent.click(within(row).getByRole("button", { name: "Send test to Slack" }));
     await waitFor(() => expect(mocked.test).toHaveBeenCalledWith("h1"));
-    expect(await screen.findByText(/test delivery queued/i)).toBeInTheDocument();
+    expect(await screen.findByText(/sample stage\.changed delivery queued/i)).toBeInTheDocument();
 
     await userEvent.click(within(row).getByRole("button", { name: "Remove Slack" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove webhook" }));
     await waitFor(() => expect(mocked.remove).toHaveBeenCalledWith("h1"));
+  });
+
+  it("keeps the plain test wording for a ping delivery", async () => {
+    mocked.test.mockResolvedValue({ ...hook.last_delivery!, id: "d3", event: "ping", status: "queued", attempts: 0, last_error: null, response_status: null });
+    render(<WebhooksCard />);
+    const row = (await screen.findByText("Slack")).closest("li") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Send test to Slack" }));
+    expect(await screen.findByText(/test delivery queued/i)).toBeInTheDocument();
   });
 
   it("creates an endpoint from name, url and events and shows the secret once", async () => {
