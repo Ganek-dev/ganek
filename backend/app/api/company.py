@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
-from app.api.deps import AdminUser, CurrentCompany, DbSession, StaffCompany
-from app.models import Company
+from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession, StaffCompany
+from app.models import Company, UserRole
 from app.schemas.company import (
     BrandingUpdate,
     CompanyOut,
@@ -23,9 +23,15 @@ async def get_company(company: StaffCompany, _admin: AdminUser) -> Company:
 
 
 @router.get("/summary", response_model=CompanySummary)
-async def get_company_summary(company: CurrentCompany) -> Company:
+async def get_company_summary(
+    company: CurrentCompany, user: CurrentUser
+) -> Company | CompanySummary:
     """Slug, name and instance mode for any role: the job overview builds
-    the public job URL and the share links from these."""
+    the public job URL and the share links from these. The defaults are for
+    job editors; preferred screening answers are recruiter criteria, and a
+    reviewer judges the same candidates, so a reviewer gets them empty."""
+    if user.role is UserRole.REVIEWER:
+        return CompanySummary(slug=company.slug, name=company.name)
     return company
 
 

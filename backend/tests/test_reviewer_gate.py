@@ -128,9 +128,11 @@ def _walk_routes() -> dict[tuple[str, str], Dependant]:
         path = context.path
         if not path or not path.startswith("/api/v1"):
             continue
+        # the effective dependant: unlike original_route.dependant it carries
+        # include-level dependencies, and it is what FastAPI runs
         for method in context.methods or ():
             if method not in {"HEAD", "OPTIONS"}:
-                routes[(method, path)] = context.original_route.dependant  # type: ignore[attr-defined]
+                routes[(method, path)] = context.dependant
     return routes
 
 
@@ -375,6 +377,42 @@ async def test_reviewer_reads_the_slim_team_list(
         set(u) == {"id", "email", "role", "display_name", "display_label", "is_active"}
         for u in team
     )
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_company_summary_hides_recruiter_defaults_from_a_reviewer(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    env = await _env(client, db_session)
+    await _login(client, env.co.admin)
+    resp = await client.patch(
+        "/api/v1/company/settings",
+        json={
+            "screening_questions": [
+                {"type": "yes_no", "prompt": "Work permit?", "preferred": "yes"},
+            ],
+            "scorecard_template": [{"label": "Problem solving"}],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+
+    await _login(client, env.co.member)
+    staff = (await client.get("/api/v1/company/summary")).json()
+    assert staff["screening_questions"][0]["preferred"] == "yes"
+    assert [c["label"] for c in staff["scorecard_template"]] == ["Problem solving"]
+
+    await _login(client, env.reviewer)
+    resp = await client.get("/api/v1/company/summary")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body == {
+        "slug": staff["slug"],
+        "name": staff["name"],
+        "mode": staff["mode"],
+        "screening_questions": [],
+        "scorecard_template": [],
+    }
+    assert "preferred" not in resp.text
 
 
 @pytest.mark.usefixtures("migrated_db")

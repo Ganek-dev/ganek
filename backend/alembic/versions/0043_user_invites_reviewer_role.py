@@ -1,6 +1,9 @@
 """user_invites.role accepts 'reviewer': 0042 widened the CHECK on users only,
 and reviewers join by invite.
 
+Rollback note: 0042's downgrade demotes reviewer users to member, which grants
+them recruiter access. Handle reviewer users before a rollback past 0043.
+
 Revision ID: 0043
 Revises: 0042
 Create Date: 2026-11-01
