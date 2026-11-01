@@ -101,6 +101,23 @@ export function ScorecardsCard({
     if (autoOpen && hasForm) formRef.current?.scrollIntoView?.({ block: "nearest" });
   }, [autoOpen, hasForm]);
 
+  // The team list backs both the picker and the "Request again" guard (an
+  // anonymised teammate keeps their id but is inactive, and would 404).
+  useEffect(() => {
+    let cancelled = false;
+    team
+      .list()
+      .then((list) => {
+        if (!cancelled) setMembers(list);
+      })
+      .catch(() => {
+        // stays null: the picker retries on open, "Request again" stays hidden
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const reload = useCallback(async () => {
     setRows(await scorecards.list(applicationId));
   }, [applicationId]);
@@ -161,6 +178,7 @@ export function ScorecardsCard({
       .filter((r) => r.state === "open" || r.state === "submitted")
       .map((r) => r.reviewer_user_id),
   );
+  const activeIds = new Set((members ?? []).filter((m) => m.is_active).map((m) => m.id));
   const candidates = (members ?? []).filter(
     (member) => member.is_active && member.id !== me?.id && !taken.has(member.id),
   );
@@ -292,7 +310,7 @@ export function ScorecardsCard({
                     {row.state === "declined" ? (
                       <p className="mt-1 flex items-center justify-between gap-3 text-[12.5px] text-g600">
                         Declined by {row.reviewer_label}
-                        {row.reviewer_user_id ? (
+                        {activeIds.has(row.reviewer_user_id ?? "") ? (
                           <button
                             type="button"
                             onClick={() =>

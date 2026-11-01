@@ -170,29 +170,42 @@ describe("ScorecardsCard", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 
-  it("declined row offers Request again", async () => {
+  it("declined row of an active teammate offers Request again", async () => {
+    mockedTeam.list.mockResolvedValue([member("u-jane", "Jane Doe")]);
     mockedCards.list.mockResolvedValue([row({ state: "declined" })]);
     render(<ScorecardsCard applicationId="app1" />);
-    expect(await screen.findByText("Declined by Jane Doe")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Request again" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Request again" }));
     expect(mockedCards.requestFrom).toHaveBeenCalledWith("app1", "u-jane");
   });
 
-  it("a former teammate renders without action buttons that cannot work", async () => {
+  it.each([
+    ["absent from the team list", []],
+    ["inactive", [member("u-jane", "Jane Doe", false)]],
+  ])("hides Request again when the reviewer is %s", async (_name, list) => {
+    mockedTeam.list.mockResolvedValue(list);
     mockedCards.list.mockResolvedValue([
-      row({ id: "s1", state: "declined", reviewer_user_id: null, reviewer_label: "former teammate" }),
+      row({ state: "declined" }),
       row({
         id: "s2",
         state: "submitted",
-        reviewer_user_id: null,
-        reviewer_label: "former teammate",
         recommendation: "no",
+        reviewer_user_id: "u-jane",
       }),
     ]);
     render(<ScorecardsCard applicationId="app1" />);
-    expect(await screen.findByText("Declined by former teammate")).toBeInTheDocument();
+    expect(await screen.findByText("Declined by Jane Doe")).toBeInTheDocument();
+    await waitFor(() => expect(mockedTeam.list).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Request again" })).not.toBeInTheDocument();
     expect(screen.getByText("No")).toBeInTheDocument();
+  });
+
+  it("hides Request again when the team list fails to load", async () => {
+    mockedTeam.list.mockRejectedValue(new Error("nope"));
+    mockedCards.list.mockResolvedValue([row({ state: "declined" })]);
+    render(<ScorecardsCard applicationId="app1" />);
+    expect(await screen.findByText("Declined by Jane Doe")).toBeInTheDocument();
+    await waitFor(() => expect(mockedTeam.list).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Request again" })).not.toBeInTheDocument();
   });
 
   it("renders the inline form for the user's own open row and submits it", async () => {
@@ -224,6 +237,7 @@ describe("ScorecardsCard", () => {
         recommendation: "no",
         comment: "meh",
         can_edit: true,
+        ratings: { c1: 3 },
         submitted_at: "2026-10-02T10:00:00Z",
       }),
     ]);
@@ -232,7 +246,7 @@ describe("ScorecardsCard", () => {
     expect(screen.getByLabelText("Comment")).toHaveValue("meh");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(mockedCards.submit).toHaveBeenCalledWith("app1", {
-      ratings: {},
+      ratings: { c1: 3 },
       recommendation: "no",
       comment: "meh",
     });
