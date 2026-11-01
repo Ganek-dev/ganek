@@ -85,6 +85,9 @@ def _email_event(row: EmailOutbox) -> TimelineEvent:
             # the rendered mail (PR 4): None until the row was delivered
             "subject": row.rendered_subject,
             "text": row.rendered_text,
+            # delayed rejection: when a held mail goes out, when it was cancelled
+            "send_after": row.send_after,
+            "cancelled_at": row.cancelled_at,
         },
     )
 

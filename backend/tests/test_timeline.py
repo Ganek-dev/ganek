@@ -180,7 +180,17 @@ async def test_emails_come_from_the_outbox_with_their_state(client: AsyncClient)
         payload = row["payload"]
         assert isinstance(payload, dict)
         assert payload["status"] in {"queued", "sent", "failed", "suppressed"}
-        assert set(payload) == {"template", "status", "attempts", "last_error", "subject", "text"}
+        assert set(payload) == {
+            "template",
+            "status",
+            "attempts",
+            "last_error",
+            "subject",
+            "text",
+            "send_after",
+            "cancelled_at",
+        }
+        assert payload["send_after"] is None and payload["cancelled_at"] is None
     # the eager test path renders at delivery, so the text is on the row (PR 4)
     reminder = emails[0]["payload"]
     assert isinstance(reminder, dict)
@@ -189,6 +199,47 @@ async def test_emails_come_from_the_outbox_with_their_state(client: AsyncClient)
     # hold the capability (same rule as the preview)
     link = re.search(r"Take it now: (\S+)", str(reminder["text"]))
     assert link is not None and link.group(1).endswith("/quiz/personal-link"), reminder["text"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_scheduled_and_cancelled_mails_carry_their_times(client: AsyncClient) -> None:
+    creds, base = await _company(client, quiz=False)
+    await _apply(client, base)
+    application_id = await _login_and_id(client, creds)
+    when = datetime.now(UTC) + timedelta(days=1)
+    resp = await client.patch(
+        f"/api/v1/applications/{application_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True, "send_after": when.isoformat()},
+    )
+    assert resp.status_code == 200, resp.text
+
+    def _rejection(rows: list[dict[str, object]]) -> dict[str, object]:
+        mail = next(
+            row["payload"]
+            for row in rows
+            if row["kind"] == "email"
+            and isinstance(row["payload"], dict)
+            and row["payload"]["template"] == "rejection"
+        )
+        assert isinstance(mail, dict)
+        return mail
+
+    scheduled = _rejection(await _timeline(client, application_id))
+    assert scheduled["status"] == "scheduled"
+    assert datetime.fromisoformat(str(scheduled["send_after"])) == when
+    assert scheduled["cancelled_at"] is None
+
+    emails = (await client.get(f"/api/v1/applications/{application_id}/emails")).json()
+    email_id = next(row["id"] for row in emails if row["kind"] == "rejection")
+    cancel = await client.post(f"/api/v1/applications/{application_id}/emails/{email_id}/cancel")
+    assert cancel.status_code == 200, cancel.text
+
+    rows = await _timeline(client, application_id)
+    cancelled_event = next(row for row in rows if row["kind"] == "email.cancelled")
+    assert cancelled_event["actor_email"] == creds["email"]
+    mail = _rejection(rows)
+    assert mail["status"] == "cancelled"
+    assert mail["cancelled_at"] is not None
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
@@ -212,6 +263,8 @@ async def test_emails_endpoint_returns_the_rendered_fields(client: AsyncClient) 
         "sent_at",
         "subject",
         "text",
+        "send_after",
+        "cancelled_at",
     }
     assert reminder["subject"].startswith("Your assessment link expires")
     link = re.search(r"Take it now: (\S+)", reminder["text"])

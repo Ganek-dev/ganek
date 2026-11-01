@@ -457,21 +457,30 @@ async def test_purge_sweeps_terminal_outbox_rows(db_session: AsyncSession) -> No
     old_failed = await _queued(db_session, company, status=EmailStatus.FAILED)
     old_queued = await _queued(db_session, company)  # never swept by age alone
     young_sent = await _queued(db_session, company, status=EmailStatus.SENT)
+    old_cancelled = await _queued(db_session, company, status=EmailStatus.CANCELLED)
+    old_scheduled = await _queued(
+        db_session,
+        company,
+        status=EmailStatus.SCHEDULED,
+        send_after=datetime.now(UTC) + timedelta(days=1),
+    )  # a held mail is never swept by age alone
     ids = {
         "old_sent": old_sent.id,
         "old_failed": old_failed.id,
         "old_queued": old_queued.id,
         "young_sent": young_sent.id,
+        "old_cancelled": old_cancelled.id,
+        "old_scheduled": old_scheduled.id,
     }
     await db_session.execute(
         EmailOutbox.__table__.update()
-        .where(EmailOutbox.id.in_([ids["old_sent"], ids["old_failed"], ids["old_queued"]]))
+        .where(EmailOutbox.id.in_([v for k, v in ids.items() if k.startswith("old_")]))
         .values(created_at=datetime.now(UTC) - timedelta(days=31))
     )
     await db_session.commit()
 
     summary = await retention.run_purge(db_session, now=datetime.now(UTC))
-    assert summary.emails >= 2
+    assert summary.emails >= 3
 
     db_session.expire_all()
     remaining = set(
@@ -483,7 +492,7 @@ async def test_purge_sweeps_terminal_outbox_rows(db_session: AsyncSession) -> No
         .scalars()
         .all()
     )
-    assert remaining == {ids["old_queued"], ids["young_sent"]}
+    assert remaining == {ids["old_queued"], ids["young_sent"], ids["old_scheduled"]}
 
 
 PDF_BYTES = b"%PDF-1.4 outbox flow"
