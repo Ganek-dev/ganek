@@ -9,7 +9,10 @@ retries with backoff and parks the row as ``failed`` after MAX_ATTEMPTS.
 Redis being down only delays: ``stuck_deliveries`` feeds the sweeper.
 
 Payloads carry the same summary the admin list shows: never answers,
-never ``correct_key``, never the raw integrity event stream.
+never ``correct_key``, never the raw integrity event stream. They are
+additive v2: besides the v1 keys they hold a split name, links, the cover
+message, absolute job and admin URLs and a one-line quiz summary, enough
+for a Zapier recipe to create a candidate in an ATS from one delivery.
 """
 
 import hashlib
@@ -30,11 +33,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core import queue
+from app.core import queue, urls
 from app.core.crypto import decrypt_secret, encrypt_secret
 from app.models import Application, Company, User
+from app.models.quiz import AttemptStatus, QuizAttempt
 from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 from app.services import activity
+from app.services.names import split_name
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +214,25 @@ async def queue_test(
 # --- payloads + emission ---------------------------------------------------
 
 
-def application_payload(application: Application) -> dict[str, Any]:
+def quiz_summary(attempt: QuizAttempt) -> str:
+    """One readable line about the screening, for a note field in an ATS."""
+    if (
+        attempt.status is AttemptStatus.COMPLETED
+        and attempt.score is not None
+        and attempt.completed_at is not None
+    ):
+        count = len(attempt.integrity.get("flags", []))
+        notes = "no integrity notes" if count == 0 else f"{count} integrity note"
+        if count > 1:
+            notes += "s"
+        return (
+            f"Ganek screening: {round(attempt.score * 100)}% ({len(attempt.question_ids)} "
+            f"questions), completed {attempt.completed_at.date().isoformat()}, {notes}"
+        )
+    return f"Ganek screening: not completed (status {attempt.status.value})"
+
+
+def application_payload(application: Application, company: Company) -> dict[str, Any]:
     """Summary-level view of one application, candidate and job loaded."""
     attempt = application.quiz_attempt
     quiz: dict[str, Any] | None = None
@@ -219,17 +242,31 @@ def application_payload(application: Application) -> dict[str, Any]:
             "score_percent": round(attempt.score * 100) if attempt.score is not None else None,
             "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
             "flags": [str(flag.get("summary", "")) for flag in attempt.integrity.get("flags", [])],
+            "summary": quiz_summary(attempt),
         }
+    candidate = application.candidate
+    first_name, last_name = split_name(candidate.name)
+    created_at = application.created_at.isoformat() if application.created_at else None
     return {
         "id": str(application.id),
         "stage": application.stage.value,
         "source": application.source,
-        "created_at": application.created_at.isoformat() if application.created_at else None,
-        "candidate": {"name": application.candidate.name, "email": application.candidate.email},
+        "created_at": created_at,
+        "applied_at": created_at,
+        "message": application.message,
+        "admin_url": urls.admin_applicant_url(company, application.id),
+        "candidate": {
+            "name": candidate.name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": candidate.email,
+            "links": {key: candidate.links.get(key) for key in ("github", "linkedin", "portfolio")},
+        },
         "job": {
             "id": str(application.job.id),
             "title": application.job.title,
             "slug": application.job.slug,
+            "public_url": urls.job_url(company, application.job.slug),
         },
         "quiz": quiz,
     }
@@ -272,7 +309,9 @@ async def emit_application_event(
     )
     if not endpoints:
         return []
-    data = application_payload(application)
+    company = await db.get(Company, application.company_id)
+    assert company is not None
+    data = application_payload(application, company)
     if extra:
         data.update(extra)
     return await _queue(

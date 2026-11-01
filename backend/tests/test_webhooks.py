@@ -57,36 +57,130 @@ def test_validate_url_accepts_public_https() -> None:
     webhooks.validate_url("https://hooks.slack.com/services/T0/B0/x")
 
 
-def test_application_payload_carries_summary_only() -> None:
-    attempt = QuizAttempt(
-        status=AttemptStatus.COMPLETED,
-        score=0.5,
-        completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC),
-        integrity={"flags": [{"code": "tab_hidden", "summary": "left the tab 2x", "detail": "x"}]},
-        question_ids=["q1", "q2"],
-    )
-    application = Application(
+def sample_company() -> Company:
+    return Company(id=uuid4(), slug="acme", name="Acme", settings={})
+
+
+def payload_application(*, attempts: list[QuizAttempt] | None = None) -> Application:
+    """Fully loaded in-memory application with every sensitive field set,
+    shared by the leak test and the sample shape comparison."""
+    if attempts is None:
+        attempts = [
+            QuizAttempt(
+                status=AttemptStatus.COMPLETED,
+                score=0.5,
+                completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC),
+                integrity={
+                    "flags": [
+                        {
+                            "code": "tab_hidden",
+                            "summary": "left the tab 2x",
+                            "detail": "raw-detail-text",
+                        }
+                    ]
+                },
+                question_ids=["q1", "q2"],
+            )
+        ]
+    return Application(
         id=uuid4(),
-        candidate=Candidate(name="Jane", email="jane@example.com"),
+        candidate=Candidate(
+            name="Jane Q. Applicant",
+            email="jane@example.com",
+            links={"github": "https://github.com/jane"},
+        ),
         job=Job(id=uuid4(), title="Backend Engineer", slug="backend-engineer"),
         stage=ApplicationStage.NEW,
         created_at=datetime(2026, 10, 1, 9, 0, tzinfo=UTC),
         source="linkedin",
-        quiz_attempts=[attempt],
+        message="Hi, I shipped two Next.js apps",
+        rejection_note="internal note",
+        screening_answers=[{"question_id": "sq_1", "answer": "no", "match": False}],
+        quiz_attempts=attempts,
     )
-    data = webhooks.application_payload(application)
-    assert data["candidate"] == {"name": "Jane", "email": "jane@example.com"}
+
+
+def test_application_payload_carries_summary_only() -> None:
+    application = payload_application()
+    data = webhooks.application_payload(application, sample_company())
+    assert data["candidate"] == {
+        "name": "Jane Q. Applicant",
+        "first_name": "Jane Q.",
+        "last_name": "Applicant",
+        "email": "jane@example.com",
+        "links": {"github": "https://github.com/jane", "linkedin": None, "portfolio": None},
+    }
     assert data["job"]["title"] == "Backend Engineer" and data["job"]["slug"] == "backend-engineer"
+    assert data["job"]["public_url"].endswith("/jobs/backend-engineer")
+    assert data["admin_url"].endswith(f"/admin/applicants?selected={application.id}")
     assert data["stage"] == "new" and data["source"] == "linkedin"
+    assert data["applied_at"] == data["created_at"] == "2026-10-01T09:00:00+00:00"
+    assert data["message"] == "Hi, I shipped two Next.js apps"
     assert data["quiz"] == {
         "status": "completed",
         "score_percent": 50,
         "completed_at": "2026-10-02T10:00:00+00:00",
         "flags": ["left the tab 2x"],
+        "summary": "Ganek screening: 50% (2 questions), completed 2026-10-02, 1 integrity note",
     }
     text = json.dumps(data)
-    for forbidden in ("correct_key", "question_ids", "q1", "detail", "message", "cv_object_key"):
+    for forbidden in (
+        "correct_key",
+        "question_ids",
+        "q1",
+        "raw-detail-text",
+        "detail",
+        "cv_object_key",
+        "internal note",
+        "rejection",
+        "screening_answers",
+        "sq_1",
+    ):
         assert forbidden not in text
+
+
+def test_payload_without_attempt_has_null_quiz() -> None:
+    application = payload_application(attempts=[])
+    application.message = None
+    application.candidate.links = {}
+    data = webhooks.application_payload(application, sample_company())
+    assert data["quiz"] is None
+    assert data["message"] is None
+    assert data["candidate"]["links"] == {"github": None, "linkedin": None, "portfolio": None}
+
+
+def _attempt(status: AttemptStatus, flags: int = 0, completed: bool = True) -> QuizAttempt:
+    done = status is AttemptStatus.COMPLETED
+    return QuizAttempt(
+        status=status,
+        score=0.83 if done else None,
+        completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC) if done and completed else None,
+        integrity={"flags": [{"summary": f"f{i}"} for i in range(flags)]},
+        question_ids=["a", "b", "c", "d"],
+    )
+
+
+@pytest.mark.parametrize(
+    ("attempt", "expected"),
+    [
+        (
+            _attempt(AttemptStatus.COMPLETED),
+            "Ganek screening: 83% (4 questions), completed 2026-10-02, no integrity notes",
+        ),
+        (
+            _attempt(AttemptStatus.COMPLETED, flags=2),
+            "Ganek screening: 83% (4 questions), completed 2026-10-02, 2 integrity notes",
+        ),
+        (_attempt(AttemptStatus.PENDING), "Ganek screening: not completed (status pending)"),
+        (_attempt(AttemptStatus.EXPIRED), "Ganek screening: not completed (status expired)"),
+        (
+            _attempt(AttemptStatus.COMPLETED, completed=False),
+            "Ganek screening: not completed (status completed)",
+        ),
+    ],
+)
+def test_quiz_summary_wording(attempt: QuizAttempt, expected: str) -> None:
+    assert webhooks.quiz_summary(attempt) == expected
 
 
 # --- DB-backed -------------------------------------------------------------
