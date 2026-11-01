@@ -95,6 +95,7 @@ class CompanySettingsUpdate(BaseModel):
     privacy_contact_email: EmailStr | None = None
     retention_months: int | None = Field(default=None, ge=1, le=24)
     privacy_policy_url: HttpUrl | None = None
+    stage_limit_days: int | None = Field(default=None, ge=1, le=60)
     # a column, not a settings key (0039): the list replaces the company set;
     # omitted = untouched. Validated like the job's list (ids filled, <= 20).
     screening_questions: list[ScreeningQuestion] | None = None
