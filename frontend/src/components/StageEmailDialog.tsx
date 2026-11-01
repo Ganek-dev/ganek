@@ -11,6 +11,8 @@ import {
   type EmailTemplate,
   type StageFields,
 } from "@/lib/api";
+import { SendAfterRadios } from "@/components/SendAfterRadios";
+import { presetSendAfter, type SendAfterPreset } from "@/lib/send-after";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 
 /** Confirm step before a stage move (card "Candidate emails", PR 1 + 2).
@@ -31,6 +33,15 @@ const CONFIRM_LABEL: Record<Stage, string> = {
 const CONFIRM_LABEL_SILENT: Record<Stage, string> = {
   interview: "Move to Interview",
   rejected: "Reject",
+};
+const CONFIRM_LABEL_LATER: Record<Exclude<SendAfterPreset, "now">, string> = {
+  tomorrow: "Reject and email tomorrow morning",
+  in_3_days: "Reject and email in 3 days",
+};
+const MAIL_ONLY_LABEL: Record<SendAfterPreset, string> = {
+  now: "Send email",
+  tomorrow: "Send email tomorrow morning",
+  in_3_days: "Send email in 3 days",
 };
 // the candidate's own withdrawal sets "withdrew"; a recruiter never picks it
 const RECRUITER_REASONS = REJECTION_REASONS.filter((reason) => reason.key !== "withdrew");
@@ -55,7 +66,9 @@ export function StageEmailDialog({
   applicationId,
   candidateName,
   stage,
-  email,
+  email: emailProp,
+  defaultPreset = "now",
+  mailOnly = false,
   onConfirm,
   onCancel,
 }: {
@@ -65,9 +78,17 @@ export function StageEmailDialog({
   stage: Stage;
   /** Whether confirming also emails the candidate (the panel checkbox). */
   email: boolean;
+  /** Preselected "When" option for a rejection email. */
+  defaultPreset?: SendAfterPreset;
+  /** Mail without a stage move (already rejected): no reason or note, the
+   * email is always on. */
+  mailOnly?: boolean;
   onConfirm: (fields: StageFields) => void;
   onCancel: () => void;
 }) {
+  const email = emailProp || mailOnly;
+  const [preset, setPreset] = useState<SendAfterPreset>(defaultPreset);
+  const showWhen = email && stage === "rejected";
   const [reason, setReason] = useState<RejectionReason | "">("");
   const [note, setNote] = useState("");
   // the workspace's templates for this kind (PR 3); null until listed, [] when
@@ -132,6 +153,7 @@ export function StageEmailDialog({
     onConfirm({
       rejectionReason: reason || null,
       rejectionNote: note.trim() || null,
+      ...(showWhen ? { sendAfter: presetSendAfter(preset) } : {}),
       ...(hasTemplates ? { templateId } : {}),
       ...(edit ? { subject: edit.subject.trim(), body: edit.body.trim() } : {}),
     });
@@ -145,7 +167,11 @@ export function StageEmailDialog({
     >
       <DialogContent className="max-w-lg">
         <DialogTitle>
-          {email ? `Email to ${candidateName}` : `${CONFIRM_LABEL_SILENT[stage]} ${candidateName}`}
+          {mailOnly
+            ? `Send rejection email to ${candidateName}`
+            : email
+              ? `Email to ${candidateName}`
+              : `${CONFIRM_LABEL_SILENT[stage]} ${candidateName}`}
         </DialogTitle>
         <DialogDescription>
           {email ? "This is the email the candidate receives when you confirm." : "No email will be sent."}
@@ -237,7 +263,12 @@ export function StageEmailDialog({
           )}
         </div>
         ) : null}
-        {stage === "rejected" ? (
+        {showWhen ? (
+          <div className="mt-4">
+            <SendAfterRadios value={preset} onChange={setPreset} />
+          </div>
+        ) : null}
+        {stage === "rejected" && !mailOnly ? (
           <div className="mt-4 space-y-2">
             <label className="block text-[13px] font-medium text-g700">
               Reason (internal, optional)
@@ -280,7 +311,13 @@ export function StageEmailDialog({
             disabled={(email && state.kind === "loading") || editBlank}
             className="inline-flex h-8 items-center rounded-md bg-accent px-3.5 text-[13px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
           >
-            {email ? CONFIRM_LABEL[stage] : CONFIRM_LABEL_SILENT[stage]}
+            {mailOnly
+              ? MAIL_ONLY_LABEL[preset]
+              : email
+                ? stage === "rejected" && preset !== "now"
+                  ? CONFIRM_LABEL_LATER[preset]
+                  : CONFIRM_LABEL[stage]
+                : CONFIRM_LABEL_SILENT[stage]}
           </button>
         </div>
       </DialogContent>

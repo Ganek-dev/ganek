@@ -55,6 +55,7 @@ function renderDialog(
   stage: "interview" | "rejected",
   handlers = { onConfirm: vi.fn(), onCancel: vi.fn() },
   email = true,
+  extra: { defaultPreset?: "now" | "tomorrow" | "in_3_days"; mailOnly?: boolean } = {},
 ) {
   render(
     <StageEmailDialog
@@ -63,6 +64,7 @@ function renderDialog(
       candidateName="Jane Applicant"
       stage={stage}
       email={email}
+      {...extra}
       onConfirm={handlers.onConfirm}
       onCancel={handlers.onCancel}
     />,
@@ -71,6 +73,7 @@ function renderDialog(
 }
 
 const NO_FIELDS = { rejectionReason: null, rejectionNote: null };
+const REJECT_NOW = { ...NO_FIELDS, sendAfter: null };
 
 describe("StageEmailDialog", () => {
   beforeEach(() => {
@@ -107,7 +110,7 @@ describe("StageEmailDialog", () => {
     await screen.findByText("Your application to ACME");
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(onConfirm).toHaveBeenCalledWith(NO_FIELDS);
+    expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
@@ -119,7 +122,7 @@ describe("StageEmailDialog", () => {
     const confirm = screen.getByRole("button", { name: "Reject and send email" });
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
-    expect(onConfirm).toHaveBeenCalledWith(NO_FIELDS);
+    expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
   });
 
   it("shows a skeleton while loading and keeps confirm disabled", async () => {
@@ -151,6 +154,7 @@ describe("StageEmailDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith({
       rejectionReason: "skills_gap",
       rejectionNote: "Take-home below the bar",
+      sendAfter: null,
     });
   });
 
@@ -158,7 +162,7 @@ describe("StageEmailDialog", () => {
     const { onConfirm } = renderDialog("rejected");
     await screen.findByText("Your application to ACME");
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
-    expect(onConfirm).toHaveBeenCalledWith(NO_FIELDS);
+    expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
   });
 
   it("rejects without an email when the checkbox was off", async () => {
@@ -215,7 +219,7 @@ describe("StageEmailDialog", () => {
     );
     await screen.findByText("Your application to ACME");
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
-    expect(onConfirm).toHaveBeenCalledWith({ ...NO_FIELDS, templateId: "builtin" });
+    expect(onConfirm).toHaveBeenCalledWith({ ...REJECT_NOW, templateId: "builtin" });
   });
 
   it("Edit this email prefills the subject and the body from the preview and sends them as overrides", async () => {
@@ -233,7 +237,7 @@ describe("StageEmailDialog", () => {
     await userEvent.type(subject, " - personal");
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
     expect(onConfirm).toHaveBeenCalledWith({
-      ...NO_FIELDS,
+      ...REJECT_NOW,
       subject: "Your application to ACME - personal",
       body: REJECTION.body,
     });
@@ -247,7 +251,7 @@ describe("StageEmailDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Use the template text" }));
     expect(await screen.findByTestId("stage-email-text")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Reject and send email" }));
-    expect(onConfirm).toHaveBeenCalledWith(NO_FIELDS);
+    expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
   });
 
   it("keeps confirm disabled while an edited field is blank and disables the template select", async () => {
@@ -261,5 +265,61 @@ describe("StageEmailDialog", () => {
     expect(screen.getByRole("button", { name: "Reject and send email" })).toBeDisabled();
     await userEvent.type(body, "Back again");
     expect(screen.getByRole("button", { name: "Reject and send email" })).toBeEnabled();
+  });
+
+  it("offers When only for a rejection with email on, defaulting to send now", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderDialog("rejected");
+    expect(screen.getByRole("radio", { name: "Send now" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /^Tomorrow morning \(/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^In 3 days \(/ })).toBeInTheDocument();
+    await screen.findByText(/Thank you, Jane/);
+    await user.click(screen.getByRole("button", { name: "Reject and send email" }));
+    expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
+  });
+
+  it("has no When group for an interview move or with email off", () => {
+    const { unmount } = render(
+      <StageEmailDialog open applicationId="a" candidateName="J" stage="interview" email onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    );
+    expect(screen.queryByRole("radio")).toBeNull();
+    unmount();
+    renderDialog("rejected", undefined, false);
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
+  it("tomorrow morning passes an ISO 09:00 and changes the confirm label", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderDialog("rejected");
+    await user.click(screen.getByRole("radio", { name: /^Tomorrow morning/ }));
+    await screen.findByText(/Thank you, Jane/);
+    await user.click(screen.getByRole("button", { name: /Reject and email tomorrow morning/ }));
+    expect(onConfirm.mock.calls[0][0].sendAfter).toMatch(/T09:00:00/);
+  });
+
+  it("in 3 days changes the confirm label", async () => {
+    const user = userEvent.setup();
+    renderDialog("rejected");
+    await user.click(screen.getByRole("radio", { name: /^In 3 days/ }));
+    expect(screen.getByRole("button", { name: "Reject and email in 3 days" })).toBeInTheDocument();
+  });
+
+  it("starts on the default preset", () => {
+    renderDialog("rejected", undefined, true, { defaultPreset: "in_3_days" });
+    expect(screen.getByRole("radio", { name: /^In 3 days/ })).toBeChecked();
+  });
+
+  it("mail-only mode hides the reason and says Send email", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderDialog("rejected", undefined, true, { mailOnly: true });
+    expect(screen.getByText("Send rejection email to Jane Applicant")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Reason/)).toBeNull();
+    expect(screen.queryByLabelText("Internal note")).toBeNull();
+    await user.click(screen.getByRole("radio", { name: /^Tomorrow morning/ }));
+    expect(screen.getByRole("button", { name: "Send email tomorrow morning" })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Send now" }));
+    await screen.findByText(/Thank you, Jane/);
+    await user.click(screen.getByRole("button", { name: "Send email" }));
+    expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
   });
 });
