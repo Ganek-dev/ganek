@@ -367,10 +367,35 @@ async def set_stage(
 ) -> Application:
     company = actor.company
     application = await _get_or_404(db, company, application_id)
-    # bulk-reject silently skips already-rejected rows; the single route must
-    # not re-send the stage email either when nothing actually changed
+    # bulk-reject silently skips already-rejected rows; the single route only
+    # re-sends on an explicit notify (the mail-again branch below)
     stage_changed = application.stage is not payload.stage
     previous_stage = application.stage
+    if (
+        not stage_changed
+        and payload.stage is ApplicationStage.REJECTED
+        and payload.notify_candidate
+    ):
+        # mail again on an already rejected row (a silent reject, or a cancelled
+        # hold): queue the email only; no stage move, activity or webhook
+        if payload.has_reason:
+            raise HTTPException(
+                status_code=422, detail="A reason or note cannot change with the email"
+            )
+        if await scheduled_emails.scheduled_rejection(db, application) is not None:
+            raise HTTPException(status_code=409, detail="A rejection email is already scheduled")
+        await _check_template(db, company, payload.stage, payload.template_id)
+        await _queue_stage_email(
+            db,
+            company,
+            application,
+            payload.stage,
+            payload.template_id,
+            override_subject=payload.subject,
+            override_body=payload.body,
+            send_after=payload.send_after,
+        )
+        return application
     if payload.notify_candidate and stage_changed:
         await _check_template(db, company, payload.stage, payload.template_id)
     updated = await applications_service.set_stage(

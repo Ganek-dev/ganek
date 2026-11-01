@@ -338,14 +338,18 @@ async def test_stage_change_emails_candidate_only_when_asked(
     assert resp.status_code == 200
     assert len(advances) == 1 and len(rejections) == 1
 
-    # re-picking the CURRENT stage never re-sends - parity with bulk-reject,
-    # which silently skips already-rejected rows (M5.7 H5 ledger item)
+    # re-picking the CURRENT stage with notify is the explicit "mail again" call
+    # on an already rejected row: it queues the email, nothing else moves
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
     assert resp.status_code == 200
     assert len(rejections) == 2
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
     assert resp.status_code == 200
-    assert len(rejections) == 2
+    assert len(rejections) == 3
+    # ...and without notify it stays a no-op
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": False})
+    assert resp.status_code == 200
+    assert len(rejections) == 3
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")

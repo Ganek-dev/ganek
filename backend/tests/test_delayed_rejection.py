@@ -5,12 +5,16 @@ bulk-stage routes holds the mail as a scheduled outbox row; bad values are a
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+from app.models import Application
 from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
 from tests.test_bulk_reject import _company_with_applicants, _ids_by_email
@@ -313,3 +317,105 @@ async def test_member_can_cancel_and_reviewer_cannot(client: AsyncClient) -> Non
     resp = await client.post(_cancel_url(a, row_a["id"]))
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "cancelled"
+
+
+async def _decided_at(app_id: str) -> datetime | None:
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            row = (
+                await db.execute(select(Application).where(Application.id == UUID(app_id)))
+            ).scalar_one()
+            return row.decided_at
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_rejected_row_can_be_mailed_again_without_a_stage_change(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    endpoint = (
+        await client.post(
+            "/api/v1/webhooks",
+            json={
+                "name": "Zap",
+                "url": "https://hooks.example.com/zap",
+                "events": ["stage.changed"],
+            },
+        )
+    ).json()
+    url = f"/api/v1/applications/{app_id}/stage"
+
+    # rejected silently: no mail yet
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": False})
+    assert resp.status_code == 200, resp.text
+    assert await _emails(client, app_id) == []
+    decided = await _decided_at(app_id)
+    assert decided is not None
+    deliveries = (await client.get(f"/api/v1/webhooks/{endpoint['id']}/deliveries")).json()
+
+    when = _when(days=1)
+    again = await client.patch(
+        url, json={"stage": "rejected", "notify_candidate": True, "send_after": when}
+    )
+    assert again.status_code == 200, again.text
+    assert again.json()["stage"] == "rejected"
+    assert sent == []
+    (row,) = await _emails(client, app_id)
+    assert row["status"] == "scheduled"
+    assert datetime.fromisoformat(row["send_after"]) == datetime.fromisoformat(when)
+
+    changed = [
+        a for a in (await client.get("/api/v1/activity")).json() if a["type"] == "stage.changed"
+    ]
+    assert len([a for a in changed if a["application_id"] == app_id]) == 1
+    assert await _decided_at(app_id) == decided
+    after = (await client.get(f"/api/v1/webhooks/{endpoint['id']}/deliveries")).json()
+    assert len(after) == len(deliveries) == 1
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_mail_again_refuses_a_reason_and_stays_a_noop_without_notify(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    url = f"/api/v1/applications/{app_id}/stage"
+    await client.patch(url, json={"stage": "rejected", "notify_candidate": False})
+
+    resp = await client.patch(
+        url,
+        json={
+            "stage": "rejected",
+            "notify_candidate": True,
+            "send_after": _when(days=1),
+            "rejection_reason": "skills_gap",
+        },
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "A reason or note cannot change with the email"}
+
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": False})
+    assert resp.status_code == 200, resp.text
+    assert await _emails(client, app_id) == []
+    assert sent == []
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_mail_again_twice_is_409_and_keeps_one_scheduled_row(
+    client: AsyncClient,
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    url = f"/api/v1/applications/{app_id}/stage"
+    await client.patch(url, json={"stage": "rejected", "notify_candidate": False})
+    body = {"stage": "rejected", "notify_candidate": True, "send_after": _when(days=1)}
+
+    assert (await client.patch(url, json=body)).status_code == 200
+    second = await client.patch(url, json=body)
+    assert second.status_code == 409
+    assert second.json() == {"detail": "A rejection email is already scheduled"}
+    assert [r["status"] for r in await _emails(client, app_id)] == ["scheduled"]
