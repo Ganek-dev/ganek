@@ -217,7 +217,9 @@ def test_sample_payload_matches_the_real_shape() -> None:
     assert set(sample["job"]) == set(real["job"])
     assert set(sample["quiz"]) == set(real["quiz"])
     assert sample["job"]["public_url"].endswith("/jobs/sample-job")
-    assert "cv" in sample and sample["cv"]["filename"] == "sample-candidate-cv.pdf"
+    assert set(sample["cv"]) == set(real["cv"])
+    assert sample["cv"]["filename"] == "sample-candidate-cv.pdf"
+    assert sample["cv"]["url"].endswith(f"/applications/{webhooks.SAMPLE_APPLICATION_ID}/cv")
     assert sample["stage"] == "interview" and sample["previous_stage"] == "screening"
     assert sample["candidate"]["email"] == "sample@example.invalid"
     # the hand-built summary must not drift from the real wording

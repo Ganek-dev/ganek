@@ -104,8 +104,10 @@ async def test_api_key_fetches_the_cv_and_is_logged(client: AsyncClient) -> None
 
     assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
     rows = (await client.get(f"/api/v1/applications/{app_id}/access-log")).json()
-    assert [r["action"] for r in rows].count("cv_download") >= 1
-    assert {r["api_key_name"] for r in rows if r["action"] == "cv_download"} >= {"ATS sync", "Zap"}
+    cv_rows = [r for r in rows if r["action"] == "cv_download"]
+    # /cv and /cv-url by one key collapse into a single row inside the window.
+    assert len(cv_rows) == 2
+    assert {r["api_key_name"] for r in cv_rows} == {"ATS sync", "Zap"}
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")

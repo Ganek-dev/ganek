@@ -55,6 +55,12 @@ CASES: list[tuple[str, Builder, str, str]] = [
         "/api/v1/public/companies/acme/logo/0123456789abcdef",
         "/api/v1/public/companies/acme/logo/0123456789abcdef",
     ),
+    (
+        "cv_api",
+        lambda c: urls.application_cv_api_url(c, "app-1"),
+        "/api/v1/applications/app-1/cv",
+        "/api/v1/applications/app-1/cv",
+    ),
 ]
 
 
