@@ -18,6 +18,7 @@ from app.api import (
     public,
     questionnaires,
     questions,
+    scorecards,
     stats,
     users,
     webhooks,
@@ -94,6 +95,7 @@ app.include_router(google_auth.router, prefix="/api/v1")
 app.include_router(health_api.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
+app.include_router(scorecards.router, prefix="/api/v1")
 app.include_router(questionnaires.router, prefix="/api/v1")
 app.include_router(questions.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
