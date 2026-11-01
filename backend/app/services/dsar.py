@@ -24,6 +24,7 @@ from app.models import (
     Interview,
 )
 from app.models.quiz import QuizAttempt
+from app.models.scorecard import Scorecard
 from app.schemas.dsar import (
     DsarActivityEntry,
     DsarAnswer,
@@ -32,6 +33,7 @@ from app.schemas.dsar import (
     DsarBundle,
     DsarInterview,
     DsarNote,
+    DsarScorecard,
 )
 from app.schemas.public import StatusScreeningAnswer
 from app.services import company as company_service
@@ -46,6 +48,19 @@ def _scrub_integrity(integrity: dict[str, Any] | None) -> dict[str, Any]:
         if isinstance(data.get(section), dict):
             data[section].pop("by_user_id", None)
     return data
+
+
+def _scorecard_out(row: Scorecard) -> DsarScorecard:
+    assert row.submitted_at is not None and row.recommendation is not None  # submitted rows
+    return DsarScorecard(
+        submitted_at=row.submitted_at,
+        criteria=[
+            {"label": c["label"], "rating": row.ratings.get(str(c["id"]))}
+            for c in row.criteria_snapshot
+        ],
+        recommendation=row.recommendation.value,
+        comment=row.comment,
+    )
 
 
 def _attempt_out(attempt: QuizAttempt) -> DsarAttempt:
@@ -102,6 +117,7 @@ async def export_candidate(
 
     notes: dict[uuid.UUID, list[ApplicationNote]] = {}
     interviews: dict[uuid.UUID, list[Interview]] = {}
+    scorecard_rows: dict[uuid.UUID, list[Scorecard]] = {}
     activity_rows: dict[uuid.UUID, list[ActivityLog]] = {}
     if app_ids:
         for note in (
@@ -116,6 +132,22 @@ async def export_candidate(
             .all()
         ):
             notes.setdefault(note.application_id, []).append(note)
+        # submitted rows only: open, declined and dismissed hold no assessment
+        for scorecard in (
+            (
+                await db.execute(
+                    select(Scorecard)
+                    .where(
+                        Scorecard.application_id.in_(app_ids),
+                        Scorecard.submitted_at.is_not(None),
+                    )
+                    .order_by(Scorecard.submitted_at)
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            scorecard_rows.setdefault(scorecard.application_id, []).append(scorecard)
         for interview in (
             (
                 await db.execute(
@@ -194,6 +226,7 @@ async def export_candidate(
                     DsarNote(body=note.body, created_at=note.created_at)
                     for note in notes.get(application.id, [])
                 ],
+                scorecards=[_scorecard_out(row) for row in scorecard_rows.get(application.id, [])],
                 activity=[
                     DsarActivityEntry(type=row.type, created_at=row.created_at)
                     for row in activity_rows.get(application.id, [])

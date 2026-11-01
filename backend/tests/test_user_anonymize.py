@@ -7,7 +7,7 @@ stays; the person is gone.
 """
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -149,3 +149,80 @@ async def test_anonymize_guards(client: AsyncClient, db_session: AsyncSession) -
     resp = await client.post(f"/api/v1/users/{member_id}/anonymize")
     assert resp.status_code == 409
     assert "interview" in resp.json()["detail"].lower()
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_anonymize_dismisses_open_scorecards_and_relabels(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from sqlalchemy import select
+
+    from app.models import ActivityLog, Application, Scorecard, User, UserRole
+    from app.services import scorecards as svc
+    from tests.test_scorecards_api import _company
+
+    co = await _company(client, db_session)  # logged in as the admin
+    other = User(
+        company_id=(await db_session.get(User, co.admin_id)).company_id,  # type: ignore[union-attr]
+        email=f"other.rev-{uuid4().hex[:6]}@ganek-ci.dev",
+        password_hash="x",
+        role=UserRole.MEMBER,
+    )
+    db_session.add(other)
+    await db_session.commit()
+    other_label = other.display_label
+
+    member = await db_session.get(User, co.member_id)
+    assert member is not None
+    member_label = member.display_label
+    app_row = await db_session.get(Application, co.application_id)
+    assert app_row is not None
+    admin = await db_session.get(User, co.admin_id)
+    assert admin is not None
+
+    # an open row for the member and a submitted row for the other reviewer
+    # on the same application; plus a submitted row of the member's elsewhere
+    await svc.request(db_session, application=app_row, reviewer=member, requested_by=admin)
+    other_row = await svc.request(
+        db_session, application=app_row, reviewer=other, requested_by=admin
+    )
+    await svc.submit(
+        db_session,
+        other_row,
+        ratings={co.criterion_id: 4},
+        recommendation=svc.Recommendation.STRONG_YES,
+        comment="Great",
+    )
+    await db_session.commit()
+
+    resp = await client.post(f"/api/v1/users/{co.member_id}/anonymize")
+    assert resp.status_code == 204, resp.text
+
+    listed = (await client.get(f"/api/v1/scorecards/applications/{co.application_id}")).json()
+    by_state = {row["state"]: row for row in listed}
+    assert by_state["dismissed"]["reviewer_label"] == "Former teammate"
+    assert by_state["submitted"]["reviewer_label"] == other_label
+    assert by_state["submitted"]["comment"] == "Great"
+
+    db_session.expire_all()
+    dismissed = (
+        await db_session.execute(
+            select(Scorecard).where(Scorecard.reviewer_user_id == UUID(co.member_id))
+        )
+    ).scalar_one()
+    assert str(dismissed.dismissed_by_user_id) == co.admin_id
+
+    rows = list(
+        (
+            await db_session.execute(
+                select(ActivityLog).where(
+                    ActivityLog.application_id == UUID(co.application_id),
+                    ActivityLog.type.like("scorecard.%"),
+                )
+            )
+        ).scalars()
+    )
+    labels = [r.payload.get("reviewer_label") for r in rows]
+    assert member_label not in labels
+    assert labels.count("Former teammate") == 2  # requested + dismissed
+    assert labels.count(other_label) == 2  # requested + submitted, untouched

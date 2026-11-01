@@ -431,3 +431,50 @@ async def test_erase_succeeds_even_when_the_cancel_notice_cannot_be_queued(
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"applications": 1, "cancel_notices": 0}
     assert (await client.get(f"/api/v1/applications/{app_id}")).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_erase_removes_scorecards(client: AsyncClient, db_session: AsyncSession) -> None:
+    from datetime import UTC, datetime
+    from uuid import UUID
+
+    from sqlalchemy import func
+
+    from app.models import Application, User
+    from app.models.scorecard import Scorecard
+
+    await _company_with_applications(client, n_jobs=1)
+    app_id = (await client.get("/api/v1/applications")).json()["items"][0]["id"]
+    application = await db_session.get(Application, UUID(app_id))
+    assert application is not None
+    reviewer = (
+        await db_session.execute(
+            select(User).where(User.company_id == application.company_id).limit(1)
+        )
+    ).scalar_one()
+    db_session.add(
+        Scorecard(
+            company_id=application.company_id,
+            application_id=application.id,
+            job_id=application.job_id,
+            reviewer_user_id=reviewer.id,
+            due_from=datetime.now(UTC),
+            criteria_snapshot=[{"id": "aaaa1111", "label": "Problem solving"}],
+        )
+    )
+    await db_session.commit()
+
+    async def count() -> int:
+        return (
+            await db_session.execute(
+                select(func.count())
+                .select_from(Scorecard)
+                .where(Scorecard.application_id == UUID(app_id))
+            )
+        ).scalar_one()
+
+    assert await count() == 1
+    resp = await client.post(f"/api/v1/applications/{app_id}/erase-candidate")
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    assert await count() == 0

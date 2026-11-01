@@ -6,10 +6,11 @@ authors) - and bank secrets (correct_key) must never appear.
 """
 
 import json
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from tests.db import database_reachable, s3_reachable
@@ -155,3 +156,73 @@ async def test_dsar_is_admin_only_and_tenant_scoped(client: AsyncClient) -> None
     )
     assert resp.status_code == 201
     assert (await client.get(f"/api/v1/applications/{app_id}/dsar-export")).status_code == 404
+
+
+async def _seed_scorecards(db: AsyncSession, application_id: str) -> tuple[str, str]:
+    """One submitted and one open scorecard on the application. Returns the
+    two reviewers' emails (neither may reach the export)."""
+    from datetime import UTC, datetime
+
+    from app.models import Application, User, UserRole
+    from app.models.scorecard import Recommendation, Scorecard
+
+    application = await db.get(Application, UUID(application_id))
+    assert application is not None
+    reviewers = [
+        User(
+            company_id=application.company_id,
+            email=f"rev-{uuid4().hex[:8]}@ganek-ci.dev",
+            password_hash="x",
+            role=UserRole.MEMBER,
+            display_name=f"Reviewer{i}",
+        )
+        for i in range(2)
+    ]
+    db.add_all(reviewers)
+    await db.flush()
+    criteria = [
+        {"id": "aaaa1111", "label": "Problem solving"},
+        {"id": "bbbb2222", "label": "Communication"},
+    ]
+    for reviewer, submitted in zip(reviewers, (True, False), strict=True):
+        db.add(
+            Scorecard(
+                company_id=application.company_id,
+                application_id=application.id,
+                job_id=application.job_id,
+                reviewer_user_id=reviewer.id,
+                due_from=datetime.now(UTC),
+                criteria_snapshot=criteria,
+                ratings={"aaaa1111": 3} if submitted else {},
+                recommendation=Recommendation.YES if submitted else None,
+                comment="Clear thinker" if submitted else None,
+                submitted_at=datetime.now(UTC) if submitted else None,
+            )
+        )
+    await db.commit()
+    return reviewers[0].email, reviewers[1].email
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_bundle_includes_submitted_scorecards_without_reviewer(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    app_id, _email, _creds = await _company_with_completed_quiz(client)
+    emails = await _seed_scorecards(db_session, app_id)
+
+    resp = await client.get(f"/api/v1/applications/{app_id}/dsar-export")
+    assert resp.status_code == 200, resp.text
+    application = resp.json()["applications"][0]
+
+    assert len(application["scorecards"]) == 1  # the open row is not exported
+    card = application["scorecards"][0]
+    assert set(card) == {"submitted_at", "criteria", "recommendation", "comment"}
+    assert card["criteria"] == [
+        {"label": "Problem solving", "rating": 3},
+        {"label": "Communication", "rating": None},
+    ]
+    assert card["recommendation"] == "yes"
+    assert card["comment"] == "Clear thinker"
+    dump = json.dumps(card)
+    for needle in (*emails, "Reviewer0", "Reviewer1", "reviewer"):
+        assert needle not in dump

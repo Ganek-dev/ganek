@@ -122,3 +122,12 @@ async def test_template_columns_default_empty_list(db_session: AsyncSession) -> 
     await db_session.refresh(job)
     assert company.scorecard_template == []
     assert job.scorecard_template == []
+
+
+def test_display_label_former_teammate() -> None:
+    live = User(email="jane.doe@acme.example", display_name="Jane D.")
+    assert live.is_anonymized is False
+    assert live.display_label == "Jane D."
+    gone = User(email=f"deleted-{uuid4().hex}@invalid", display_name=None)
+    assert gone.is_anonymized is True
+    assert gone.display_label == "Former teammate"
