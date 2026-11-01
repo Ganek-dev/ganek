@@ -97,6 +97,9 @@ def payload_application(*, attempts: list[QuizAttempt] | None = None) -> Applica
         rejection_note="internal note",
         screening_answers=[{"question_id": "sq_1", "answer": "no", "match": False}],
         quiz_attempts=attempts,
+        cv_object_key="cvs/x/y.pdf",
+        cv_filename="jane-cv.pdf",
+        cv_size=184233,
     )
 
 
@@ -113,6 +116,11 @@ def test_application_payload_carries_summary_only() -> None:
     assert data["job"]["title"] == "Backend Engineer" and data["job"]["slug"] == "backend-engineer"
     assert data["job"]["public_url"].endswith("/jobs/backend-engineer")
     assert data["admin_url"].endswith(f"/admin/applicants?selected={application.id}")
+    assert {key: value for key, value in data["cv"].items() if key != "url"} == {
+        "filename": "jane-cv.pdf",
+        "size_bytes": 184233,
+    }
+    assert data["cv"]["url"].endswith(f"/api/v1/applications/{application.id}/cv")
     assert data["stage"] == "new" and data["source"] == "linkedin"
     assert data["applied_at"] == data["created_at"] == "2026-10-01T09:00:00+00:00"
     assert data["message"] == "Hi, I shipped two Next.js apps"
@@ -131,6 +139,7 @@ def test_application_payload_carries_summary_only() -> None:
         "raw-detail-text",
         "detail",
         "cv_object_key",
+        "cvs/x/y.pdf",
         "internal note",
         "rejection",
         "screening_answers",
@@ -208,6 +217,7 @@ def test_sample_payload_matches_the_real_shape() -> None:
     assert set(sample["job"]) == set(real["job"])
     assert set(sample["quiz"]) == set(real["quiz"])
     assert sample["job"]["public_url"].endswith("/jobs/sample-job")
+    assert "cv" in sample and sample["cv"]["filename"] == "sample-candidate-cv.pdf"
     assert sample["stage"] == "interview" and sample["previous_stage"] == "screening"
     assert sample["candidate"]["email"] == "sample@example.invalid"
     # the hand-built summary must not drift from the real wording

@@ -74,6 +74,11 @@ def admin_applicant_url(company: Company, application_id: object) -> str:
     return f"{_base(company)}/admin/applicants?selected={application_id}"
 
 
+def application_cv_api_url(company: Company, application_id: object) -> str:
+    """API-key download of an applicant's CV (the webhook payload's ``cv.url``)."""
+    return f"{_base(company)}{API_PREFIX}/applications/{application_id}/cv"
+
+
 def scorecard_url(company: Company, application_id: object, *, reviewer: bool) -> str:
     """Where a scorecard request lands: staff open the applicant with the
     scorecard card focused, a reviewer-role user gets the slim review page."""
