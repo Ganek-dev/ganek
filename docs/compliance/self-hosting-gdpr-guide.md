@@ -122,6 +122,10 @@ candidate's personal data and are included in the export (bodies, without
 author names). The notes UI reminds your team; make it culture: factual,
 professional, nothing you wouldn't show the person.
 
+**Scorecards are disclosable too.** The access export includes submitted
+scorecard ratings, recommendation and comment, without the reviewer's name.
+Write them the way you write notes.
+
 **Rectification (Art. 16).** A candidate re-applying updates their name and
 links. Their email - the delivery channel for every quiz/status link - is
 fixed via **⋯ → Edit candidate email…** on the applicant.

@@ -388,3 +388,55 @@ async def test_worker_job_runs_and_cron_registered(db_session: AsyncSession) -> 
         or getattr(getattr(job, "coroutine", None), "__name__", "") == "purge_retention"
         for job in worker.WorkerSettings.cron_jobs
     )
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket")
+async def test_purge_removes_scorecards(db_session: AsyncSession) -> None:
+    from sqlalchemy import func
+
+    from app.models import User, UserRole
+    from app.models.scorecard import Scorecard
+    from app.services import retention
+
+    company = await _company(db_session, retention_months=6)
+    company_id = company.id
+    expired_app, _, _ = await _application(
+        db_session, company, stage="rejected", decided_days_ago=200
+    )
+    reviewer = User(
+        company_id=company_id,
+        email=f"rev-{uuid4().hex[:8]}@ganek-ci.dev",
+        password_hash="x",
+        role=UserRole.MEMBER,
+    )
+    db_session.add(reviewer)
+    await db_session.flush()
+    from app.models import Application
+
+    application = await db_session.get(Application, expired_app)
+    assert application is not None
+    db_session.add(
+        Scorecard(
+            company_id=company_id,
+            application_id=expired_app,
+            job_id=application.job_id,
+            reviewer_user_id=reviewer.id,
+            due_from=NOW - timedelta(days=210),
+            criteria_snapshot=[{"id": "aaaa1111", "label": "Problem solving"}],
+        )
+    )
+    await db_session.commit()
+
+    async def count() -> int:
+        return (
+            await db_session.execute(
+                select(func.count())
+                .select_from(Scorecard)
+                .where(Scorecard.application_id == expired_app)
+            )
+        ).scalar_one()
+
+    assert await count() == 1
+    await retention.run_purge(db_session, now=NOW)
+    db_session.expire_all()
+    assert await count() == 0

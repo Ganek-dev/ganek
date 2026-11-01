@@ -35,6 +35,10 @@ class ApplicationStage(enum.StrEnum):
     WITHDRAWN = "withdrawn"  # candidate-initiated via the status page
 
 
+# an application nobody is working on any more drops its pointers
+CLOSED_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED)
+
+
 class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "applications"
     __table_args__ = (

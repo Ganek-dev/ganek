@@ -65,9 +65,18 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return self.password_hash is not None
 
     @property
+    def is_anonymized(self) -> bool:
+        """The tombstone left by services.users.anonymize_user (same pattern
+        as the team-list filter: deleted-%@invalid)."""
+        return self.email.startswith("deleted-") and self.email.endswith("@invalid")
+
+    @property
     def display_label(self) -> str:
         """Display name when set, else the email local part made readable
-        (jane.doe -> Jane Doe): the one fallback every surface shares."""
+        (jane.doe -> Jane Doe): the one fallback every surface shares.
+        An anonymized teammate reads "Former teammate" everywhere."""
+        if self.is_anonymized:
+            return "Former teammate"
         if self.display_name:
             return self.display_name
         local = self.email.split("@")[0]

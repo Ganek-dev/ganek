@@ -48,6 +48,15 @@ class DsarNote(BaseModel):
     created_at: datetime
 
 
+class DsarScorecard(BaseModel):
+    # reviewer deliberately absent (as for notes): a teammate's identity is
+    # third-party data; criteria labels come from the row's own snapshot
+    submitted_at: datetime
+    criteria: list[dict[str, Any]]  # [{"label": str, "rating": int | None}]
+    recommendation: str
+    comment: str | None
+
+
 class DsarActivityEntry(BaseModel):
     # payloads deliberately absent: they can embed recruiter identifiers
     type: str
@@ -73,6 +82,7 @@ class DsarApplication(BaseModel):
     quiz_attempts: list[DsarAttempt]
     interviews: list[DsarInterview]
     notes: list[DsarNote]
+    scorecards: list[DsarScorecard] = []
     activity: list[DsarActivityEntry]
 
 

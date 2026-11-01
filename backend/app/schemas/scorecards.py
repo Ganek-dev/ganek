@@ -3,8 +3,13 @@ of criteria a reviewer rates; it lives on the company (default) and on each
 job (copied on create, never linked)."""
 
 import secrets
+import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
+
+from app.models.scorecard import Recommendation
+from app.services.scorecards import State
 
 MAX_CRITERIA = 20
 
@@ -47,3 +52,51 @@ def ensure_criterion_ids(criteria: list[ScorecardCriterion]) -> list[dict[str, s
             data["id"] = new_id
         out.append(data)
     return out
+
+
+class ScorecardRequestIn(BaseModel):
+    reviewer_user_id: uuid.UUID
+
+
+class ScorecardSubmitIn(BaseModel):
+    ratings: dict[str, int] = {}
+    recommendation: Recommendation
+    comment: str | None = Field(default=None, max_length=4000)
+
+
+class ScorecardOut(BaseModel):
+    """Staff-facing: ratings and recommendation never reach a candidate."""
+
+    id: uuid.UUID
+    application_id: uuid.UUID
+    reviewer_user_id: uuid.UUID | None
+    reviewer_label: str
+    requested_by_label: str | None
+    interview_id: uuid.UUID | None
+    requested_at: datetime
+    due_from: datetime
+    submitted_at: datetime | None
+    dismissed_at: datetime | None
+    declined_at: datetime | None
+    state: State
+    waiting_days: int
+    criteria: list[ScorecardCriterion]
+    ratings: dict[str, int]
+    recommendation: Recommendation | None
+    comment: str | None
+    edited: bool
+    can_edit: bool
+
+
+class MyScorecardOut(BaseModel):
+    id: uuid.UUID
+    application_id: uuid.UUID
+    candidate_name: str
+    job_title: str
+    requested_by_label: str | None
+    requested_at: datetime
+    due_from: datetime
+    waiting_days: int
+    state: State
+    submitted_at: datetime | None
+    href: str

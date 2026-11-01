@@ -1104,3 +1104,89 @@ def send_interview_reminder_interviewer(
         privacy_url=privacy_url,
     )
     send_email(to=to, subject=subject, body=body, html=html, ref=ref)
+
+
+def _scorecard_mail(
+    *,
+    to: str,
+    ref: str | None,
+    company_name: str,
+    subject: str,
+    heading: str,
+    line: str,
+    url: str,
+    brand_primary: str | None,
+) -> None:
+    """Shared body of the two scorecard mails: one sentence and one button."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_company = escape(company_name)
+    body = f"Hi,\n\n{line}\n\nOpen the scorecard: {url}\n\n- {company_name} (via Ganek)\n"
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        f"{escape(heading)}</h1>"
+        + _paragraph(escape(line))
+        + f'<a href="{escape(url)}" style="margin-top: 22px; display: block; text-align: center; '
+        f"height: 46px; line-height: 46px; background: {brand}; color: {brand_fg}; "
+        f'border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none;">'
+        f"Open scorecard</a>"
+    )
+    html = _card_html(
+        bar_color=brand, brand=brand, brand_fg=brand_fg, safe_company=safe_company, content=content
+    )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)
+
+
+def send_scorecard_request(
+    *,
+    to: str,
+    ref: str | None = None,
+    company_name: str,
+    requester_label: str,
+    candidate_name: str,
+    job_title: str,
+    url: str,
+    brand_primary: str | None,
+) -> None:
+    """A teammate asked for this person's scorecard (not editable in the
+    templates feature)."""
+    _scorecard_mail(
+        to=to,
+        ref=ref,
+        company_name=company_name,
+        subject=f"{requester_label} asked for your scorecard on {candidate_name} for {job_title}",
+        heading="Scorecard requested",
+        line=(
+            f"{requester_label} asked for your scorecard on {candidate_name} "
+            f"for the {job_title} position."
+        ),
+        url=url,
+        brand_primary=brand_primary,
+    )
+
+
+def send_scorecard_reminder(
+    *,
+    to: str,
+    ref: str | None = None,
+    company_name: str,
+    candidate_name: str,
+    job_title: str,
+    url: str,
+    waiting_days: int,
+    brand_primary: str | None,
+) -> None:
+    """One nudge after the reminder window; the worker sends it once per request."""
+    _scorecard_mail(
+        to=to,
+        ref=ref,
+        company_name=company_name,
+        subject=f"Still waiting on your scorecard for {candidate_name}",
+        heading="Still waiting on your scorecard",
+        line=(
+            f"Your scorecard on {candidate_name} for the {job_title} position "
+            f"has been waiting {waiting_days} days."
+        ),
+        url=url,
+        brand_primary=brand_primary,
+    )
