@@ -30,7 +30,7 @@ from app.models import (
 )
 from app.models.application import CLOSED_STAGES
 from app.models.scorecard import Recommendation
-from app.services import demo_seed, quiz, storage
+from app.services import demo_seed, pipeline_signals, quiz, reports, storage
 from tests.db import database_reachable, s3_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -307,3 +307,55 @@ async def test_reset_rebuilds_and_removes_the_old_cvs(db_session: AsyncSession) 
     assert await _count(db_session, Application, second.company_id) == 17
     assert await _count(db_session, Scorecard, second.company_id) == 3
     assert await _count(db_session, Scorecard, old_company_id) == 0
+
+
+async def _seed_company(db: AsyncSession) -> Company:
+    slug = f"acme-{uuid4().hex[:6]}"
+    await demo_seed.seed(db, slug=slug, password="ganek-demo-1")
+    return (await db.execute(select(Company).where(Company.slug == slug))).scalar_one()
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
+async def test_demo_board_shows_every_chip(db_session: AsyncSession) -> None:
+    company = await _seed_company(db_session)
+    now = datetime.now(UTC)
+    board = await pipeline_signals.board(db_session, company, now=now)
+    by_status = {job.status: job for job in board.jobs}
+    assert {"stalled", "attention", "on_track"} <= set(by_status)
+    assert board.totals.overdue >= 1
+
+    stalled = by_status["stalled"]
+    assert sum(stalled.live_by_stage.model_dump().values()) >= 1
+    assert stalled.last_movement_at is not None
+    assert now - stalled.last_movement_at >= timedelta(days=8)
+    assert stalled.new_7d == 0 and stalled.moved_7d == 0
+
+    attention = by_status["attention"]
+    assert attention.overdue >= 1
+    assert attention.last_movement_at is not None
+    assert now - attention.last_movement_at < timedelta(days=3)
+
+    # the nightly reset reruns this at a different "now": history is relative
+    assert board.stage_limit_days == pipeline_signals.DEFAULT_STAGE_LIMIT_DAYS
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
+async def test_demo_reports_have_history(db_session: AsyncSession) -> None:
+    company = await _seed_company(db_session)
+    out = await reports.reports(db_session, company, period="90d", job_id=None)
+    assert out.cohort.applications >= 10 and out.cohort.hires >= 1
+    reached = [step.reached for step in out.funnel]
+    assert all(a > b for a, b in zip(reached, reached[1:], strict=False)), reached
+    assert reached[-1] >= 1
+    # rejections leave from at least two different stages
+    assert len({step.stage for step in out.funnel if step.rejected_from > 0}) >= 2
+    assert any(t.n >= 3 and t.median_days is not None for t in out.time_in_stage)
+    assert len(out.diagnosis) == 2 and not out.diagnosis[0].startswith("Not enough")
+
+    # walking stages queues no mail: only the seeded, already SENT rows exist
+    mails = (
+        (await db_session.execute(select(EmailOutbox).where(EmailOutbox.company_id == company.id)))
+        .scalars()
+        .all()
+    )
+    assert all(row.status is EmailStatus.SENT for row in mails)

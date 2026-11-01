@@ -60,7 +60,14 @@ from app.schemas.applications import (
 )
 from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
-from app.services import access_log, activity, email_render, scheduled_emails, storage
+from app.services import (
+    access_log,
+    activity,
+    email_render,
+    pipeline_signals,
+    scheduled_emails,
+    storage,
+)
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
@@ -104,6 +111,7 @@ def _list_filters(
     since_days: int | None,
     screening: applications_service.ScreeningFilter | None = None,
     ids: tuple[uuid.UUID, ...] = (),
+    waiting_ids: frozenset[uuid.UUID] | None = None,
 ) -> applications_service.ListFilters:
     return applications_service.ListFilters(
         job_id=job_id,
@@ -116,7 +124,19 @@ def _list_filters(
         since_days=since_days,
         screening=screening,
         ids=ids,
+        waiting_ids=waiting_ids,
     )
+
+
+async def _waiting_ids(
+    db: DbSession,
+    company: ApiCompany,
+    waiting: pipeline_signals.Who | None,
+    job_id: uuid.UUID | None,
+) -> frozenset[uuid.UUID] | None:
+    if waiting is None:
+        return None
+    return await pipeline_signals.waiting_ids(db, company, waiting, job_id=job_id)
 
 
 def _parse_ids(raw: str | None) -> tuple[uuid.UUID, ...]:
@@ -151,6 +171,7 @@ async def list_applications(
     flagged: bool | None = None,
     since_days: int | None = Query(default=None, ge=1, le=365),
     screening: applications_service.ScreeningFilter | None = None,
+    waiting: pipeline_signals.Who | None = None,
     sort: applications_service.SortKey = "applied_desc",
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -165,6 +186,7 @@ async def list_applications(
         flagged=flagged,
         since_days=since_days,
         screening=screening,
+        waiting_ids=await _waiting_ids(db, company, waiting, job_id),
     )
     items, total = await applications_service.list_applications(
         db, company, filters=filters, sort=sort, limit=limit, offset=offset
@@ -193,6 +215,7 @@ async def export_applications(
     since_days: int | None = Query(default=None, ge=1, le=365),
     screening: applications_service.ScreeningFilter | None = None,
     ids: str | None = None,
+    waiting: pipeline_signals.Who | None = None,
 ) -> Response:
     """The current filter as a file (card D9): flat rows, no internal ids,
     quiz columns at summary level. Staff or an API key; one activity entry per
@@ -211,6 +234,7 @@ async def export_applications(
         since_days=since_days,
         screening=screening,
         ids=_parse_ids(ids),
+        waiting_ids=await _waiting_ids(db, company, waiting, job_id),
     )
     rows = await applications_service.export_applications(db, company, filters=filters)
     actor = await _session_user_or_none(request, db)

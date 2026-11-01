@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -94,3 +95,97 @@ class JobStats(BaseModel):
     views: ViewCounts
     views_by_source: dict[str, int]  # same labels as by_source (plus "other"), all time
     daily: list[DailyPoint]  # last 30 UTC days, oldest first, gaps filled
+
+
+BoardStatus = Literal["empty", "stalled", "attention", "on_track"]
+
+
+class StageCounts(BaseModel):
+    new: int = 0
+    screening: int = 0
+    interview: int = 0
+    offer: int = 0
+
+
+class BoardJob(BaseModel):
+    job_id: uuid.UUID
+    title: str
+    job_status: JobStatus  # published, or closed with live applications
+    status: BoardStatus  # the chip: about the process, never about a person
+    live_by_stage: StageCounts
+    waiting_on_team: int
+    longest_wait_days: int | None  # None when nobody waits on the team
+    overdue: int
+    new_7d: int  # rolling 7 days
+    moved_7d: int  # rolling 7 days
+    days_open: int | None  # published_at to now, or to closed_at for a closed job
+    last_movement_at: datetime | None  # all-time, not bounded by the stage limit window
+    reason: str  # the tooltip sentence, built server side
+
+
+class BoardTotals(BaseModel):
+    active_jobs: int
+    live: int
+    waiting_on_team: int
+    overdue: int
+    new_7d: int
+
+
+class BoardOut(BaseModel):
+    stage_limit_days: int
+    totals: BoardTotals
+    jobs: list[BoardJob]
+
+
+Period = Literal["30d", "90d", "12m", "all"]
+
+
+class CohortKpis(BaseModel):
+    applications: int
+    reached_interview: int
+    hires: int
+    median_time_to_hire_days: float | None  # None below n = 3
+    hires_n: int  # hires the median is based on
+
+
+class FunnelStep(BaseModel):
+    stage: ApplicationStage
+    reached: int  # held this stage or a later one, ever (a skipped stage counts)
+    pass_through: float | None  # percent (0-100) reached next / reached this; None when undefined
+    rejected_from: int
+    withdrawn_from: int
+    still_here: int  # live at this stage now
+
+
+class QuizLine(BaseModel):
+    invited: int
+    completed: int
+    expired: int
+
+
+class StageTime(BaseModel):
+    stage: ApplicationStage
+    median_days: float | None  # None below n = 3
+    n: int  # completed stays
+    oldest_live_days: int | None  # longest current stay among live candidates
+
+
+class SourceRow(BaseModel):
+    source: str  # NULL shows as "direct"
+    applications: int
+    reached_interview: int
+    hires: int
+
+
+class ReportsOut(BaseModel):
+    period: Period
+    job_id: uuid.UUID | None
+    cohort: CohortKpis
+    previous: CohortKpis | None  # None for "all"
+    funnel: list[FunnelStep]
+    quiz: QuizLine
+    time_in_stage: list[StageTime]
+    sources: list[SourceRow]
+    diagnosis: list[str]
+    quiz_scores: QuizCounts
+    weekly: list[WeeklyPoint]

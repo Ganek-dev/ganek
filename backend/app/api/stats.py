@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -8,7 +9,8 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import CurrentCompany, CurrentUser, DbSession, StaffCompany, StaffUser
 from app.models import Application, Interview, InterviewStatus
 from app.schemas.dashboard import QueueDismiss, QueueOut, TodayEvent, TodayOut
-from app.schemas.stats import StatsOverview
+from app.schemas.stats import BoardOut, Period, ReportsOut, StatsOverview
+from app.services import pipeline_signals, reports
 from app.services import queue as queue_service
 from app.services import stats as stats_service
 
@@ -18,6 +20,25 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 @router.get("/overview", response_model=StatsOverview)
 async def stats_overview(db: DbSession, company: StaffCompany) -> StatsOverview:
     return await stats_service.overview(db, company)
+
+
+@router.get("/board", response_model=BoardOut)
+async def stats_board(db: DbSession, company: StaffCompany) -> BoardOut:
+    """Dashboard open roles board: one row per published job (and closed jobs
+    that still hold live candidates), with the stalled/attention chip."""
+    return await pipeline_signals.board(db, company)
+
+
+@router.get("/reports", response_model=ReportsOut)
+async def stats_reports(
+    db: DbSession,
+    company: StaffCompany,
+    period: Period = "90d",
+    job_id: uuid.UUID | None = None,
+) -> ReportsOut:
+    """Reports page: the cohort of applications created in the period, its
+    funnel, time in stage, time to hire and sources, against the previous period."""
+    return await reports.reports(db, company, period=period, job_id=job_id)
 
 
 @router.get("/today", response_model=TodayOut)
@@ -67,7 +88,7 @@ async def queue(db: DbSession, company: CurrentCompany, user: CurrentUser) -> Qu
     """Dashboard "Your queue" derived items (card D13): published jobs
     without a quiz, completed quizzes with unreviewed integrity flags,
     interview invites the candidate has not booked, scorecards left waiting
-    3+ days (staff) and the user's own open scorecards. Minus what this user
+    3+ days and stalled roles (staff) and the user's own open scorecards. Minus what this user
     dismissed."""
     return QueueOut(items=await queue_service.visible_items(db, company, user))
 

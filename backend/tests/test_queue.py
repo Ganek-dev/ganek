@@ -7,16 +7,19 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    ActivityLog,
     Application,
     ApplicationStage,
     Candidate,
     Company,
     Job,
+    JobStatus,
     User,
     UserRole,
 )
 from app.models.scorecard import Scorecard
 from app.services import queue as queue_service
+from app.services.activity import STAGE_CHANGED
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -174,3 +177,101 @@ async def test_booking_request_hint_reads_from_your_interview(db_session: AsyncS
     await _row(db_session, env, due_days_ago=0, requested_by=None)
     items = await queue_service._scorecards_mine(db_session, env.company, env.member, now=NOW)
     assert items[0].hint == "Dev · from your interview"
+
+
+async def _stalled_job(
+    db: AsyncSession,
+    env: Env,
+    *,
+    base: datetime,
+    moved_days_ago: int = 8,
+    stage: ApplicationStage = ApplicationStage.SCREENING,
+) -> Job:
+    """A published job whose one live application last moved `moved_days_ago` days before `base`."""
+    job = Job(
+        company_id=env.company.id,
+        slug=f"s-{uuid4().hex[:8]}",
+        title="Stalled Dev",
+        status=JobStatus.PUBLISHED,
+        published_at=base - timedelta(days=30),
+    )
+    candidate = Candidate(
+        company_id=env.company.id, email=f"c-{uuid4().hex[:8]}@x.dev", name="Pawel"
+    )
+    db.add_all([job, candidate])
+    await db.flush()
+    moved = base - timedelta(days=moved_days_ago)
+    application = Application(
+        company_id=env.company.id,
+        job_id=job.id,
+        candidate_id=candidate.id,
+        cv_object_key=f"cvs/{uuid4().hex}.pdf",
+        cv_filename="cv.pdf",
+        cv_size=1,
+        stage=stage,
+        stage_changed_at=moved,
+    )
+    application.created_at = base - timedelta(days=20)
+    db.add(application)
+    await db.flush()
+    db.add(
+        ActivityLog(
+            company_id=env.company.id,
+            application_id=application.id,
+            type=STAGE_CHANGED,
+            payload={},
+            created_at=moved,
+        )
+    )
+    await db.commit()
+    return job
+
+
+def _stalled(items: list[queue_service.QueueItem]) -> list[queue_service.QueueItem]:
+    return [item for item in items if item.kind == "role-stalled"]
+
+
+async def test_stalled_role_item_for_admin_and_member(db_session: AsyncSession) -> None:
+    env = await _env(db_session)
+    job = await _stalled_job(db_session, env, base=NOW, moved_days_ago=8)
+    for user in (env.admin, env.member):
+        items = _stalled(await queue_service.derived_items(db_session, env.company, user, now=NOW))
+        assert len(items) == 1
+        item = items[0]
+        assert item.key == f"role-stalled:{job.id}"
+        assert item.title == "Stalled Dev: no movement for 8 days"
+        assert item.hint == "1 waiting on you"
+        assert item.href == f"/admin/applicants?job={job.id}"
+        assert item.since == NOW - timedelta(days=8)
+
+
+async def test_stalled_role_hint_without_overdue(db_session: AsyncSession) -> None:
+    env = await _env(db_session)
+    await _stalled_job(db_session, env, base=NOW, stage=ApplicationStage.OFFER)
+    items = _stalled(await queue_service.derived_items(db_session, env.company, env.admin, now=NOW))
+    assert [item.hint for item in items] == ["1 candidate"]
+
+
+async def test_reviewer_never_sees_role_stalled(db_session: AsyncSession) -> None:
+    env = await _env(db_session)
+    reviewer = _user(env.company, UserRole.REVIEWER, "reviewer")
+    db_session.add(reviewer)
+    await db_session.flush()
+    await _stalled_job(db_session, env, base=NOW)
+    items = await queue_service.derived_items(db_session, env.company, reviewer, now=NOW)
+    assert _stalled(items) == []
+
+
+async def test_dismiss_role_stalled(db_session: AsyncSession) -> None:
+    env = await _env(db_session)
+    # dismiss and visible_items read the real clock
+    job = await _stalled_job(db_session, env, base=datetime.now(UTC))
+    key = f"role-stalled:{job.id}"
+    items = await queue_service.visible_items(db_session, env.company, env.admin)
+    assert key in [i.key for i in items]
+    assert await queue_service.dismiss(db_session, env.company, env.admin, key)
+    items = await queue_service.visible_items(db_session, env.company, env.admin)
+    assert key not in [i.key for i in items]
+    # the member's dismissal list is separate
+    items = await queue_service.visible_items(db_session, env.company, env.member)
+    assert key in [i.key for i in items]
