@@ -7,6 +7,7 @@ import {
   ApiError,
   applications,
   notes,
+  scorecards,
   type ApplicationOut,
   type ApplicationStage,
   type QuizAnswerReview,
@@ -49,6 +50,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       updateCandidateEmail: vi.fn(),
     },
     notes: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
+    scorecards: { list: vi.fn().mockResolvedValue([]) },
     emailTemplates: { ...original.emailTemplates, list: vi.fn() },
   };
 });
@@ -57,6 +59,7 @@ const mockedApps = vi.mocked(applications);
 const mockedJobs = vi.mocked(api.jobs);
 const mockedApi = vi.mocked(api);
 const mockedNotes = vi.mocked(notes);
+const mockedScorecards = vi.mocked(scorecards);
 const mockedTemplates = vi.mocked(emailTemplates);
 
 function templateKinds(): { kinds: EmailKindInfo[] } {
@@ -241,6 +244,7 @@ describe("ApplicantsPage", () => {
       has_password: true,
     });
     mockedNotes.list.mockResolvedValue([]);
+    mockedScorecards.list.mockResolvedValue([]);
     mockedApps.timeline.mockResolvedValue([]);
     mockedApps.accessLog.mockResolvedValue([]);
     mockedNotes.add.mockResolvedValue({
@@ -362,6 +366,36 @@ describe("ApplicantsPage", () => {
     expect(screen.getByLabelText(/2 correct, 1 wrong, 1 timed out/)).toBeInTheDocument();
     // integrity card summary pill
     expect(screen.getByText("1 flag")).toBeInTheDocument();
+  });
+
+  it("mounts the scorecards card for the selected applicant and opens the form on ?scorecard=1", async () => {
+    search = new URLSearchParams("selected=app-2&scorecard=1");
+    mockedScorecards.list.mockResolvedValue([
+      {
+        id: "sc-1",
+        application_id: "app-2",
+        reviewer_user_id: "u-1",
+        reviewer_label: "recruiter",
+        requested_by_label: null,
+        interview_id: null,
+        requested_at: OLDER,
+        due_from: OLDER,
+        submitted_at: null,
+        dismissed_at: null,
+        declined_at: null,
+        state: "open",
+        waiting_days: 1,
+        criteria: [{ id: "c1", label: "Communication", hint: "" }],
+        ratings: {},
+        recommendation: null,
+        comment: null,
+        edited: false,
+        can_edit: false,
+      },
+    ]);
+    render(<ApplicantsPage />);
+    expect(await screen.findByRole("radiogroup", { name: "Communication" })).toBeInTheDocument();
+    expect(mockedScorecards.list).toHaveBeenCalledWith("app-2");
   });
 
   it("asks for the timeline of the selected applicant", async () => {
