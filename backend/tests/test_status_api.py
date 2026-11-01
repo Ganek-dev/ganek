@@ -1,17 +1,21 @@
 """Candidate status page (screen 21): magic-link status + withdraw."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models import ActivityLog
 from app.models.quiz import AttemptAnswer
+from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
+from tests.test_bulk_reject import _company_with_applicants, _ids_by_email
 
 pytestmark = pytest.mark.skipif(
     not (database_reachable() and s3_reachable()),
@@ -184,6 +188,117 @@ async def test_withdraw_is_idempotent_and_final_stages_conflict(client: AsyncCli
     assert resp.status_code == 200
     await client.post("/api/v1/auth/logout")
     assert (await client.post(f"/api/v1/public/applications/{token}/withdraw")).status_code == 409
+
+
+def _later() -> str:
+    return (datetime.now(UTC) + timedelta(days=1)).isoformat()
+
+
+@pytest.fixture
+def sent(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(email_service, "send_rejection", lambda **kw: captured.append(kw))
+    return captured
+
+
+async def _public_stage(client: AsyncClient, token: str) -> str:
+    return str((await client.get(f"/api/v1/public/applications/{token}")).json()["stage"])
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_status_hides_a_scheduled_rejection_until_it_is_sent(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1, name_prefix="Hide Co")
+    token = applicants[0]["status_token"]
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    url = f"/api/v1/applications/{app_id}/stage"
+    assert (await client.patch(url, json={"stage": "interview"})).status_code == 200
+    resp = await client.patch(
+        url, json={"stage": "rejected", "notify_candidate": True, "send_after": _later()}
+    )
+    assert resp.status_code == 200, resp.text
+
+    assert await _public_stage(client, token) == "interview"
+    # the staff view and the DSAR copy keep the truth
+    bundle = (await client.get(f"/api/v1/applications/{app_id}/dsar-export")).json()
+    assert bundle["applications"][0]["stage"] == "rejected"
+
+    emails = (await client.get(f"/api/v1/applications/{app_id}/emails")).json()
+    (row,) = [e for e in emails if e["kind"] == "rejection"]
+    cancel = await client.post(f"/api/v1/applications/{app_id}/emails/{row['id']}/cancel")
+    assert cancel.status_code == 200, cancel.text
+    # a cancelled hold is no longer scheduled: the page tells the truth
+    assert await _public_stage(client, token) == "rejected"
+
+    # reject again with send now
+    resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
+    assert resp.status_code == 200, resp.text
+    assert await _public_stage(client, token) == "rejected"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_status_falls_back_to_screening_without_a_stage_move_entry(
+    client: AsyncClient, db_session: AsyncSession, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 1, name_prefix="Fallback Co")
+    token = applicants[0]["status_token"]
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True, "send_after": _later()},
+    )
+    assert resp.status_code == 200, resp.text
+    assert await _public_stage(client, token) == "new"
+
+    await db_session.execute(delete(ActivityLog).where(ActivityLog.application_id == app_id))
+    await db_session.commit()
+    assert await _public_stage(client, token) == "screening"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_withdraw_during_the_delay_cancels_the_mail(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 2, name_prefix="Delay Co")
+    ids = await _ids_by_email(client)
+    token = applicants[0]["status_token"]
+    app_id = ids[applicants[0]["email"]]
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True, "send_after": _later()},
+    )
+    assert resp.status_code == 200, resp.text
+
+    resp = await client.post(f"/api/v1/public/applications/{token}/withdraw")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"withdrawn": True}
+    assert await _public_stage(client, token) == "withdrawn"
+
+    items = (await client.get("/api/v1/applications")).json()["items"]
+    item = next(i for i in items if i["id"] == app_id)
+    assert item["stage"] == "withdrawn"
+    assert item["rejection_reason"] == "withdrew"
+    emails = (await client.get(f"/api/v1/applications/{app_id}/emails")).json()
+    (row,) = [e for e in emails if e["kind"] == "rejection"]
+    assert row["status"] == "cancelled"
+    feed = [
+        a for a in (await client.get("/api/v1/activity")).json() if a["type"] == "email.cancelled"
+    ]
+    assert len(feed) == 1
+    assert feed[0]["actor_email"] is None
+    assert sent == []
+
+    # a rejection that was already sent stays final
+    other_token = applicants[1]["status_token"]
+    other_id = ids[applicants[1]["email"]]
+    resp = await client.patch(
+        f"/api/v1/applications/{other_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True},
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await client.post(f"/api/v1/public/applications/{other_token}/withdraw")
+    assert resp.status_code == 409
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
