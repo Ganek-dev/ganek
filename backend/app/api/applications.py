@@ -7,7 +7,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 
 from app.api.deps import (
@@ -980,17 +980,42 @@ async def _queue_stage_email(
         )
 
 
-@router.get("/{application_id}/cv-url", response_model=CvDownload)
-async def cv_download_url(
-    application_id: uuid.UUID, db: DbSession, company: StaffCompany, user: StaffUser
-) -> CvDownload:
-    application = await _get_or_404(db, company, application_id)
+@router.get(
+    "/{application_id}/cv", response_class=RedirectResponse, status_code=status.HTTP_302_FOUND
+)
+async def cv_download(
+    application_id: uuid.UUID, db: DbSession, reader: ReadActor
+) -> RedirectResponse:
+    """The CV for an integration (a key follows the redirect to the presigned
+    link, which needs no Authorization header). The access-log row commits
+    before the redirect is returned."""
+    application = await _get_or_404(db, reader.company, application_id)
     await access_log.record(
         db,
-        company=company,
+        company=reader.company,
         application_id=application.id,
         action=access_log.CV_DOWNLOAD,
-        user=user,
+        user=reader.user,
+        api_key=reader.api_key,
+    )
+    return RedirectResponse(
+        url=storage.presign_cv_download(application.cv_object_key, application.cv_filename),
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@router.get("/{application_id}/cv-url", response_model=CvDownload)
+async def cv_download_url(
+    application_id: uuid.UUID, db: DbSession, reader: ReadActor
+) -> CvDownload:
+    application = await _get_or_404(db, reader.company, application_id)
+    await access_log.record(
+        db,
+        company=reader.company,
+        application_id=application.id,
+        action=access_log.CV_DOWNLOAD,
+        user=reader.user,
+        api_key=reader.api_key,
     )
     return CvDownload(
         download_url=storage.presign_cv_download(application.cv_object_key, application.cv_filename)

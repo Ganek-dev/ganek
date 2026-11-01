@@ -77,6 +77,63 @@ async def test_api_key_reads_record_the_key_and_keys_cannot_read_the_log(
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_api_key_fetches_the_cv_and_is_logged(client: AsyncClient) -> None:
+    creds, app_id = await _admin_with_applicant(client)
+    secret = (
+        await client.post("/api/v1/api-keys", json={"name": "ATS sync", "scope": "read"})
+    ).json()["secret"]
+    write_secret = (
+        await client.post("/api/v1/api-keys", json={"name": "Zap", "scope": "write"})
+    ).json()["secret"]
+    await client.post("/api/v1/auth/logout")
+    bearer = {"Authorization": f"Bearer {secret}"}
+    resp = await client.get(f"/api/v1/applications/{app_id}/cv", headers=bearer)
+    assert resp.status_code == 302 and resp.headers["location"].startswith("http")
+    # the presigned link is the whole credential: it carries its own signature
+    assert "X-Amz-Signature" in resp.headers["location"]
+    url = (await client.get(f"/api/v1/applications/{app_id}/cv-url", headers=bearer)).json()
+    assert url["download_url"].startswith("http")
+    write_resp = await client.get(
+        f"/api/v1/applications/{app_id}/cv", headers={"Authorization": f"Bearer {write_secret}"}
+    )
+    assert write_resp.status_code == 302
+    assert (
+        await client.get(f"/api/v1/applications/{uuid4()}/cv", headers=bearer)
+    ).status_code == 404
+    assert (await client.get(f"/api/v1/applications/{app_id}/cv")).status_code == 401
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    rows = (await client.get(f"/api/v1/applications/{app_id}/access-log")).json()
+    assert [r["action"] for r in rows].count("cv_download") >= 1
+    assert {r["api_key_name"] for r in rows if r["action"] == "cv_download"} >= {"ATS sync", "Zap"}
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_other_company_and_revoked_key_get_404_and_401(client: AsyncClient) -> None:
+    creds, app_id = await _admin_with_applicant(client)
+    secret = (
+        await client.post("/api/v1/api-keys", json={"name": "ATS sync", "scope": "read"})
+    ).json()["secret"]
+    await client.post("/api/v1/auth/logout")
+    _, other_app_id = await _admin_with_applicant(client)  # a second company
+    await client.post("/api/v1/auth/logout")
+    bearer = {"Authorization": f"Bearer {secret}"}
+    # another tenant's candidate is invisible, not forbidden
+    other = await client.get(f"/api/v1/applications/{other_app_id}/cv", headers=bearer)
+    assert other.status_code == 404
+    assert (
+        await client.get(f"/api/v1/applications/{app_id}/cv", headers=bearer)
+    ).status_code == 302
+
+    assert (await client.post("/api/v1/auth/login", json=creds)).status_code == 200
+    key_id = (await client.get("/api/v1/api-keys")).json()[0]["id"]
+    assert (await client.delete(f"/api/v1/api-keys/{key_id}")).status_code in (200, 204)
+    await client.post("/api/v1/auth/logout")
+    revoked = await client.get(f"/api/v1/applications/{app_id}/cv", headers=bearer)
+    assert revoked.status_code == 401
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
 async def test_member_is_recorded_but_cannot_read_the_log(client: AsyncClient) -> None:
     creds, app_id = await _admin_with_applicant(client)
     member = {"email": f"member-{uuid4().hex[:8]}@ganek-ci.dev", "password": "member-password-1234"}
