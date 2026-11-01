@@ -6,6 +6,7 @@ from app.core import urls
 from app.models import Company
 from app.schemas.company import BrandingUpdate, CompanySettingsUpdate
 from app.schemas.public import PublicPrivacyNotice
+from app.schemas.scorecards import ensure_criterion_ids
 from app.services import storage
 
 RETENTION_DEFAULT_MONTHS = 6
@@ -51,7 +52,9 @@ async def update_settings(
     if payload.screening_questions is not None:
         # its own column (0039), never a settings key
         company.screening_questions = [q.model_dump() for q in payload.screening_questions]
-    for field in payload.model_fields_set - {"screening_questions"}:
+    if payload.scorecard_template is not None:
+        company.scorecard_template = ensure_criterion_ids(payload.scorecard_template)
+    for field in payload.model_fields_set - {"screening_questions", "scorecard_template"}:
         value = getattr(payload, field)
         if value is None:
             merged.pop(field, None)

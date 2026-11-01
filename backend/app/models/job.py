@@ -86,5 +86,7 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     quiz_config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     # per-job screening questions (0039); shape in services.screening
     screening_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    # per-job scorecard criteria (0042)
+    scorecard_template: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
 
     company: Mapped["Company"] = relationship(back_populates="jobs")

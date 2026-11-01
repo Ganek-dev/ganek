@@ -3,6 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
 from app.core.config import settings as app_settings
+from app.schemas.scorecards import ScorecardCriterion, validate_criteria
 from app.services import email_providers
 from app.services.screening import ScreeningQuestion, validate_questions
 
@@ -34,6 +35,8 @@ class CompanySummary(BaseModel):
     # edit jobs, so the editor's prefill and "Reset to company defaults" need
     # the set; preferred answers are recruiter-internal, never candidate-facing
     screening_questions: list[ScreeningQuestion] = []
+    # the default scorecard criteria new jobs start with (members edit job templates)
+    scorecard_template: list[ScorecardCriterion] = []
 
 
 class CompanyOut(BaseModel):
@@ -50,6 +53,7 @@ class CompanyOut(BaseModel):
     theme: dict[str, Any]
     settings: dict[str, Any]
     screening_questions: list[ScreeningQuestion] = []
+    scorecard_template: list[ScorecardCriterion] = []
     # not a column - the instance's deployment mode, so admin surfaces can
     # render the real careers URL (single mode serves it at the root)
     mode: Literal["single", "multi"] = Field(default_factory=lambda: app_settings.mode)
@@ -104,3 +108,11 @@ class CompanySettingsUpdate(BaseModel):
             ]
             return validate_questions(raw)
         return value
+
+    # a column (0042): the list replaces the company default; omitted = untouched
+    scorecard_template: list[ScorecardCriterion] | None = None
+
+    @field_validator("scorecard_template")
+    @classmethod
+    def _validate_template(cls, value: list[ScorecardCriterion] | None) -> object:
+        return validate_criteria(value)

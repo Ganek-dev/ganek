@@ -24,8 +24,8 @@ const NAV = [
   { href: "/admin/applicants", label: "Applicants", icon: Inbox },
   { href: "/admin/questions", label: "Questions", icon: ListChecks },
   { href: "/admin/questionnaires", label: "Questionnaires", icon: ClipboardList },
-  { href: "/admin/team", label: "Team", icon: Users },
-  { href: "/admin/branding", label: "Settings", icon: Settings },
+  { href: "/admin/team", label: "Team", icon: Users, adminOnly: true },
+  { href: "/admin/branding", label: "Settings", icon: Settings, adminOnly: true },
 ] as const;
 
 function counterFor(label: string, overview: StatsOverview | null): number | null {
@@ -113,6 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const initials = user.email.slice(0, 2).toUpperCase();
+  const visibleNav = NAV.filter((n) => !("adminOnly" in n) || user.role === "admin");
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -121,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Wordmark className="text-xl" accentClassName="text-accent-soft" />
         </div>
         <nav className="flex-1 space-y-0.5 px-3">
-          {NAV.map(({ href, label, icon: Icon, ...item }) => {
+          {visibleNav.map(({ href, label, icon: Icon, ...item }) => {
             const active =
               "exact" in item && item.exact ? pathname === href : pathname.startsWith(href);
             const counter = counterFor(label, overview);

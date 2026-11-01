@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from app.models import EmploymentType, JobStatus, RemotePolicy, SalaryPeriod
+from app.schemas.scorecards import ScorecardCriterion, validate_criteria
 from app.services.screening import ScreeningQuestion, validate_questions
 
 DifficultyLevel = Annotated[int, Field(ge=1, le=5)]
@@ -106,11 +107,18 @@ class JobCreate(BaseModel):
     quiz_config: QuizConfigSchema = Field(default_factory=QuizConfigSchema)
     # None = copy the company default set (services.jobs.create_job)
     screening_questions: list[ScreeningQuestion] | None = None
+    # None = copy the company default criteria (services.jobs.create_job)
+    scorecard_template: list[ScorecardCriterion] | None = None
 
     @field_validator("screening_questions", mode="before")
     @classmethod
     def _validate_questions(cls, value: object) -> object:
         return _screening_list(value)
+
+    @field_validator("scorecard_template")
+    @classmethod
+    def _validate_template(cls, value: list[ScorecardCriterion] | None) -> object:
+        return validate_criteria(value)
 
     @model_validator(mode="after")
     def _salary_range_valid(self) -> "JobCreate":
@@ -138,11 +146,18 @@ class JobUpdate(BaseModel):
     quiz_config: QuizConfigSchema | None = None
     # None = untouched; a list replaces the job's questions
     screening_questions: list[ScreeningQuestion] | None = None
+    # None = untouched; a list replaces the job's criteria
+    scorecard_template: list[ScorecardCriterion] | None = None
 
     @field_validator("screening_questions", mode="before")
     @classmethod
     def _validate_questions(cls, value: object) -> object:
         return _screening_list(value)
+
+    @field_validator("scorecard_template")
+    @classmethod
+    def _validate_template(cls, value: list[ScorecardCriterion] | None) -> object:
+        return validate_criteria(value)
 
 
 class JobOut(BaseModel):
@@ -164,6 +179,7 @@ class JobOut(BaseModel):
     status: JobStatus
     quiz_config: QuizConfigSchema
     screening_questions: list[ScreeningQuestion] = []
+    scorecard_template: list[ScorecardCriterion] = []
     published_at: datetime | None
     closed_at: datetime | None
     created_at: datetime

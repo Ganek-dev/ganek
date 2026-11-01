@@ -1,11 +1,12 @@
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession
 from app.core import urls
 from app.core.security import create_invite_token
-from app.models import Company, User, UserInvite
+from app.models import Company, User, UserInvite, UserRole
 from app.schemas.auth import UserOut
 from app.schemas.users import (
     AvailabilityIn,
@@ -14,6 +15,7 @@ from app.schemas.users import (
     InviteCreate,
     InviteOut,
     ProfileUpdate,
+    TeamMemberOut,
     TeamUserOut,
     UserCreate,
     UserUpdate,
@@ -24,7 +26,8 @@ from app.services import invites as invites_service
 from app.services import outbox as outbox_service
 from app.services import users as users_service
 
-# every route requires an admin of the current company
+# routes require an admin of the current company, except the team list (any role:
+# interviewer pickers and scorecard labels need it)
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[])
 
 
@@ -62,9 +65,12 @@ async def set_availability(
     )
 
 
-@router.get("", response_model=list[TeamUserOut])
-async def list_users(db: DbSession, company: CurrentCompany, _admin: AdminUser) -> list[User]:
-    return await users_service.list_users(db, company)
+@router.get("", response_model=list[TeamUserOut] | list[TeamMemberOut])
+async def list_users(db: DbSession, company: CurrentCompany, user: CurrentUser) -> list[Any]:
+    users = await users_service.list_users(db, company)
+    if user.role == UserRole.ADMIN:
+        return [TeamUserOut.model_validate(u) for u in users]
+    return [TeamMemberOut.model_validate(u) for u in users]
 
 
 @router.post(
