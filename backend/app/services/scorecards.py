@@ -3,8 +3,9 @@
 The row is the request and the answer. State is derived from the three
 timestamps, never stored. Visualization only: nothing here gates a candidate.
 
-Functions flush but do not commit, except ``request`` with ``notify=True``
-whose ``queue_email`` commits the transaction (activity and row included).
+Functions flush but do not commit, except ``request`` with ``notify=True``,
+which always commits (row, activity and outbox row together; in demo mode
+``queue_email`` drops the mail without committing, so ``request`` does).
 """
 
 import uuid
@@ -12,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import urls
@@ -104,6 +106,7 @@ async def request(
     ).scalar_one_or_none()
     if row is not None and state_of(row) in ("open", "submitted"):
         raise AlreadyOpenError
+    created: bool
     if row is None:
         row = Scorecard(
             company_id=application.company_id,
@@ -111,7 +114,9 @@ async def request(
             job_id=job.id,
             reviewer_user_id=reviewer.id,
         )
-        db.add(row)
+        created = True
+    else:
+        created = False
     row.requested_by_user_id = requested_by.id if requested_by else None
     row.interview_id = interview_id
     row.requested_at = now
@@ -125,6 +130,15 @@ async def request(
     row.ratings = {}
     row.recommendation = None
     row.comment = None
+    if created:
+        # a concurrent first request trips the partial unique index; answer it
+        # like the sequential duplicate instead of a 500
+        try:
+            async with db.begin_nested():
+                db.add(row)
+                await db.flush()
+        except IntegrityError:
+            raise AlreadyOpenError from None
     activity.record(
         db,
         company_id=application.company_id,
@@ -152,6 +166,7 @@ async def request(
             url=urls.scorecard_url(company, application.id, reviewer=_is_reviewer_role(reviewer)),
             brand_primary=(company.theme or {}).get("primary_color"),
         )
+        await db.commit()  # queue_email skips its own commit in demo mode
     return row
 
 

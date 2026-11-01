@@ -3,6 +3,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -14,7 +15,7 @@ from app.models import (
     User,
     UserRole,
 )
-from app.models.scorecard import Recommendation
+from app.models.scorecard import Recommendation, Scorecard
 from app.services import email as email_service
 from app.services import scorecards as svc
 from tests.db import database_reachable
@@ -429,3 +430,107 @@ async def test_list_mine_orders_and_filters(
     )
     assert [r.id for r in listed] == [rows[0].id]
     assert await svc.dismiss_open_for_reviewer(db_session, env.member, actor_user_id=None) == 1
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_request_persists_in_demo_mode(
+    db_session: AsyncSession,
+    mails: dict[str, list[dict[str, Any]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.core.config import settings
+    from app.models.scorecard import Scorecard
+
+    env = await _env(db_session)
+    monkeypatch.setattr(settings, "demo_mode", True)
+    row = await svc.request(
+        db_session, application=env.app, reviewer=env.member, requested_by=env.admin, now=NOW
+    )
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    async with async_sessionmaker(engine)() as other:
+        found = (
+            await other.execute(select(Scorecard).where(Scorecard.id == row.id))
+        ).scalar_one_or_none()
+        acts = await _activity(other, env, "scorecard.requested")
+    await engine.dispose()
+    assert found is not None
+    assert len(acts) == 1
+    assert mails["request"] == []
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_reopen_after_dismiss_resets_everything(
+    db_session: AsyncSession, mails: dict[str, list[dict[str, Any]]]
+) -> None:
+    env = await _env(db_session)
+    row = await svc.request(
+        db_session, application=env.app, reviewer=env.member, requested_by=env.admin, now=NOW
+    )
+    await svc.dismiss(db_session, row, actor_user_id=env.admin.id, now=NOW)
+    await db_session.commit()
+    assert row.dismissed_by_user_id == env.admin.id
+    env.job.scorecard_template = [{"id": "eeee5555", "label": "Fresh", "hint": ""}]
+    again = await svc.request(
+        db_session, application=env.app, reviewer=env.member, requested_by=env.admin, now=NOW
+    )
+    assert again.id == row.id
+    assert again.dismissed_at is None
+    assert again.dismissed_by_user_id is None
+    assert svc.state_of(again) == "open"
+    assert again.criteria_snapshot == [{"id": "eeee5555", "label": "Fresh", "hint": ""}]
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_concurrent_first_request_raises_already_open(
+    db_session: AsyncSession,
+    mails: dict[str, list[dict[str, Any]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.core.config import settings
+
+    env = await _env(db_session)
+    original = db_session.begin_nested
+
+    def racing() -> Any:
+        # a competing request commits its row between our check and our insert
+        async def _insert() -> None:
+            engine = create_async_engine(settings.database_url, poolclass=NullPool)
+            async with async_sessionmaker(engine)() as other:
+                other.add(
+                    Scorecard(
+                        company_id=env.company.id,
+                        application_id=env.app.id,
+                        job_id=env.job.id,
+                        reviewer_user_id=env.member.id,
+                        due_from=NOW,
+                    )
+                )
+                await other.commit()
+            await engine.dispose()
+
+        class _Ctx:
+            async def __aenter__(self) -> Any:
+                await _insert()
+                self.inner = original()
+                return await self.inner.__aenter__()
+
+            async def __aexit__(self, *exc: Any) -> Any:
+                return await self.inner.__aexit__(*exc)
+
+        return _Ctx()
+
+    monkeypatch.setattr(db_session, "begin_nested", racing)
+    with pytest.raises(svc.AlreadyOpenError):
+        await svc.request(
+            db_session, application=env.app, reviewer=env.member, requested_by=env.admin, now=NOW
+        )
+    monkeypatch.undo()
+    # the session is still usable after the savepoint rollback
+    assert (await db_session.execute(select(Scorecard.id))).first() is not None
