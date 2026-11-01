@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
 import { questionnaires, questions } from "@/lib/api";
-import { ScorecardTemplateEditor } from "@/components/ScorecardTemplateEditor";
+import { ScorecardTemplateEditor, hasBlankLabel } from "@/components/ScorecardTemplateEditor";
 import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { Switch } from "@/components/ui/switch";
 import type {
@@ -97,6 +97,7 @@ export function JobForm({
   const [scorecard, setScorecard] = useState<ScorecardCriterion[]>(
     initial?.scorecard_template ?? [],
   );
+  const [showBlank, setShowBlank] = useState(false);
   const [screening, setScreening] = useState<ScreeningQuestion[]>(
     initial?.screening_questions ?? defaultScreening ?? [],
   );
@@ -215,6 +216,10 @@ export function JobForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (initial && hasBlankLabel(scorecard)) {
+      setShowBlank(true);
+      return;
+    }
     setBusy(true);
     const data = new FormData(event.currentTarget);
     const str = (name: string) => String(data.get(name) ?? "").trim();
@@ -480,6 +485,7 @@ export function JobForm({
             <ScorecardTemplateEditor
               value={scorecard}
               onChange={setScorecard}
+              showBlank={showBlank}
               emptyHint="Rate candidates against the criteria you add here. New jobs start from the company default in Settings."
             />
           </div>

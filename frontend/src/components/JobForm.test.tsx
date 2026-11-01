@@ -384,3 +384,17 @@ describe("JobForm scorecard", () => {
     expect(onSubmit.mock.calls[0]![0]).not.toHaveProperty("scorecard_template");
   });
 });
+
+describe("JobForm blank scorecard label", () => {
+  it("blocks the save with an inline message until the label is filled in", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm initial={makeJob({})} submitLabel="Save changes" onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText("Label is required")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Criterion label"), "Design");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+  });
+});

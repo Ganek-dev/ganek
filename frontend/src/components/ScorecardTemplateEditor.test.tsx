@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ScorecardCriterion } from "@/lib/api";
 
-import { ScorecardTemplateEditor } from "./ScorecardTemplateEditor";
+import { ScorecardTemplateEditor, hasBlankLabel } from "./ScorecardTemplateEditor";
 
 const A: ScorecardCriterion = { id: "aaaaaaaa", label: "Problem solving", hint: "Breaks work down" };
 const B: ScorecardCriterion = { id: "bbbbbbbb", label: "Communication", hint: "" };
@@ -71,5 +71,20 @@ describe("ScorecardTemplateEditor", () => {
     fireEvent.change(screen.getByLabelText("Criterion label"), { target: { value: "ok" } });
     expect(screen.queryByText("Keep labels under 120 characters")).not.toBeInTheDocument();
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks blank labels only when asked", () => {
+    const blank = [A, { id: "", label: "  ", hint: "" }];
+    const { rerender } = render(
+      <ScorecardTemplateEditor value={blank} onChange={vi.fn()} emptyHint={HINT} />,
+    );
+    expect(screen.queryByText("Label is required")).not.toBeInTheDocument();
+    rerender(<ScorecardTemplateEditor value={blank} onChange={vi.fn()} emptyHint={HINT} showBlank />);
+    expect(screen.getAllByText("Label is required")).toHaveLength(1);
+  });
+
+  it("hasBlankLabel treats whitespace as blank", () => {
+    expect(hasBlankLabel([A, { id: "", label: " ", hint: "" }])).toBe(true);
+    expect(hasBlankLabel([A, B])).toBe(false);
   });
 });

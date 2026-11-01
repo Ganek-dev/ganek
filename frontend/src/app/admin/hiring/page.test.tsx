@@ -147,3 +147,23 @@ describe("HiringSettingsPage default scorecard", () => {
     expect(await screen.findByText("New jobs copy these criteria.")).toBeInTheDocument();
   });
 });
+
+describe("HiringSettingsPage blank scorecard label", () => {
+  it("blocks the save until the label is filled in", async () => {
+    vi.clearAllMocks();
+    mocked.get.mockResolvedValue({ ...makeCompany(), scorecard_template: [] });
+    mocked.updateSettings.mockResolvedValue({ ...makeCompany(), scorecard_template: [] });
+    render(<HiringSettingsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add criterion" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save default scorecard" }));
+    expect(mocked.updateSettings).not.toHaveBeenCalled();
+    expect(screen.getByText("Label is required")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Criterion label"), "Design");
+    await userEvent.click(screen.getByRole("button", { name: "Save default scorecard" }));
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenCalledWith({
+        scorecard_template: [{ id: "", label: "Design", hint: "" }],
+      }),
+    );
+  });
+});

@@ -14,6 +14,7 @@ import type { ScorecardCriterion } from "@/lib/api";
 export const MAX_CRITERIA = 20;
 export const MAX_LABEL = 120;
 export const MAX_HINT = 300;
+export const LABEL_REQUIRED = "Label is required";
 export const LABEL_TOO_LONG = "Keep labels under 120 characters";
 
 const inputCls =
@@ -21,14 +22,23 @@ const inputCls =
 const iconBtnCls =
   "inline-flex h-7 w-7 items-center justify-center rounded-md text-g500 hover:bg-hover-fill hover:text-foreground disabled:opacity-40";
 
+/** The server rejects an empty label (422) and stores whitespace as given,
+ * so hosts call this before saving and block rather than drop rows. */
+export function hasBlankLabel(criteria: ScorecardCriterion[]): boolean {
+  return criteria.some((c) => c.label.trim() === "");
+}
+
 export function ScorecardTemplateEditor({
   value,
   onChange,
   emptyHint,
+  showBlank = false,
 }: {
   value: ScorecardCriterion[];
   onChange: (next: ScorecardCriterion[]) => void;
   emptyHint: string;
+  /** Mark rows with a blank label; hosts set it after a blocked save. */
+  showBlank?: boolean;
 }) {
   // index of the row whose last label edit was refused for length
   const [tooLong, setTooLong] = useState<number | null>(null);
@@ -73,6 +83,11 @@ export function ScorecardTemplateEditor({
                   }}
                   className={inputCls}
                 />
+                {showBlank && criterion.label.trim() === "" ? (
+                  <span role="alert" className="block text-xs text-red-600 dark:text-red-400">
+                    {LABEL_REQUIRED}
+                  </span>
+                ) : null}
                 {tooLong === index ? (
                   <span role="alert" className="block text-xs text-red-600 dark:text-red-400">
                     {LABEL_TOO_LONG}

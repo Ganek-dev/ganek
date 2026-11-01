@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ScorecardTemplateEditor } from "@/components/ScorecardTemplateEditor";
+import { ScorecardTemplateEditor, hasBlankLabel } from "@/components/ScorecardTemplateEditor";
 import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, type ScorecardCriterion, type ScreeningQuestion } from "@/lib/api";
@@ -38,6 +38,7 @@ export default function HiringSettingsPage() {
   // the company default scorecard: new jobs copy it
   const [scorecard, setScorecard] = useState<ScorecardCriterion[] | null>(null);
   const [savingScorecard, setSavingScorecard] = useState(false);
+  const [showBlank, setShowBlank] = useState(false);
 
   useEffect(() => {
     companyApi
@@ -131,6 +132,7 @@ export default function HiringSettingsPage() {
             <ScorecardTemplateEditor
               value={scorecard}
               onChange={setScorecard}
+              showBlank={showBlank}
               emptyHint="New jobs copy these criteria."
             />
             <button
@@ -139,6 +141,10 @@ export default function HiringSettingsPage() {
               onClick={async () => {
                 setError(null);
                 setNotice(null);
+                if (hasBlankLabel(scorecard)) {
+                  setShowBlank(true);
+                  return;
+                }
                 setSavingScorecard(true);
                 try {
                   const saved = await companyApi.updateSettings({ scorecard_template: scorecard });
