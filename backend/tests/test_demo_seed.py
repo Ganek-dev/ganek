@@ -5,10 +5,13 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models import (
+    ActivityLog,
     Application,
     ApplicationNote,
     ApplicationStage,
@@ -21,8 +24,12 @@ from app.models import (
     JobStatus,
     JobView,
     QuizAttempt,
+    Scorecard,
     User,
+    UserRole,
 )
+from app.models.application import CLOSED_STAGES
+from app.models.scorecard import Recommendation
 from app.services import demo_seed, quiz, storage
 from tests.db import database_reachable, s3_reachable
 
@@ -58,8 +65,9 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
     assert sorted(u.email for u in users) == [
         f"erika@{slug}.example",
         f"jonas@{slug}.example",
+        f"max@{slug}.example",
     ]
-    assert {u.role.value for u in users} == {"admin", "member"}
+    assert {u.role.value for u in users} == {"admin", "member", "reviewer"}
     assert all(u.is_active for u in users)
 
     jobs = (
@@ -191,6 +199,90 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
     again = await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1")
     assert again.created is False
     assert await _count(db_session, Application, company.id) == 17
+    assert await _count(db_session, Scorecard, company.id) == 3
+    assert await _count(db_session, User, company.id) == 3
+
+
+@pytest.fixture
+def multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "mode", "multi")
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_seed_includes_scorecards(client: AsyncClient, db_session: AsyncSession) -> None:
+    slug = f"acme-{uuid4().hex[:6]}"
+    await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1")
+    company = (await db_session.execute(select(Company).where(Company.slug == slug))).scalar_one()
+    users = {
+        u.email: u
+        for u in (await db_session.execute(select(User).where(User.company_id == company.id)))
+        .scalars()
+        .all()
+    }
+    max_, erika = users[f"max@{slug}.example"], users[f"erika@{slug}.example"]
+    assert max_.role is UserRole.REVIEWER and max_.display_name == "Max Berger"
+
+    labels = ["Problem solving", "Communication", "Role knowledge"]
+    assert [c["label"] for c in company.scorecard_template] == labels
+    jobs = (
+        (await db_session.execute(select(Job).where(Job.company_id == company.id))).scalars().all()
+    )
+    assert all([c["label"] for c in j.scorecard_template] == labels for j in jobs)
+
+    cards = (
+        (await db_session.execute(select(Scorecard).where(Scorecard.company_id == company.id)))
+        .scalars()
+        .all()
+    )
+    now = datetime.now(UTC)
+    submitted = [c for c in cards if c.submitted_at is not None]
+    assert len(submitted) == 1
+    done = submitted[0]
+    assert done.reviewer_user_id == max_.id and done.recommendation is Recommendation.YES
+    ids = {c["id"] for c in done.criteria_snapshot}
+    assert set(done.ratings) == ids and all(1 <= v <= 4 for v in done.ratings.values())
+    assert abs(done.updated_at - done.submitted_at) < timedelta(seconds=1)
+    done_app = await db_session.get(Application, done.application_id)
+    assert done_app is not None and done_app.stage is ApplicationStage.INTERVIEW
+
+    open_max = next(c for c in cards if c.reviewer_user_id == max_.id and c is not done)
+    open_erika = next(c for c in cards if c.reviewer_user_id == erika.id)
+    assert open_max.submitted_at is None and open_erika.submitted_at is None
+    assert timedelta(days=3, hours=23) < now - open_max.due_from < timedelta(days=4, hours=1)
+    assert len({done.application_id, open_max.application_id, open_erika.application_id}) == 3
+    assert open_erika.requested_by_user_id not in (None, erika.id)
+    assert open_max.requested_by_user_id is not None
+    for c in (open_max, open_erika):
+        app_row = await db_session.get(Application, c.application_id)
+        assert app_row is not None and app_row.stage not in CLOSED_STAGES
+        assert [x["label"] for x in c.criteria_snapshot] == labels
+
+    types = [
+        (a.type, a.payload.get("reviewer_label"))
+        for a in (
+            await db_session.execute(
+                select(ActivityLog).where(ActivityLog.company_id == company.id)
+            )
+        )
+        .scalars()
+        .all()
+        if a.type.startswith("scorecard.")
+    ]
+    assert sorted(types) == [
+        ("scorecard.requested", "Erika"),
+        ("scorecard.requested", "Max Berger"),
+        ("scorecard.requested", "Max Berger"),
+        ("scorecard.submitted", "Max Berger"),
+    ]
+
+    login = await client.post(
+        "/api/v1/auth/login", json={"email": erika.email, "password": "ganek-demo-1"}
+    )
+    assert login.status_code == 200, login.text
+    items = (await client.get("/api/v1/stats/queue")).json()["items"]
+    waiting = [i for i in items if i["kind"] == "scorecard-waiting"]
+    assert len(waiting) == 1 and waiting[0]["title"].startswith("Waiting on Max Berger")
+    assert len([i for i in items if i["kind"] == "scorecard"]) == 1
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
@@ -213,3 +305,5 @@ async def test_reset_rebuilds_and_removes_the_old_cvs(db_session: AsyncSession) 
     assert (await db_session.get(Company, old_company_id)) is None
     assert await storage.stat_object(old_keys[0]) is None
     assert await _count(db_session, Application, second.company_id) == 17
+    assert await _count(db_session, Scorecard, second.company_id) == 3
+    assert await _count(db_session, Scorecard, old_company_id) == 0

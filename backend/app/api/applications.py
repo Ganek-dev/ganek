@@ -195,7 +195,7 @@ async def export_applications(
     ids: str | None = None,
 ) -> Response:
     """The current filter as a file (card D9): flat rows, no internal ids,
-    quiz columns at summary level. Admin only; one activity entry per
+    quiz columns at summary level. Staff or an API key; one activity entry per
     export names who pulled how many rows. Takes every list filter plus
     `ids` (the bulk bar's selection) so the file is always the rows on
     screen. Declared before the /{application_id} routes so "export" is

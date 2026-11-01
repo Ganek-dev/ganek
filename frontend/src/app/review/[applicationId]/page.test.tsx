@@ -131,6 +131,17 @@ describe("ReviewDetailPage", () => {
     await screen.findByRole("heading", { name: "Ada Lovelace" });
     expect(screen.queryByRole("button", { name: "Submit scorecard" })).not.toBeInTheDocument();
     expect(screen.queryByText(/did not assess/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/appear after you submit/)).not.toBeInTheDocument();
+  });
+
+  it("hides the colleagues line for a declined own row", async () => {
+    mockedReview.get.mockResolvedValue(
+      detail({ mine: card({ state: "declined" }), hidden_until_submitted: true }),
+    );
+    render(<ReviewDetailPage />);
+    await screen.findByRole("heading", { name: "Ada Lovelace" });
+    expect(screen.getByText("You declined to assess this candidate.")).toBeInTheDocument();
+    expect(screen.queryByText(/appear after you submit/)).not.toBeInTheDocument();
   });
 
   it("submits, then reloads from the server and shows colleagues' cards", async () => {

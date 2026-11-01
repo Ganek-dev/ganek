@@ -20,6 +20,10 @@ export default defineConfig({
           items: [{ slug: "quickstart" }, { slug: "configuration" }, { slug: "self-hosting" }],
         },
         {
+          label: "Work with it",
+          items: [{ slug: "scorecards" }, { slug: "roles" }],
+        },
+        {
           label: "Extend it",
           items: [{ slug: "question-packs" }, { slug: "api-embed" }, { slug: "ats-handoff" }],
         },

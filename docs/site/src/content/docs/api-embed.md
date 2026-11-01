@@ -151,7 +151,7 @@ Endpoint URLs must be public `https://` addresses; localhost and private ranges 
 
 ### Applicant export
 
-Admins can pull the current applicant list as a file from the Applicants page (Export CSV / Export JSON), or directly:
+Staff (admins and members, not reviewers) can pull the current applicant list as a file from the Applicants page (Export CSV / Export JSON), or directly:
 
 ```
 GET /api/v1/applications/export?format=csv        # or format=json

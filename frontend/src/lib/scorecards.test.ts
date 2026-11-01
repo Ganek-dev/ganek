@@ -7,6 +7,13 @@ describe("waitingCopy", () => {
     expect(waitingCopy("Jane Doe", 4)).toBe("Waiting on Jane Doe for 4 days");
     expect(waitingCopy("Jane Doe", 1)).toBe("Waiting on Jane Doe for 1 day");
     expect(waitingCopy("Jane Doe", 0)).toBe("Waiting on Jane Doe, requested today");
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+    expect(waitingCopy("Jane Doe", 0, past)).toBe("Waiting on Jane Doe, requested today");
+  });
+
+  it("says after the interview while due_from is in the future", () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    expect(waitingCopy("Jane Doe", 0, future)).toBe("Waiting on Jane Doe after the interview");
   });
 });
 

@@ -284,7 +284,7 @@ export default function ReviewDetailPage() {
         </Section>
       ) : null}
 
-      {mine && data.hidden_until_submitted ? (
+      {mine?.state === "open" && data.hidden_until_submitted ? (
         <p className="mt-4 text-[13px] text-g600">
           Colleagues&apos; scorecards appear after you submit yours.
         </p>
