@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   CalendarDays,
+  CirclePause,
   ClipboardList,
   Hourglass,
   Link2,
@@ -113,6 +114,14 @@ function queueIcon(kind: QueueItemKind) {
         <Hourglass
           aria-hidden
           data-testid="queue-icon-scorecard-waiting"
+          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-g500"
+        />
+      );
+    case "role-stalled":
+      return (
+        <CirclePause
+          aria-hidden
+          data-testid="queue-icon-role-stalled"
           className="mt-0.5 h-3.5 w-3.5 shrink-0 text-g500"
         />
       );
