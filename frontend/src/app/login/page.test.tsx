@@ -170,4 +170,34 @@ describe("LoginPage", () => {
     expect(screen.queryByRole("note")).toBeNull();
   });
 
+
+  it("sends a reviewer to /review, on the password path and after 2FA", async () => {
+    const reviewer = {
+      id: "u2",
+      company_id: "c1",
+      email: "max@acme.example",
+      has_password: true,
+      role: "reviewer" as const,
+    };
+    mocked.login.mockResolvedValueOnce(reviewer);
+    const first = render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText("Email"), "max@acme.example");
+    await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/review"));
+    expect(push).not.toHaveBeenCalledWith("/admin");
+    first.unmount();
+
+    push.mockClear();
+    mocked.login.mockResolvedValueOnce({ ...reviewer, mfa_required: true, mfa_token: "t" });
+    mocked.mfaVerify.mockResolvedValueOnce(reviewer);
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText("Email"), "max@acme.example");
+    await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+    await userEvent.type(await screen.findByLabelText("Authenticator code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/review"));
+    expect(push).not.toHaveBeenCalledWith("/admin");
+  });
 });

@@ -21,6 +21,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
           "/interview/",
           "/invite/",
           "/login",
+          "/review",
           "/quiz/",
           "/reset",
           "/setup",

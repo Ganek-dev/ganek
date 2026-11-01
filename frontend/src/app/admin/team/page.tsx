@@ -24,7 +24,11 @@ const AVATAR_PALETTE = [
   { bg: "bg-violet-100 dark:bg-violet-950", text: "text-violet-700 dark:text-violet-300" },
 ];
 
-const ROLE_LABELS: Record<UserRole, string> = { admin: "Admin", member: "Member" };
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  member: "Member",
+  reviewer: "Reviewer",
+};
 
 function displayName(user: { email: string; display_name?: string | null; display_label?: string }): string {
   if (user.display_name) return user.display_name;
@@ -250,6 +254,7 @@ export default function TeamPage() {
           >
             <option value="member">Member</option>
             <option value="admin">Admin</option>
+            <option value="reviewer">Reviewer</option>
           </select>
           <ChevronDown
             aria-hidden
@@ -312,6 +317,7 @@ export default function TeamPage() {
                     >
                       <option value="member">Member</option>
                       <option value="admin">Admin</option>
+                      <option value="reviewer">Reviewer</option>
                     </select>
                     <ChevronDown
                       aria-hidden
@@ -408,6 +414,10 @@ export default function TeamPage() {
         <span>
           <b className="font-semibold text-g700">Member</b> - day-to-day recruiting, applicant
           review
+        </span>
+        <span>
+          <b className="font-semibold text-g700">Reviewer</b> - sees only candidates handed to
+          them for an interview or a scorecard
         </span>
       </div>
     </section>

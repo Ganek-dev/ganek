@@ -96,6 +96,25 @@ describe("AdminLayout", () => {
     expect(screen.getByText("grumpy@acme.dev")).toBeInTheDocument();
   });
 
+  it("sends a reviewer session to /review and fires no staff calls", async () => {
+    mockedApi.me.mockResolvedValue({
+      id: "u2",
+      company_id: "c1",
+      email: "max@acme.example",
+      has_password: true,
+      role: "reviewer",
+    });
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/review"));
+    expect(screen.queryByText("page content")).not.toBeInTheDocument();
+    expect(mockedStats.overview).not.toHaveBeenCalled();
+    expect(mockedCompany.get).not.toHaveBeenCalled();
+  });
+
   it("warns admins when SMTP is unconfigured, and only then", async () => {
     const company = {
       slug: "acme",
