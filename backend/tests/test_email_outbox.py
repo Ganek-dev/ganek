@@ -99,6 +99,14 @@ async def _queued(db: AsyncSession, company: Company, **overrides: object) -> Em
     return row
 
 
+def test_scheduled_and_cancelled_fit_the_status_column() -> None:
+    assert EmailStatus.SCHEDULED.value == "scheduled"
+    assert EmailStatus.CANCELLED.value == "cancelled"
+    assert max(len(s.value) for s in EmailStatus) <= 10
+    row = EmailOutbox(kind="rejection", payload={})
+    assert row.send_after is None and row.cancelled_at is None
+
+
 def test_payload_roundtrips_datetimes() -> None:
     when = datetime(2026, 8, 17, 12, 30, tzinfo=UTC)
     packed = outbox_service._serialize({"expires_at": when, "n": 3, "s": "x", "none": None})
