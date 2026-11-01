@@ -89,3 +89,12 @@ def test_screening_mismatches_counts_false_matches_and_blanks_without_answers() 
         == ""
     )
     assert EXPORT_COLUMNS.index("screening_mismatches") == EXPORT_COLUMNS.index("message") + 1
+
+
+def test_export_row_splits_the_name() -> None:
+    row = export_row(
+        _application(candidate=Candidate(name="Jane Q. Applicant", email="jane@example.com"))
+    )
+    assert (row["first_name"], row["last_name"]) == ("Jane Q.", "Applicant")
+    assert EXPORT_COLUMNS.index("first_name") == EXPORT_COLUMNS.index("candidate_name") + 1
+    assert EXPORT_COLUMNS.index("last_name") == EXPORT_COLUMNS.index("first_name") + 1

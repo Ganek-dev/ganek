@@ -4,9 +4,9 @@ retries, and the three emitting events."""
 import hashlib
 import hmac
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from arq import Retry
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.models import Application, ApplicationStage, Candidate, Company, Job
+from app.models import Application, ApplicationStage, Candidate, Company, Job, JobStatus
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 from app.services import webhooks
@@ -57,35 +57,182 @@ def test_validate_url_accepts_public_https() -> None:
     webhooks.validate_url("https://hooks.slack.com/services/T0/B0/x")
 
 
-def test_application_payload_carries_summary_only() -> None:
-    attempt = QuizAttempt(
-        status=AttemptStatus.COMPLETED,
-        score=0.5,
-        completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC),
-        integrity={"flags": [{"code": "tab_hidden", "summary": "left the tab 2x", "detail": "x"}]},
-        question_ids=["q1", "q2"],
-    )
-    application = Application(
+def sample_company() -> Company:
+    return Company(id=uuid4(), slug="acme", name="Acme", settings={})
+
+
+def payload_application(*, attempts: list[QuizAttempt] | None = None) -> Application:
+    """Fully loaded in-memory application with every sensitive field set,
+    shared by the leak test and the sample shape comparison."""
+    if attempts is None:
+        attempts = [
+            QuizAttempt(
+                status=AttemptStatus.COMPLETED,
+                score=0.5,
+                completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC),
+                integrity={
+                    "flags": [
+                        {
+                            "code": "tab_hidden",
+                            "summary": "left the tab 2x",
+                            "detail": "raw-detail-text",
+                        }
+                    ]
+                },
+                question_ids=["q1", "q2"],
+            )
+        ]
+    return Application(
         id=uuid4(),
-        candidate=Candidate(name="Jane", email="jane@example.com"),
+        candidate=Candidate(
+            name="Jane Q. Applicant",
+            email="jane@example.com",
+            links={"github": "https://github.com/jane"},
+        ),
         job=Job(id=uuid4(), title="Backend Engineer", slug="backend-engineer"),
         stage=ApplicationStage.NEW,
         created_at=datetime(2026, 10, 1, 9, 0, tzinfo=UTC),
         source="linkedin",
-        quiz_attempts=[attempt],
+        message="Hi, I shipped two Next.js apps",
+        rejection_note="internal note",
+        screening_answers=[{"question_id": "sq_1", "answer": "no", "match": False}],
+        quiz_attempts=attempts,
     )
-    data = webhooks.application_payload(application)
-    assert data["candidate"] == {"name": "Jane", "email": "jane@example.com"}
+
+
+def test_application_payload_carries_summary_only() -> None:
+    application = payload_application()
+    data = webhooks.application_payload(application, sample_company())
+    assert data["candidate"] == {
+        "name": "Jane Q. Applicant",
+        "first_name": "Jane Q.",
+        "last_name": "Applicant",
+        "email": "jane@example.com",
+        "links": {"github": "https://github.com/jane", "linkedin": None, "portfolio": None},
+    }
     assert data["job"]["title"] == "Backend Engineer" and data["job"]["slug"] == "backend-engineer"
+    assert data["job"]["public_url"].endswith("/jobs/backend-engineer")
+    assert data["admin_url"].endswith(f"/admin/applicants?selected={application.id}")
     assert data["stage"] == "new" and data["source"] == "linkedin"
+    assert data["applied_at"] == data["created_at"] == "2026-10-01T09:00:00+00:00"
+    assert data["message"] == "Hi, I shipped two Next.js apps"
     assert data["quiz"] == {
         "status": "completed",
         "score_percent": 50,
         "completed_at": "2026-10-02T10:00:00+00:00",
         "flags": ["left the tab 2x"],
+        "summary": "Ganek screening: 50% (2 questions), completed 2026-10-02, 1 integrity note",
     }
     text = json.dumps(data)
-    for forbidden in ("correct_key", "question_ids", "q1", "detail", "message", "cv_object_key"):
+    for forbidden in (
+        "correct_key",
+        "question_ids",
+        "q1",
+        "raw-detail-text",
+        "detail",
+        "cv_object_key",
+        "internal note",
+        "rejection",
+        "screening_answers",
+        "sq_1",
+    ):
+        assert forbidden not in text
+
+
+def test_payload_without_attempt_has_null_quiz() -> None:
+    application = payload_application(attempts=[])
+    application.message = None
+    application.candidate.links = {}
+    data = webhooks.application_payload(application, sample_company())
+    assert data["quiz"] is None
+    assert data["message"] is None
+    assert data["candidate"]["links"] == {"github": None, "linkedin": None, "portfolio": None}
+
+
+def _attempt(
+    status: AttemptStatus, flags: int = 0, completed: bool = True, questions: int = 4
+) -> QuizAttempt:
+    done = status is AttemptStatus.COMPLETED
+    return QuizAttempt(
+        status=status,
+        score=0.83 if done else None,
+        completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC) if done and completed else None,
+        integrity={"flags": [{"summary": f"f{i}"} for i in range(flags)]},
+        question_ids=[f"q{i}" for i in range(questions)],
+    )
+
+
+@pytest.mark.parametrize(
+    ("attempt", "expected"),
+    [
+        (
+            _attempt(AttemptStatus.COMPLETED),
+            "Ganek screening: 83% (4 questions), completed 2026-10-02, no integrity notes",
+        ),
+        (
+            _attempt(AttemptStatus.COMPLETED, questions=1),
+            "Ganek screening: 83% (1 question), completed 2026-10-02, no integrity notes",
+        ),
+        (
+            _attempt(AttemptStatus.COMPLETED, flags=2),
+            "Ganek screening: 83% (4 questions), completed 2026-10-02, 2 integrity notes",
+        ),
+        (_attempt(AttemptStatus.PENDING), "Ganek screening: not completed (status pending)"),
+        (_attempt(AttemptStatus.EXPIRED), "Ganek screening: not completed (status expired)"),
+        (
+            _attempt(AttemptStatus.COMPLETED, completed=False),
+            "Ganek screening: not completed (status completed)",
+        ),
+    ],
+)
+def test_quiz_summary_wording(attempt: QuizAttempt, expected: str) -> None:
+    assert webhooks.quiz_summary(attempt) == expected
+
+
+@pytest.mark.parametrize("status", [AttemptStatus.PENDING, AttemptStatus.INVALIDATED])
+def test_payload_of_an_unfinished_attempt_has_no_score(status: AttemptStatus) -> None:
+    application = payload_application(attempts=[_attempt(status)])
+    quiz = webhooks.application_payload(application, sample_company())["quiz"]
+    assert quiz["status"] == status.value
+    assert quiz["score_percent"] is None
+    assert quiz["summary"] == f"Ganek screening: not completed (status {status.value})"
+
+
+def test_sample_payload_matches_the_real_shape() -> None:
+    company = Company(slug="acme", name="Acme", settings={})
+    real = webhooks.application_payload(payload_application(), sample_company())
+    sample = webhooks.sample_payload(company, "stage.changed", None)
+    assert set(sample) == set(real) | {"previous_stage"}
+    assert set(sample["candidate"]) == set(real["candidate"])
+    assert set(sample["candidate"]["links"]) == set(real["candidate"]["links"])
+    assert set(sample["job"]) == set(real["job"])
+    assert set(sample["quiz"]) == set(real["quiz"])
+    assert sample["job"]["public_url"].endswith("/jobs/sample-job")
+    assert sample["stage"] == "interview" and sample["previous_stage"] == "screening"
+    assert sample["candidate"]["email"] == "sample@example.invalid"
+    # the hand-built summary must not drift from the real wording
+    today = datetime.now(UTC)
+    attempt = QuizAttempt(
+        status=AttemptStatus.COMPLETED,
+        score=0.83,
+        completed_at=today,
+        question_ids=[f"q{i}" for i in range(8)],
+        integrity={},
+    )
+    assert sample["quiz"]["summary"] == webhooks.quiz_summary(attempt)
+    assert sample["quiz"]["score_percent"] == 83 and sample["quiz"]["flags"] == []
+
+
+def test_sample_payload_per_event() -> None:
+    company = sample_company()
+    created = webhooks.sample_payload(company, "application.created", None)
+    assert created["stage"] == "new" and created["quiz"] is None
+    assert "previous_stage" not in created
+    done = webhooks.sample_payload(company, "quiz.completed", None)
+    assert done["stage"] == "screening" and done["quiz"]["status"] == "completed"
+    assert "previous_stage" not in done
+    text = json.dumps([created, done])
+    for forbidden in ("correct_key", "question_ids", "screening_answers", "cv_object_key"):
         assert forbidden not in text
 
 
@@ -148,9 +295,9 @@ async def test_admin_creates_tests_lists_and_deletes_endpoint(client: AsyncClien
 
     ping = await client.post(f"/api/v1/webhooks/{hook['id']}/test")
     assert ping.status_code == 202, ping.text
-    assert ping.json()["event"] == "ping" and ping.json()["status"] == "queued"
+    assert ping.json()["event"] == "application.created" and ping.json()["status"] == "queued"
     deliveries = (await client.get(f"/api/v1/webhooks/{hook['id']}/deliveries")).json()
-    assert [d["event"] for d in deliveries] == ["ping"]
+    assert [d["event"] for d in deliveries] == ["application.created"]
     assert (await client.get("/api/v1/webhooks")).json()[0]["last_delivery"]["status"] == "queued"
 
     assert (await client.delete(f"/api/v1/webhooks/{hook['id']}")).status_code == 204
@@ -158,6 +305,54 @@ async def test_admin_creates_tests_lists_and_deletes_endpoint(client: AsyncClien
     assert (await client.get("/api/v1/webhooks")).json() == []
     types = [a["type"] for a in (await client.get("/api/v1/activity")).json()]
     assert types[:2] == ["webhook.deleted", "webhook.created"]
+
+
+async def _queued_payload(ctx: Any, delivery_id: str) -> dict[str, Any]:
+    async with ctx["session_factory"]() as db:
+        row = await db.get(WebhookDelivery, UUID(delivery_id))
+        assert row is not None
+        return row.payload
+
+
+@pytestmark_db
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_send_test_posts_a_sample_of_the_first_subscribed_event(
+    client: AsyncClient, ctx: Any
+) -> None:
+    slug, _ = await _register(client)
+    sample = (
+        await client.post(
+            "/api/v1/webhooks",
+            json={
+                "name": "Zap",
+                "url": "https://hooks.example.com/zap",
+                "events": ["quiz.completed", "stage.changed"],
+            },
+        )
+    ).json()
+    resp = await client.post(f"/api/v1/webhooks/{sample['id']}/test")
+    assert resp.status_code == 202, resp.text
+    assert resp.json()["event"] == "stage.changed"  # EVENTS order, not subscription order
+    data = (await _queued_payload(ctx, resp.json()["id"]))["data"]
+    assert data["test"] is True
+    assert data["candidate"]["email"] == "sample@example.invalid"
+    assert data["job"]["slug"] == "sample-job"
+
+    # an endpoint with only the legacy ping event keeps the old body (the API
+    # schema rejects it, so the row is created directly)
+    async with ctx["session_factory"]() as db:
+        company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one()
+        endpoint, _secret = webhooks.new_endpoint(
+            company, name="Legacy", url="https://hooks.example.com/ping", events=["ping"]
+        )
+        db.add(endpoint)
+        await db.commit()
+        endpoint_id = endpoint.id
+    legacy = await client.post(f"/api/v1/webhooks/{endpoint_id}/test")
+    assert legacy.status_code == 202, legacy.text
+    assert legacy.json()["event"] == "ping"
+    payload = await _queued_payload(ctx, legacy.json()["id"])
+    assert payload["data"]["message"] == "Test delivery from Ganek"
 
 
 @pytestmark_db
@@ -343,3 +538,47 @@ async def test_deliver_retries_with_backoff_then_parks_failed(
     await db_session.refresh(delivery)
     assert delivery.status is DeliveryStatus.FAILED
     assert delivery.attempts == webhooks.MAX_ATTEMPTS
+
+
+@pytestmark_db
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_send_test_samples_the_newest_published_job_of_the_company(
+    client: AsyncClient, ctx: Any
+) -> None:
+    slug, _ = await _register(client)
+    resp = await client.post(
+        "/api/v1/webhooks",
+        json={"name": "Zap", "url": "https://hooks.example.com/zap", "events": ["quiz.completed"]},
+    )
+    endpoint_id = resp.json()["id"]
+    now = datetime.now(UTC)
+    tag = uuid4().hex[:6]
+    async with ctx["session_factory"]() as db:
+        company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one()
+        other = Company(slug=f"other-{tag}", name="Other Co", settings={})
+        db.add(other)
+        await db.flush()
+
+        def job(owner: Company, name: str, status: JobStatus, age_days: int | None) -> Job:
+            return Job(
+                company_id=owner.id,
+                slug=f"{name}-{tag}",
+                title=name,
+                status=status,
+                published_at=None if age_days is None else now - timedelta(days=age_days),
+            )
+
+        db.add_all(
+            [
+                job(company, "draft", JobStatus.DRAFT, 0),
+                job(company, "undated", JobStatus.PUBLISHED, None),
+                job(company, "older", JobStatus.PUBLISHED, 10),
+                job(company, "newer", JobStatus.PUBLISHED, 5),
+                job(other, "foreign", JobStatus.PUBLISHED, 1),
+            ]
+        )
+        await db.commit()
+    sent = await client.post(f"/api/v1/webhooks/{endpoint_id}/test")
+    assert sent.status_code == 202, sent.text
+    data = (await _queued_payload(ctx, sent.json()["id"]))["data"]
+    assert data["job"]["slug"] == f"newer-{tag}"

@@ -9,7 +9,10 @@ retries with backoff and parks the row as ``failed`` after MAX_ATTEMPTS.
 Redis being down only delays: ``stuck_deliveries`` feeds the sweeper.
 
 Payloads carry the same summary the admin list shows: never answers,
-never ``correct_key``, never the raw integrity event stream.
+never ``correct_key``, never the raw integrity event stream. They are
+additive v2: besides the v1 keys they hold a split name, links, the cover
+message, absolute job and admin URLs and a one-line quiz summary, enough
+for a Zapier recipe to create a candidate in an ATS from one delivery.
 """
 
 import hashlib
@@ -30,16 +33,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core import queue
+from app.core import queue, urls
 from app.core.crypto import decrypt_secret, encrypt_secret
-from app.models import Application, Company, User
+from app.models import Application, Company, Job, User
+from app.models.job import JobStatus
+from app.models.quiz import AttemptStatus, QuizAttempt
 from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 from app.services import activity
+from app.services.names import split_name
 
 logger = logging.getLogger(__name__)
 
 EVENTS = ("application.created", "stage.changed", "quiz.completed")
 PING = "ping"
+SAMPLE_APPLICATION_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
+SAMPLE_JOB_ID = uuid.UUID("00000000-0000-4000-8000-000000000002")
 HOOK_PREFIX = "whsec_"
 MAX_ATTEMPTS = 5
 RETRY_DELAYS_SECONDS = (60, 300, 900, 3600)
@@ -192,24 +200,100 @@ async def list_deliveries(
 async def queue_test(
     db: AsyncSession, company: Company, endpoint_id: uuid.UUID
 ) -> WebhookDelivery | None:
-    """A ``ping`` delivery so admins can prove the receiver and signature."""
+    """A sample of the first subscribed event (``ping`` when there is none), so
+    admins prove the receiver and signature and Zapier or Make learn every field."""
     endpoint = await get_endpoint(db, company, endpoint_id)
     if endpoint is None:
         return None
-    rows = await _queue(
-        db,
-        company_id=company.id,
-        endpoints=[endpoint],
-        event=PING,
-        data={"endpoint": endpoint.name, "message": "Test delivery from Ganek"},
-    )
+    event = next((e for e in EVENTS if e in endpoint.events), PING)
+    data: dict[str, Any]
+    if event == PING:
+        data = {"endpoint": endpoint.name, "message": "Test delivery from Ganek"}
+    else:
+        job = (
+            await db.execute(
+                select(Job)
+                .where(Job.company_id == company.id, Job.status == JobStatus.PUBLISHED)
+                .order_by(Job.published_at.desc().nulls_last())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        data = sample_payload(company, event, job)
+        data["test"] = True
+    rows = await _queue(db, company_id=company.id, endpoints=[endpoint], event=event, data=data)
     return rows[0]
+
+
+def sample_payload(company: Company, event: str, job: Job | None) -> dict[str, Any]:
+    """Made-up application in the real payload shape, for the test delivery."""
+    now = datetime.now(UTC)
+    quiz: dict[str, Any] | None = None
+    stage, previous_stage = "new", None
+    if event != "application.created":
+        stage = "interview" if event == "stage.changed" else "screening"
+        previous_stage = "screening" if event == "stage.changed" else None
+        quiz = {
+            "status": "completed",
+            "score_percent": 83,
+            "completed_at": now.isoformat(),
+            "flags": [],
+            "summary": (
+                f"Ganek screening: 83% (8 questions), completed {now.date().isoformat()}, "
+                "no integrity notes"
+            ),
+        }
+    if job is not None:
+        job_data = {"id": str(job.id), "title": job.title, "slug": job.slug}
+    else:
+        job_data = {"id": str(SAMPLE_JOB_ID), "title": "Sample Job", "slug": "sample-job"}
+    first_name, last_name = split_name("Sample Candidate")
+    data: dict[str, Any] = {
+        "id": str(SAMPLE_APPLICATION_ID),
+        "stage": stage,
+        "source": "test",
+        "created_at": now.isoformat(),
+        "applied_at": now.isoformat(),
+        "message": "Hello from the Ganek test delivery.",
+        "admin_url": urls.admin_applicant_url(company, SAMPLE_APPLICATION_ID),
+        "candidate": {
+            "name": "Sample Candidate",
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": "sample@example.invalid",
+            "links": {"github": None, "linkedin": None, "portfolio": None},
+        },
+        "job": {**job_data, "public_url": urls.job_url(company, job_data["slug"])},
+        "quiz": quiz,
+    }
+    if previous_stage is not None:
+        data["previous_stage"] = previous_stage
+    return data
 
 
 # --- payloads + emission ---------------------------------------------------
 
 
-def application_payload(application: Application) -> dict[str, Any]:
+def quiz_summary(attempt: QuizAttempt) -> str:
+    """One readable line about the screening, for a note field in an ATS."""
+    if (
+        attempt.status is AttemptStatus.COMPLETED
+        and attempt.score is not None
+        and attempt.completed_at is not None
+    ):
+        count = len(attempt.integrity.get("flags", []))
+        notes = "no integrity notes" if count == 0 else f"{count} integrity note"
+        if count > 1:
+            notes += "s"
+        total = len(attempt.question_ids)
+        questions = f"{total} question" + ("" if total == 1 else "s")
+        return (
+            f"Ganek screening: {round(attempt.score * 100)}% ({questions}), "
+            f"completed {attempt.completed_at.date().isoformat()}, {notes}"
+        )
+    return f"Ganek screening: not completed (status {attempt.status.value})"
+
+
+def application_payload(application: Application, company: Company) -> dict[str, Any]:
     """Summary-level view of one application, candidate and job loaded."""
     attempt = application.quiz_attempt
     quiz: dict[str, Any] | None = None
@@ -219,17 +303,31 @@ def application_payload(application: Application) -> dict[str, Any]:
             "score_percent": round(attempt.score * 100) if attempt.score is not None else None,
             "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
             "flags": [str(flag.get("summary", "")) for flag in attempt.integrity.get("flags", [])],
+            "summary": quiz_summary(attempt),
         }
+    candidate = application.candidate
+    first_name, last_name = split_name(candidate.name)
+    created_at = application.created_at.isoformat() if application.created_at else None
     return {
         "id": str(application.id),
         "stage": application.stage.value,
         "source": application.source,
-        "created_at": application.created_at.isoformat() if application.created_at else None,
-        "candidate": {"name": application.candidate.name, "email": application.candidate.email},
+        "created_at": created_at,
+        "applied_at": created_at,
+        "message": application.message,
+        "admin_url": urls.admin_applicant_url(company, application.id),
+        "candidate": {
+            "name": candidate.name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": candidate.email,
+            "links": {key: candidate.links.get(key) for key in ("github", "linkedin", "portfolio")},
+        },
         "job": {
             "id": str(application.job.id),
             "title": application.job.title,
             "slug": application.job.slug,
+            "public_url": urls.job_url(company, application.job.slug),
         },
         "quiz": quiz,
     }
@@ -272,7 +370,9 @@ async def emit_application_event(
     )
     if not endpoints:
         return []
-    data = application_payload(application)
+    company = await db.get(Company, application.company_id)
+    assert company is not None
+    data = application_payload(application, company)
     if extra:
         data.update(extra)
     return await _queue(

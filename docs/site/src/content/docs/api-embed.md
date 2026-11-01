@@ -110,18 +110,38 @@ Admins register HTTPS endpoints under Settings, Developers and pick events: `app
   "created_at": "2026-10-23T18:04:11+00:00",
   "data": {
     "id": "c17a...",
-    "stage": "screening",
-    "previous_stage": "new",
+    "stage": "interview",
+    "previous_stage": "screening",
     "source": null,
     "created_at": "2026-10-23T17:58:02+00:00",
-    "candidate": { "name": "Jane Applicant", "email": "jane@example.com" },
-    "job": { "id": "9b2f...", "title": "Backend Engineer", "slug": "backend-engineer" },
-    "quiz": { "status": "completed", "score_percent": 83, "completed_at": "...", "flags": ["left the tab 2x (~5s)"] }
+    "applied_at": "2026-10-23T17:58:02+00:00",
+    "message": "Happy to relocate.",
+    "admin_url": "https://jobs.example.com/admin/applicants?selected=c17a...",
+    "candidate": {
+      "name": "Jane Applicant",
+      "first_name": "Jane",
+      "last_name": "Applicant",
+      "email": "jane@example.com",
+      "links": { "github": "https://github.com/jane", "linkedin": null, "portfolio": null }
+    },
+    "job": {
+      "id": "9b2f...",
+      "title": "Backend Engineer",
+      "slug": "backend-engineer",
+      "public_url": "https://jobs.example.com/jobs/backend-engineer"
+    },
+    "quiz": {
+      "status": "completed",
+      "score_percent": 83,
+      "completed_at": "2026-10-23T18:01:40+00:00",
+      "flags": ["left the tab 2x (~5s)"],
+      "summary": "Ganek screening: 83% (8 questions), completed 2026-10-23, 1 integrity note"
+    }
   }
 }
 ```
 
-`quiz` is `null` until an assessment exists and only ever carries the summary: no answers, no keys, no raw integrity events. Failed deliveries retry with backoff (1 min, 5 min, 15 min, 1 h) and park as `failed` after five attempts; the Developers page shows the last delivery per endpoint and "Send test" posts a `ping`.
+`first_name` and `last_name` split the name (everything before the last space, then the last token), so an ATS that wants them separately needs no extra step, except that a single-word name has an empty `first_name`, which Greenhouse and Personio refuse, so fix those by hand; `quiz.summary` is one sentence for an ATS note field. `quiz` is `null` until an assessment exists and only ever carries the summary: no answers, no keys, no raw integrity events. Failed deliveries retry with backoff (1 min, 5 min, 15 min, 1 h) and park as `failed` after five attempts; the Developers page shows the last delivery per endpoint and "Send test" posts a realistic sample of the first event the endpoint subscribes to, with `"test": true` in `data`; receivers should ignore deliveries with `test: true`. The sample application does not exist, so its admin link opens no applicant.
 
 **Verify the signature.** Every request carries `X-Ganek-Timestamp` (unix seconds), `X-Ganek-Delivery` (the id, for de-duplication) and `X-Ganek-Signature: sha256=<hex>`, an HMAC-SHA256 of `"<timestamp>.<raw body>"` with the endpoint secret shown once at creation. Reject stale timestamps to block replays:
 
@@ -158,7 +178,7 @@ GET /api/v1/applications/export?format=csv        # or format=json
 GET /api/v1/applications/export?format=csv&job_id=<uuid>&stage=screening
 ```
 
-Rows are flat and spreadsheet-shaped: candidate name and email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename, the candidate's message and `screening_mismatches` (how many preferred screening answers were missed; blank when the job asked none). No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
+Rows are flat and spreadsheet-shaped: candidate name, plus first and last name split for ATS imports (everything before the last space, then the last token; a single-word name leaves first name empty), email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename, the candidate's message and `screening_mismatches` (how many preferred screening answers were missed; blank when the job asked none). No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
 
 ### Extra time on the quiz
 

@@ -17,6 +17,7 @@ from app.models import Application, ApplicationStage, Candidate, Company, Job
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
 from app.services import activity, rejection_reasons, storage, webhooks
+from app.services.names import split_name
 
 TERMINAL_STAGES = frozenset(
     {ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED}
@@ -363,6 +364,8 @@ async def list_sources(db: AsyncSession, company: Company) -> list[str]:
 
 EXPORT_COLUMNS = (
     "candidate_name",
+    "first_name",
+    "last_name",
     "candidate_email",
     "job",
     "stage",
@@ -391,9 +394,12 @@ def export_row(application: Application) -> dict[str, str | int]:
     candidate email is the join key an ATS needs, and the quiz columns stay
     at the summary level the list view shows (never answers or keys)."""
     attempt = application.quiz_attempt
+    first_name, last_name = split_name(application.candidate.name)
     flags = attempt.integrity.get("flags", []) if attempt is not None else []
     return {
         "candidate_name": application.candidate.name,
+        "first_name": first_name,
+        "last_name": last_name,
         "candidate_email": application.candidate.email,
         "job": application.job.title,
         "stage": application.stage.value,

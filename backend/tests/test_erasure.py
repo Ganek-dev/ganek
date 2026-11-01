@@ -478,3 +478,59 @@ async def test_erase_removes_scorecards(client: AsyncClient, db_session: AsyncSe
     assert resp.status_code == 200, resp.text
     db_session.expire_all()
     assert await count() == 0
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_erase_removes_webhook_deliveries_of_the_application(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from uuid import UUID
+
+    from app.models import Application, Company
+    from app.models.webhook import WebhookDelivery
+    from app.services import erasure, webhooks
+
+    await _company_with_applications(client, n_jobs=2)
+    apps = (await client.get("/api/v1/applications")).json()["items"]
+    erased = await db_session.get(Application, UUID(apps[0]["id"]))
+    other = await db_session.get(Application, UUID(apps[1]["id"]))
+    assert erased is not None and other is not None
+    erased_id, other_id = str(erased.id), str(other.id)
+    company = await db_session.get(Company, erased.company_id)
+    assert company is not None
+    endpoint, _secret = webhooks.new_endpoint(
+        company, name="Zap", url="https://hooks.example.com/zap", events=["stage.changed"]
+    )
+    db_session.add(endpoint)
+    await db_session.flush()
+    for data in (
+        {"id": erased_id, "message": "free text"},
+        {"id": other_id},
+        {"id": str(uuid4()), "test": True},
+    ):
+        db_session.add(
+            WebhookDelivery(
+                company_id=company.id,
+                endpoint_id=endpoint.id,
+                event="stage.changed",
+                payload={"event": "stage.changed", "data": data},
+            )
+        )
+    await db_session.commit()
+
+    await erasure.erase_application(db_session, erased)
+    await db_session.commit()
+
+    remaining = (
+        (
+            await db_session.execute(
+                select(WebhookDelivery.payload["data"]["id"].astext).where(
+                    WebhookDelivery.endpoint_id == endpoint.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert erased_id not in remaining
+    assert other_id in remaining and len(remaining) == 2

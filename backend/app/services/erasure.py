@@ -29,6 +29,7 @@ from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Application, Candidate, Company, Interview, InterviewStatus, Job, Task
+from app.models.webhook import WebhookDelivery
 from app.services import activity, ics, storage, tombstones
 from app.services import outbox as outbox_service
 
@@ -202,6 +203,13 @@ async def erase_application(db: AsyncSession, application: Application) -> list[
         company_id=application.company_id,
         kind=tombstones.APPLICATION,
         subject_id=application.id,
+    )
+    # delivery rows keep the candidate's name, email and message in their payload
+    await db.execute(
+        delete(WebhookDelivery).where(
+            WebhookDelivery.company_id == application.company_id,
+            WebhookDelivery.payload["data"]["id"].astext == str(application.id),
+        )
     )
     await db.execute(delete(Application).where(Application.id == application.id))
     return notices

@@ -14,8 +14,9 @@ import {
 
 /** Developers page card (card D4 part B): register HTTPS endpoints for
  * application.created / stage.changed / quiz.completed, see the last
- * delivery per endpoint, send a test ping, remove. The signing secret is
- * readable once, right after creation. */
+ * delivery per endpoint, send a realistic sample of the first subscribed
+ * event, remove. The signing secret is readable once, right after
+ * creation. */
 
 const EVENTS: WebhookEvent[] = ["application.created", "stage.changed", "quiz.completed"];
 
@@ -98,8 +99,12 @@ export function WebhooksCard() {
   async function handleTest(id: string) {
     setError(null);
     try {
-      await webhooks.test(id);
-      setNotice("Test delivery queued; the worker posts it within seconds.");
+      const delivery = await webhooks.test(id);
+      setNotice(
+        delivery.event === "ping"
+          ? "Test delivery queued; the worker posts it within seconds."
+          : `Sample ${delivery.event} delivery queued; the worker posts it within seconds.`,
+      );
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not queue the test");
