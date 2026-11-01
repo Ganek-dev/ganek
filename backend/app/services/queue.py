@@ -32,6 +32,7 @@ from app.models import (
 from app.models.application import CLOSED_STAGES
 from app.models.scorecard import Scorecard
 from app.schemas.dashboard import QueueItem
+from app.services import pipeline_signals
 from app.services import scorecards as scorecard_service
 from app.services.quiz import parse_quiz_config
 
@@ -240,6 +241,33 @@ async def _scorecards_mine(
     return items
 
 
+async def _stalled_roles(db: AsyncSession, company: Company, *, now: datetime) -> list[QueueItem]:
+    """Staff: one item per role the pipeline board marks stalled."""
+    items: list[QueueItem] = []
+    for job in await pipeline_signals.stalled_jobs(db, company, now=now):
+        if job.last_movement_at is None:
+            continue
+        days = max(
+            (now.astimezone(UTC).date() - job.last_movement_at.astimezone(UTC).date()).days, 0
+        )
+        if job.waiting_on_team:
+            hint = f"{job.waiting_on_team} waiting on you"
+        else:
+            live = sum(job.live_by_stage.model_dump().values())
+            hint = f"{live} candidate{'' if live == 1 else 's'}"
+        items.append(
+            QueueItem(
+                key=f"role-stalled:{job.job_id}",
+                kind="role-stalled",
+                title=f"{job.title}: no movement for {days} {'day' if days == 1 else 'days'}",
+                hint=hint,
+                href=f"/admin/applicants?job={job.job_id}",
+                since=job.last_movement_at,
+            )
+        )
+    return items[:PER_SOURCE_LIMIT]
+
+
 async def derived_items(
     db: AsyncSession, company: Company, user: User, *, now: datetime | None = None
 ) -> list[QueueItem]:
@@ -251,6 +279,7 @@ async def derived_items(
         items += await _open_integrity_flags(db, company)
         items += await _unbooked_interviews(db, company)
         items += await _scorecards_waiting(db, company, now=now)
+        items += await _stalled_roles(db, company, now=now)
     return items + await _scorecards_mine(db, company, user, now=now)
 
 
