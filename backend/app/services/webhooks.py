@@ -284,9 +284,11 @@ def quiz_summary(attempt: QuizAttempt) -> str:
         notes = "no integrity notes" if count == 0 else f"{count} integrity note"
         if count > 1:
             notes += "s"
+        total = len(attempt.question_ids)
+        questions = f"{total} question" + ("" if total == 1 else "s")
         return (
-            f"Ganek screening: {round(attempt.score * 100)}% ({len(attempt.question_ids)} "
-            f"questions), completed {attempt.completed_at.date().isoformat()}, {notes}"
+            f"Ganek screening: {round(attempt.score * 100)}% ({questions}), "
+            f"completed {attempt.completed_at.date().isoformat()}, {notes}"
         )
     return f"Ganek screening: not completed (status {attempt.status.value})"
 

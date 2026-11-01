@@ -4,7 +4,7 @@ retries, and the three emitting events."""
 import hashlib
 import hmac
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.models import Application, ApplicationStage, Candidate, Company, Job
+from app.models import Application, ApplicationStage, Candidate, Company, Job, JobStatus
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.models.webhook import DeliveryStatus, WebhookDelivery, WebhookEndpoint
 from app.services import webhooks
@@ -149,14 +149,16 @@ def test_payload_without_attempt_has_null_quiz() -> None:
     assert data["candidate"]["links"] == {"github": None, "linkedin": None, "portfolio": None}
 
 
-def _attempt(status: AttemptStatus, flags: int = 0, completed: bool = True) -> QuizAttempt:
+def _attempt(
+    status: AttemptStatus, flags: int = 0, completed: bool = True, questions: int = 4
+) -> QuizAttempt:
     done = status is AttemptStatus.COMPLETED
     return QuizAttempt(
         status=status,
         score=0.83 if done else None,
         completed_at=datetime(2026, 10, 2, 10, 0, tzinfo=UTC) if done and completed else None,
         integrity={"flags": [{"summary": f"f{i}"} for i in range(flags)]},
-        question_ids=["a", "b", "c", "d"],
+        question_ids=[f"q{i}" for i in range(questions)],
     )
 
 
@@ -166,6 +168,10 @@ def _attempt(status: AttemptStatus, flags: int = 0, completed: bool = True) -> Q
         (
             _attempt(AttemptStatus.COMPLETED),
             "Ganek screening: 83% (4 questions), completed 2026-10-02, no integrity notes",
+        ),
+        (
+            _attempt(AttemptStatus.COMPLETED, questions=1),
+            "Ganek screening: 83% (1 question), completed 2026-10-02, no integrity notes",
         ),
         (
             _attempt(AttemptStatus.COMPLETED, flags=2),
@@ -181,6 +187,15 @@ def _attempt(status: AttemptStatus, flags: int = 0, completed: bool = True) -> Q
 )
 def test_quiz_summary_wording(attempt: QuizAttempt, expected: str) -> None:
     assert webhooks.quiz_summary(attempt) == expected
+
+
+@pytest.mark.parametrize("status", [AttemptStatus.PENDING, AttemptStatus.INVALIDATED])
+def test_payload_of_an_unfinished_attempt_has_no_score(status: AttemptStatus) -> None:
+    application = payload_application(attempts=[_attempt(status)])
+    quiz = webhooks.application_payload(application, sample_company())["quiz"]
+    assert quiz["status"] == status.value
+    assert quiz["score_percent"] is None
+    assert quiz["summary"] == f"Ganek screening: not completed (status {status.value})"
 
 
 def test_sample_payload_matches_the_real_shape() -> None:
@@ -523,3 +538,47 @@ async def test_deliver_retries_with_backoff_then_parks_failed(
     await db_session.refresh(delivery)
     assert delivery.status is DeliveryStatus.FAILED
     assert delivery.attempts == webhooks.MAX_ATTEMPTS
+
+
+@pytestmark_db
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_send_test_samples_the_newest_published_job_of_the_company(
+    client: AsyncClient, ctx: Any
+) -> None:
+    slug, _ = await _register(client)
+    resp = await client.post(
+        "/api/v1/webhooks",
+        json={"name": "Zap", "url": "https://hooks.example.com/zap", "events": ["quiz.completed"]},
+    )
+    endpoint_id = resp.json()["id"]
+    now = datetime.now(UTC)
+    tag = uuid4().hex[:6]
+    async with ctx["session_factory"]() as db:
+        company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one()
+        other = Company(slug=f"other-{tag}", name="Other Co", settings={})
+        db.add(other)
+        await db.flush()
+
+        def job(owner: Company, name: str, status: JobStatus, age_days: int | None) -> Job:
+            return Job(
+                company_id=owner.id,
+                slug=f"{name}-{tag}",
+                title=name,
+                status=status,
+                published_at=None if age_days is None else now - timedelta(days=age_days),
+            )
+
+        db.add_all(
+            [
+                job(company, "draft", JobStatus.DRAFT, 0),
+                job(company, "undated", JobStatus.PUBLISHED, None),
+                job(company, "older", JobStatus.PUBLISHED, 10),
+                job(company, "newer", JobStatus.PUBLISHED, 5),
+                job(other, "foreign", JobStatus.PUBLISHED, 1),
+            ]
+        )
+        await db.commit()
+    sent = await client.post(f"/api/v1/webhooks/{endpoint_id}/test")
+    assert sent.status_code == 202, sent.text
+    data = (await _queued_payload(ctx, sent.json()["id"]))["data"]
+    assert data["job"]["slug"] == f"newer-{tag}"
