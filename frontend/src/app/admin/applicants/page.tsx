@@ -24,6 +24,7 @@ import {
   type ApplicationOut,
   type ApplicationStage,
   type MessageInput,
+  type EmailDelivery,
   type EmailKind,
   type EmailKindInfo,
   type EmailTemplate,
@@ -46,7 +47,9 @@ import {
 import { relativeTime } from "@/lib/time";
 import { SCORE_TONE, ScoreChip, ScreeningChip, StagePill, toneFor } from "@/components/ApplicantChips";
 import { MessageDialog } from "@/components/MessageDialog";
+import { SendAfterRadios } from "@/components/SendAfterRadios";
 import { BUILTIN_TEMPLATE, REASON_HELPER, StageEmailDialog } from "@/components/StageEmailDialog";
+import { formatSendAfter, presetSendAfter, type SendAfterPreset } from "@/lib/send-after";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
 import { InterviewCard } from "@/components/InterviewCard";
@@ -366,6 +369,8 @@ function BulkActionBar({
 }) {
   const [notify, setNotify] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  // when the rejection mails go out; reset to tomorrow morning on every open
+  const [bulkPreset, setBulkPreset] = useState<SendAfterPreset>("tomorrow");
   // the internal rejection reason for every row (PR 2); never emailed
   const [bulkReason, setBulkReason] = useState<RejectionReason | "">("");
   const [bulkNote, setBulkNote] = useState("");
@@ -424,6 +429,7 @@ function BulkActionBar({
         rejectionNote: bulkNote.trim() || null,
       };
       if (notify && rejectTemplate) fields.templateId = rejectTemplate;
+      if (notify) fields.sendAfter = presetSendAfter(bulkPreset);
       const { rejected } = await applications.bulkReject(ids, notify, fields);
       setConfirming(false);
       setBulkReason("");
@@ -498,6 +504,7 @@ function BulkActionBar({
                 className="h-7 w-full rounded-sm border border-edge bg-surface px-1.5 text-[12.5px] text-foreground placeholder:text-g500"
               />
               <p className="text-[11px] text-g500">{REASON_HELPER}</p>
+              {notify ? <SendAfterRadios value={bulkPreset} onChange={setBulkPreset} /> : null}
             </div>
             <button
               type="button"
@@ -551,7 +558,10 @@ function BulkActionBar({
               <button
                 type="button"
                 disabled={busy || tooMany}
-                onClick={() => setConfirming(true)}
+                onClick={() => {
+                  setBulkPreset("tomorrow");
+                  setConfirming(true);
+                }}
                 className={`inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium hover:bg-muted-fill disabled:opacity-50 ${SCORE_TONE.red.text}`}
               >
                 Reject…
@@ -792,6 +802,7 @@ function DetailPanel({
   onSendMessage,
   now,
   trailTick,
+  onTimelineChanged,
 }: {
   app: ApplicationOut;
   jobTitle: string;
@@ -806,15 +817,48 @@ function DetailPanel({
   onSendMessage: (fields: MessageInput) => Promise<string | null>;
   now: Date;
   trailTick: number;
+  /** The timeline cancelled a scheduled mail: refresh the delivery trail. */
+  onTimelineChanged: () => void;
 }) {
   const searchParams = useSearchParams();
   const [notify, setNotify] = useState(false);
   // Reject always goes through the dialog (the internal reason, PR 2, plus
   // the email preview when the checkbox is on); interview shows the email
   // it sends when the checkbox is on; other stages have no mail
-  const [dialog, setDialog] = useState<{ stage: "interview" | "rejected"; email: boolean } | null>(
-    null,
-  );
+  const [dialog, setDialog] = useState<{
+    stage: "interview" | "rejected";
+    email: boolean;
+    mailOnly?: boolean;
+  } | null>(null);
+  // The delivery trail, loaded only for a rejected application so the
+  // "Send rejection email" button knows whether a rejection mail already
+  // exists. null = not loaded (or failed): no button, never a flicker.
+  // Refetches whenever trailTick bumps (any panel action that writes a
+  // timeline row, and the timeline Cancel), so that is the reload hook.
+  const [deliveries, setDeliveries] = useState<EmailDelivery[] | null>(null);
+  const isRejected = app.stage === "rejected";
+  useEffect(() => {
+    if (!isRejected) return;
+    let cancelled = false;
+    applications
+      .emails(app.id)
+      .then((rows) => {
+        if (!cancelled) setDeliveries(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setDeliveries(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [app.id, isRejected, trailTick]);
+  const canMailAgain =
+    isRejected &&
+    deliveries !== null &&
+    !deliveries.some(
+      (row) =>
+        row.kind === "rejection" && ["scheduled", "queued", "sent"].includes(row.status),
+    );
   function requestStage(stage: ApplicationStage) {
     if (stage === "rejected") {
       setDialog({ stage, email: notify });
@@ -906,6 +950,15 @@ function DetailPanel({
                 className={`inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium hover:bg-muted-fill ${SCORE_TONE.red.text}`}
               >
                 Reject
+              </button>
+            ) : null}
+            {canMailAgain ? (
+              <button
+                type="button"
+                onClick={() => setDialog({ stage: "rejected", email: true, mailOnly: true })}
+                className="inline-flex h-8 items-center rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium text-g700 hover:bg-muted-fill"
+              >
+                Send rejection email
               </button>
             ) : null}
             <label className="sr-only" htmlFor={`stage-${app.id}`}>
@@ -1071,12 +1124,14 @@ function DetailPanel({
         onCancel={() => setMessageOpen(false)}
       />
       <StageEmailDialog
-        key={dialog ? `${dialog.stage}-${dialog.email}` : "closed"}
+        key={dialog ? `${dialog.stage}-${dialog.email}-${dialog.mailOnly ? "mail" : "move"}` : "closed"}
         open={dialog !== null}
         applicationId={app.id}
         candidateName={app.candidate.name}
         stage={dialog?.stage ?? "rejected"}
         email={dialog?.email ?? false}
+        mailOnly={dialog?.mailOnly ?? false}
+        defaultPreset="now"
         onConfirm={(fields) => {
           const { stage, email } = dialog ?? { stage: "rejected" as const, email: notify };
           setDialog(null);
@@ -1155,6 +1210,7 @@ function DetailPanel({
         applicationId={app.id}
         now={now}
         refreshKey={trailTick}
+        onChanged={onTimelineChanged}
       />
       <AccessTrailCard key={`access-${app.id}`} applicationId={app.id} now={now} />
       <NotesCard key={app.id} applicationId={app.id} />
@@ -1361,18 +1417,40 @@ function ApplicantsContent() {
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stage change failed");
+      // a 409 means a rejection mail exists after all: refresh the trail
+      setTrailTick((tick) => tick + 1);
       return;
     }
-    if (before === null || before.stage === stage) return;
+    if (before === null) return;
+    if (before.stage === stage) {
+      // mail-only success (same stage, notify on): nothing to undo
+      if (notify && stage === "rejected") {
+        const at = fields?.sendAfter ?? null;
+        setToast({
+          id: Date.now(),
+          text: at
+            ? `Rejection email scheduled for ${formatSendAfter(at)}.`
+            : "Rejection email sent.",
+        });
+      }
+      return;
+    }
     const previous = before.stage;
     const name = before.candidate.name;
     // an email that went out cannot be unsent; the toast says so and
     // undo moves the row back quietly. Only interview and rejection carry
     // a mail, so the checkbox alone does not make the claim.
     const emailed = notify && (stage === "interview" || stage === "rejected");
+    // a delayed rejection mail: the toast names the time, undo cancels it
+    const delayedAt = notify && stage === "rejected" ? (fields?.sendAfter ?? null) : null;
+    const mailNote = delayedAt
+      ? ` Email scheduled for ${formatSendAfter(delayedAt)}.`
+      : emailed
+        ? " Email sent."
+        : "";
     setToast({
       id: Date.now(),
-      text: `Moved ${name} to ${STAGE_LABELS[stage]}.${emailed ? " Email sent." : ""}`,
+      text: `Moved ${name} to ${STAGE_LABELS[stage]}.${mailNote}`,
       action: {
         label: "Undo",
         run: async () => {
@@ -1381,7 +1459,26 @@ function ApplicantsContent() {
             await applications.setStage(id, previous, false);
             setTrailTick((tick) => tick + 1);
             reload();
-            setToast({ id: Date.now(), text: `Moved ${name} back to ${STAGE_LABELS[previous]}.` });
+            let note = delayedAt ? " Scheduled email cancelled." : "";
+            if (previous === "rejected") {
+              // the rejection mail is not restored by moving back: say so
+              try {
+                const rows = (await applications.emails(id))
+                  .filter((row) => row.kind === "rejection")
+                  .sort((a, b) => b.created_at.localeCompare(a.created_at));
+                const live = rows.some((row) => ["scheduled", "queued", "sent"].includes(row.status));
+                if (rows[0]?.status === "cancelled" && !live) {
+                  note =
+                    " The scheduled rejection email stays cancelled - send it again from the panel if needed.";
+                }
+              } catch {
+                // keep the plain text
+              }
+            }
+            setToast({
+              id: Date.now(),
+              text: `Moved ${name} back to ${STAGE_LABELS[previous]}.${note}`,
+            });
           } catch (err) {
             setError(err instanceof Error ? err.message : "Undo failed");
           }
@@ -1704,6 +1801,8 @@ function ApplicantsContent() {
             onChanged={() => {
               setChecked(new Map());
               reload();
+              // an open panel's timeline and trail must not go stale
+              setTrailTick((tick) => tick + 1);
             }}
           />
         </div>
@@ -1723,6 +1822,7 @@ function ApplicantsContent() {
             onSendMessage={(fields) => sendMessage(selected.id, fields)}
             now={now}
             trailTick={trailTick}
+            onTimelineChanged={() => setTrailTick((n) => n + 1)}
           />
         ) : items === null ? (
           <div className="card h-[540px] animate-pulse" />

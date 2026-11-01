@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { applications, type TimelineEvent } from "@/lib/api";
+import { ApiError, applications, type TimelineEvent } from "@/lib/api";
+import { formatSendAfter } from "@/lib/send-after";
 import { relativeTime } from "@/lib/time";
 import { reasonLabel } from "@/lib/rejection-reasons";
 
@@ -49,7 +50,7 @@ const DOT: Record<Tone, string> = {
   neutral: "bg-g300",
 };
 
-const EMAIL_STATE: Record<string, { tone: Tone; label: (p: Record<string, unknown>) => string }> = {
+const EMAIL_STATE: Record<string, { tone: Tone; label: (p: Record<string, unknown>, now: Date) => string }> = {
   sent: { tone: "sent", label: () => "sent" },
   queued: {
     tone: "waiting",
@@ -59,6 +60,10 @@ const EMAIL_STATE: Record<string, { tone: Tone; label: (p: Record<string, unknow
   bounced: { tone: "failed", label: () => "bounced" },
   complained: { tone: "failed", label: () => "marked as spam" },
   suppressed: { tone: "waiting", label: () => "skipped: address suppressed" },
+  scheduled: {
+    tone: "waiting",
+    label: (p, now) => `scheduled for ${formatSendAfter(String(p.send_after), now)}`,
+  },
 };
 
 const NOT_DELIVERED = new Set(["failed", "bounced", "complained"]);
@@ -82,7 +87,7 @@ function nonEmpty(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-export function describeEvent(event: TimelineEvent): {
+export function describeEvent(event: TimelineEvent, now: Date = new Date()): {
   text: string;
   tone: Tone;
   /** A second line under the row: the internal rejection note, or an
@@ -129,7 +134,7 @@ export function describeEvent(event: TimelineEvent): {
       const name = EMAIL_LABELS[String(p.template)] ?? String(p.template);
       // subject and text are set once the row was rendered at delivery
       return {
-        text: `${name} email ${state.label(p)}`,
+        text: `${name} email ${state.label(p, now)}`,
         tone: state.tone,
         detail: nonEmpty(p.subject),
         body: nonEmpty(p.text),
@@ -143,6 +148,11 @@ export function describeEvent(event: TimelineEvent): {
       return { text: `Scorecard declined by ${reviewerName(p)}`, tone: "neutral" };
     case "scorecard.dismissed":
       return { text: "Scorecard request withdrawn", tone: "neutral" };
+    case "email.cancelled": {
+      // no actor: the candidate withdrew, the worker cancelled, or an API key did
+      const by = event.actor_label || event.actor_email;
+      return { text: by ? `Rejection email cancelled by ${by}` : "Rejection email cancelled", tone: "neutral" };
+    }
     case "email.message":
       return { text: `${who(event)} sent a message`, tone: "sent" };
     case "note.added":
@@ -177,16 +187,21 @@ export function TimelineCard({
   applicationId,
   now,
   refreshKey = 0,
+  onChanged,
 }: {
   applicationId: string;
   now: Date;
   /** Bump after an action in the panel (stage move, reminder) so the trail
    * refetches without flashing back to the skeleton. */
   refreshKey?: number;
+  /** Called after a cancel, so the panel refreshes what depends on the mail. */
+  onChanged?: () => void;
 }) {
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,9 +218,34 @@ export function TimelineCard({
     };
   }, [applicationId, refreshKey]);
 
-  const hint = events ? failureHint(events) : null;
-  const visible = events && !expanded ? events.slice(0, COLLAPSED_ROWS) : events;
-  const hidden = events && visible ? events.length - visible.length : 0;
+  async function cancelScheduled(eventId: string) {
+    setCancelling(eventId);
+    setCancelError(null);
+    try {
+      await applications.cancelEmail(applicationId, eventId.replace(/^email-/, ""));
+    } catch (err) {
+      // 409: the mail went out meanwhile; the refetch below shows it
+      setCancelError(
+        err instanceof ApiError && err.status === 409
+          ? "The email could not be cancelled - it may already have gone out."
+          : "Could not cancel the email - try again.",
+      );
+    }
+    try {
+      setEvents(await applications.timeline(applicationId));
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+    setCancelling(null);
+    onChanged?.();
+  }
+
+  // a cancelled mail is covered by its "Rejection email cancelled" activity row
+  const shown = events ? events.filter((e) => !(e.kind === "email" && e.payload.status === "cancelled")) : null;
+  const hint = shown ? failureHint(shown) : null;
+  const visible = shown && !expanded ? shown.slice(0, COLLAPSED_ROWS) : shown;
+  const hidden = shown && visible ? shown.length - visible.length : 0;
 
   return (
     <section aria-label="Timeline" className="card mt-5 p-4">
@@ -222,7 +262,7 @@ export function TimelineCard({
         <>
           <ol className="mt-2.5 space-y-1.5">
             {visible.map((event) => {
-              const { text, tone, detail, body } = describeEvent(event);
+              const { text, tone, detail, body } = describeEvent(event, now);
               return (
                 <li key={event.id} className="text-[13px]">
                   <div className="flex items-baseline gap-2">
@@ -231,6 +271,17 @@ export function TimelineCard({
                       className={`inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full ${DOT[tone]}`}
                     />
                     <span className="text-g700">{text}</span>
+                    {event.kind === "email" && event.payload.status === "scheduled" ? (
+                      <button
+                        type="button"
+                        aria-label="Cancel the scheduled rejection email"
+                        disabled={cancelling === event.id}
+                        onClick={() => void cancelScheduled(event.id)}
+                        className="text-[12px] text-g600 underline hover:text-accent disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
                     <time
                       dateTime={event.at}
                       title={new Date(event.at).toLocaleString()}
@@ -264,6 +315,11 @@ export function TimelineCard({
             >
               Show {hidden} more
             </button>
+          ) : null}
+          {cancelError ? (
+            <p role="status" className="mt-2 text-[12px] text-g500">
+              {cancelError}
+            </p>
           ) : null}
           {hint ? (
             <p className="mt-2 text-[11.5px] text-red-600 dark:text-red-400">{hint}</p>

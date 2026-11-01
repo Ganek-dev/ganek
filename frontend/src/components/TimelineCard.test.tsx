@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +10,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    applications: { ...original.applications, timeline: vi.fn() },
+    applications: { ...original.applications, timeline: vi.fn(), cancelEmail: vi.fn() },
   };
 });
 
@@ -258,5 +258,92 @@ describe("TimelineCard scorecard rows", () => {
     expect(items[0].textContent).not.toMatch(/sent/);
     expect(items[1]).toHaveTextContent(/^Scorecard reminder email failed/);
     expect(items[1].textContent).not.toMatch(/sent/);
+  });
+
+  const SCHEDULED = {
+    template: "rejection",
+    status: "scheduled",
+    attempts: 0,
+    last_error: null,
+    send_after: "2026-10-31T09:00:00",
+    cancelled_at: null,
+  };
+
+  it("shows a scheduled rejection with its time and a Cancel that calls the endpoint", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ id: "email-mail-1", kind: "email", payload: SCHEDULED }),
+    ]);
+    mocked.cancelEmail.mockResolvedValue({} as never);
+    const onChanged = vi.fn();
+    render(<TimelineCard applicationId="app-1" now={NOW} onChanged={onChanged} />);
+    const row = (await screen.findAllByRole("listitem"))[0];
+    expect(row).toHaveTextContent(/^Rejection email scheduled for Sat 09:00/);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel the scheduled rejection email" }));
+    await waitFor(() => expect(mocked.cancelEmail).toHaveBeenCalledWith("app-1", "mail-1"));
+    await waitFor(() => expect(mocked.timeline).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows Cancel only on scheduled email rows", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ id: "email-m2", kind: "email", payload: { template: "rejection", status: "sent", attempts: 1, last_error: null } }),
+    ]);
+    render(<TimelineCard applicationId="app-1" now={NOW} />);
+    await screen.findAllByRole("listitem");
+    expect(screen.queryByRole("button", { name: /Cancel the scheduled/ })).toBeNull();
+  });
+
+  it("disables Cancel while the request is in flight", async () => {
+    mocked.timeline.mockResolvedValue([event({ id: "email-mail-1", kind: "email", payload: SCHEDULED })]);
+    mocked.cancelEmail.mockReturnValue(new Promise(() => {}));
+    render(<TimelineCard applicationId="app-1" now={NOW} />);
+    const button = await screen.findByRole("button", { name: "Cancel the scheduled rejection email" });
+    await userEvent.click(button);
+    await waitFor(() => expect(button).toBeDisabled());
+  });
+
+  it("refetches and stays quiet when the cancel answers 409", async () => {
+    mocked.timeline.mockResolvedValue([event({ id: "email-mail-1", kind: "email", payload: SCHEDULED })]);
+    mocked.cancelEmail.mockRejectedValue(new ApiError(409, "already sent"));
+    const onChanged = vi.fn();
+    render(<TimelineCard applicationId="app-1" now={NOW} onChanged={onChanged} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel the scheduled rejection email" }));
+    await waitFor(() => expect(mocked.timeline).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "The email could not be cancelled - it may already have gone out.",
+    );
+    expect(screen.getByRole("region", { name: "Timeline" })).toBeInTheDocument();
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("says try again when the cancel fails for another reason", async () => {
+    mocked.timeline.mockResolvedValue([event({ id: "email-mail-1", kind: "email", payload: SCHEDULED })]);
+    mocked.cancelEmail.mockRejectedValue(new ApiError(500, "boom"));
+    render(<TimelineCard applicationId="app-1" now={NOW} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel the scheduled rejection email" }));
+    const note = await screen.findByRole("status");
+    expect(note).toHaveTextContent("Could not cancel the email - try again.");
+    expect(note).not.toHaveTextContent("may already have gone out");
+  });
+
+  it("renders the cancelled activity row and hides the cancelled email row", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ id: "activity-1", kind: "email.cancelled", at: "2026-10-29T11:50:00Z", payload: { email_id: "m", kind: "rejection" }, ...ERIKA }),
+      event({ id: "email-m", kind: "email", at: "2026-10-29T11:40:00Z", payload: { ...SCHEDULED, status: "cancelled", cancelled_at: "2026-10-29T11:50:00Z" } }),
+    ]);
+    render(<TimelineCard applicationId="app-1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent(/^Rejection email cancelled by Erika Muster/);
+  });
+
+  it("says plainly that the rejection email was cancelled when nobody did it", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ id: "activity-2", kind: "email.cancelled", payload: { email_id: "m", kind: "rejection" } }),
+    ]);
+    render(<TimelineCard applicationId="app-1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Rejection email cancelled/);
+    expect(items[0].textContent).not.toMatch(/by|former teammate/);
   });
 });
