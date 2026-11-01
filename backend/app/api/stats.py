@@ -8,7 +8,8 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import CurrentCompany, CurrentUser, DbSession, StaffCompany, StaffUser
 from app.models import Application, Interview, InterviewStatus
 from app.schemas.dashboard import QueueDismiss, QueueOut, TodayEvent, TodayOut
-from app.schemas.stats import StatsOverview
+from app.schemas.stats import BoardOut, StatsOverview
+from app.services import pipeline_signals
 from app.services import queue as queue_service
 from app.services import stats as stats_service
 
@@ -18,6 +19,13 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 @router.get("/overview", response_model=StatsOverview)
 async def stats_overview(db: DbSession, company: StaffCompany) -> StatsOverview:
     return await stats_service.overview(db, company)
+
+
+@router.get("/board", response_model=BoardOut)
+async def stats_board(db: DbSession, company: StaffCompany) -> BoardOut:
+    """Dashboard open roles board: one row per published job (and closed jobs
+    that still hold live candidates), with the stalled/attention chip."""
+    return await pipeline_signals.board(db, company)
 
 
 @router.get("/today", response_model=TodayOut)
