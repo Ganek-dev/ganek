@@ -27,6 +27,7 @@ from app.core.observability import init_sentry
 from app.core.security import create_quiz_token
 from app.models import (
     Application,
+    ApplicationStage,
     Candidate,
     Company,
     EmailOutbox,
@@ -41,7 +42,7 @@ from app.models.quiz import AttemptStatus
 from app.models.scorecard import Scorecard
 from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
-from app.services import demo_seed, email_templates
+from app.services import demo_seed, email_templates, scheduled_emails
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import interviews as interviews_service
@@ -337,6 +338,15 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
             # never early: a deferred job firing ahead of send_after is a no-op
             if row.send_after is None or row.send_after > datetime.now(UTC):
                 return
+            if row.kind == "rejection" and row.application_id is not None:
+                stage = await db.scalar(
+                    select(Application.stage).where(Application.id == row.application_id)
+                )
+                if stage is not ApplicationStage.REJECTED:
+                    # the un-reject's cancel commit lost the race: never mail
+                    # a candidate who is no longer rejected
+                    await scheduled_emails.cancel(db, row=row, actor_user_id=None)
+                    return
             row.status = EmailStatus.QUEUED
         if row.status is not EmailStatus.QUEUED:
             return

@@ -60,7 +60,7 @@ from app.schemas.applications import (
 )
 from app.schemas.dsar import DsarBundle
 from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut, SlotPreviewRequest
-from app.services import access_log, activity, email_render, storage
+from app.services import access_log, activity, email_render, scheduled_emails, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import dsar as dsar_service
@@ -295,6 +295,12 @@ async def bulk_stage_applications(
         reason=payload.rejection_reason,
         note=payload.rejection_note,
     )
+    if payload.stage is not ApplicationStage.REJECTED:
+        # leaving rejected cancels a still-scheduled rejection mail (no-op otherwise)
+        for application in updated:
+            await scheduled_emails.cancel_for_application(
+                db, application=application, actor_user_id=user.id
+            )
     if payload.notify_candidates:
         for application in updated:
             await _queue_stage_email(
@@ -364,6 +370,7 @@ async def set_stage(
     # bulk-reject silently skips already-rejected rows; the single route must
     # not re-send the stage email either when nothing actually changed
     stage_changed = application.stage is not payload.stage
+    previous_stage = application.stage
     if payload.notify_candidate and stage_changed:
         await _check_template(db, company, payload.stage, payload.template_id)
     updated = await applications_service.set_stage(
@@ -384,6 +391,14 @@ async def set_stage(
             override_subject=payload.subject,
             override_body=payload.body,
             send_after=payload.send_after,
+        )
+    unrejected = previous_stage is ApplicationStage.REJECTED
+    if unrejected and payload.stage is not ApplicationStage.REJECTED:
+        # un-reject (the undo toast, a manual move): a held rejection mail must not go out
+        await scheduled_emails.cancel_for_application(
+            db,
+            application=application,
+            actor_user_id=actor.user.id if actor.user is not None else None,
         )
     return updated
 
@@ -1205,6 +1220,37 @@ async def email_deliveries(
         .scalars()
         .all()
     )
+
+
+@router.post("/{application_id}/emails/{email_id}/cancel", response_model=EmailDeliveryOut)
+async def cancel_scheduled_email(
+    application_id: uuid.UUID,
+    email_id: uuid.UUID,
+    db: DbSession,
+    company: StaffCompany,
+    user: StaffUser,
+) -> EmailOutbox:
+    """Hold back a scheduled mail before it goes out. 404 unless the row is
+    this company's and this application's; 409 once it is no longer scheduled."""
+    row = (
+        await db.execute(
+            select(EmailOutbox)
+            .where(
+                EmailOutbox.id == email_id,
+                EmailOutbox.company_id == company.id,
+                EmailOutbox.application_id == application_id,
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
+    try:
+        return await scheduled_emails.cancel(db, row=row, actor_user_id=user.id)
+    except scheduled_emails.NotScheduled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This email is not scheduled"
+        ) from None
 
 
 @router.get("/{application_id}/quiz-answers", response_model=list[QuizAnswerReview])

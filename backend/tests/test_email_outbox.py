@@ -7,7 +7,7 @@ import smtplib
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from arq import Retry
@@ -18,7 +18,7 @@ from sqlalchemy.pool import NullPool
 
 from app.core import queue
 from app.core.config import settings
-from app.models import Company, EmailOutbox, EmailStatus
+from app.models import Application, ApplicationStage, Company, EmailOutbox, EmailStatus
 from app.services import outbox as outbox_service
 from tests.db import database_reachable
 from tests.helpers import upload_pdf
@@ -239,6 +239,61 @@ async def test_deliver_releases_a_due_scheduled_row(db_session: AsyncSession, ct
     assert fresh.status is EmailStatus.SENT
     assert fresh.sent_at is not None
     assert fresh.rendered_subject == "Your application to Outbox Co"
+
+
+async def _scheduled_rejection_for(
+    client: AsyncClient, db: AsyncSession, stage: ApplicationStage
+) -> EmailOutbox:
+    """A due scheduled rejection row on a real application moved to `stage`."""
+    app_id, _ = await _apply_flow(client)
+    application = (
+        await db.execute(select(Application).where(Application.id == UUID(app_id)))
+    ).scalar_one()
+    application.stage = stage
+    await db.commit()
+    company = await db.get(Company, application.company_id)
+    assert company is not None
+    return await _queued(
+        db,
+        company,
+        kind="rejection",
+        payload=_rejection_payload(company),
+        status=EmailStatus.SCHEDULED,
+        send_after=datetime.now(UTC) - timedelta(minutes=1),
+        application_id=application.id,
+    )
+
+
+_FLOW = ("migrated_db", "bucket", "multi_mode", "real_outbox", "smtp_ok", "no_verification")
+
+
+@pytest.mark.usefixtures(*_FLOW)
+async def test_deliver_cancels_a_due_rejection_whose_application_is_not_rejected(
+    client: AsyncClient, db_session: AsyncSession, ctx: Any
+) -> None:
+    from app.worker import deliver_email
+
+    row = await _scheduled_rejection_for(client, db_session, ApplicationStage.SCREENING)
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+    fresh = await _fresh(db_session, row_id)
+    assert FakeSMTP.sent == []
+    assert fresh.status is EmailStatus.CANCELLED
+    assert fresh.cancelled_at is not None
+
+
+@pytest.mark.usefixtures(*_FLOW)
+async def test_deliver_releases_a_due_rejection_whose_application_is_rejected(
+    client: AsyncClient, db_session: AsyncSession, ctx: Any
+) -> None:
+    from app.worker import deliver_email
+
+    row = await _scheduled_rejection_for(client, db_session, ApplicationStage.REJECTED)
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+    fresh = await _fresh(db_session, row_id)
+    assert len(FakeSMTP.sent) == 1
+    assert fresh.status is EmailStatus.SENT
 
 
 @pytest.mark.usefixtures("migrated_db")

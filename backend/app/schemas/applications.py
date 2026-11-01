@@ -314,6 +314,7 @@ class EmailDeliveryOut(BaseModel):
     created_at: datetime
     sent_at: datetime | None
     send_after: datetime | None = None
+    cancelled_at: datetime | None = None
     subject: str | None = Field(default=None, validation_alias="rendered_subject")
     text: str | None = Field(default=None, validation_alias="rendered_text")
 

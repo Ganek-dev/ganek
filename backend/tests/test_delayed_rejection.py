@@ -5,6 +5,7 @@ bulk-stage routes holds the mail as a scheduled outbox row; bad values are a
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -166,3 +167,149 @@ async def test_send_now_is_unchanged(client: AsyncClient, sent: list[dict[str, A
     rows = await _emails(client, app_id)
     assert [(r["kind"], r["status"]) for r in rows] == [("rejection", "sent")]
     assert rows[0]["send_after"] is None
+
+
+async def _schedule(client: AsyncClient, app_id: str) -> dict[str, Any]:
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True, "send_after": _when(days=1)},
+    )
+    assert resp.status_code == 200, resp.text
+    (row,) = await _emails(client, app_id)
+    assert row["status"] == "scheduled"
+    return row
+
+
+def _cancel_url(app_id: str, email_id: str) -> str:
+    return f"/api/v1/applications/{app_id}/emails/{email_id}/cancel"
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_staff_cancels_a_scheduled_mail(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, creds = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    row = await _schedule(client, app_id)
+
+    resp = await client.post(_cancel_url(app_id, row["id"]))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "cancelled"
+    assert resp.json()["cancelled_at"] is not None
+    # a second cancel finds nothing scheduled
+    again = await client.post(_cancel_url(app_id, row["id"]))
+    assert again.status_code == 409
+    assert again.json() == {"detail": "This email is not scheduled"}
+
+    activity = (await client.get("/api/v1/activity")).json()
+    feed = [a for a in activity if a["type"] == "email.cancelled"]
+    assert len(feed) == 1
+    assert feed[0]["actor_email"] == creds["email"]
+    assert feed[0]["payload"] == {"email_id": row["id"], "kind": "rejection"}
+    assert sent == []
+    assert (await _emails(client, app_id))[0]["status"] == "cancelled"
+    # an unknown email id on a real application
+    assert (await client.post(_cancel_url(app_id, str(uuid4())))).status_code == 404
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_cancel_is_tenant_scoped_and_session_only(client: AsyncClient) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    row = await _schedule(client, app_id)
+    key = (await client.post("/api/v1/api-keys", json={"name": "Zap", "scope": "read"})).json()
+    bearer = {"Authorization": f"Bearer {key['secret']}"}
+
+    await client.post("/api/v1/auth/logout")
+    other = {
+        "email": f"other-{uuid4().hex[:8]}@ganek-ci.dev",
+        "password": "a-long-secure-password",
+    }
+    reg = await client.post(
+        "/api/v1/auth/register", json={"company_name": f"Other {uuid4().hex[:6]}", **other}
+    )
+    assert reg.status_code == 201, reg.text
+    assert (await client.post(_cancel_url(app_id, row["id"]))).status_code == 404
+
+    await client.post("/api/v1/auth/logout")
+    resp = await client.post(_cancel_url(app_id, row["id"]), headers=bearer)
+    assert resp.status_code == 401
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_unreject_cancels_the_scheduled_mail(
+    client: AsyncClient, sent: list[dict[str, Any]]
+) -> None:
+    applicants, _ = await _company_with_applicants(client, 2)
+    ids = await _ids_by_email(client)
+    a, b = (ids[app["email"]] for app in applicants)
+    scheduled = await _schedule(client, a)
+
+    # b was rejected with an immediate mail: it is already sent
+    resp = await client.patch(
+        f"/api/v1/applications/{b}/stage", json={"stage": "rejected", "notify_candidate": True}
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(sent) == 1
+
+    # the undo toast's call: stage back, notify false
+    for app_id in (a, b):
+        resp = await client.patch(
+            f"/api/v1/applications/{app_id}/stage",
+            json={"stage": "screening", "notify_candidate": False},
+        )
+        assert resp.status_code == 200, resp.text
+
+    (row,) = await _emails(client, a)
+    assert (row["id"], row["status"]) == (scheduled["id"], "cancelled")
+    assert [r["status"] for r in await _emails(client, b)] == ["sent"]
+    cancelled = [
+        x for x in (await client.get("/api/v1/activity")).json() if x["type"] == "email.cancelled"
+    ]
+    assert len(cancelled) == 1
+    assert len(sent) == 1
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_bulk_stage_out_of_rejected_cancels(client: AsyncClient) -> None:
+    applicants, _ = await _company_with_applicants(client, 1)
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    await _schedule(client, app_id)
+
+    resp = await client.post(
+        "/api/v1/applications/bulk-stage",
+        json={"application_ids": [app_id], "stage": "screening"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"updated": 1, "skipped": 0}
+    assert [r["status"] for r in await _emails(client, app_id)] == ["cancelled"]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_member_can_cancel_and_reviewer_cannot(client: AsyncClient) -> None:
+    applicants, admin = await _company_with_applicants(client, 2)
+    ids = await _ids_by_email(client)
+    a, b = (ids[app["email"]] for app in applicants)
+    row_a = await _schedule(client, a)
+    row_b = await _schedule(client, b)
+
+    pw = "member-password-1234"
+    users = {}
+    for role in ("member", "reviewer"):
+        email = f"{role}-{uuid4().hex[:8]}@ganek-ci.dev"
+        body = {"email": email, "password": pw, "role": role}
+        resp = await client.post("/api/v1/users", json=body)
+        assert resp.status_code == 201, resp.text
+        users[role] = email
+
+    await client.post("/api/v1/auth/logout")
+    login = {"email": users["reviewer"], "password": pw}
+    assert (await client.post("/api/v1/auth/login", json=login)).status_code == 200
+    assert (await client.post(_cancel_url(b, row_b["id"]))).status_code == 403
+
+    await client.post("/api/v1/auth/logout")
+    login = {"email": users["member"], "password": pw}
+    assert (await client.post("/api/v1/auth/login", json=login)).status_code == 200
+    resp = await client.post(_cancel_url(a, row_a["id"]))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "cancelled"
