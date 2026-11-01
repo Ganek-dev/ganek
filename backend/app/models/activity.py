@@ -19,7 +19,10 @@ class ActivityLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "activity_log"
-    __table_args__ = (Index("ix_activity_log_company_created", "company_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_activity_log_company_created", "company_id", "created_at"),
+        Index("ix_activity_log_application_created", "application_id", "created_at"),
+    )
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"), index=True
