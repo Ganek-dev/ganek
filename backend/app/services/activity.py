@@ -35,6 +35,10 @@ API_KEY_CREATED = "api_key.created"
 API_KEY_REVOKED = "api_key.revoked"
 WEBHOOK_CREATED = "webhook.created"
 WEBHOOK_DELETED = "webhook.deleted"
+SCORECARD_REQUESTED = "scorecard.requested"
+SCORECARD_SUBMITTED = "scorecard.submitted"
+SCORECARD_DECLINED = "scorecard.declined"
+SCORECARD_DISMISSED = "scorecard.dismissed"
 
 
 def record(

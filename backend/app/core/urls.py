@@ -74,6 +74,14 @@ def admin_applicant_url(company: Company, application_id: object) -> str:
     return f"{_base(company)}/admin/applicants?selected={application_id}"
 
 
+def scorecard_url(company: Company, application_id: object, *, reviewer: bool) -> str:
+    """Where a scorecard request lands: staff open the applicant with the
+    scorecard card focused, a reviewer-role user gets the slim review page."""
+    if reviewer:
+        return f"{_base(company)}/review/{application_id}"
+    return f"{admin_applicant_url(company, application_id)}&scorecard=1"
+
+
 def invite_url(company: Company, invite_token: str) -> str:
     return f"{_base(company)}/invite/{invite_token}"
 

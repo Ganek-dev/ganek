@@ -14,7 +14,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models import (
     Application,
-    ApplicationStage,
     AttemptStatus,
     Candidate,
     Company,
@@ -25,11 +24,10 @@ from app.models import (
     QuizAttempt,
     User,
 )
+from app.models.application import CLOSED_STAGES
 from app.schemas.dashboard import QueueItem
 from app.services.quiz import parse_quiz_config
 
-# an application nobody is working on any more drops its pointers
-CLOSED_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED)
 PER_SOURCE_LIMIT = 20
 
 
