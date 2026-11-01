@@ -102,33 +102,32 @@ async def update_user(db: AsyncSession, company: Company, user: User, payload: U
     return user
 
 
-async def _relabel_scorecard_activity(
-    db: AsyncSession, company: Company, user: User, label: str
-) -> None:
+async def _relabel_scorecard_activity(db: AsyncSession, company: Company, user: User) -> None:
     """The timeline reads reviewer_label from the frozen activity payload, so
-    the anonymised reviewer's name must be rewritten there too. Rows are found
-    through the user's own scorecards; other reviewers' rows on the same
-    application keep their label."""
-    app_ids = (
-        (
+    the anonymised reviewer's name must be rewritten there too. Rows are keyed
+    by the scorecard_id every scorecard.* payload carries, so renames and
+    same-named colleagues cannot cause a miss or a collateral rewrite."""
+    card_ids = [
+        str(i)
+        for i in (
             await db.execute(
-                select(Scorecard.application_id).where(
+                select(Scorecard.id).where(
                     Scorecard.company_id == company.id, Scorecard.reviewer_user_id == user.id
                 )
             )
         )
         .scalars()
         .all()
-    )
-    if not app_ids:
+    ]
+    if not card_ids:
         return
     rows = (
         (
             await db.execute(
                 select(ActivityLog).where(
                     ActivityLog.company_id == company.id,
-                    ActivityLog.application_id.in_(app_ids),
                     ActivityLog.type.like("scorecard.%"),
+                    ActivityLog.payload["scorecard_id"].astext.in_(card_ids),
                 )
             )
         )
@@ -136,7 +135,7 @@ async def _relabel_scorecard_activity(
         .all()
     )
     for row in rows:
-        if row.payload.get("reviewer_label") == label:
+        if "reviewer_label" in row.payload:
             row.payload = {**row.payload, "reviewer_label": "Former teammate"}
 
 
@@ -173,11 +172,9 @@ async def anonymize_user(
     if upcoming is not None:
         raise HasUpcomingInterviewsError
     # open scorecard requests die with the person (activity scorecard.dismissed,
-    # actor = the admin); the label they froze into the activity payloads is
-    # captured now, before the tombstone changes what display_label says
-    label = user.display_label
+    # actor = the admin); their frozen label is then rewritten in the payloads
     await scorecards.dismiss_open_for_reviewer(db, user, actor_user_id=actor_user_id)
-    await _relabel_scorecard_activity(db, company, user, label)
+    await _relabel_scorecard_activity(db, company, user)
     user.email = f"deleted-{uuid.uuid4().hex}@invalid"  # emails are globally unique
     user.display_name = None
     user.password_hash = None

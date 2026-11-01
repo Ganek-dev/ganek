@@ -145,7 +145,7 @@ async def request(
         type=activity.SCORECARD_REQUESTED,
         actor_user_id=requested_by.id if requested_by else None,
         application_id=application.id,
-        payload={"reviewer_label": reviewer_label(reviewer)},
+        payload={"scorecard_id": str(row.id), "reviewer_label": reviewer_label(reviewer)},
     )
     await db.flush()
     if notify:
@@ -205,7 +205,7 @@ async def submit(
             type=activity.SCORECARD_SUBMITTED,
             actor_user_id=row.reviewer_user_id,
             application_id=row.application_id,
-            payload={"reviewer_label": reviewer_label(row.reviewer)},
+            payload={"scorecard_id": str(row.id), "reviewer_label": reviewer_label(row.reviewer)},
         )
     row.updated_at = now
     await db.flush()
@@ -222,7 +222,7 @@ async def decline(db: AsyncSession, row: Scorecard, *, now: datetime | None = No
         type=activity.SCORECARD_DECLINED,
         actor_user_id=row.reviewer_user_id,
         application_id=row.application_id,
-        payload={"reviewer_label": reviewer_label(row.reviewer)},
+        payload={"scorecard_id": str(row.id), "reviewer_label": reviewer_label(row.reviewer)},
     )
     await db.flush()
 
@@ -248,9 +248,9 @@ async def dismiss(
         actor_user_id=actor_user_id,
         application_id=row.application_id,
         payload=(
-            {"reason": reason}
+            {"scorecard_id": str(row.id), "reason": reason}
             if reason is not None
-            else {"reviewer_label": reviewer_label(row.reviewer)}
+            else {"scorecard_id": str(row.id), "reviewer_label": reviewer_label(row.reviewer)}
         ),
     )
     await db.flush()

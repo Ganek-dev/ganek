@@ -213,7 +213,8 @@ async def test_candidate_cancel_dismisses_with_no_actor(db_session: AsyncSession
     assert row.dismissed_by_user_id is None
     (entry,) = await _activity(db_session, env, "scorecard.dismissed")
     assert entry.actor_user_id is None
-    assert entry.payload == {"reason": "interview_cancelled"}
+    assert entry.payload["reason"] == "interview_cancelled"
+    assert entry.payload["scorecard_id"]
 
 
 @pytest.mark.usefixtures("migrated_db")

@@ -121,7 +121,10 @@ async def test_request_creates_open_row_with_snapshot_and_mail(
     assert mail["candidate_name"] == "Marta"
     acts = await _activity(db_session, env, "scorecard.requested")
     assert len(acts) == 1
-    assert acts[0].payload == {"reviewer_label": env.member.display_label}
+    assert acts[0].payload == {
+        "scorecard_id": str(row.id),
+        "reviewer_label": env.member.display_label,
+    }
 
 
 @pytest.mark.usefixtures("migrated_db")
