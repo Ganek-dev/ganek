@@ -853,9 +853,7 @@ async def cancel_interview(
             to=interviewer.email,
             ref=str(application.id),
             candidate_name=application.candidate.name,
-            candidate_email=interviews_service.candidate_email_for_interviewer(
-                interviewer, application.candidate.email
-            ),
+            candidate_email=application.candidate.email,
             interviewer_name=interviewer.display_label,
             job_title=application.job.title,
             company_name=company.name,

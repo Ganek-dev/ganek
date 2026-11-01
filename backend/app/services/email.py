@@ -705,8 +705,8 @@ def send_interview_cancelled_interviewer(
     """Interviewer copy of a cancellation with METHOD:CANCEL so the event
     leaves their calendar. With an empty ``candidate_name`` (erasure) the
     mail and the event carry no personal data about the candidate; with only
-    an empty ``candidate_email`` (a reviewer-role interviewer) the event lists
-    the interviewer alone."""
+    an empty ``candidate_email`` (a row queued before reviewer interviewers got
+    the address) the event lists the interviewer alone."""
     safe_job = escape(job_title)
     safe_company = escape(company_name)
     when = _local_when(start, timezone)
@@ -991,9 +991,9 @@ def send_interview_scheduled(
     privacy_url: str | None = None,
 ) -> None:
     """Interviewer copy of the booking (or reschedule) with the invite.ics.
-    An empty ``candidate_email`` (a reviewer-role interviewer) leaves the
-    candidate out of the event; the interviewer stays as its attendee, so the
-    REQUEST and any later update or CANCEL stay valid."""
+    An empty ``candidate_email`` (a row queued before reviewer interviewers got
+    the address) leaves the candidate out of the event; the interviewer stays
+    as its attendee, so the REQUEST and any later update or CANCEL stay valid."""
     safe_candidate = escape(candidate_name)
     safe_job = escape(job_title)
     safe_company = escape(company_name)

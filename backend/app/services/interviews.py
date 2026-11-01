@@ -131,13 +131,6 @@ def cancel_notice_fields(interview: Interview) -> dict[str, object]:
     }
 
 
-def candidate_email_for_interviewer(interviewer: User, candidate_email: str) -> str:
-    """What an interviewer's mail may carry: a reviewer-role user never gets
-    the candidate's address (spec 1), and the outbox payload keeps kwargs
-    verbatim, so it has to go before the mail is queued."""
-    return "" if scorecards_service.is_reviewer_role(interviewer) else candidate_email
-
-
 def applicant_url_for_interviewer(
     company: Company, interviewer: User, application_id: object
 ) -> str:

@@ -28,9 +28,9 @@ Companies often have colleagues who only judge candidates: a hiring manager, an 
 - their own scorecard
 - colleagues' submitted scorecards, only after they have submitted their own
 
-**What a reviewer cannot do or see:** recruiter notes, the candidate's email, stage changes, the applicants list, jobs, the team page, settings or exports. A reviewer cannot send mail to candidates. They do receive the mails about their own work: scorecard requests, the reminder, and interview invites.
+**What a reviewer cannot do or see:** recruiter notes, the candidate's email on the review page, stage changes, the applicants list, jobs, the team page, settings or exports. A reviewer cannot send mail to candidates. They do receive the mails about their own work: scorecard requests, the reminder, and interview invites.
 
-If a reviewer is the interviewer on an interview, their interview mail does not carry the candidate's email as an attendee and links to `/review`.
+If a reviewer is the interviewer on an interview, their calendar invite lists the candidate's email as an attendee, as it does for any interviewer, and their interview mail links to `/review`. The email appears nowhere on the review page.
 
 ## How access is granted
 
