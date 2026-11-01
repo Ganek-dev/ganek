@@ -21,7 +21,7 @@ export default defineConfig({
         },
         {
           label: "Work with it",
-          items: [{ slug: "scorecards" }, { slug: "roles" }],
+          items: [{ slug: "dashboard" }, { slug: "scorecards" }, { slug: "roles" }],
         },
         {
           label: "Extend it",
