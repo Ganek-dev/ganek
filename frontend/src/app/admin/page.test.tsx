@@ -146,4 +146,23 @@ describe("AdminDashboard", () => {
     render(<AdminDashboard />);
     expect(await screen.findByRole("alert")).toHaveTextContent("nope");
   });
+
+  it("keeps the rest of the page when the board fails", async () => {
+    mocked.board.mockRejectedValue(new Error("board down"));
+    render(<AdminDashboard />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("board down");
+    expect(screen.queryByRole("group", { name: "Signals" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Open roles" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+  });
+
+  it("keeps tiles and board when the overview fails", async () => {
+    mocked.overview.mockRejectedValue(new Error("overview down"));
+    render(<AdminDashboard />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("overview down");
+    expect(screen.getByRole("group", { name: "Signals" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Open roles" })).toBeInTheDocument();
+    expect(screen.queryByText("Ada Lovelace")).toBeNull();
+  });
 });

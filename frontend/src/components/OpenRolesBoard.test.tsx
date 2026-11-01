@@ -81,7 +81,7 @@ describe("OpenRolesBoard", () => {
   it("links the waiting-on-you cell to the waiting filter", () => {
     render(<OpenRolesBoard board={board([JOBS[0]])} />);
     const table = screen.getByRole("table", { name: "Open roles" });
-    const link = within(table).getByRole("link", { name: /3.*longest 11 d/ });
+    const link = within(table).getByRole("link", { name: "3 waiting on you, longest 11 days" });
     expect(link).toHaveAttribute("href", "/admin/applicants?job=j1&waiting=team");
   });
 
@@ -105,6 +105,21 @@ describe("OpenRolesBoard", () => {
     expect(within(card).getByText(JOBS[0].reason)).toBeInTheDocument();
     expect(within(card).getByText("Stalled")).toBeInTheDocument();
     expect(within(card).getByText("open 34 d")).toBeInTheDocument();
+  });
+
+  it("links the card waiting fact to the waiting filter", () => {
+    render(<OpenRolesBoard board={board([JOBS[0], JOBS[1]])} />);
+    const cards = within(screen.getByRole("list", { name: "Open roles" })).getAllByRole("listitem");
+    expect(
+      within(cards[0]).getByRole("link", { name: "3 waiting on you, longest 11 days" }),
+    ).toHaveAttribute("href", "/admin/applicants?job=j1&waiting=team");
+    expect(within(cards[1]).queryByRole("link", { name: /waiting on you/ })).toBeNull();
+  });
+
+  it("scrolls the table horizontally instead of overflowing the card", () => {
+    render(<OpenRolesBoard board={board([JOBS[0]])} />);
+    const table = screen.getByRole("table", { name: "Open roles" });
+    expect(table.parentElement?.className).toContain("overflow-x-auto");
   });
 
   it("shows the empty state", () => {

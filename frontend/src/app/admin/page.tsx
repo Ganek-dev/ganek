@@ -47,30 +47,35 @@ function StatCard({
   );
 }
 
+function InlineError({ message }: { message: string | null }) {
+  return (
+    <p role="alert" className="card px-5 py-4 text-sm" style={{ color: "var(--danger)" }}>
+      {message}
+    </p>
+  );
+}
+
 export default function AdminDashboard() {
   const [data, setData] = useState<StatsOverview | null>(null);
   const [board, setBoard] = useState<BoardOut | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [boardError, setBoardError] = useState<string | null>(null);
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
-    Promise.all([stats.overview(), stats.board()])
-      .then(([overview, boardData]) => {
-        setData(overview);
-        setBoard(boardData);
-      })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load dashboard"),
-      );
+    const message = (err: unknown) =>
+      err instanceof Error ? err.message : "Failed to load dashboard";
+    // Independent loads: one failing endpoint must not blank the rest.
+    void Promise.allSettled([stats.overview(), stats.board()]).then(([overview, boardData]) => {
+      if (overview.status === "fulfilled") setData(overview.value);
+      else setOverviewError(message(overview.reason));
+      if (boardData.status === "fulfilled") setBoard(boardData.value);
+      else setBoardError(message(boardData.reason));
+      setSettled(true);
+    });
   }, []);
 
-  if (error) {
-    return (
-      <p role="alert" className="text-sm" style={{ color: "var(--danger)" }}>
-        {error}
-      </p>
-    );
-  }
-  if (!data || !board) {
+  if (!settled) {
     return (
       <section aria-busy="true" className="space-y-4">
         <div className="h-8 w-64 animate-pulse rounded-sm bg-muted-fill" />
@@ -85,11 +90,12 @@ export default function AdminDashboard() {
   }
 
   const now = new Date();
-  const rolesWithLive = board.jobs.filter(
+  const jobs = board?.jobs ?? [];
+  const rolesWithLive = jobs.filter(
     (job) => Object.values(job.live_by_stage).reduce((sum, n) => sum + n, 0) > 0,
   ).length;
-  const closedStillHiring = board.jobs.filter((job) => job.job_status === "closed").length;
-  const longestWait = Math.max(0, ...board.jobs.map((job) => job.longest_wait_days ?? 0));
+  const closedStillHiring = jobs.filter((job) => job.job_status === "closed").length;
+  const longestWait = Math.max(0, ...jobs.map((job) => job.longest_wait_days ?? 0));
 
   return (
     <section className="space-y-4">
@@ -119,29 +125,33 @@ export default function AdminDashboard() {
       <OnboardingChecklist />
       <UsageCard />
 
-      <div role="group" aria-label="Signals" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard
-          label="Active jobs"
-          value={String(board.totals.active_jobs)}
-          hint={closedStillHiring > 0 ? `${closedStillHiring} closed, still hiring` : undefined}
-        />
-        <StatCard
-          label="Live candidates"
-          value={String(board.totals.live)}
-          hint={`across ${rolesWithLive} role${rolesWithLive === 1 ? "" : "s"}`}
-        />
-        <StatCard
-          label="Waiting on you"
-          value={String(board.totals.waiting_on_team)}
-          hint={longestWait > 0 ? `longest ${longestWait} d` : undefined}
-        />
-        <StatCard
-          label="Overdue"
-          value={String(board.totals.overdue)}
-          hint={`more than ${board.stage_limit_days} days`}
-        />
-        <StatCard label="New this week" value={String(board.totals.new_7d)} hint="last 7 days" />
-      </div>
+      {board ? (
+        <div role="group" aria-label="Signals" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <StatCard
+            label="Active jobs"
+            value={String(board.totals.active_jobs)}
+            hint={closedStillHiring > 0 ? `${closedStillHiring} closed, still hiring` : undefined}
+          />
+          <StatCard
+            label="Live candidates"
+            value={String(board.totals.live)}
+            hint={`across ${rolesWithLive} role${rolesWithLive === 1 ? "" : "s"}`}
+          />
+          <StatCard
+            label="Waiting on you"
+            value={String(board.totals.waiting_on_team)}
+            hint={longestWait > 0 ? `longest ${longestWait} d` : undefined}
+          />
+          <StatCard
+            label="Overdue"
+            value={String(board.totals.overdue)}
+            hint={`more than ${board.stage_limit_days} days`}
+          />
+          <StatCard label="New this week" value={String(board.totals.new_7d)} hint="last 7 days" />
+        </div>
+      ) : (
+        <InlineError message={boardError} />
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <TodayPanel />
@@ -149,45 +159,49 @@ export default function AdminDashboard() {
         <ActivityPanel />
       </div>
 
-      <OpenRolesBoard board={board} />
+      {board ? <OpenRolesBoard board={board} /> : null}
 
-      <div className="grid grid-cols-1 gap-4">
-        <div className="card px-5 py-[18px]">
-          <div className="flex items-center justify-between">
-            <h2 className="font-heading text-[15px] font-semibold">Recent applicants</h2>
-            <Link
-              href="/admin/applicants"
-              className="text-[13px] text-g500 hover:text-accent hover:underline"
-            >
-              View all
-            </Link>
+      {data ? (
+        <div className="grid grid-cols-1 gap-4">
+          <div className="card px-5 py-[18px]">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading text-[15px] font-semibold">Recent applicants</h2>
+              <Link
+                href="/admin/applicants"
+                className="text-[13px] text-g500 hover:text-accent hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            {data.recent.length === 0 ? (
+              <p className="mt-2 text-sm text-g500">No applications yet.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-divider">
+                {data.recent.map((app) => (
+                  <li key={app.id} className="flex items-center justify-between gap-2 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{app.candidate_name}</p>
+                      <p className="truncate text-xs text-g500">
+                        {app.job_title} · {new Date(app.created_at).toLocaleDateString("en-US")}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {app.quiz_score !== null ? (
+                        <span className="rounded-full bg-muted-fill px-2 py-0.5 font-mono text-[10.5px] font-medium text-g600">
+                          quiz {Math.round(app.quiz_score * 100)}%
+                        </span>
+                      ) : null}
+                      <span className="font-mono text-[11px] text-g600">{app.stage}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {data.recent.length === 0 ? (
-            <p className="mt-2 text-sm text-g500">No applications yet.</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-divider">
-              {data.recent.map((app) => (
-                <li key={app.id} className="flex items-center justify-between gap-2 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{app.candidate_name}</p>
-                    <p className="truncate text-xs text-g500">
-                      {app.job_title} · {new Date(app.created_at).toLocaleDateString("en-US")}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {app.quiz_score !== null ? (
-                      <span className="rounded-full bg-muted-fill px-2 py-0.5 font-mono text-[10.5px] font-medium text-g600">
-                        quiz {Math.round(app.quiz_score * 100)}%
-                      </span>
-                    ) : null}
-                    <span className="font-mono text-[11px] text-g600">{app.stage}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-      </div>
+      ) : (
+        <InlineError message={overviewError} />
+      )}
     </section>
   );
 }

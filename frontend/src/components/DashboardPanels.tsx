@@ -98,7 +98,7 @@ export function TodayPanel() {
   );
 }
 
-/** Scorecard entries carry an icon; the derived kinds render without one. */
+/** Scorecard and role-stalled entries carry an icon; the other derived kinds render without one. */
 function queueIcon(kind: QueueItemKind) {
   switch (kind) {
     case "scorecard":

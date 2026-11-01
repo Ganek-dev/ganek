@@ -30,6 +30,16 @@ function count(value: number) {
   return value === 0 ? "text-g500" : "text-strong";
 }
 
+function waitingHref(job: BoardJob) {
+  return `/admin/applicants?job=${job.job_id}&waiting=team`;
+}
+
+function waitingLabel(job: BoardJob) {
+  const longest =
+    job.longest_wait_days === null ? "" : `, longest ${job.longest_wait_days} days`;
+  return `${job.waiting_on_team} waiting on you${longest}`;
+}
+
 function WaitingCell({ job }: { job: BoardJob }) {
   const body = (
     <>
@@ -46,9 +56,10 @@ function WaitingCell({ job }: { job: BoardJob }) {
   if (job.waiting_on_team === 0) return <div>{body}</div>;
   return (
     <Link
-      href={`/admin/applicants?job=${job.job_id}&waiting=team`}
+      href={waitingHref(job)}
+      aria-label={waitingLabel(job)}
       title="Open applicants waiting on you"
-      className="block"
+      className="block hover:underline"
     >
       {body}
     </Link>
@@ -57,69 +68,70 @@ function WaitingCell({ job }: { job: BoardJob }) {
 
 function RoleTable({ jobs, limit }: { jobs: BoardJob[]; limit: number }) {
   return (
-    <table aria-label="Open roles" className="mt-3.5 hidden w-full border-collapse lg:table">
-      <caption className="sr-only">Stage limit {limit} days</caption>
-      <colgroup>
-        <col />
-        <col className="w-[136px]" />
-        {STAGES.map((stage) => (
-          <col key={stage} className="w-[60px]" />
-        ))}
-        <col className="w-[96px]" />
-        <col className="w-[68px]" />
-        <col className="w-[62px]" />
-        <col className="w-[62px]" />
-        <col className="w-[108px]" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th colSpan={2} />
-          <th colSpan={4} className={TH}>
-            <span className="block border-b border-edge pb-1 text-center">Live by stage</span>
-          </th>
-          <th colSpan={5} />
-        </tr>
-        <tr>
-          <th scope="col" className={`${TH} !pl-0 !text-left`}>
-            Role
-          </th>
-          <th scope="col" className={`${TH} !text-left`}>
-            Status
-          </th>
+    <div className="mt-3.5 hidden overflow-x-auto lg:block">
+      <table aria-label="Open roles" className="w-full border-collapse">
+        <caption className="sr-only">Stage limit {limit} days</caption>
+        <colgroup>
+          <col />
+          <col className="w-[136px]" />
           {STAGES.map((stage) => (
-            <th key={stage} scope="col" className={TH}>
-              {stage}
-            </th>
+            <col key={stage} className="w-[60px]" />
           ))}
-          <th scope="col" className={TH}>
-            Waiting on you
-          </th>
-          <th scope="col" className={TH}>
-            Overdue
-          </th>
-          <th scope="col" className={TH}>
-            New this week
-          </th>
-          <th scope="col" className={TH}>
-            Moved this week
-          </th>
-          <th scope="col" className={TH}>
-            Days open
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {jobs.map((job) => (
-          <tr key={job.job_id}>
-            <td className={`${TD} !pl-0 !text-left`}>
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/admin/applicants?job=${job.job_id}`}
-                  className="text-[13.5px] font-medium text-strong underline decoration-edge underline-offset-[3px] hover:decoration-current"
-                >
-                  {job.title}
-                </Link>
-                {job.job_status === "closed" ? <ClosedTag /> : null}
+          <col className="w-[96px]" />
+          <col className="w-[68px]" />
+          <col className="w-[62px]" />
+          <col className="w-[62px]" />
+          <col className="w-[108px]" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th colSpan={2} />
+            <th colSpan={4} className={TH}>
+              <span className="block border-b border-edge pb-1 text-center">Live by stage</span>
+            </th>
+            <th colSpan={5} />
+          </tr>
+          <tr>
+            <th scope="col" className={`${TH} !pl-0 !text-left`}>
+              Role
+            </th>
+            <th scope="col" className={`${TH} !text-left`}>
+              Status
+            </th>
+            {STAGES.map((stage) => (
+              <th key={stage} scope="col" className={TH}>
+                {stage}
+              </th>
+            ))}
+            <th scope="col" className={TH}>
+              Waiting on you
+            </th>
+            <th scope="col" className={TH}>
+              Overdue
+            </th>
+            <th scope="col" className={TH}>
+              New this week
+            </th>
+            <th scope="col" className={TH}>
+              Moved this week
+            </th>
+            <th scope="col" className={TH}>
+              Days open
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((job) => (
+            <tr key={job.job_id}>
+              <td className={`${TD} !pl-0 !text-left`}>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/admin/applicants?job=${job.job_id}`}
+                    className="text-[13.5px] font-medium text-strong underline decoration-edge underline-offset-[3px] hover:decoration-current"
+                  >
+                    {job.title}
+                  </Link>
+                  {job.job_status === "closed" ? <ClosedTag /> : null}
               </div>
               <p className="mt-[3px] text-xs leading-[17px] text-g500">{job.reason}</p>
             </td>
@@ -167,6 +179,7 @@ function RoleTable({ jobs, limit }: { jobs: BoardJob[]; limit: number }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -207,7 +220,17 @@ function RoleCards({ jobs }: { jobs: BoardJob[] }) {
           <p className="mt-1.5 text-[12.5px] leading-[18px] text-g600">{job.reason}</p>
           <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1">
             <Fact label="new" value={job.live_by_stage.new} />
-            <Fact label="waiting on you" value={job.waiting_on_team} />
+            {job.waiting_on_team > 0 ? (
+              <Link
+                href={waitingHref(job)}
+                aria-label={waitingLabel(job)}
+                className="block hover:underline"
+              >
+                <Fact label="waiting on you" value={job.waiting_on_team} />
+              </Link>
+            ) : (
+              <Fact label="waiting on you" value={job.waiting_on_team} />
+            )}
             <Fact label="screening" value={job.live_by_stage.screening} />
             <Fact
               label="longest wait"
