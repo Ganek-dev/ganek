@@ -268,7 +268,9 @@ async def bulk_reject_applications(
     )
     if payload.notify_candidates:
         for application in rejected:
-            await _queue_rejection_email(db, company, application, payload.template_id)
+            await _queue_rejection_email(
+                db, company, application, payload.template_id, send_after=payload.send_after
+            )
     return BulkRejectOut(
         rejected=len(rejected), skipped=len(payload.application_ids) - len(rejected)
     )
@@ -295,7 +297,14 @@ async def bulk_stage_applications(
     )
     if payload.notify_candidates:
         for application in updated:
-            await _queue_stage_email(db, company, application, payload.stage, payload.template_id)
+            await _queue_stage_email(
+                db,
+                company,
+                application,
+                payload.stage,
+                payload.template_id,
+                send_after=payload.send_after,
+            )
     return BulkStageOut(updated=len(updated), skipped=len(payload.application_ids) - len(updated))
 
 
@@ -374,6 +383,7 @@ async def set_stage(
             payload.template_id,
             override_subject=payload.subject,
             override_body=payload.body,
+            send_after=payload.send_after,
         )
     return updated
 
@@ -873,6 +883,7 @@ async def _queue_rejection_email(
     *,
     override_subject: str | None = None,
     override_body: str | None = None,
+    send_after: datetime | None = None,
 ) -> None:
     """22b: shared by the single-stage PATCH and bulk-reject so they can't drift."""
     await outbox_service.queue_email(
@@ -881,6 +892,7 @@ async def _queue_rejection_email(
         company_id=company.id,
         application_id=application.id,
         template_id=template_id,
+        send_after=send_after,
         **_override_kwargs(override_subject, override_body),
         **_rejection_kwargs(company, application),
     )
@@ -957,6 +969,7 @@ async def _queue_stage_email(
     *,
     override_subject: str | None = None,
     override_body: str | None = None,
+    send_after: datetime | None = None,
 ) -> None:
     """Queue 22a/22b for stages with a template; other stages are a no-op."""
     if stage is ApplicationStage.INTERVIEW:
@@ -977,6 +990,7 @@ async def _queue_stage_email(
             template_id,
             override_subject=override_subject,
             override_body=override_body,
+            send_after=send_after,
         )
 
 
