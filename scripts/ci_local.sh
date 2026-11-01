@@ -7,8 +7,9 @@
 #   audit - pip-audit + pnpm audit (advisory, like CI's continue-on-error)
 #   frontend - pnpm lint / typecheck / test / build under Node 22 (via nvm)
 #   docs      - Starlight build of docs/site under Node 22 (via nvm)
-#   backend - ruff check/format + mypy + pytest on py3.12 AND py3.14,
-#               each leg against fresh throwaway postgres+minio containers
+#   backend - ruff check/format + mypy + pytest on py3.12 (CI also runs
+#               py3.14; `--python "3.12 3.14"` runs both here), each leg
+#               against fresh throwaway postgres+minio containers
 #               (CI-faithful; never touches the dev stack or its data)
 #   e2e - compose smoke + Playwright golden paths on a scratch
 #               `-p ganek-e2e` stack with the mandatory volume override;
@@ -23,7 +24,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-PYTHONS="3.12 3.14"
+PYTHONS="3.12"
 NODE_MAJOR=22
 VENV_BASE="${GANEK_CI_VENVS:-$HOME/.cache/ganek-ci}"
 PG_CTR=ganek-ci-postgres
