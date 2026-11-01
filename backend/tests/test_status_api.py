@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.models import ActivityLog
 from app.models.quiz import AttemptAnswer
 from app.services import email as email_service
+from app.services import scheduled_emails
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 from tests.test_bulk_reject import _company_with_applicants, _ids_by_email
@@ -223,6 +224,10 @@ async def test_status_hides_a_scheduled_rejection_until_it_is_sent(
     # the staff view and the DSAR copy keep the truth
     bundle = (await client.get(f"/api/v1/applications/{app_id}/dsar-export")).json()
     assert bundle["applications"][0]["stage"] == "rejected"
+    (mail,) = [e for e in bundle["applications"][0]["emails"] if e["kind"] == "rejection"]
+    assert mail["status"] == "scheduled"
+    assert mail["send_after"] is not None
+    assert set(mail) == {"kind", "status", "send_after", "sent_at", "cancelled_at", "created_at"}
 
     emails = (await client.get(f"/api/v1/applications/{app_id}/emails")).json()
     (row,) = [e for e in emails if e["kind"] == "rejection"]
@@ -235,6 +240,7 @@ async def test_status_hides_a_scheduled_rejection_until_it_is_sent(
     resp = await client.patch(url, json={"stage": "rejected", "notify_candidate": True})
     assert resp.status_code == 200, resp.text
     assert await _public_stage(client, token) == "rejected"
+    assert len(sent) == 1
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
@@ -299,6 +305,36 @@ async def test_withdraw_during_the_delay_cancels_the_mail(
     assert resp.status_code == 200, resp.text
     resp = await client.post(f"/api/v1/public/applications/{other_token}/withdraw")
     assert resp.status_code == 409
+    assert len(sent) == 1
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_withdraw_loses_the_race_with_a_released_mail(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, sent: list[dict[str, Any]]
+) -> None:
+    """The worker released the mail after the check: nothing is cancelled, so
+    the withdrawal is rolled back and the decision stands."""
+    applicants, _ = await _company_with_applicants(client, 1, name_prefix="Race Co")
+    token = applicants[0]["status_token"]
+    app_id = (await _ids_by_email(client))[applicants[0]["email"]]
+    resp = await client.patch(
+        f"/api/v1/applications/{app_id}/stage",
+        json={"stage": "rejected", "notify_candidate": True, "send_after": _later()},
+    )
+    assert resp.status_code == 200, resp.text
+
+    async def nothing_cancelled(*args: Any, **kwargs: Any) -> int:
+        return 0
+
+    monkeypatch.setattr(scheduled_emails, "cancel_for_application", nothing_cancelled)
+    resp = await client.post(f"/api/v1/public/applications/{token}/withdraw")
+    assert resp.status_code == 409
+    items = (await client.get("/api/v1/applications")).json()["items"]
+    assert next(i for i in items if i["id"] == app_id)["stage"] == "rejected"
+    changes = [
+        a for a in (await client.get("/api/v1/activity")).json() if a["type"] == "stage.changed"
+    ]
+    assert all(a["payload"]["to"] != "withdrawn" for a in changes)
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")

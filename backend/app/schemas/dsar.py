@@ -63,6 +63,17 @@ class DsarActivityEntry(BaseModel):
     created_at: datetime
 
 
+class DsarEmail(BaseModel):
+    # metadata only: payload, subject, text and last_error are deliberately
+    # absent (they can embed recruiter or template data)
+    kind: str
+    status: str
+    send_after: datetime | None
+    sent_at: datetime | None
+    cancelled_at: datetime | None
+    created_at: datetime
+
+
 class DsarApplication(BaseModel):
     job_title: str
     stage: str
@@ -83,6 +94,7 @@ class DsarApplication(BaseModel):
     interviews: list[DsarInterview]
     notes: list[DsarNote]
     scorecards: list[DsarScorecard] = []
+    emails: list[DsarEmail] = []
     activity: list[DsarActivityEntry]
 
 

@@ -21,6 +21,7 @@ from app.models import (
     ApplicationNote,
     Candidate,
     Company,
+    EmailOutbox,
     Interview,
 )
 from app.models.quiz import QuizAttempt
@@ -31,6 +32,7 @@ from app.schemas.dsar import (
     DsarApplication,
     DsarAttempt,
     DsarBundle,
+    DsarEmail,
     DsarInterview,
     DsarNote,
     DsarScorecard,
@@ -119,6 +121,7 @@ async def export_candidate(
     interviews: dict[uuid.UUID, list[Interview]] = {}
     scorecard_rows: dict[uuid.UUID, list[Scorecard]] = {}
     activity_rows: dict[uuid.UUID, list[ActivityLog]] = {}
+    email_rows: dict[uuid.UUID, list[EmailOutbox]] = {}
     if app_ids:
         for note in (
             (
@@ -160,6 +163,22 @@ async def export_candidate(
             .all()
         ):
             interviews.setdefault(interview.application_id, []).append(interview)
+        for mail in (
+            (
+                await db.execute(
+                    select(EmailOutbox)
+                    .where(
+                        EmailOutbox.company_id == company.id,
+                        EmailOutbox.application_id.in_(app_ids),
+                    )
+                    .order_by(EmailOutbox.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            assert mail.application_id is not None  # filtered by the IN clause
+            email_rows.setdefault(mail.application_id, []).append(mail)
         for row in (
             (
                 await db.execute(
@@ -227,6 +246,17 @@ async def export_candidate(
                     for note in notes.get(application.id, [])
                 ],
                 scorecards=[_scorecard_out(row) for row in scorecard_rows.get(application.id, [])],
+                emails=[
+                    DsarEmail(
+                        kind=mail.kind,
+                        status=mail.status.value,
+                        send_after=mail.send_after,
+                        sent_at=mail.sent_at,
+                        cancelled_at=mail.cancelled_at,
+                        created_at=mail.created_at,
+                    )
+                    for mail in email_rows.get(application.id, [])
+                ],
                 activity=[
                     DsarActivityEntry(type=row.type, created_at=row.created_at)
                     for row in activity_rows.get(application.id, [])
