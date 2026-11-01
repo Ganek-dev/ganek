@@ -6,6 +6,10 @@ the sweeper re-enqueues stuck rows. The worker retries transport failures
 with backoff and parks the row as ``failed`` after MAX_ATTEMPTS, which the
 applicant panel surfaces instead of silence.
 
+A row queued with ``send_after`` is written ``scheduled`` and enqueued with
+``defer_until``; the worker releases it to ``queued`` only once due, and the
+sweeper re-enqueues scheduled rows that are overdue (lost deferred job).
+
 ``payload`` stores the sender's kwargs verbatim; datetimes ride as
 ``{"$dt": iso}`` so the round-trip is lossless without per-kind schemas.
 """
@@ -88,6 +92,9 @@ async def queue_email(
     """
     if kind not in SENDER_NAMES:  # pragma: no cover - programmer error
         raise ValueError(f"unknown email kind {kind!r}")
+    # popped, not a named parameter: callers splat **dict[str, object] and mypy
+    # would match those values against a typed send_after
+    send_after: datetime | None = kwargs.pop("send_after", None)
     if settings.demo_mode:
         # demo addresses are fictional; no row, no counter, no job
         logger.info("demo mode: dropped %s email", kind)
@@ -107,12 +114,15 @@ async def queue_email(
         kind=kind,
         payload=_serialize(kwargs),
     )
+    if send_after is not None:
+        row.status = EmailStatus.SCHEDULED
+        row.send_after = send_after
     db.add(row)
     await db.commit()
     # per-tenant daily counter (GET /company/usage); the public apply and
     # reissue endpoints pre-check it and answer 429 at the limit
     await quotas.count(Company(id=company_id), quotas.EMAILS)
-    if EAGER_DELIVERY_FOR_TESTS:
+    if EAGER_DELIVERY_FOR_TESTS and send_after is None:
         skip = await suppressed_for(db, row)
         if skip is not None:
             row.status = EmailStatus.SUPPRESSED
@@ -128,7 +138,9 @@ async def queue_email(
             row.sent_at = datetime.now(UTC)
             await db.commit()
         return row
-    await queue.enqueue("deliver_email", str(row.id), job_id=f"email-{row.id}")
+    await queue.enqueue(
+        "deliver_email", str(row.id), defer_until=send_after, job_id=f"email-{row.id}"
+    )
     return row
 
 
@@ -190,6 +202,24 @@ async def stuck_rows(
                     EmailOutbox.status == EmailStatus.QUEUED, EmailOutbox.created_at < older_than
                 )
                 .order_by(EmailOutbox.created_at)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def due_scheduled_rows(
+    db: AsyncSession, *, before: datetime, limit: int = 200
+) -> list[uuid.UUID]:
+    """Scheduled rows whose send time has passed (the deferred job was lost)."""
+    return list(
+        (
+            await db.execute(
+                select(EmailOutbox.id)
+                .where(EmailOutbox.status == EmailStatus.SCHEDULED, EmailOutbox.send_after < before)
+                .order_by(EmailOutbox.send_after)
                 .limit(limit)
             )
         )

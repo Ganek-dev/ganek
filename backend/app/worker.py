@@ -325,10 +325,20 @@ async def deliver_email(ctx: dict[str, Any], outbox_id: str) -> None:
     instead of vanishing into a log.
     """
     async with ctx["session_factory"]() as db:
+        # FOR UPDATE: a concurrent cancel must not race this release
         row = (
-            await db.execute(select(EmailOutbox).where(EmailOutbox.id == outbox_id))
+            await db.execute(
+                select(EmailOutbox).where(EmailOutbox.id == outbox_id).with_for_update()
+            )
         ).scalar_one_or_none()
-        if row is None or row.status is not EmailStatus.QUEUED:
+        if row is None:
+            return
+        if row.status is EmailStatus.SCHEDULED:
+            # never early: a deferred job firing ahead of send_after is a no-op
+            if row.send_after is None or row.send_after > datetime.now(UTC):
+                return
+            row.status = EmailStatus.QUEUED
+        if row.status is not EmailStatus.QUEUED:
             return
         if not email_service.configured():
             # not retryable by waiting: an operator has to configure a provider
@@ -371,12 +381,18 @@ async def sweep_outbox(ctx: dict[str, Any]) -> None:
         stuck = await outbox_service.stuck_rows(
             db, older_than=datetime.now(UTC) - timedelta(minutes=5)
         )
+        overdue = await outbox_service.due_scheduled_rows(
+            db, before=datetime.now(UTC) - timedelta(minutes=5)
+        )
     for row_id in stuck:
         # no job_id: the original `email-{id}` job may still hold the key;
         # deliver_email's status check makes duplicates no-ops anyway
         await ctx["redis"].enqueue_job("deliver_email", str(row_id))
-    if stuck:
-        logger.info("outbox sweep: re-enqueued %d emails", len(stuck))
+    for row_id in overdue:
+        # same reasoning: no job_id, the original deferred job may hold the key
+        await ctx["redis"].enqueue_job("deliver_email", str(row_id))
+    if stuck or overdue:
+        logger.info("outbox sweep: re-enqueued %d emails", len(stuck) + len(overdue))
 
 
 async def deliver_webhook(ctx: dict[str, Any], delivery_id: str) -> None:

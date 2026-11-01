@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.core import queue
 from app.core.config import settings
 from app.models import Company, EmailOutbox, EmailStatus
 from app.services import outbox as outbox_service
@@ -77,7 +78,12 @@ async def _company(db: AsyncSession) -> Company:
     return company
 
 
-async def _queued(db: AsyncSession, company: Company, **overrides: object) -> EmailOutbox:
+async def _queued(
+    db: AsyncSession,
+    company: Company,
+    send_after: datetime | None = None,
+    **overrides: object,
+) -> EmailOutbox:
     fields: dict[str, object] = {
         "company_id": company.id,
         "kind": "application_received",
@@ -91,6 +97,8 @@ async def _queued(db: AsyncSession, company: Company, **overrides: object) -> Em
             }
         ),
     }
+    if send_after is not None:
+        fields["send_after"] = send_after
     fields.update(overrides)
     row = EmailOutbox(**fields)
     db.add(row)
@@ -147,6 +155,141 @@ async def test_deliver_noops_on_non_queued_rows(db_session: AsyncSession, ctx: A
     row = await _queued(db_session, company, status=EmailStatus.SENT)
     await deliver_email(ctx, str(row.id))
     assert FakeSMTP.sent == []
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_queue_with_send_after_writes_scheduled_and_defers(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def fake_enqueue(function: str, *args: str, **kw: Any) -> bool:
+        calls.append({"function": function, "args": args, **kw})
+        return True
+
+    monkeypatch.setattr(queue, "enqueue", fake_enqueue)
+    monkeypatch.setattr(outbox_service, "EAGER_DELIVERY_FOR_TESTS", True)
+    when = datetime.now(UTC) + timedelta(days=1)
+    company = await _company(db_session)
+    row = await outbox_service.queue_email(
+        db_session,
+        kind="rejection",
+        company_id=company.id,
+        send_after=when,
+        to="jane@ganek-ci.dev",
+        ref="r-1",
+        candidate_name="Jane Applicant",
+        job_title="Backend Engineer",
+        company_name=company.name,
+        careers_url="https://jobs.example/outbox-co",
+        completed_assessment=False,
+    )
+    assert row is not None
+    assert row.status is EmailStatus.SCHEDULED
+    assert row.send_after == when
+    assert row.sent_at is None
+    assert calls == [
+        {
+            "function": "deliver_email",
+            "args": (str(row.id),),
+            "defer_until": when,
+            "job_id": f"email-{row.id}",
+        }
+    ]
+
+
+@pytest.mark.usefixtures("migrated_db", "real_outbox", "smtp_ok")
+async def test_deliver_never_sends_a_scheduled_row_early(
+    db_session: AsyncSession, ctx: Any
+) -> None:
+    from app.worker import deliver_email
+
+    company = await _company(db_session)
+    row = await _queued(
+        db_session,
+        company,
+        status=EmailStatus.SCHEDULED,
+        send_after=datetime.now(UTC) + timedelta(hours=1),
+    )
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+    fresh = await _fresh(db_session, row_id)
+    assert FakeSMTP.sent == []
+    assert fresh.status is EmailStatus.SCHEDULED
+    assert fresh.attempts == 0
+
+
+@pytest.mark.usefixtures("migrated_db", "real_outbox", "smtp_ok")
+async def test_deliver_releases_a_due_scheduled_row(db_session: AsyncSession, ctx: Any) -> None:
+    from app.worker import deliver_email
+
+    company = await _company(db_session)
+    row = await _queued(
+        db_session,
+        company,
+        kind="rejection",
+        payload=_rejection_payload(company),
+        status=EmailStatus.SCHEDULED,
+        send_after=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    row_id = row.id
+    await deliver_email(ctx, str(row_id))
+    fresh = await _fresh(db_session, row_id)
+    assert len(FakeSMTP.sent) == 1
+    assert fresh.status is EmailStatus.SENT
+    assert fresh.sent_at is not None
+    assert fresh.rendered_subject == "Your application to Outbox Co"
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_due_scheduled_rows_ignores_future_and_other_statuses(
+    db_session: AsyncSession,
+) -> None:
+    company = await _company(db_session)
+    now = datetime.now(UTC)
+    due = await _queued(
+        db_session, company, status=EmailStatus.SCHEDULED, send_after=now - timedelta(minutes=10)
+    )
+    future = await _queued(
+        db_session, company, status=EmailStatus.SCHEDULED, send_after=now + timedelta(hours=1)
+    )
+    queued = await _queued(db_session, company, send_after=now - timedelta(minutes=10))
+    got = await outbox_service.due_scheduled_rows(db_session, before=now)
+    assert due.id in got
+    assert future.id not in got
+    assert queued.id not in got
+
+
+class _FakeRedis:
+    def __init__(self) -> None:
+        self.jobs: list[tuple[Any, ...]] = []
+
+    async def enqueue_job(self, *args: Any, **kw: Any) -> None:
+        self.jobs.append(args)
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_sweep_enqueues_only_scheduled_rows_overdue_by_five_minutes(
+    db_session: AsyncSession, ctx: Any
+) -> None:
+    from app.worker import sweep_outbox
+
+    company = await _company(db_session)
+    now = datetime.now(UTC)
+    future = await _queued(
+        db_session, company, status=EmailStatus.SCHEDULED, send_after=now + timedelta(hours=1)
+    )
+    barely = await _queued(
+        db_session, company, status=EmailStatus.SCHEDULED, send_after=now - timedelta(minutes=1)
+    )
+    overdue = await _queued(
+        db_session, company, status=EmailStatus.SCHEDULED, send_after=now - timedelta(minutes=30)
+    )
+    ids = {str(future.id), str(barely.id), str(overdue.id)}
+    redis = _FakeRedis()
+    await sweep_outbox({**ctx, "redis": redis})
+    enqueued = {args[1] for args in redis.jobs if args[0] == "deliver_email"} & ids
+    assert enqueued == {str(overdue.id)}
 
 
 @pytest.mark.usefixtures("migrated_db", "real_outbox")
