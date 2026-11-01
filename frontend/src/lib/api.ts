@@ -532,6 +532,9 @@ export interface StageFields extends RejectionFields {
    * never saved to the template. Single moves only; bulk ignores them. */
   subject?: string;
   body?: string;
+  /** Delayed rejection mail: an ISO instant with offset; null or undefined
+   * means send now and the key is not sent. */
+  sendAfter?: string | null;
 }
 
 function rejectionBody(fields: StageFields): Record<string, unknown> {
@@ -541,6 +544,7 @@ function rejectionBody(fields: StageFields): Record<string, unknown> {
   if (fields.templateId !== undefined) body.template_id = fields.templateId;
   if (fields.subject !== undefined) body.subject = fields.subject;
   if (fields.body !== undefined) body.body = fields.body;
+  if (fields.sendAfter != null) body.send_after = fields.sendAfter;
   return body;
 }
 
@@ -674,6 +678,21 @@ export interface EmailPreview {
   body: string;
 }
 
+/** One outbox row as the cancel endpoint answers it. */
+export interface EmailDelivery {
+  id: string;
+  kind: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
+  send_after: string | null;
+  cancelled_at: string | null;
+  subject: string | null;
+  text: string | null;
+}
+
 export interface MessageInput {
   subject: string;
   body: string;
@@ -736,6 +755,11 @@ export const applications = {
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
   /** What happened to this application, newest first (card "Candidate timeline"). */
   timeline: (id: string) => request<TimelineEvent[]>(`/api/v1/applications/${id}/timeline`),
+  /** Cancels a rejection mail still waiting for its send time (409 once sent). */
+  cancelEmail: (id: string, emailId: string) =>
+    request<EmailDelivery>(`/api/v1/applications/${id}/emails/${emailId}/cancel`, {
+      method: "POST",
+    }),
   /** Who looked at this candidate; admins only (403 for members). */
   accessLog: (id: string) => request<AccessEntry[]>(`/api/v1/applications/${id}/access-log`),
   get: (id: string) => request<ApplicationOut>(`/api/v1/applications/${id}`),
