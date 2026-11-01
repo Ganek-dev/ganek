@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import { formatSendAfter, presetSendAfter, PRESET_LABELS, type SendAfterPreset } from "@/lib/send-after";
 
 const PRESETS: SendAfterPreset[] = ["now", "tomorrow", "in_3_days"];
@@ -13,6 +15,7 @@ export function SendAfterRadios({
   value: SendAfterPreset;
   onChange: (next: SendAfterPreset) => void;
 }) {
+  const name = useId();
   return (
     <fieldset className="space-y-1">
       <legend className="text-[13px] font-medium text-g700">When</legend>
@@ -22,7 +25,8 @@ export function SendAfterRadios({
           <label key={preset} className="flex items-center gap-2 text-[13px] text-foreground">
             <input
               type="radio"
-              name="send-after"
+              name={name}
+              className="accent-[var(--color-accent)]"
               value={preset}
               checked={value === preset}
               onChange={() => onChange(preset)}

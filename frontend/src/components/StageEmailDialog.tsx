@@ -165,7 +165,7 @@ export function StageEmailDialog({
         if (!next) onCancel();
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogTitle>
           {mailOnly
             ? `Send rejection email to ${candidateName}`
@@ -174,7 +174,7 @@ export function StageEmailDialog({
               : `${CONFIRM_LABEL_SILENT[stage]} ${candidateName}`}
         </DialogTitle>
         <DialogDescription>
-          {email ? "This is the email the candidate receives when you confirm." : "No email will be sent."}
+          {email ? "This is the email the candidate receives." : "No email will be sent."}
         </DialogDescription>
         {email ? (
         <div className="mt-3">
@@ -237,7 +237,7 @@ export function StageEmailDialog({
             </div>
           ) : state.kind === "error" ? (
             <p role="alert" className="text-sm text-g600">
-              Preview unavailable. The email is still sent when you confirm.
+              Preview unavailable. The email still goes out as chosen.
             </p>
           ) : (
             <>

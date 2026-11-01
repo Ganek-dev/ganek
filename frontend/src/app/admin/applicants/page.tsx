@@ -834,7 +834,7 @@ function DetailPanel({
   // "Send rejection email" button knows whether a rejection mail already
   // exists. null = not loaded (or failed): no button, never a flicker.
   // Refetches whenever trailTick bumps (any panel action that writes a
-  // timeline row, and the timeline Cancel to come), so that is the reload hook.
+  // timeline row, and the timeline Cancel), so that is the reload hook.
   const [deliveries, setDeliveries] = useState<EmailDelivery[] | null>(null);
   const isRejected = app.stage === "rejected";
   useEffect(() => {
@@ -1421,7 +1421,20 @@ function ApplicantsContent() {
       setTrailTick((tick) => tick + 1);
       return;
     }
-    if (before === null || before.stage === stage) return;
+    if (before === null) return;
+    if (before.stage === stage) {
+      // mail-only success (same stage, notify on): nothing to undo
+      if (notify && stage === "rejected") {
+        const at = fields?.sendAfter ?? null;
+        setToast({
+          id: Date.now(),
+          text: at
+            ? `Rejection email scheduled for ${formatSendAfter(at)}.`
+            : "Rejection email sent.",
+        });
+      }
+      return;
+    }
     const previous = before.stage;
     const name = before.candidate.name;
     // an email that went out cannot be unsent; the toast says so and
@@ -1446,9 +1459,25 @@ function ApplicantsContent() {
             await applications.setStage(id, previous, false);
             setTrailTick((tick) => tick + 1);
             reload();
+            let note = delayedAt ? " Scheduled email cancelled." : "";
+            if (previous === "rejected") {
+              // the rejection mail is not restored by moving back: say so
+              try {
+                const rows = (await applications.emails(id))
+                  .filter((row) => row.kind === "rejection")
+                  .sort((a, b) => b.created_at.localeCompare(a.created_at));
+                const live = rows.some((row) => ["scheduled", "queued", "sent"].includes(row.status));
+                if (rows[0]?.status === "cancelled" && !live) {
+                  note =
+                    " The scheduled rejection email stays cancelled - send it again from the panel if needed.";
+                }
+              } catch {
+                // keep the plain text
+              }
+            }
             setToast({
               id: Date.now(),
-              text: `Moved ${name} back to ${STAGE_LABELS[previous]}.${delayedAt ? " Scheduled email cancelled." : ""}`,
+              text: `Moved ${name} back to ${STAGE_LABELS[previous]}.${note}`,
             });
           } catch (err) {
             setError(err instanceof Error ? err.message : "Undo failed");
@@ -1772,6 +1801,8 @@ function ApplicantsContent() {
             onChanged={() => {
               setChecked(new Map());
               reload();
+              // an open panel's timeline and trail must not go stale
+              setTrailTick((tick) => tick + 1);
             }}
           />
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { applications, type TimelineEvent } from "@/lib/api";
+import { ApiError, applications, type TimelineEvent } from "@/lib/api";
 import { formatSendAfter } from "@/lib/send-after";
 import { relativeTime } from "@/lib/time";
 import { reasonLabel } from "@/lib/rejection-reasons";
@@ -201,7 +201,7 @@ export function TimelineCard({
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [cancelFailed, setCancelFailed] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,15 +220,20 @@ export function TimelineCard({
 
   async function cancelScheduled(eventId: string) {
     setCancelling(eventId);
-    setCancelFailed(false);
+    setCancelError(null);
     try {
       await applications.cancelEmail(applicationId, eventId.replace(/^email-/, ""));
-    } catch {
+    } catch (err) {
       // 409: the mail went out meanwhile; the refetch below shows it
-      setCancelFailed(true);
+      setCancelError(
+        err instanceof ApiError && err.status === 409
+          ? "The email could not be cancelled - it may already have gone out."
+          : "Could not cancel the email - try again.",
+      );
     }
     try {
       setEvents(await applications.timeline(applicationId));
+      setFailed(false);
     } catch {
       setFailed(true);
     }
@@ -311,9 +316,9 @@ export function TimelineCard({
               Show {hidden} more
             </button>
           ) : null}
-          {cancelFailed ? (
-            <p className="mt-2 text-[12px] text-g500">
-              The email could not be cancelled - it may already have gone out.
+          {cancelError ? (
+            <p role="status" className="mt-2 text-[12px] text-g500">
+              {cancelError}
             </p>
           ) : null}
           {hint ? (

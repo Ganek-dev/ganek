@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -89,6 +89,13 @@ function templateKinds(): { kinds: EmailKindInfo[] } {
 
 const RECENT = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 const OLDER = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+/** Waits for every promise the mock returned so far to settle. */
+async function settled(mock: { mock: { results: { value: unknown }[] } }) {
+  await act(async () => {
+    await Promise.allSettled(mock.mock.results.map((r) => r.value));
+  });
+}
 
 function makeDelivery(overrides: Partial<EmailDelivery>): EmailDelivery {
   return {
@@ -769,6 +776,7 @@ describe("ApplicantsPage", () => {
       render(<ApplicantsPage />);
       await screen.findByRole("heading", { name: "Jane Applicant" });
       await waitFor(() => expect(mockedApps.emails).toHaveBeenCalled());
+      await settled(mockedApps.emails);
       expect(screen.queryByRole("button", { name: "Send rejection email" })).not.toBeInTheDocument();
     },
   );
@@ -789,6 +797,7 @@ describe("ApplicantsPage", () => {
     const { unmount } = render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
     await waitFor(() => expect(mockedApps.emails).toHaveBeenCalled());
+    await settled(mockedApps.emails);
     expect(screen.queryByRole("button", { name: "Send rejection email" })).not.toBeInTheDocument();
     unmount();
 
@@ -831,6 +840,74 @@ describe("ApplicantsPage", () => {
     await waitFor(() =>
       expect(status).toHaveTextContent("Moved Jane Applicant back to New. Scheduled email cancelled."),
     );
+  });
+
+  it("a mail-only success toasts the schedule without an Undo", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockResolvedValue([]);
+    render(<ApplicantsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Send rejection email" }));
+    const dialog = await screen.findByRole("dialog", { name: "Send rejection email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Tomorrow morning/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: /^Send email/ }));
+    const status = await screen.findByRole("status");
+    await waitFor(() =>
+      expect(status).toHaveTextContent(/Rejection email scheduled for [A-Z][a-z]{2} (\d{1,2} [A-Z][a-z]{2} )?09:00\./),
+    );
+    expect(within(status).queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("a mail-only send-now success toasts that it was sent, without an Undo", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockResolvedValue([]);
+    render(<ApplicantsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Send rejection email" }));
+    const dialog = await screen.findByRole("dialog", { name: "Send rejection email to Jane Applicant" });
+    await within(dialog).findByText("Your application to ACME Ganek");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send email" }));
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(status).toHaveTextContent("Rejection email sent."));
+    expect(within(status).queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("undo back to Rejected says the cancelled email stays cancelled", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockResolvedValue([makeDelivery({ status: "cancelled", cancelled_at: RECENT })]);
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.selectOptions(screen.getByLabelText("Stage for Jane Applicant"), "screening");
+    const status = await screen.findByRole("status");
+    await userEvent.click(await within(status).findByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(status).toHaveTextContent(
+        "Moved Jane Applicant back to Rejected. The scheduled rejection email stays cancelled - send it again from the panel if needed.",
+      ),
+    );
+  });
+
+  it("undo back to Rejected keeps the plain text when the trail fails to load", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ stage: "rejected" })]));
+    mockedApps.emails.mockRejectedValue(new Error("boom"));
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.selectOptions(screen.getByLabelText("Stage for Jane Applicant"), "screening");
+    const status = await screen.findByRole("status");
+    await userEvent.click(await within(status).findByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(status).toHaveTextContent("Moved Jane Applicant back to Rejected."));
+    expect(status).not.toHaveTextContent("stays cancelled");
+  });
+
+  it("a bulk reject refetches the open panel's timeline", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await waitFor(() => expect(mockedApps.timeline).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /select kenji sato/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, reject" }));
+    await waitFor(() => expect(mockedApps.bulkReject).toHaveBeenCalled());
+    await waitFor(() => expect(mockedApps.timeline.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
   it("withdrawn applications get a chip, a count and a filter", async () => {

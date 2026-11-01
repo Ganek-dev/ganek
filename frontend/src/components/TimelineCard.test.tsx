@@ -309,9 +309,21 @@ describe("TimelineCard scorecard rows", () => {
     render(<TimelineCard applicationId="app-1" now={NOW} onChanged={onChanged} />);
     await userEvent.click(await screen.findByRole("button", { name: "Cancel the scheduled rejection email" }));
     await waitFor(() => expect(mocked.timeline).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText(/could not be cancelled/)).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "The email could not be cancelled - it may already have gone out.",
+    );
     expect(screen.getByRole("region", { name: "Timeline" })).toBeInTheDocument();
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("says try again when the cancel fails for another reason", async () => {
+    mocked.timeline.mockResolvedValue([event({ id: "email-mail-1", kind: "email", payload: SCHEDULED })]);
+    mocked.cancelEmail.mockRejectedValue(new ApiError(500, "boom"));
+    render(<TimelineCard applicationId="app-1" now={NOW} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel the scheduled rejection email" }));
+    const note = await screen.findByRole("status");
+    expect(note).toHaveTextContent("Could not cancel the email - try again.");
+    expect(note).not.toHaveTextContent("may already have gone out");
   });
 
   it("renders the cancelled activity row and hides the cancelled email row", async () => {
