@@ -21,13 +21,13 @@ When a request is created, the job's criteria are copied onto it. Editing the te
 
 Open a candidate and use the **Request** control on the Scorecards card. Pick any active teammate (you cannot request one from yourself, and a teammate with an open or submitted request is not offered again). The teammate gets one mail with a link to the form, and the task shows on their dashboard.
 
-Booking an interview also requests a scorecard from the interviewer automatically. That request starts waiting when the interview ends, and if the interview moves, the wait moves with it. If the candidate cancels the interview, the request it created is withdrawn.
+Booking an interview also requests a scorecard from the interviewer automatically. That request starts waiting when the interview ends, and if the interview moves, the wait moves with it. If the interview is cancelled, the request it created is withdrawn.
 
 ## Waiting on, reminders, decline and dismiss
 
-An open request reads "Waiting on Jane Doe for 4 days" on the candidate and as a "waiting" item in your dashboard queue; the reviewer sees the matching task on theirs.
+An open request reads "Waiting on Jane Doe for 4 days" on the candidate and as a "Waiting on Jane Doe: Candidate Name" item in your dashboard queue, which appears after three days and only while the candidate is in an open stage; the reviewer sees the matching task on theirs.
 
-- **Reminder.** One mail, three days after the request, or three days after the interview ended. Nothing follows it. Requesting again starts the clock and the single reminder over.
+- **Reminder.** One mail, three days after the request, or three days after the interview ended. Nothing follows it, and none goes out when the candidate is in a closed stage or the reviewer's account is inactive. Requesting again starts the clock and the single reminder over.
 - **Decline.** The reviewer can choose "I did not assess this candidate". The row reads "Declined by Jane Doe" and you can **Request again**.
 - **Dismiss.** You can dismiss an open request. It disappears from the reviewer's list and they lose any access the request gave them (see [Roles](/roles/)).
 - **Submit and edit.** After submitting, the reviewer can edit their answers for 24 hours. A submitted scorecard shows the recommendation, the ratings, the comment and the date.

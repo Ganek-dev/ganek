@@ -170,6 +170,29 @@ describe("ScorecardsCard", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 
+  it("shows after the interview for an auto-request whose interview is ahead", async () => {
+    mockedTeam.list.mockResolvedValue([member("u-jane", "Jane Doe")]);
+    mockedCards.list.mockResolvedValue([
+      row({
+        waiting_days: 0,
+        due_from: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      }),
+    ]);
+    render(<ScorecardsCard applicationId="app1" />);
+    expect(await screen.findByText(/Waiting on Jane Doe after the interview/)).toBeInTheDocument();
+    expect(screen.queryByText(/requested today/)).not.toBeInTheDocument();
+  });
+
+  it("does not offer Request again on the caller's own declined row", async () => {
+    mockedTeam.list.mockResolvedValue([member("u-me", "Me")]);
+    mockedCards.list.mockResolvedValue([
+      row({ state: "declined", reviewer_user_id: "u-me", reviewer_label: "Me" }),
+    ]);
+    render(<ScorecardsCard applicationId="app1" />);
+    expect(await screen.findByText(/Declined by Me/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request again" })).not.toBeInTheDocument();
+  });
+
   it("declined row of an active teammate offers Request again", async () => {
     mockedTeam.list.mockResolvedValue([member("u-jane", "Jane Doe")]);
     mockedCards.list.mockResolvedValue([row({ state: "declined" })]);

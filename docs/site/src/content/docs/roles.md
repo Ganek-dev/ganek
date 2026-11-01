@@ -39,7 +39,7 @@ A reviewer reaches a candidate through exactly two things:
 1. a scorecard request for them, which is kept when they submit or decline it and removed when you dismiss it, or
 2. a booked interview where they are the interviewer.
 
-The grant lasts until the candidate's data is erased or purged. Anything else is a not-found, not a refusal, so a reviewer cannot tell which other candidates exist.
+A submitted or declined request keeps the grant until the candidate's data is erased or purged. Dismissing the request, cancelling the interview, or removing the teammate ends the grant that request or interview gave. API keys belong to the company, so rotate them when you demote a teammate who may hold one. Anything else is a not-found, not a refusal, so a reviewer cannot tell which other candidates exist.
 
 ## Reviewer account
 

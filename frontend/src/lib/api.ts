@@ -855,7 +855,10 @@ export const RECOMMENDATION_LABELS: Record<Recommendation, string> = {
 };
 
 /** "Waiting on Jane Doe for 4 days" / "for 1 day" / ", requested today". */
-export function waitingCopy(label: string, days: number): string {
+export function waitingCopy(label: string, days: number, dueFrom?: string): string {
+  if (dueFrom && new Date(dueFrom).getTime() > Date.now()) {
+    return `Waiting on ${label} after the interview`;
+  }
   if (days <= 0) return `Waiting on ${label}, requested today`;
   return `Waiting on ${label} for ${days} ${days === 1 ? "day" : "days"}`;
 }

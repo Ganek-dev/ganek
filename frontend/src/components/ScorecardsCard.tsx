@@ -241,7 +241,7 @@ export function ScorecardsCard({
                     </div>
                     {row.state === "open" ? (
                       <p className="mt-1 flex items-center justify-between gap-3 text-[12.5px] text-g600">
-                        {waitingCopy(row.reviewer_label, row.waiting_days)}
+                        {waitingCopy(row.reviewer_label, row.waiting_days, row.due_from)}
                         <button
                           type="button"
                           onClick={() =>
@@ -256,7 +256,7 @@ export function ScorecardsCard({
                     {row.state === "declined" ? (
                       <p className="mt-1 flex items-center justify-between gap-3 text-[12.5px] text-g600">
                         Declined by {row.reviewer_label}
-                        {activeIds.has(row.reviewer_user_id ?? "") ? (
+                        {activeIds.has(row.reviewer_user_id ?? "") && row.reviewer_user_id !== me?.id ? (
                           <button
                             type="button"
                             onClick={() =>
