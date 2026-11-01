@@ -38,6 +38,7 @@ async def test_csv_export_follows_filters_and_leaks_no_ids(client: AsyncClient) 
     assert len(rows) == 1
     row = rows[0]
     assert row["candidate_name"] == "Jane Applicant"
+    assert (row["first_name"], row["last_name"]) == ("Jane", "Applicant")
     assert row["candidate_email"] == email
     assert row["job"] == "Backend Engineer"
     assert row["stage"] == "new"
