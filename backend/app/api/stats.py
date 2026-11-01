@@ -68,7 +68,8 @@ async def today(
 async def queue(db: DbSession, company: CurrentCompany, user: CurrentUser) -> QueueOut:
     """Dashboard "Your queue" derived items (card D13): published jobs
     without a quiz, completed quizzes with unreviewed integrity flags,
-    interview invites the candidate has not booked. Minus what this user
+    interview invites the candidate has not booked, scorecards left waiting
+    3+ days (staff) and the user's own open scorecards. Minus what this user
     dismissed."""
     return QueueOut(items=await queue_service.visible_items(db, company, user))
 

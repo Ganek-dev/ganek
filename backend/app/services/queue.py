@@ -8,10 +8,14 @@ candidate: the items are pointers into the admin screens where a human
 reviews them.
 """
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit
 
+from sqlalchemy import ColumnElement, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased, selectinload
+
+from app.core import urls
 from app.models import (
     Application,
     AttemptStatus,
@@ -23,9 +27,12 @@ from app.models import (
     JobStatus,
     QuizAttempt,
     User,
+    UserRole,
 )
 from app.models.application import CLOSED_STAGES
+from app.models.scorecard import Scorecard
 from app.schemas.dashboard import QueueItem
+from app.services import scorecards as scorecard_service
 from app.services.quiz import parse_quiz_config
 
 PER_SOURCE_LIMIT = 20
@@ -132,20 +139,126 @@ async def _unbooked_interviews(db: AsyncSession, company: Company) -> list[Queue
     ]
 
 
-async def derived_items(db: AsyncSession, company: Company) -> list[QueueItem]:
+def _open_scorecard_filters() -> list[ColumnElement[bool]]:
+    return [
+        Scorecard.submitted_at.is_(None),
+        Scorecard.dismissed_at.is_(None),
+        Scorecard.declined_at.is_(None),
+    ]
+
+
+def _relative(url: str) -> str:
+    """Queue hrefs are app paths; ``urls`` builds the absolute form."""
+    parts = urlsplit(url)
+    return f"{parts.path}?{parts.query}" if parts.query else parts.path
+
+
+async def _scorecards_waiting(
+    db: AsyncSession, company: Company, *, now: datetime
+) -> list[QueueItem]:
+    """Staff view: scorecards a reviewer has left open for 3+ days."""
+    reviewer = aliased(User)
+    rows = (
+        await db.execute(
+            select(Scorecard, reviewer, Application.id, Candidate.name, Job.title)
+            .join(Application, Application.id == Scorecard.application_id)
+            .join(Candidate, Candidate.id == Application.candidate_id)
+            .join(Job, Job.id == Application.job_id)
+            .outerjoin(reviewer, reviewer.id == Scorecard.reviewer_user_id)
+            .where(
+                Scorecard.company_id == company.id,
+                *_open_scorecard_filters(),
+                Application.stage.not_in(CLOSED_STAGES),
+                # loose bound; the service decides the exact UTC day boundary
+                Scorecard.due_from < now - timedelta(days=2),
+            )
+            .order_by(Scorecard.due_from, Scorecard.id)
+        )
+    ).all()
+    items: list[QueueItem] = []
+    for row, reviewer_user, application_id, candidate_name, job_title in rows:
+        days = scorecard_service.waiting_days(row, now=now)
+        if days < scorecard_service.REMINDER_AFTER_DAYS:
+            continue
+        items.append(
+            QueueItem(
+                key=f"scorecard-waiting:{row.id}",
+                kind="scorecard-waiting",
+                title=(
+                    f"Waiting on {scorecard_service.reviewer_label(reviewer_user)}: "
+                    f"{candidate_name}"
+                ),
+                hint=f"{job_title} · {days} days",
+                href=f"/admin/applicants?selected={application_id}",
+                since=row.due_from,
+            )
+        )
+    return items[:PER_SOURCE_LIMIT]
+
+
+async def _scorecards_mine(
+    db: AsyncSession, company: Company, user: User, *, now: datetime
+) -> list[QueueItem]:
+    """Every role: the scorecards this user has been asked to fill in."""
+    requester = aliased(User)
+    rows = (
+        await db.execute(
+            select(Scorecard, requester, Application.id, Candidate.name, Job.title)
+            .join(Application, Application.id == Scorecard.application_id)
+            .join(Candidate, Candidate.id == Application.candidate_id)
+            .join(Job, Job.id == Application.job_id)
+            .outerjoin(requester, requester.id == Scorecard.requested_by_user_id)
+            .where(
+                Scorecard.company_id == company.id,
+                Scorecard.reviewer_user_id == user.id,
+                *_open_scorecard_filters(),
+                Application.stage.not_in(CLOSED_STAGES),
+            )
+            .order_by(Scorecard.requested_at, Scorecard.id)
+            .limit(PER_SOURCE_LIMIT)
+        )
+    ).all()
+    is_reviewer = scorecard_service._is_reviewer_role(user)
+    items: list[QueueItem] = []
+    for row, requester_user, application_id, candidate_name, job_title in rows:
+        # no requester row: the booking path (candidate booked the interview)
+        who = (
+            "from your interview"
+            if row.requested_by_user_id is None or requester_user is None
+            else f"requested by {scorecard_service.reviewer_label(requester_user)}"
+        )
+        items.append(
+            QueueItem(
+                key=f"scorecard:{row.id}",
+                kind="scorecard",
+                title=f"Scorecard: {candidate_name}",
+                hint=f"{job_title} · {who}",
+                href=_relative(urls.scorecard_url(company, application_id, reviewer=is_reviewer)),
+                since=row.requested_at,
+            )
+        )
+    return items
+
+
+async def derived_items(
+    db: AsyncSession, company: Company, user: User, *, now: datetime | None = None
+) -> list[QueueItem]:
     """Every derived item whose condition currently holds, dismissals ignored."""
-    return (
-        await _jobs_without_quiz(db, company)
-        + await _open_integrity_flags(db, company)
-        + await _unbooked_interviews(db, company)
-    )
+    now = now or datetime.now(UTC)
+    items: list[QueueItem] = []
+    if user.role in (UserRole.ADMIN, UserRole.MEMBER):
+        items += await _jobs_without_quiz(db, company)
+        items += await _open_integrity_flags(db, company)
+        items += await _unbooked_interviews(db, company)
+        items += await _scorecards_waiting(db, company, now=now)
+    return items + await _scorecards_mine(db, company, user, now=now)
 
 
 async def visible_items(db: AsyncSession, company: Company, user: User) -> list[QueueItem]:
     """Derived items minus the user's dismissals. Dismissed keys that no
     longer match a live item are dropped from the user row, so the list
     stays bounded and a recurring condition is shown again."""
-    items = await derived_items(db, company)
+    items = await derived_items(db, company, user)
     dismissed = list(user.queue_dismissed or [])
     if not dismissed:
         return items
@@ -162,7 +275,7 @@ async def dismiss(db: AsyncSession, company: Company, user: User, key: str) -> b
     """Hide one live item for this user. False when ``key`` is not a current
     item (resolved already, or never this company's), so the list can only
     hold keys the server itself produced."""
-    live = {item.key for item in await derived_items(db, company)}
+    live = {item.key for item in await derived_items(db, company, user)}
     if key not in live:
         return False
     dismissed = list(user.queue_dismissed or [])

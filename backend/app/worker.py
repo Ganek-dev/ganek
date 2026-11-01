@@ -27,14 +27,18 @@ from app.core.observability import init_sentry
 from app.core.security import create_quiz_token
 from app.models import (
     Application,
+    Candidate,
     Company,
     EmailOutbox,
     EmailStatus,
     Interview,
     InterviewStatus,
+    Job,
     QuizAttempt,
+    User,
 )
 from app.models.quiz import AttemptStatus
+from app.models.scorecard import Scorecard
 from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
 from app.services import demo_seed, email_templates
@@ -42,12 +46,14 @@ from app.services import email as email_service
 from app.services import health as health_service
 from app.services import outbox as outbox_service
 from app.services import retention as retention_service
+from app.services import scorecards as scorecards_service
 from app.services import webhooks as webhooks_service
 
 logger = logging.getLogger(__name__)
 
 # a purge claim outlives the longest plausible run but not the next night's tick
 PURGE_CLAIM_TTL_SECONDS = 20 * 3600
+REMIND_CLAIM_TTL_SECONDS = 20 * 3600
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -220,6 +226,65 @@ async def purge_retention(ctx: dict[str, Any]) -> None:
     await _mark(ctx, health_service.LAST_PURGE_KEY)
 
 
+async def remind_scorecards(ctx: dict[str, Any]) -> None:
+    """Daily scorecard nudge: one mail per request lifetime to reviewers whose
+    request has waited 3+ days. Once per day across workers.
+
+    Per row, `reminded_at` and the outbox row go in ONE commit (queue_email
+    commits the session; in demo mode it does not, so we commit ourselves and
+    mark without mailing). A crash before the commit repeats nothing and loses
+    nothing; after it both are durable. A failing row is rolled back and
+    retried tomorrow without stopping the others."""
+    now = datetime.now(UTC)
+    if not await _claim_run(
+        ctx, "remind_scorecards", now=now, ttl_seconds=REMIND_CLAIM_TTL_SECONDS
+    ):
+        return
+    sent = failed = 0
+    async with ctx["session_factory"]() as db:
+        # ids only: a rollback expires loaded rows and async sessions cannot lazy-load
+        row_ids = [r.id for r in await scorecards_service.due_for_reminder(db, now=now)]
+        for row_id in row_ids:
+            try:
+                row = await db.get(Scorecard, row_id)
+                if row is None or row.reminded_at is not None:
+                    continue
+                application = await db.get(Application, row.application_id)
+                company = await db.get(Company, row.company_id)
+                reviewer = await db.get(User, row.reviewer_user_id)
+                assert application is not None and company is not None and reviewer is not None
+                candidate = await db.get(Candidate, application.candidate_id)
+                job = await db.get(Job, application.job_id)
+                assert candidate is not None and job is not None
+                days = scorecards_service.waiting_days(row, now=now)
+                await scorecards_service.mark_reminded(db, [row], now=now)
+                await outbox_service.queue_email(
+                    db,
+                    kind="scorecard_reminder",
+                    company_id=company.id,
+                    application_id=application.id,
+                    to=reviewer.email,
+                    ref=str(application.id),
+                    company_name=company.name,
+                    candidate_name=candidate.name,
+                    job_title=job.title,
+                    url=urls.scorecard_url(
+                        company,
+                        application.id,
+                        reviewer=scorecards_service._is_reviewer_role(reviewer),
+                    ),
+                    waiting_days=days,
+                    brand_primary=(company.theme or {}).get("primary_color"),
+                )
+                await db.commit()  # queue_email skips its own commit in demo mode
+                sent += 1
+            except Exception:  # noqa: BLE001 - one row must never block the rest
+                logger.exception("scorecard reminder failed for %s", row_id)
+                await db.rollback()
+                failed += 1
+    logger.info("scorecard reminders: %d queued, %d failed", sent, failed)
+
+
 async def reset_demo(ctx: dict[str, Any]) -> None:
     """Nightly rebuild of the public demo workspace. Off while
     GANEK_DEMO_RESET_SLUG is unset. The seed deletes the company (and its CV
@@ -356,6 +421,7 @@ class WorkerSettings:
         send_interview_reminder,
         send_quiz_nudge,
         purge_retention,
+        remind_scorecards,
         reset_demo,
         deliver_email,
         sweep_outbox,
@@ -365,6 +431,7 @@ class WorkerSettings:
     ]
     cron_jobs = [
         cron(purge_retention, hour=3, minute=17),
+        cron(remind_scorecards, hour=9, minute=5),
         cron(reset_demo, hour=4, minute=7),  # no-op unless GANEK_DEMO_RESET_SLUG is set
         cron(sweep_outbox, minute={7, 17, 27, 37, 47, 57}),
         cron(sweep_webhooks, minute={3, 13, 23, 33, 43, 53}),
