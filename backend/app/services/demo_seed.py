@@ -151,6 +151,10 @@ class _Candidate:
     message: str | None = None
     flag: str | None = None  # "blur" or "fast": the two integrity stories
     source: str = "direct"  # where they came from (core/sources.py grammar)
+    # the funnel stage a rejected or withdrawn candidate left from (None = straight from new)
+    left_from: ApplicationStage | None = None
+    # age of the application in days; None = spread by list position. Pins the stalled role.
+    days_ago: float | None = None
 
 
 CANDIDATES = (
@@ -173,18 +177,23 @@ CANDIDATES = (
         linkedin="https://www.linkedin.com/company/ganek-io",
         source="linkedin",
     ),
-    _Candidate("Diego Alvarez", 0, 5, ApplicationStage.SCREENING, source="link:newsletter"),
+    _Candidate("Diego Alvarez", 0, 5, ApplicationStage.HIRED, source="link:newsletter"),
     _Candidate("Nina Lindqvist", 0, 5, ApplicationStage.NEW, source="google"),
-    _Candidate("Pavel Horak", 0, 4, ApplicationStage.SCREENING, source="linkedin"),
+    _Candidate("Pavel Horak", 0, 4, ApplicationStage.OFFER, source="linkedin"),
     _Candidate("Sofia Ricci", 0, 4, ApplicationStage.NEW, source="ref:robotics-weekly.example"),
-    _Candidate("Lucas Moreau", 0, 3, ApplicationStage.REJECTED),  # direct
+    _Candidate(
+        "Lucas Moreau", 0, 3, ApplicationStage.REJECTED, left_from=ApplicationStage.SCREENING
+    ),  # direct
     _Candidate("Aisha Khan", 0, 3, ApplicationStage.NEW, flag="fast", source="linkedin"),
     _Candidate("Tomas Ferreira", 0, 2, ApplicationStage.REJECTED, source="google"),
     _Candidate("Ingrid Solberg", 0, None, ApplicationStage.NEW, source="link:newsletter"),  # open
     _Candidate("Marek Novak", 0, None, ApplicationStage.NEW, source="hn"),
-    _Candidate("Yuki Tanaka", 0, None, ApplicationStage.REJECTED),  # direct
-    _Candidate("Lena Fischer", 3, None, ApplicationStage.SCREENING, source="linkedin"),
-    _Candidate("Omar Haddad", 3, None, ApplicationStage.NEW),  # direct
+    _Candidate(
+        "Yuki Tanaka", 0, None, ApplicationStage.REJECTED, left_from=ApplicationStage.INTERVIEW
+    ),  # direct
+    # the Senior Frontend role is the stalled one: nothing has moved for 8+ days
+    _Candidate("Lena Fischer", 3, None, ApplicationStage.SCREENING, source="linkedin", days_ago=16),
+    _Candidate("Omar Haddad", 3, None, ApplicationStage.NEW, days_ago=12),  # direct
     _Candidate("Chloe Martin", 1, None, ApplicationStage.NEW, source="indeed"),
 )
 
@@ -360,6 +369,71 @@ async def _backdate(db: AsyncSession, application: Application, offset: timedelt
     await db.commit()
 
 
+REJECTED, WITHDRAWN = ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN
+FUNNEL = (
+    ApplicationStage.NEW,
+    ApplicationStage.SCREENING,
+    ApplicationStage.INTERVIEW,
+    ApplicationStage.OFFER,
+    ApplicationStage.HIRED,
+)
+
+
+async def _walk_stages(
+    db: AsyncSession,
+    application: Application,
+    target: ApplicationStage,
+    actor_id: uuid.UUID,
+    left_from: ApplicationStage | None = None,
+) -> Application:
+    """Move through every funnel stage up to ``target`` with set_stage, so a
+    stage.changed row exists per step. A rejected or withdrawn target walks to
+    ``left_from`` first. set_stage queues no mail (the routers do), so
+    walking sends nothing; the sent mail the demo shows is written by hand."""
+    goal = left_from or ApplicationStage.NEW if target in (REJECTED, WITHDRAWN) else target
+    for stage in FUNNEL[1 : FUNNEL.index(goal) + 1]:
+        application = await applications_service.set_stage(
+            db, application, stage, actor_user_id=actor_id
+        )
+    if target in (REJECTED, WITHDRAWN):
+        application = await applications_service.set_stage(
+            db, application, target, actor_user_id=actor_id
+        )
+    return application
+
+
+async def _spread_history(
+    db: AsyncSession, application: Application, step: timedelta = timedelta(days=2)
+) -> None:
+    """Space the stage.changed rows out: the i-th (from 1) lands i steps after
+    the application was created, and the stage stamp follows the last one.
+    The step shrinks for a young application so no row sits in the future."""
+    events = (
+        (
+            await db.execute(
+                select(ActivityLog)
+                .where(
+                    ActivityLog.application_id == application.id,
+                    ActivityLog.type == activity.STAGE_CHANGED,
+                )
+                .order_by(ActivityLog.created_at, ActivityLog.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not events:
+        return
+    room = datetime.now(UTC) - application.created_at - timedelta(hours=2)
+    step = max(min(step, room / len(events)), timedelta(minutes=1))
+    for position, event in enumerate(events, start=1):
+        event.created_at = application.created_at + position * step
+    application.stage_changed_at = events[-1].created_at
+    if application.decided_at is not None:
+        application.decided_at = events[-1].created_at
+    await db.commit()
+
+
 async def seed(
     db: AsyncSession,
     *,
@@ -474,9 +548,7 @@ async def seed(
         if attempt is not None and cand.correct is not None:
             attempts += 1
         if cand.stage is not ApplicationStage.NEW:
-            application = await applications_service.set_stage(
-                db, application, cand.stage, actor_user_id=erika.id
-            )
+            application = await _walk_stages(db, application, cand.stage, erika.id, cand.left_from)
         applications.append(application)
         for note_index, author, body in NOTES:
             if note_index == index:
@@ -499,7 +571,10 @@ async def seed(
                 await db.commit()
         # oldest applicants first in the list, the newest a few hours ago
         days_ago = 20.0 - index * (19.0 / max(1, len(CANDIDATES) - 1)) + rng.uniform(-0.3, 0.3)
+        if cand.days_ago is not None:
+            days_ago = cand.days_ago
         await _backdate(db, application, timedelta(days=max(0.1, days_ago)))
+        await _spread_history(db, application)
         await _seed_sent_mail(db, company, application, job, cand.stage)
 
     await _seed_scorecards(db, applications, erika, jonas, max_berger)
