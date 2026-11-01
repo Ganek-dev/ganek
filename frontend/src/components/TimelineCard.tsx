@@ -33,6 +33,8 @@ const EMAIL_LABELS: Record<string, string> = {
   interview_cancelled: "Interview cancellation",
   interview_cancelled_interviewer: "Interviewer cancel notice",
   message: "Message",
+  scorecard_request: "Scorecard request",
+  scorecard_reminder: "Scorecard reminder",
 };
 
 type Tone = "stage" | "quiz" | "note" | "sent" | "waiting" | "failed" | "neutral";
@@ -57,12 +59,6 @@ const EMAIL_STATE: Record<string, { tone: Tone; label: (p: Record<string, unknow
   bounced: { tone: "failed", label: () => "bounced" },
   complained: { tone: "failed", label: () => "marked as spam" },
   suppressed: { tone: "waiting", label: () => "skipped: address suppressed" },
-};
-
-/** Scorecard mails: the timeline names the mail itself, not the template. */
-const SCORECARD_MAIL: Record<string, string> = {
-  scorecard_request: "Scorecard request sent",
-  scorecard_reminder: "Scorecard reminder sent",
 };
 
 const NOT_DELIVERED = new Set(["failed", "bounced", "complained"]);
@@ -133,7 +129,7 @@ export function describeEvent(event: TimelineEvent): {
       const name = EMAIL_LABELS[String(p.template)] ?? String(p.template);
       // subject and text are set once the row was rendered at delivery
       return {
-        text: SCORECARD_MAIL[String(p.template)] ?? `${name} email ${state.label(p)}`,
+        text: `${name} email ${state.label(p)}`,
         tone: state.tone,
         detail: nonEmpty(p.subject),
         body: nonEmpty(p.text),

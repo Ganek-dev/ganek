@@ -243,7 +243,20 @@ describe("TimelineCard scorecard rows", () => {
     ]);
     render(<TimelineCard applicationId="a1" now={NOW} />);
     const items = await screen.findAllByRole("listitem");
-    expect(items[0]).toHaveTextContent(/^Scorecard reminder sent/);
-    expect(items[1]).toHaveTextContent(/^Scorecard request sent/);
+    expect(items[0]).toHaveTextContent(/^Scorecard reminder email sent/);
+    expect(items[1]).toHaveTextContent(/^Scorecard request email sent/);
+  });
+
+  it("does not say sent for a queued or failed scorecard mail", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "email", at: "2026-10-29T11:50:00Z", payload: { template: "scorecard_request", status: "queued", attempts: 0, last_error: null } }),
+      event({ kind: "email", at: "2026-10-29T11:40:00Z", payload: { template: "scorecard_reminder", status: "failed", attempts: 3, last_error: "timeout" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(/^Scorecard request email queued/);
+    expect(items[0].textContent).not.toMatch(/sent/);
+    expect(items[1]).toHaveTextContent(/^Scorecard reminder email failed/);
+    expect(items[1].textContent).not.toMatch(/sent/);
   });
 });
