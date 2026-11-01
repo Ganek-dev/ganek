@@ -81,7 +81,7 @@ Admins create keys under Settings, Developers. The secret (`gk_...`) is shown on
 curl -H "Authorization: Bearer gk_..." https://your-instance/api/v1/applications
 ```
 
-Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}` and the export above. Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor, and a `GET /api/v1/applications/{id}` with a key lands in that applicant's read-access trail under the key's name. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
+Scope `read` covers `GET /api/v1/applications`, `GET /api/v1/applications/{id}`, the export above, `GET /api/v1/applications/{id}/cv` (a 302 to a download link that works for ten minutes, logged in the applicant's read-access trail under the key's name) and `GET /api/v1/applications/{id}/cv-url` (the same link as `{"download_url": "..."}` for clients that cannot follow a redirect). Scope `write` adds `PATCH /api/v1/applications/{id}/stage`; stage changes made with a key show in the activity log without a person as actor, and a `GET /api/v1/applications/{id}` with a key lands in that applicant's read-access trail under the key's name. Keys never reach the key-management endpoints themselves, and revoking one cuts it off immediately. Payloads are the same as the admin UI sees: quiz results stay at the summary level, never answers or keys.
 
 ### Screening questions
 
@@ -136,12 +136,17 @@ Admins register HTTPS endpoints under Settings, Developers and pick events: `app
       "completed_at": "2026-10-23T18:01:40+00:00",
       "flags": ["left the tab 2x (~5s)"],
       "summary": "Ganek screening: 83% (8 questions), completed 2026-10-23, 1 integrity note"
+    },
+    "cv": {
+      "filename": "jane-applicant-cv.pdf",
+      "size_bytes": 184233,
+      "url": "https://jobs.example.com/api/v1/applications/c17a.../cv"
     }
   }
 }
 ```
 
-`first_name` and `last_name` split the name (everything before the last space, then the last token), so an ATS that wants them separately needs no extra step, except that a single-word name has an empty `first_name`, which Greenhouse and Personio refuse, so fix those by hand; `quiz.summary` is one sentence for an ATS note field. `quiz` is `null` until an assessment exists and only ever carries the summary: no answers, no keys, no raw integrity events. Failed deliveries retry with backoff (1 min, 5 min, 15 min, 1 h) and park as `failed` after five attempts; the Developers page shows the last delivery per endpoint and "Send test" posts a realistic sample of the first event the endpoint subscribes to, with `"test": true` in `data`; receivers should ignore deliveries with `test: true`. The sample application does not exist, so its admin link opens no applicant.
+`first_name` and `last_name` split the name (everything before the last space, then the last token), so an ATS that wants them separately needs no extra step, except that a single-word name has an empty `first_name`, which Greenhouse and Personio refuse, so fix those by hand; `quiz.summary` is one sentence for an ATS note field. `quiz` is `null` until an assessment exists and only ever carries the summary: no answers, no keys, no raw integrity events. `cv.url` is not the file, it is the key-protected `GET /api/v1/applications/{id}/cv` route above, because a delivery can be retried for over an hour and a download link inside it would have expired by then. Failed deliveries retry with backoff (1 min, 5 min, 15 min, 1 h) and park as `failed` after five attempts; the Developers page shows the last delivery per endpoint and "Send test" posts a realistic sample of the first event the endpoint subscribes to, with `"test": true` in `data`; receivers should ignore deliveries with `test: true`. The sample application does not exist, so its admin link opens no applicant and its CV link answers 404 when fetched with a key.
 
 **Verify the signature.** Every request carries `X-Ganek-Timestamp` (unix seconds), `X-Ganek-Delivery` (the id, for de-duplication) and `X-Ganek-Signature: sha256=<hex>`, an HMAC-SHA256 of `"<timestamp>.<raw body>"` with the endpoint secret shown once at creation. Reject stale timestamps to block replays:
 

@@ -29,10 +29,12 @@ Every delivery is JSON with an `event`, a `created_at` and a `data` object. For 
 | `data.quiz.score_percent`, `data.quiz.status`, `data.quiz.completed_at` | the screening result at summary level |
 | `data.quiz.flags` | the integrity notes as short sentences, often empty |
 | `data.quiz.summary` | one sentence for the ATS note field |
+| `data.cv.filename`, `data.cv.size_bytes` | the CV file name and its size in bytes |
+| `data.cv.url` | where to fetch the CV with an API key; see [the CV](#the-cv) |
 | `data.id` | the application id, for your own records |
 | `data.test` | present and `true` only on the sample that **Send test** posts; real deliveries do not have it |
 
-Nothing from inside the quiz travels: no answers, no keys, no raw telemetry. The CV is not in the payload either; see [the CV](#the-cv) below.
+Nothing from inside the quiz travels: no answers, no keys, no raw telemetry. The CV file is not in the payload either, only its name, size and a key-protected link; see [the CV](#the-cv) below.
 
 Zapier flattens nested JSON with a double underscore, so the same fields appear there as `data__candidate__email`, `data__job__title`, `data__quiz__score_percent`. Make shows them as a collection you expand.
 
@@ -64,7 +66,13 @@ Make answers every delivery with `200 Accepted`, which Ganek records as delivere
 
 ## The CV
 
-The webhook does not carry the CV and there is no API route for it yet. Today the file is downloaded from the applicant page in Ganek and attached in the ATS by hand, or the ATS's own CV auto-match on the candidate's email picks it up when you import it. Carrying a CV download in the webhook for API keys is the next step on the [roadmap](https://github.com/Ganek-dev/ganek).
+The payload carries `data.cv.url`, which is not the file: it is the key-protected route `GET /api/v1/applications/{id}/cv`, because a delivery can be retried for over an hour and a download link inside it would have expired by then. Fetch it with a read API key and hand the file to your ATS:
+
+1. In Ganek, open Settings, Developers and create an API key with scope `read`. Copy the secret; it is shown once.
+2. In Zapier, add a **Webhooks by Zapier, GET** step after the filter, with the URL `data__cv__url` and the header `Authorization: Bearer gk_...`. Leave follow redirects on. In Make, use **HTTP, Get a file** on `data.cv.url` with the same header.
+3. Map the file from that step to the resume or CV field of the ATS action. Greenhouse and Recruitee take a file or a URL; Personio and Lever take the file.
+
+Every fetch lands in the applicant's read-access trail under the key's name. The sample delivery that **Send test** posts describes an applicant that does not exist, so its link answers 404; the filter keeps it away from the CV step anyway.
 
 ## CSV route
 
