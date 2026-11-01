@@ -341,3 +341,46 @@ describe("JobForm screening questions", () => {
     expect(screen.getByLabelText("Prompt")).toHaveValue("Notice period?");
   });
 });
+
+describe("JobForm scorecard", () => {
+  const CRIT = { id: "aaaaaaaa", label: "Problem solving", hint: "" };
+
+  it("edits the job template and sends it back with saved ids intact", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(
+      <JobForm
+        initial={makeJob({ scorecard_template: [CRIT] })}
+        submitLabel="Save changes"
+        onSubmit={onSubmit}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Scorecard" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
+    await userEvent.type(screen.getAllByLabelText("Criterion label")[1]!, "Design");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0]![0].scorecard_template).toEqual([
+      CRIT,
+      { id: "", label: "Design", hint: "" },
+    ]);
+  });
+
+  it("shows the empty hint on a job with no template", () => {
+    render(<JobForm initial={makeJob({})} submitLabel="Save changes" onSubmit={vi.fn()} />);
+    expect(
+      screen.getByText(
+        "Rate candidates against the criteria you add here. New jobs start from the company default in Settings.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the template out on create so the server copies the company default", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    expect(screen.queryByRole("heading", { name: "Scorecard" })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Engineer");
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0]![0]).not.toHaveProperty("scorecard_template");
+  });
+});

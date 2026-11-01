@@ -112,6 +112,7 @@ export interface JobOut {
   status: JobStatus;
   quiz_config: QuizConfig;
   screening_questions: ScreeningQuestion[];
+  scorecard_template?: ScorecardCriterion[];
   published_at: string | null;
   closed_at: string | null;
   created_at: string;
@@ -119,6 +120,8 @@ export interface JobOut {
 }
 
 export interface JobInput {
+  /** Omit on create to inherit the company default; a list replaces on update. */
+  scorecard_template?: ScorecardCriterion[];
   title: string;
   description_md: string;
   location: string;
@@ -798,6 +801,91 @@ export interface Note {
   created_at: string;
 }
 
+/** A scorecard criterion; new ones are sent with id "" and the server assigns
+ * one. Saved ids must round-trip unchanged (submitted snapshots match on them). */
+export interface ScorecardCriterion {
+  id: string;
+  label: string;
+  hint: string;
+}
+export type Recommendation = "strong_no" | "no" | "yes" | "strong_yes";
+export type ScorecardState = "open" | "submitted" | "dismissed" | "declined";
+
+export interface Scorecard {
+  id: string;
+  application_id: string;
+  reviewer_user_id: string | null;
+  reviewer_label: string;
+  requested_by_label: string | null;
+  interview_id: string | null;
+  requested_at: string;
+  due_from: string;
+  submitted_at: string | null;
+  dismissed_at: string | null;
+  declined_at: string | null;
+  state: ScorecardState;
+  waiting_days: number;
+  criteria: ScorecardCriterion[];
+  ratings: Record<string, number>;
+  recommendation: Recommendation | null;
+  comment: string | null;
+  edited: boolean;
+  can_edit: boolean;
+}
+
+export interface MyScorecard {
+  id: string;
+  application_id: string;
+  candidate_name: string;
+  job_title: string;
+  requested_by_label: string | null;
+  requested_at: string;
+  due_from: string;
+  waiting_days: number;
+  state: ScorecardState;
+  submitted_at: string | null;
+  href: string;
+}
+
+export const RECOMMENDATION_LABELS: Record<Recommendation, string> = {
+  strong_no: "Strong no",
+  no: "No",
+  yes: "Yes",
+  strong_yes: "Strong yes",
+};
+
+/** "Waiting on Jane Doe for 4 days" / "for 1 day" / ", requested today". */
+export function waitingCopy(label: string, days: number): string {
+  if (days <= 0) return `Waiting on ${label}, requested today`;
+  return `Waiting on ${label} for ${days} ${days === 1 ? "day" : "days"}`;
+}
+
+export const scorecards = {
+  mine: (state: "open" | "all" = "open") =>
+    request<MyScorecard[]>(`/api/v1/scorecards/mine?state=${state}`),
+  list: (applicationId: string) =>
+    request<Scorecard[]>(`/api/v1/scorecards/applications/${applicationId}`),
+  requestFrom: (applicationId: string, reviewerUserId: string) =>
+    request<Scorecard>(`/api/v1/scorecards/applications/${applicationId}`, {
+      method: "POST",
+      body: JSON.stringify({ reviewer_user_id: reviewerUserId }),
+    }),
+  dismiss: (scorecardId: string) =>
+    request<void>(`/api/v1/scorecards/${scorecardId}/dismiss`, { method: "POST" }),
+  submit: (
+    applicationId: string,
+    body: { ratings: Record<string, number>; recommendation: Recommendation; comment: string | null },
+  ) =>
+    request<Scorecard>(`/api/v1/scorecards/applications/${applicationId}/mine`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  decline: (applicationId: string) =>
+    request<void>(`/api/v1/scorecards/applications/${applicationId}/mine/decline`, {
+      method: "POST",
+    }),
+};
+
 export const notes = {
   list: (applicationId: string) => request<Note[]>(`/api/v1/applications/${applicationId}/notes`),
   add: (applicationId: string, body: string) =>
@@ -1264,7 +1352,7 @@ export interface TodayPanelData {
   events: { start: string | null; summary: string; location: string }[];
 }
 
-export type QueueItemKind = "job-quiz" | "integrity" | "unbooked";
+export type QueueItemKind = "job-quiz" | "integrity" | "unbooked" | "scorecard" | "scorecard-waiting";
 
 /** A derived "Your queue" entry computed live by the backend (card D13). */
 export interface QueueItem {
@@ -1341,6 +1429,7 @@ export interface CompanyAdmin {
     privacy_policy_url?: string;
   };
   screening_questions: ScreeningQuestion[];
+  scorecard_template?: ScorecardCriterion[];
 }
 
 /** Omit = untouched, null = reset to default (mirrors BrandingUpdate). */
@@ -1352,6 +1441,8 @@ export interface CompanySettingsUpdate {
   privacy_policy_url?: string | null;
   /** Replaces the company default set; omit to leave it untouched. */
   screening_questions?: ScreeningQuestion[] | null;
+  /** Replaces the company default scorecard; omit to leave it untouched. */
+  scorecard_template?: ScorecardCriterion[] | null;
 }
 
 export interface BrandingUpdate {
@@ -1509,6 +1600,8 @@ export interface CompanySummary {
   mode: "single" | "multi";
   /** The default screening questions new jobs start with (every role reads it). */
   screening_questions: ScreeningQuestion[];
+  /** The default scorecard criteria new jobs start with. */
+  scorecard_template?: ScorecardCriterion[];
 }
 
 /** The public careers endpoints the SSR pages render from, reachable from

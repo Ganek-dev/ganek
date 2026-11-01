@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+import { ScorecardTemplateEditor } from "@/components/ScorecardTemplateEditor";
 import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { SettingsTabs } from "@/components/SettingsTabs";
-import { companyApi, type ScreeningQuestion } from "@/lib/api";
+import { companyApi, type ScorecardCriterion, type ScreeningQuestion } from "@/lib/api";
 
 /** Hiring behavior settings (D6): what happens when a candidate's expired
  * assessment link asks for a re-issue (27c). Companion to the branding tab;
@@ -34,6 +35,9 @@ export default function HiringSettingsPage() {
   // the company default screening questions: new jobs start with a copy
   const [defaults, setDefaults] = useState<ScreeningQuestion[] | null>(null);
   const [savingDefaults, setSavingDefaults] = useState(false);
+  // the company default scorecard: new jobs copy it
+  const [scorecard, setScorecard] = useState<ScorecardCriterion[] | null>(null);
+  const [savingScorecard, setSavingScorecard] = useState(false);
 
   useEffect(() => {
     companyApi
@@ -41,6 +45,7 @@ export default function HiringSettingsPage() {
       .then((company) => {
         setMode(company.settings.quiz_expired_reissue ?? "manual");
         setDefaults(company.screening_questions);
+        setScorecard(company.scorecard_template ?? []);
       })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load settings"),
@@ -109,6 +114,45 @@ export default function HiringSettingsPage() {
               className="mt-3 inline-flex h-8 items-center justify-center rounded-md bg-inverse px-3 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
             >
               Save default questions
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-4">
+        <h2 className="text-[13.5px] font-semibold">Default scorecard</h2>
+        <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
+          The criteria reviewers rate. Existing jobs keep their own list.
+        </p>
+        {scorecard === null ? (
+          <div aria-busy="true" className="mt-3 h-16 animate-pulse rounded-md bg-muted-fill" />
+        ) : (
+          <div className="mt-3">
+            <ScorecardTemplateEditor
+              value={scorecard}
+              onChange={setScorecard}
+              emptyHint="New jobs copy these criteria."
+            />
+            <button
+              type="button"
+              disabled={savingScorecard}
+              onClick={async () => {
+                setError(null);
+                setNotice(null);
+                setSavingScorecard(true);
+                try {
+                  const saved = await companyApi.updateSettings({ scorecard_template: scorecard });
+                  setScorecard(saved.scorecard_template ?? scorecard);
+                  setNotice("Saved");
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Failed to save");
+                } finally {
+                  setSavingScorecard(false);
+                }
+              }}
+              className="mt-3 inline-flex h-8 items-center justify-center rounded-md bg-inverse px-3 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
+            >
+              Save default scorecard
             </button>
           </div>
         )}

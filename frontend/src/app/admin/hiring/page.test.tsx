@@ -118,3 +118,32 @@ describe("HiringSettingsPage default screening questions", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Saved");
   });
 });
+
+describe("HiringSettingsPage default scorecard", () => {
+  const CRIT = { id: "aaaaaaaa", label: "Problem solving", hint: "" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.get.mockResolvedValue({ ...makeCompany(), scorecard_template: [CRIT] });
+    mocked.updateSettings.mockResolvedValue({ ...makeCompany(), scorecard_template: [CRIT] });
+  });
+
+  it("loads the company template and saves the whole list with ids intact", async () => {
+    render(<HiringSettingsPage />);
+    expect(await screen.findByLabelText("Criterion label")).toHaveValue("Problem solving");
+    await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
+    await userEvent.type(screen.getAllByLabelText("Criterion label")[1]!, "Design");
+    await userEvent.click(screen.getByRole("button", { name: "Save default scorecard" }));
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenCalledWith({
+        scorecard_template: [CRIT, { id: "", label: "Design", hint: "" }],
+      }),
+    );
+  });
+
+  it("explains the copy rule and shows the empty hint", async () => {
+    mocked.get.mockResolvedValue({ ...makeCompany(), scorecard_template: [] });
+    render(<HiringSettingsPage />);
+    expect(await screen.findByText("New jobs copy these criteria.")).toBeInTheDocument();
+  });
+});

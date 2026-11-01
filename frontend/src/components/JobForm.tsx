@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
 import { questionnaires, questions } from "@/lib/api";
+import { ScorecardTemplateEditor } from "@/components/ScorecardTemplateEditor";
 import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { Switch } from "@/components/ui/switch";
 import type {
+  ScorecardCriterion,
   ScreeningQuestion,
   Difficulty,
   EmploymentType,
@@ -90,6 +92,11 @@ export function JobForm({
   defaultScreening?: ScreeningQuestion[];
 }) {
   const [error, setError] = useState<string | null>(null);
+  // the scorecard is edited on existing jobs only; a new job omits it so the
+  // server copies the company default
+  const [scorecard, setScorecard] = useState<ScorecardCriterion[]>(
+    initial?.scorecard_template ?? [],
+  );
   const [screening, setScreening] = useState<ScreeningQuestion[]>(
     initial?.screening_questions ?? defaultScreening ?? [],
   );
@@ -242,6 +249,7 @@ export function JobForm({
         tags,
         quiz_config,
         screening_questions: screening,
+        ...(initial ? { scorecard_template: scorecard } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -462,6 +470,20 @@ export function JobForm({
             }
           />
         </div>
+
+        {initial ? (
+          <div className="card px-5 py-[18px]">
+            <h2 className="font-heading text-[15px] font-semibold">Scorecard</h2>
+            <p className="mt-1 mb-3.5 text-[12.5px] text-g500">
+              The criteria a teammate rates after an interview. Saved with the job.
+            </p>
+            <ScorecardTemplateEditor
+              value={scorecard}
+              onChange={setScorecard}
+              emptyHint="Rate candidates against the criteria you add here. New jobs start from the company default in Settings."
+            />
+          </div>
+        ) : null}
 
         {error ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
