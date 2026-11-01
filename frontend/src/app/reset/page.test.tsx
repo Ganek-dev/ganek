@@ -73,6 +73,23 @@ describe("ResetPasswordPage", () => {
     expect(push).toHaveBeenCalledWith("/admin");
   });
 
+  it("sends a reviewer to /review after the reset", async () => {
+    mocked.resetPassword.mockResolvedValueOnce({
+      id: "u2",
+      company_id: "c1",
+      email: "max@acme.example",
+      has_password: true,
+      role: "reviewer",
+    });
+    search = new URLSearchParams({ token: "tok-123" });
+    render(<ResetPasswordPage />);
+    await userEvent.type(screen.getByLabelText("New password"), "a-brand-new-password");
+    await userEvent.type(screen.getByLabelText("Repeat password"), "a-brand-new-password");
+    await userEvent.click(screen.getByRole("button", { name: "Set password" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/review"));
+    expect(push).not.toHaveBeenCalledWith("/admin");
+  });
+
   it("rejects mismatched passwords locally", async () => {
     search = new URLSearchParams({ token: "tok-123" });
     render(<ResetPasswordPage />);

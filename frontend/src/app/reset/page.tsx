@@ -6,6 +6,7 @@ import { Suspense, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
 import { api } from "@/lib/api";
+import { homePath } from "@/lib/home";
 
 /** Reset password, handoff screen 13c (M5.7 H4 - the real flow at last).
  * Without ?token= this asks for an email and always claims success (the
@@ -96,8 +97,8 @@ function NewPasswordForm({ token }: { token: string }) {
     }
     setBusy(true);
     try {
-      await api.resetPassword({ token, new_password: password });
-      router.push("/admin");
+      const user = await api.resetPassword({ token, new_password: password });
+      router.push(homePath(user));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reset failed");
       setBusy(false);

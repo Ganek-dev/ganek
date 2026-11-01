@@ -21,8 +21,15 @@ describe("admin middleware", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("is scoped to /admin by its matcher", async () => {
+  it("guards the cookieless reviewer shell too", () => {
+    const res = middleware(req("/review/0b9f"));
+    expect(res.headers.get("location")).toBe("http://ganek.test/login");
+    const ok = middleware(req("/review/0b9f", "ganek_session=whatever"));
+    expect(ok.headers.get("location")).toBeNull();
+  });
+
+  it("is scoped to /admin and /review by its matcher", async () => {
     const { config } = await import("./middleware");
-    expect(config.matcher).toBe("/admin/:path*");
+    expect(config.matcher).toEqual(["/admin/:path*", "/review/:path*"]);
   });
 });

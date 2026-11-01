@@ -17,3 +17,10 @@ describe("relativeTime", () => {
     expect(relativeTime("2026-08-17T12:00:05Z", now)).toBe("just now");
   });
 });
+
+describe("formatDay", () => {
+  it("formats day, short month and year", async () => {
+    const { formatDay } = await import("./time");
+    expect(formatDay(new Date(2026, 9, 31, 12, 0).toISOString())).toBe("31 Oct 2026");
+  });
+});

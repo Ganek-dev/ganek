@@ -87,6 +87,27 @@ describe("InviteAcceptPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("sends an invited reviewer to /review and words the role", async () => {
+    mocked.get.mockResolvedValue({
+      email: "max@x.dev",
+      company_name: "Acme Labs",
+      role: "reviewer",
+    });
+    mocked.accept.mockResolvedValue({
+      id: "u10",
+      company_id: "c1",
+      email: "max@x.dev",
+      has_password: true,
+      role: "reviewer",
+    });
+    render(<InviteAcceptPage />);
+    expect(await screen.findByText(/invited as a Reviewer/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Password"), "a-new-password-1");
+    await userEvent.click(screen.getByRole("button", { name: "Accept invite" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/review"));
+    expect(push).not.toHaveBeenCalledWith("/admin");
+  });
+
   it("surfaces an email conflict from accept without killing the form", async () => {
     mocked.accept.mockRejectedValue(
       new ApiError(409, "An account with this email already exists"),

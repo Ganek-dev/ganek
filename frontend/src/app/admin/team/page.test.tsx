@@ -108,6 +108,18 @@ describe("TeamPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers the Reviewer role on invite and on member rows, and explains it", async () => {
+    render(<TeamPage />);
+    const invite = await screen.findByLabelText("Invite role");
+    await userEvent.selectOptions(invite, "reviewer");
+    expect(within(invite).getByRole("option", { name: "Reviewer" })).toBeInTheDocument();
+    const rowSelect = await screen.findByLabelText(`Role for ${member.email}`);
+    expect(within(rowSelect).getByRole("option", { name: "Reviewer" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/sees only candidates handed to them for an interview or a scorecard/),
+    ).toBeInTheDocument();
+  });
+
   it("lists members with display name, activity string, and count header", async () => {
     render(<TeamPage />);
     expect(await screen.findByText("Admin", { selector: "span" })).toBeInTheDocument();

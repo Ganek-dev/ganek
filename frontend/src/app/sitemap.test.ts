@@ -64,7 +64,7 @@ describe("robots", () => {
     const out = await robots();
     const rule = Array.isArray(out.rules) ? out.rules[0] : out.rules;
     expect(rule?.disallow).toEqual(
-      expect.arrayContaining(["/admin", "/quiz/", "/application/", "/interview/"]),
+      expect.arrayContaining(["/admin", "/review", "/quiz/", "/application/", "/interview/"]),
     );
     expect(out.sitemap).toBe("https://jobs.example.com/sitemap.xml");
   });

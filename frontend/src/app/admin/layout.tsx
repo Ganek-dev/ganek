@@ -46,6 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [usageWarnings, setUsageWarnings] = useState<string[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [demo, setDemo] = useState(false);
+  const role = user?.role;
 
   useEffect(() => {
     if (loadFailed) return; // retry re-arms by flipping this back
@@ -61,6 +62,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       });
   }, [router, loadFailed]);
   useEffect(() => {
+    // a reviewer is 403 on everything under /admin: send them to their shell
+    if (user?.role === "reviewer") router.replace("/review");
+  }, [user, router]);
+  useEffect(() => {
     if (user?.role !== "admin") return;
     companyApi
       .get()
@@ -72,17 +77,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => setUsageWarnings([])); // soft banner only
   }, [user]);
   useEffect(() => {
+    if (!role || role === "reviewer") return;
     api
       .providers()
       .then((p) => setDemo(p.demo === true))
       .catch(() => setDemo(false)); // the strip is advisory; never block the shell
-  }, []);
+  }, [role]);
   useEffect(() => {
+    if (!user || user.role === "reviewer") return;
     stats
       .overview()
       .then(setOverview)
       .catch(() => setOverview(null)); // counters are decoration; never block the shell
-  }, [pathname]);
+  }, [pathname, user]);
 
   if (loadFailed) {
     return (
@@ -111,6 +118,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </main>
     );
   }
+
+  if (user.role === "reviewer") return null; // redirecting; render no staff chrome
 
   const initials = user.email.slice(0, 2).toUpperCase();
   const visibleNav = NAV.filter((n) => !("adminOnly" in n) || user.role === "admin");

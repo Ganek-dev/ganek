@@ -42,6 +42,7 @@ class ReviewApplicationListItem(BaseModel):
     stage_label: str
     scorecard_state: State | None
     scorecard_due_from: datetime | None
+    scorecard_submitted_at: datetime | None
     interview_start: datetime | None
 
 

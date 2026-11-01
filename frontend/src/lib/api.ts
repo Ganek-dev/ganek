@@ -7,7 +7,7 @@ export interface UserOut {
   id: string;
   company_id: string;
   email: string;
-  role: "admin" | "member";
+  role: "admin" | "member" | "reviewer";
   /** false = Google-only account (signed up via Google, no password set). */
   has_password: boolean;
   /** Own display name (card D14); display_label is the server's fallback-applied label. */
@@ -860,6 +860,58 @@ export function waitingCopy(label: string, days: number): string {
   return `Waiting on ${label} for ${days} ${days === 1 ? "day" : "days"}`;
 }
 
+/** What a reviewer may read about a candidate (GET /review/*, spec 4.5).
+ * Mirrors backend/app/schemas/review.py: no email, notes, correct key or
+ * integrity telemetry exists on this surface. */
+export type ReviewQuizOutcome = "correct" | "wrong" | "timed_out" | "unanswered";
+
+export interface ReviewQuizSummary {
+  /** 0-1 fraction */
+  score: number | null;
+  correct: number;
+  total: number;
+  timed_out: number;
+  questions: { prompt: string; outcome: ReviewQuizOutcome }[];
+}
+
+export interface ReviewInterview {
+  scheduled_start: string | null;
+  duration_minutes: number;
+  location: string | null;
+  timezone: string;
+}
+
+export interface ReviewApplicationListItem {
+  application_id: string;
+  candidate_name: string;
+  job_title: string;
+  stage_label: string;
+  scorecard_state: ScorecardState | null;
+  scorecard_due_from: string | null;
+  scorecard_submitted_at: string | null;
+  interview_start: string | null;
+}
+
+export interface ReviewApplicationOut {
+  application_id: string;
+  candidate_name: string;
+  job_title: string;
+  cv_url: string | null;
+  screening_answers: { prompt: string; answer: string | boolean | null }[];
+  /** null until the attempt completed */
+  quiz: ReviewQuizSummary | null;
+  interview: ReviewInterview | null;
+  mine: Scorecard | null;
+  others: Scorecard[];
+  hidden_until_submitted: boolean;
+}
+
+export const review = {
+  list: () => request<ReviewApplicationListItem[]>("/api/v1/review/applications"),
+  get: (applicationId: string) =>
+    request<ReviewApplicationOut>(`/api/v1/review/applications/${applicationId}`),
+};
+
 export const scorecards = {
   mine: (state: "open" | "all" = "open") =>
     request<MyScorecard[]>(`/api/v1/scorecards/mine?state=${state}`),
@@ -1396,7 +1448,7 @@ export const stats = {
   overview: () => request<StatsOverview>("/api/v1/stats/overview"),
 };
 
-export type UserRole = "admin" | "member";
+export type UserRole = "admin" | "member" | "reviewer";
 
 export interface TeamUser {
   id: string;

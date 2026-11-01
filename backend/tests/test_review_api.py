@@ -239,6 +239,7 @@ async def test_reviewer_list_shows_only_granted(
         "stage_label",
         "scorecard_state",
         "scorecard_due_from",
+        "scorecard_submitted_at",
         "interview_start",
     }
 
@@ -370,6 +371,29 @@ async def test_detail_hides_others_until_submitted(
     assert other["comment"] == "Colleague comment"
     assert other["reviewer_user_id"] == env.co.member_id
     assert other["can_edit"] is False
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_list_submitted_at_is_the_callers_own(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    env = await _env(client, db_session)
+    await _request_from_admin(client, env, env.reviewer_id)
+    await _request_from_admin(client, env, env.co.member_id)
+    await _login(client, env.co.member)
+    await _submit(client, env.co)
+
+    await _login(client, env.reviewer)
+    (item,) = (await client.get("/api/v1/review/applications")).json()
+    assert item["scorecard_state"] == "open"
+    assert item["scorecard_submitted_at"] is None  # the colleague's value never leaks
+
+    await _submit(client, env.co)
+    (item,) = (await client.get("/api/v1/review/applications")).json()
+    mine = (await client.get(_detail(env.co.application_id))).json()["mine"]
+    assert item["scorecard_state"] == "submitted"
+    assert item["scorecard_submitted_at"] is not None
+    assert item["scorecard_submitted_at"] == mine["submitted_at"]
 
 
 @pytest.mark.usefixtures("migrated_db")

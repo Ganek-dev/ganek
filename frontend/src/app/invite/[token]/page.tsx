@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
 import { ApiError, api, publicInvites, type PublicInvite } from "@/lib/api";
+import { homePath } from "@/lib/home";
 
 /** Team-invite accept page (magic link from the D6 invite email): shows
  * who's invited where, takes a password, and lands the new user in /admin
@@ -17,6 +18,7 @@ const inputCls =
 const ROLE_LABELS: Record<PublicInvite["role"], string> = {
   admin: "an Admin",
   member: "a Member",
+  reviewer: "a Reviewer",
 };
 
 const GOOGLE_ERRORS: Record<string, string> = {
@@ -70,8 +72,8 @@ function InviteAcceptForm() {
     setBusy(true);
     const data = new FormData(event.currentTarget);
     try {
-      await publicInvites.accept(token, String(data.get("password") ?? ""));
-      router.push("/admin");
+      const user = await publicInvites.accept(token, String(data.get("password") ?? ""));
+      router.push(homePath(user));
     } catch (err) {
       if (err instanceof ApiError && err.status === 410) {
         setDead("expired");

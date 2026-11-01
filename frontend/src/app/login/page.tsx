@@ -8,6 +8,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
 import { api } from "@/lib/api";
+import { homePath } from "@/lib/home";
 
 /** Login, handoff screen 13a. Google sign-in appears when the instance has
  * OAuth configured (providers flag); the backend redirects back here with
@@ -69,7 +70,7 @@ function LoginForm() {
         setBusy(false);
         return;
       }
-      router.push("/admin");
+      router.push(homePath(user));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setBusy(false);
@@ -83,8 +84,8 @@ function LoginForm() {
     setBusy(true);
     const code = String(new FormData(event.currentTarget).get("code") ?? "");
     try {
-      await api.mfaVerify({ mfa_token: mfaToken, code });
-      router.push("/admin");
+      const user = await api.mfaVerify({ mfa_token: mfaToken, code });
+      router.push(homePath(user));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Wrong code";
       if (/sign in again/i.test(message)) setMfaToken(null); // token expired
