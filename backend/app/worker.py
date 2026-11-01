@@ -44,6 +44,7 @@ from app.services import company as company_service
 from app.services import demo_seed, email_templates
 from app.services import email as email_service
 from app.services import health as health_service
+from app.services import interviews as interviews_service
 from app.services import outbox as outbox_service
 from app.services import retention as retention_service
 from app.services import scorecards as scorecards_service
@@ -165,7 +166,9 @@ async def send_interview_reminder(
             start=start,
             timezone=interview.timezone,
             location=interview.location,
-            applicant_url=urls.admin_applicant_url(company, interview.application_id),
+            applicant_url=interviews_service.applicant_url_for_interviewer(
+                company, interviewer, interview.application_id
+            ),
             controller_name=company_service.controller_name(company),
             privacy_url=urls.privacy_notice_url(company),
         )

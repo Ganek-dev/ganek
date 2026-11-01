@@ -20,7 +20,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core import queue
+from app.core import queue, urls
 from app.core.config import settings
 from app.models import Application, Company, Interview, InterviewStatus, User
 from app.services import activity, ics
@@ -129,6 +129,23 @@ def cancel_notice_fields(interview: Interview) -> dict[str, object]:
         "uid": ics.interview_uid(interview.id),
         "sequence": interview.ics_sequence + 1,
     }
+
+
+def candidate_email_for_interviewer(interviewer: User, candidate_email: str) -> str:
+    """What an interviewer's mail may carry: a reviewer-role user never gets
+    the candidate's address (spec 1), and the outbox payload keeps kwargs
+    verbatim, so it has to go before the mail is queued."""
+    return "" if scorecards_service.is_reviewer_role(interviewer) else candidate_email
+
+
+def applicant_url_for_interviewer(
+    company: Company, interviewer: User, application_id: object
+) -> str:
+    """Where an interviewer's mail links: a reviewer-role user cannot open the
+    admin list and gets the review page."""
+    if scorecards_service.is_reviewer_role(interviewer):
+        return urls.scorecard_url(company, application_id, reviewer=True)
+    return urls.admin_applicant_url(company, application_id)
 
 
 class InterviewExistsError(Exception):
