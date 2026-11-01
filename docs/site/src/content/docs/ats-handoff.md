@@ -8,7 +8,7 @@ Ganek sits in front of your applicant tracking system, not instead of it. Once a
 
 ## Which candidates cross over
 
-Not every applicant belongs in the ATS. The webhook fires `stage.changed` on every move, so the recipe filters on the stage you treat as "screened", usually `interview`. Applicants you reject or leave in `screening` never leave Ganek. If you want every application mirrored, subscribe to `application.created` instead and skip the filter.
+Not every applicant belongs in the ATS. The webhook fires `stage.changed` on every move, so the recipe filters on the stage you treat as "screened", usually `interview`. Applicants you reject or leave in `screening` never leave Ganek. If you want every application mirrored, subscribe to `application.created` instead and skip the stage filter, but keep the `data__test` condition from the recipes below.
 
 ## What the webhook carries
 
@@ -29,10 +29,12 @@ Every delivery is JSON with an `event`, a `created_at` and a `data` object. For 
 | `data.quiz.score_percent`, `data.quiz.status`, `data.quiz.completed_at` | the screening result at summary level |
 | `data.quiz.flags` | the integrity notes as short sentences, often empty |
 | `data.quiz.summary` | one sentence for the ATS note field |
+| `data.cv.filename`, `data.cv.size_bytes` | the CV file name and its size in bytes |
+| `data.cv.url` | where to fetch the CV with an API key; see [the CV](#the-cv) |
 | `data.id` | the application id, for your own records |
 | `data.test` | present and `true` only on the sample that **Send test** posts; real deliveries do not have it |
 
-Nothing from inside the quiz travels: no answers, no keys, no raw telemetry. The CV is not in the payload either; see [the CV](#the-cv) below.
+Nothing from inside the quiz travels: no answers, no keys, no raw telemetry. The CV file is not in the payload either, only its name, size and a key-protected link; see [the CV](#the-cv) below.
 
 Zapier flattens nested JSON with a double underscore, so the same fields appear there as `data__candidate__email`, `data__job__title`, `data__quiz__score_percent`. Make shows them as a collection you expand.
 
@@ -64,7 +66,14 @@ Make answers every delivery with `200 Accepted`, which Ganek records as delivere
 
 ## The CV
 
-The webhook does not carry the CV and there is no API route for it yet. Today the file is downloaded from the applicant page in Ganek and attached in the ATS by hand, or the ATS's own CV auto-match on the candidate's email picks it up when you import it. Carrying a CV download in the webhook for API keys is the next step on the [roadmap](https://github.com/Ganek-dev/ganek).
+The payload carries `data.cv.url`, which is not the file: it is the key-protected route `GET /api/v1/applications/{id}/cv`, because a delivery can be retried for over an hour and a download link inside it would have expired by then. Fetch it with a read API key and hand the file to your ATS:
+
+1. In Ganek, open Settings, Developers and create an API key with scope `read`. Copy the secret; it is shown once.
+2. In Zapier, add a **Webhooks by Zapier, GET** step after the filter, with the URL `data__cv__url` and the header `Authorization: Bearer gk_...`. Leave follow redirects on. In Make, use **HTTP, Get a file** on `data.cv.url` with the same header. The redirect goes to your object storage, and that link needs no header. If your client keeps the `Authorization` header on the hop (a 400 from S3 is the symptom), it also sends the key to the storage host, so use two steps instead: `GET .../cv-url` with the key, then fetch its `download_url` with no header.
+3. Map the file from that step to the resume or CV field of the ATS action. Greenhouse and Recruitee take a file or a URL; Personio and Lever take the file. Do not map `data.cv.url` itself into the ATS: the ATS has no key and would get a 401.
+4. To set up the CV step, test it with a delivery from a real applicant (for example move a test application to the stage), because the sample that **Send test** posts has a `cv.url` that answers 404.
+
+Fetches land in the applicant's read-access trail under the key's name; repeats by the same key inside ten minutes count once. The sample delivery describes an applicant that does not exist, so keep the `data__test` condition in the filter: it keeps the sample away from the CV step. Connecting a webhook or key to a third party makes it your recipient: see the [GDPR guide](/compliance/self-hosting-gdpr-guide/) paragraph on webhooks, automations and ATS targets.
 
 ## CSV route
 

@@ -74,7 +74,7 @@ export function ApiKeysCard() {
       </div>
       <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
         Bearer tokens for your own tools: <span className="font-mono">read</span> lists
-        applicants and exports, <span className="font-mono">write</span> can also move stages.
+        applicants, exports and fetches CVs, <span className="font-mono">write</span> can also move stages.
         The secret is shown once.
       </p>
 

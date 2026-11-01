@@ -31,6 +31,11 @@ Concretely, being the controller means:
   collection, but stack traces can still carry fragments of candidate
   data. Prefer an EU region or your own instance, sign its DPA, and add
   it to your records.
+- Webhooks, API keys and ATS targets. If you point a webhook at Zapier,
+  Make or an ATS, or hand an API key to one, that service becomes your
+  recipient or processor (possibly a third-country transfer), and erasure
+  in Ganek does not reach its copies. Sign its DPA and add it to your
+  records; the ATS handoff page lists what the payload carries.
 
 **Not established in the EU but hiring EU candidates?** You are likely in
 territorial scope via Art. 3(2) and may need an EU representative
@@ -144,6 +149,7 @@ event leaves their calendar. Honest limits - copies Ganek cannot reach:
   tasks Ganek itself creates are handled for you: erasing a candidate
   deletes their request tasks, and completed request tasks are swept by
   the nightly job 90 days after they're marked done.
+- Copies held by a webhook, Zapier, Make or ATS target you connected.
 - Your backups (covered by your rotation rule, §2) and any logs kept by
   layers you run in front of Ganek.
 

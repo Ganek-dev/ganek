@@ -264,6 +264,11 @@ def sample_payload(company: Company, event: str, job: Job | None) -> dict[str, A
         },
         "job": {**job_data, "public_url": urls.job_url(company, job_data["slug"])},
         "quiz": quiz,
+        "cv": {
+            "filename": "sample-candidate-cv.pdf",
+            "size_bytes": 184233,
+            "url": urls.application_cv_api_url(company, SAMPLE_APPLICATION_ID),
+        },
     }
     if previous_stage is not None:
         data["previous_stage"] = previous_stage
@@ -330,6 +335,11 @@ def application_payload(application: Application, company: Company) -> dict[str,
             "public_url": urls.job_url(company, application.job.slug),
         },
         "quiz": quiz,
+        "cv": {
+            "filename": application.cv_filename,
+            "size_bytes": application.cv_size,
+            "url": urls.application_cv_api_url(company, application.id),
+        },
     }
 
 
