@@ -181,6 +181,31 @@ async def _load_live(db: AsyncSession, company: Company) -> list[LiveRow]:
     ]
 
 
+async def waiting_ids(
+    db: AsyncSession,
+    company: Company,
+    who: Who,
+    *,
+    job_id: uuid.UUID | None = None,
+    now: datetime | None = None,
+) -> frozenset[uuid.UUID]:
+    """Live applications waiting on `who`, by the same rules as the board."""
+    now = now or datetime.now(UTC)
+    return frozenset(
+        row.application.id
+        for row in await _load_live(db, company)
+        if (job_id is None or row.application.job_id == job_id)
+        and waiting_on(
+            row.application.stage,
+            row.application.stage_changed_at,
+            row.attempt_view,
+            row.interview_view,
+            now,
+        ).who
+        == who
+    )
+
+
 @dataclass(frozen=True)
 class Movement:
     counts: list[int]  # events at or after each `since`, in the order given

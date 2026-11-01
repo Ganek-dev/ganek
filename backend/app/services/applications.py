@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import Select, SQLColumnExpression, cast, func, literal, or_, select
+from sqlalchemy import Select, SQLColumnExpression, cast, false, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -198,6 +198,8 @@ class ListFilters:
     only flips on that visit). `source == "direct"` also matches NULL (an
     application without a recorded source). `since_days` is a window on
     `created_at`. `ids` restricts to a selection (bulk export).
+    `waiting_ids` is the set of applications waiting on one side (see
+    pipeline_signals.waiting_ids): None is no filter, an empty set matches nothing.
     """
 
     job_id: uuid.UUID | None = None
@@ -210,6 +212,7 @@ class ListFilters:
     since_days: int | None = None
     screening: ScreeningFilter | None = None
     ids: tuple[uuid.UUID, ...] = ()
+    waiting_ids: frozenset[uuid.UUID] | None = None
 
 
 def _latest_attempt_id() -> ScalarSelect[uuid.UUID]:
@@ -245,6 +248,10 @@ def _conditions(
         conditions.append(Application.stage == filters.stage)
     if filters.ids:
         conditions.append(Application.id.in_(filters.ids))
+    if filters.waiting_ids is not None:
+        conditions.append(
+            Application.id.in_(filters.waiting_ids) if filters.waiting_ids else false()
+        )
     if filters.q:
         pattern = f"%{_escape_like(filters.q.strip())}%"
         conditions.append(
