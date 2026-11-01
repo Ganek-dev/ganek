@@ -58,7 +58,7 @@ class QueueItem(BaseModel):
     dismissal stores."""
 
     key: str
-    kind: str  # "job-quiz" | "integrity" | "unbooked"
+    kind: str  # "job-quiz" | "integrity" | "unbooked" | "scorecard-waiting" | "scorecard"
     title: str
     hint: str
     href: str
