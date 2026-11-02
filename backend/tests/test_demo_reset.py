@@ -110,6 +110,6 @@ async def test_cron_rebuilds_the_demo_company(monkeypatch: pytest.MonkeyPatch) -
                     .where(Application.company_id == rebuilt.id)
                 )
             ).scalar_one()
-            assert count == 17
+            assert count == 26
     finally:
         await engine.dispose()

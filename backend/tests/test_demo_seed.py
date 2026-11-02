@@ -20,10 +20,13 @@ from app.models import (
     Company,
     EmailOutbox,
     EmailStatus,
+    EmploymentType,
     Job,
     JobStatus,
     JobView,
     QuizAttempt,
+    RemotePolicy,
+    SalaryPeriod,
     Scorecard,
     User,
     UserRole,
@@ -73,10 +76,24 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
     jobs = (
         (await db_session.execute(select(Job).where(Job.company_id == company.id))).scalars().all()
     )
-    assert len(jobs) == 4 and all(j.status is JobStatus.PUBLISHED for j in jobs)
+    assert len(jobs) == 7 and all(j.status is JobStatus.PUBLISHED for j in jobs)
     assert "Backend Engineer (Python)" in {j.title for j in jobs}
+    # the careers page shows every variant: on-site, hybrid, remote, part-time
+    # by the hour, an advisory deadline, roles with and without a quiz
+    assert {j.remote_policy for j in jobs} == {
+        RemotePolicy.ONSITE,
+        RemotePolicy.HYBRID,
+        RemotePolicy.REMOTE,
+    }
+    hourly = next(j for j in jobs if j.salary_period is SalaryPeriod.HOUR)
+    assert hourly.employment_type is EmploymentType.PART_TIME and hourly.salary_max == 18
+    assert sum(1 for j in jobs if j.closes_at is not None) == 1
+    assert sum(1 for j in jobs if j.quiz_config["enabled"]) == 4
+    assert all(j.description_md.count("## ") >= 3 for j in jobs)
+    assert all(len(j.screening_questions) >= 2 for j in jobs)
+    assert all(j.screening_questions[0]["id"] == "sq_ac0e0001" for j in jobs)
 
-    assert await _count(db_session, Application, company.id) == 17
+    assert await _count(db_session, Application, company.id) == 26
     assert await _count(db_session, ApplicationNote, company.id) >= 2
     # sent stage mail so the demo timeline shows subjects and text (PR 4)
     mails = (
@@ -89,7 +106,7 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
         row.status is EmailStatus.SENT and row.rendered_subject and row.rendered_text
         for row in mails
     )
-    assert len(mails) == 5  # CANDIDATES: 2 interview + 3 rejected
+    assert len(mails) == 6  # CANDIDATES: 3 interview + 3 rejected
     assert all(
         "personal-link" in str(row.payload.get("status_url", "personal-link")) for row in mails
     )
@@ -99,6 +116,17 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
         .all()
     )
     assert all(c.email.endswith("@example.com") for c in candidates)
+    # every applicant answered the job's screening questions; the two "no"
+    # stories (work permit, time-zone overlap) show as mismatches
+    rows = (
+        (await db_session.execute(select(Application).where(Application.company_id == company.id)))
+        .scalars()
+        .all()
+    )
+    assert all(len(a.screening_answers) >= 2 for a in rows)
+    assert all(a.screening_answers[0]["question_id"] == "sq_ac0e0001" for a in rows)
+    mismatched = [a for a in rows if any(x["match"] is False for x in a.screening_answers)]
+    assert len(mismatched) == 2
 
     attempts = (
         (await db_session.execute(select(QuizAttempt).where(QuizAttempt.company_id == company.id)))
@@ -106,7 +134,7 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
         .all()
     )
     completed = [a for a in attempts if a.status is AttemptStatus.COMPLETED]
-    assert len(completed) == 11
+    assert len(completed) == 17
     assert all(a.score is not None and 0.0 < a.score < 1.0 for a in completed)
     assert any(a.integrity.get("flags") for a in completed)
     # the blur story names its questions by serve order, the numbering the
@@ -198,7 +226,7 @@ async def test_seed_builds_a_lived_in_workspace_once(db_session: AsyncSession) -
     # second run: exists, nothing added
     again = await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1")
     assert again.created is False
-    assert await _count(db_session, Application, company.id) == 17
+    assert await _count(db_session, Application, company.id) == 26
     assert await _count(db_session, Scorecard, company.id) == 3
     assert await _count(db_session, User, company.id) == 3
 
@@ -298,13 +326,13 @@ async def test_reset_rebuilds_and_removes_the_old_cvs(db_session: AsyncSession) 
             )
         ).all()
     ]
-    assert len(old_keys) == 17 and await storage.stat_object(old_keys[0]) is not None
+    assert len(old_keys) == 26 and await storage.stat_object(old_keys[0]) is not None
 
     second = await demo_seed.seed(db_session, slug=slug, password="ganek-demo-1", reset=True)
     assert second.created is True and second.company_id != old_company_id
     assert (await db_session.get(Company, old_company_id)) is None
     assert await storage.stat_object(old_keys[0]) is None
-    assert await _count(db_session, Application, second.company_id) == 17
+    assert await _count(db_session, Application, second.company_id) == 26
     assert await _count(db_session, Scorecard, second.company_id) == 3
     assert await _count(db_session, Scorecard, old_company_id) == 0
 
@@ -363,7 +391,8 @@ async def test_demo_jobs_are_open_longer_than_their_oldest_application(
 async def test_demo_reports_have_history(db_session: AsyncSession) -> None:
     company = await _seed_company(db_session)
     out = await reports.reports(db_session, company, period="90d", job_id=None)
-    assert out.cohort.applications >= 10 and out.cohort.hires >= 1
+    assert out.cohort.applications >= 10 and out.cohort.hires >= 3
+    assert out.cohort.median_time_to_hire_days is not None
     reached = [step.reached for step in out.funnel]
     assert all(a > b for a, b in zip(reached, reached[1:], strict=False)), reached
     assert reached[-1] >= 1
