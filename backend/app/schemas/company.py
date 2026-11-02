@@ -3,7 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
 from app.core.config import settings as app_settings
-from app.schemas.scorecards import ScorecardCriterion, validate_criteria
+from app.schemas.scorecard_template import ScorecardCriterion, validate_criteria
 from app.services import email_providers
 from app.services.screening import ScreeningQuestion, validate_questions
 

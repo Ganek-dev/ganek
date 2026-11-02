@@ -12,7 +12,7 @@ from pydantic import (
 )
 
 from app.models import EmploymentType, JobStatus, RemotePolicy, SalaryPeriod
-from app.schemas.scorecards import ScorecardCriterion, validate_criteria
+from app.schemas.scorecard_template import ScorecardCriterion, validate_criteria
 from app.services.screening import ScreeningQuestion, validate_questions
 
 DifficultyLevel = Annotated[int, Field(ge=1, le=5)]

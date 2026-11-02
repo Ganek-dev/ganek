@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Company, Job, JobStatus, Questionnaire
 from app.schemas.jobs import JobCreate, JobUpdate
-from app.schemas.scorecards import ensure_criterion_ids
+from app.schemas.scorecard_template import ensure_criterion_ids
 from app.services.slugs import slugify, with_random_suffix
 
 
