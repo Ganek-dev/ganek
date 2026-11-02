@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 
 import {
   clearNarrowing,
@@ -97,6 +97,11 @@ function FilterSelect({
     </div>
   );
 }
+
+const WAITING_CHIPS: Array<{ value: "team" | "candidate"; label: string }> = [
+  { value: "team", label: "Waiting on you" },
+  { value: "candidate", label: "Waiting on candidate" },
+];
 
 function sourceLabel(source: string): string {
   return source === "direct" ? "Direct" : source;
@@ -220,6 +225,28 @@ export function ApplicantFilterBar({
         disabled={disabled}
         onChange={(value) => onChange({ days: value === "" ? null : Number(value) })}
       />
+      <span className="inline-flex gap-2">
+        {WAITING_CHIPS.map((chip) => {
+          const on = filters.waiting === chip.value;
+          return (
+            <button
+              key={chip.value}
+              type="button"
+              aria-pressed={on}
+              disabled={disabled}
+              onClick={() => onChange({ waiting: on ? null : chip.value })}
+              className={`inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-[12.5px] whitespace-nowrap disabled:opacity-50 ${
+                on
+                  ? "border-accent bg-accent/8 font-medium text-accent-text"
+                  : "border-edge bg-surface text-g700 hover:bg-hover-fill"
+              }`}
+            >
+              {on ? <Check aria-hidden className="h-3 w-3 shrink-0" /> : null}
+              {chip.label}
+            </button>
+          );
+        })}
+      </span>
       {active > 0 ? (
         <button
           type="button"
@@ -233,6 +260,7 @@ export function ApplicantFilterBar({
               flagged: cleared.flagged,
               days: cleared.days,
               screening: cleared.screening,
+              waiting: cleared.waiting,
             });
           }}
           className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12.5px] font-medium text-g600 hover:bg-hover-fill"

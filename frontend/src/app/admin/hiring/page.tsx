@@ -11,6 +11,8 @@ import { companyApi, type ScorecardCriterion, type ScreeningQuestion } from "@/l
  * assessment link asks for a re-issue (27c). Companion to the branding tab;
  * more hiring settings land here as they ship. */
 
+const DEFAULT_STAGE_LIMIT = 7;
+
 type ReissueMode = "manual" | "auto";
 
 const OPTIONS: { value: ReissueMode; title: string; description: string }[] = [
@@ -39,12 +41,19 @@ export default function HiringSettingsPage() {
   const [scorecard, setScorecard] = useState<ScorecardCriterion[] | null>(null);
   const [savingScorecard, setSavingScorecard] = useState(false);
   const [showBlank, setShowBlank] = useState(false);
+  // the overdue threshold: typed text, last saved value, inline range error
+  const [limit, setLimit] = useState("7");
+  const [savedLimit, setSavedLimit] = useState(7);
+  const [limitError, setLimitError] = useState<string | null>(null);
 
   useEffect(() => {
     companyApi
       .get()
       .then((company) => {
         setMode(company.settings.quiz_expired_reissue ?? "manual");
+        const stored = company.settings.stage_limit_days ?? DEFAULT_STAGE_LIMIT;
+        setSavedLimit(stored);
+        setLimit(String(stored));
         setDefaults(company.screening_questions);
         setScorecard(company.scorecard_template ?? []);
       })
@@ -69,6 +78,25 @@ export default function HiringSettingsPage() {
     }
   }
 
+  async function saveLimit() {
+    const value = Number(limit);
+    if (limit.trim() === "" || !Number.isInteger(value) || value < 1 || value > 60) {
+      setLimitError("Enter a whole number from 1 to 60.");
+      return;
+    }
+    setLimitError(null);
+    if (value === savedLimit) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await companyApi.updateSettings({ stage_limit_days: value });
+      setSavedLimit(value);
+      setNotice("Saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
   return (
     <section className="max-w-[680px] space-y-4">
       <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
@@ -84,6 +112,40 @@ export default function HiringSettingsPage() {
           {notice}
         </p>
       ) : null}
+
+      <div className="card p-4">
+        <h2 className="text-[13.5px] font-semibold">Pipeline</h2>
+        <label htmlFor="stage-limit" className="mt-3 block text-[13px] font-medium">
+          Flag a candidate as overdue after
+        </label>
+        <div className="mt-1.5 flex items-center gap-2">
+          <input
+            id="stage-limit"
+            type="number"
+            min={1}
+            max={60}
+            value={limit}
+            aria-invalid={limitError !== null}
+            aria-describedby="stage-limit-help"
+            onChange={(event) => setLimit(event.target.value)}
+            onBlur={saveLimit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void saveLimit();
+              }
+            }}
+            className="h-8 w-[72px] rounded-md border border-edge bg-surface px-2 font-mono text-[13px] outline-none focus:border-g400"
+          />
+          <span className="text-[13px] text-g600">days</span>
+        </div>
+        {limitError ? (
+          <p className="mt-1.5 text-[12.5px] text-red-600 dark:text-red-400">{limitError}</p>
+        ) : null}
+        <p id="stage-limit-help" className="mt-2 text-[12.5px] leading-[18px] text-g500">
+          Used for the Overdue tile, the Needs attention chip and the stalled-role queue item.
+        </p>
+      </div>
 
       <div className="card p-4">
         <p className="text-[13.5px] font-semibold">Default screening questions</p>

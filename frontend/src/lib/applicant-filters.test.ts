@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clearNarrowing,
   countActive,
   DEFAULT_FILTERS,
   filtersToParams,
@@ -102,7 +103,7 @@ describe("countActive", () => {
   it("counts the narrowing filters, not job, stage or sort", () => {
     expect(countActive(DEFAULT_FILTERS)).toBe(0);
     expect(countActive({ ...DEFAULT_FILTERS, job: "j", stage: "new", sort: "name_asc" })).toBe(0);
-    expect(countActive(FULL)).toBe(7);
+    expect(countActive(FULL)).toBe(8);
     expect(countActive({ ...DEFAULT_FILTERS, flagged: false })).toBe(1);
   });
 });
@@ -129,6 +130,13 @@ describe("waiting filter", () => {
     expect(parsed.waiting).toBe("candidate");
     expect(filtersToParams(parsed).get("waiting")).toBe("candidate");
     expect(toApiFilters(parsed).waiting).toBe("candidate");
+  });
+
+  it("counts as an active filter and clearNarrowing resets it", () => {
+    const waiting = { ...DEFAULT_FILTERS, waiting: "team" as const };
+    expect(countActive(waiting)).toBe(1);
+    expect(clearNarrowing(FULL).waiting).toBeNull();
+    expect(countActive(clearNarrowing(FULL))).toBe(0);
   });
 
   it("drops an unknown waiting value and omits the default", () => {

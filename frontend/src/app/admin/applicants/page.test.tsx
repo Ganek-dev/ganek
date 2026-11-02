@@ -1397,6 +1397,37 @@ describe("filters, sort and URL state", () => {
     expect(await screen.findByText("1 match")).toBeInTheDocument();
   });
 
+  it("clicking a waiting chip writes ?waiting=team and refetches", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("button", { name: "Waiting on you" }));
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants?waiting=team", {
+      scroll: false,
+    });
+    await waitFor(() =>
+      expect(mockedApps.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ waiting: "team" }),
+      ),
+    );
+  });
+
+  it("lights the chip from ?waiting= and shows the empty state on zero matches", async () => {
+    search = new URLSearchParams("waiting=candidate");
+    mockedApps.list.mockResolvedValue(pageOf([]));
+    render(<ApplicantsPage />);
+    expect(await screen.findByText("No applicants match these filters.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Waiting on candidate" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(mockedApps.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ waiting: "candidate" }),
+    );
+    const clear = screen.getAllByRole("button", { name: "Clear filters" });
+    await userEvent.click(clear[clear.length - 1]);
+    expect(replace).toHaveBeenLastCalledWith("/admin/applicants", { scroll: false });
+  });
+
   it("offers the sources the server knows in the Source filter", async () => {
     render(<ApplicantsPage />);
     await screen.findByRole("button", { name: /Jane Applicant/ });

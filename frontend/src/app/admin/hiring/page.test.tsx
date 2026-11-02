@@ -167,3 +167,76 @@ describe("HiringSettingsPage blank scorecard label", () => {
     );
   });
 });
+
+describe("HiringSettingsPage pipeline", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.get.mockResolvedValue(makeCompany());
+    mocked.updateSettings.mockResolvedValue(makeCompany());
+  });
+
+  it("shows the stage limit from settings and saves a new value", async () => {
+    const user = userEvent.setup();
+    mocked.updateSettings.mockResolvedValue(makeCompany({ stage_limit_days: 14 }));
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Flag a candidate as overdue after");
+    expect(input).toHaveValue(7);
+    await user.clear(input);
+    await user.type(input, "14");
+    await user.tab();
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenCalledWith({ stage_limit_days: 14 }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved");
+  });
+
+  it("hydrates a stored stage limit and sends nothing when it did not change", async () => {
+    const user = userEvent.setup();
+    mocked.get.mockResolvedValue(makeCompany({ stage_limit_days: 10 }));
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Flag a candidate as overdue after");
+    await waitFor(() => expect(input).toHaveValue(10));
+    await user.click(input);
+    await user.tab();
+    expect(mocked.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("saves on Enter", async () => {
+    const user = userEvent.setup();
+    mocked.updateSettings.mockResolvedValue(makeCompany({ stage_limit_days: 3 }));
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Flag a candidate as overdue after");
+    await user.clear(input);
+    await user.type(input, "3{Enter}");
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenCalledWith({ stage_limit_days: 3 }),
+    );
+  });
+
+  it("rejects 0 and 61 inline without a request", async () => {
+    const user = userEvent.setup();
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Flag a candidate as overdue after");
+    await user.clear(input);
+    await user.type(input, "0");
+    await user.tab();
+    expect(await screen.findByText("Enter a whole number from 1 to 60.")).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, "61");
+    await user.tab();
+    expect(screen.getByText("Enter a whole number from 1 to 60.")).toBeInTheDocument();
+    expect(mocked.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("keeps the typed value and shows the error when the save fails", async () => {
+    const user = userEvent.setup();
+    mocked.updateSettings.mockRejectedValue(new Error("Boom"));
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Flag a candidate as overdue after");
+    await user.clear(input);
+    await user.type(input, "20");
+    await user.tab();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Boom");
+    expect(input).toHaveValue(20);
+  });
+});

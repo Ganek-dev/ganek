@@ -145,7 +145,7 @@ export function toApiFilters(filters: ApplicantFilters): ApplicationFilters {
 }
 
 /** How many narrowing filters are on: search, score, quiz, source, flags,
- * date. Job, stage and sort are navigation, not filters, so they do not
+ * date, screening, waiting. Job, stage and sort are navigation, not filters, so they do not
  * light up "Clear filters". */
 export function countActive(filters: ApplicantFilters): number {
   return [
@@ -156,6 +156,7 @@ export function countActive(filters: ApplicantFilters): number {
     filters.flagged !== null,
     filters.days !== null,
     filters.screening !== null,
+    filters.waiting !== null,
   ].filter(Boolean).length;
 }
 
@@ -168,6 +169,8 @@ export function clearNarrowing(filters: ApplicantFilters): ApplicantFilters {
     quiz: null,
     source: null,
     flagged: null,
-    days: null, screening: null,
+    days: null,
+    screening: null,
+    waiting: null,
   };
 }
