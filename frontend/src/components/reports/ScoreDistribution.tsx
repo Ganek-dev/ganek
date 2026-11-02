@@ -7,7 +7,7 @@ export function ScoreDistribution({ quiz }: { quiz: StatsOverview["quiz"] }) {
   const dist = quiz.score_distribution.length === 10 ? quiz.score_distribution : Array(10).fill(0);
   const total = dist.reduce((a, b) => a + b, 0);
   const max = Math.max(1, ...dist);
-  const median = quiz.median_score === null ? null : Math.round(quiz.median_score * 100);
+  const median = quiz.median_score === null || quiz.attempts_completed < 3 ? null : Math.round(quiz.median_score * 100);
   const binLabel = (i: number) => `${i * 10}-${i === 9 ? 100 : i * 10 + 9}`;
 
   return (

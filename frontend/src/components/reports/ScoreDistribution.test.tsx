@@ -13,6 +13,17 @@ describe("ScoreDistribution", () => {
     expect(screen.getByText(/median/)).toHaveTextContent("median 66 (n = 97)");
   });
 
+  it("shows no median below n = 3", () => {
+    const dist = Array(10).fill(0);
+    dist[6] = 2;
+    render(
+      <ScoreDistribution
+        quiz={{ ...reportsFixture.quiz_scores, attempts_completed: 2, median_score: 0.65, score_distribution: dist }}
+      />,
+    );
+    expect(screen.getByText(/median/)).toHaveTextContent("median - (n = 2)");
+  });
+
   it("draws one colour, no pass line, no pass rate", () => {
     render(<ScoreDistribution quiz={reportsFixture.quiz_scores} />);
     const colours = new Set(

@@ -80,14 +80,14 @@ export default function HiringSettingsPage() {
 
   async function saveLimit() {
     const value = Number(limit);
+    setError(null);
+    setNotice(null);
     if (limit.trim() === "" || !Number.isInteger(value) || value < 1 || value > 60) {
       setLimitError("Enter a whole number from 1 to 60.");
       return;
     }
     setLimitError(null);
     if (value === savedLimit) return;
-    setError(null);
-    setNotice(null);
     try {
       await companyApi.updateSettings({ stage_limit_days: value });
       setSavedLimit(value);
@@ -126,7 +126,7 @@ export default function HiringSettingsPage() {
             max={60}
             value={limit}
             aria-invalid={limitError !== null}
-            aria-describedby="stage-limit-help"
+            aria-describedby={limitError ? "stage-limit-error stage-limit-help" : "stage-limit-help"}
             onChange={(event) => setLimit(event.target.value)}
             onBlur={saveLimit}
             onKeyDown={(event) => {
@@ -140,7 +140,9 @@ export default function HiringSettingsPage() {
           <span className="text-[13px] text-g600">days</span>
         </div>
         {limitError ? (
-          <p className="mt-1.5 text-[12.5px] text-red-600 dark:text-red-400">{limitError}</p>
+          <p id="stage-limit-error" className="mt-1.5 text-[12.5px] text-red-600 dark:text-red-400">
+            {limitError}
+          </p>
         ) : null}
         <p id="stage-limit-help" className="mt-2 text-[12.5px] leading-[18px] text-g500">
           Used for the Overdue tile, the Needs attention chip and the stalled-role queue item.

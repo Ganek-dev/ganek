@@ -40,14 +40,14 @@ export function KpiTile({
         {value}
         {unit ? <span className="text-[15px] font-medium text-g500"> {unit}</span> : null}
       </p>
-      <p className="mt-1.5 flex items-center gap-1.5 text-[11px] leading-[15px] text-g500">
+      <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-[11px] leading-[15px] text-g500">
         {hasDelta ? (
           <>
             <DeltaText value={delta} unit={deltaUnit} />
             <span className="font-mono">vs previous</span>
           </>
         ) : null}
-        {note ? <span className="font-mono whitespace-nowrap">{note}</span> : null}
+        {note ? <span className="font-mono">{note}</span> : null}
       </p>
     </div>
   );

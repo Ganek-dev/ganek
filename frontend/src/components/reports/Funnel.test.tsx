@@ -84,6 +84,17 @@ describe("Funnel", () => {
     expect(screen.getByText("Quiz: 0 invited, 0 completed (-), 0 expired")).toBeInTheDocument();
   });
 
+  it("draws a dash, not a bare arrow, when a step has no pass-through", () => {
+    const steps = reportsFixture.funnel.map((s, i) => (i === 1 ? { ...s, pass_through: null } : s));
+    const { unmount } = render(<Funnel steps={reportsFixture.funnel} quiz={reportsFixture.quiz} />);
+    const wideBefore = within(screen.getByTestId("funnel-wide")).getAllByText("-").length;
+    expect(within(screen.getByTestId("funnel-stacked")).queryByText("-")).not.toBeInTheDocument();
+    unmount();
+    render(<Funnel steps={steps} quiz={reportsFixture.quiz} />);
+    expect(within(screen.getByTestId("funnel-wide")).getAllByText("-")).toHaveLength(wideBefore + 1);
+    expect(within(screen.getByTestId("funnel-stacked")).getAllByText("-")).toHaveLength(1);
+  });
+
   it("stacks each step with a counts line for small screens", () => {
     setup();
     const stacked = screen.getByTestId("funnel-stacked");

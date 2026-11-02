@@ -239,4 +239,20 @@ describe("HiringSettingsPage pipeline", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Boom");
     expect(input).toHaveValue(20);
   });
+
+  it("clears a stale save error when the next value is out of range", async () => {
+    const user = userEvent.setup();
+    mocked.updateSettings.mockRejectedValue(new Error("Boom"));
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Flag a candidate as overdue after");
+    await user.clear(input);
+    await user.type(input, "20");
+    await user.tab();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Boom");
+    await user.clear(input);
+    await user.type(input, "0");
+    await user.tab();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(input).toHaveAccessibleDescription(/Enter a whole number from 1 to 60\./);
+  });
 });

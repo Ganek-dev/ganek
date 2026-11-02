@@ -51,7 +51,7 @@ export function TimeInStage({ rows }: { rows: StageTime[] }) {
             </span>
             <span className="text-right text-[11px] whitespace-nowrap text-g500 max-md:col-span-3 max-md:text-left">
               {row.oldest_live_days === null
-                ? ""
+                ? "no live candidate"
                 : `oldest live candidate: ${row.oldest_live_days} d`}
             </span>
           </div>

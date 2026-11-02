@@ -155,7 +155,7 @@ export function Funnel({
                       <span />
                       <span className="inline-flex items-center gap-1 text-[11px] text-g600">
                         <ArrowDown aria-hidden className="h-3 w-3 shrink-0" />
-                        {pass}
+                        {pass ?? "-"}
                       </span>
                     </div>
                   )}
@@ -203,7 +203,7 @@ export function Funnel({
                     </p>
                     <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-g600">
                       <ArrowDown aria-hidden className="h-3 w-3 shrink-0" />
-                      {pass}
+                      {pass ?? "-"}
                     </span>
                   </>
                 )}

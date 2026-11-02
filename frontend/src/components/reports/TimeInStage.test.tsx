@@ -28,6 +28,7 @@ describe("TimeInStage", () => {
     expect(within(chart).getByText("(n = 2)")).toBeInTheDocument();
     expect(screen.queryByTestId("stage-bar")).not.toBeInTheDocument();
     expect(screen.queryByText(/oldest live/)).not.toBeInTheDocument();
+    expect(within(chart).getByText("no live candidate")).toBeInTheDocument();
   });
 
   it("has a table under the chart", () => {
