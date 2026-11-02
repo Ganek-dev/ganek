@@ -55,7 +55,7 @@ from app.models import (
 from app.models.scorecard import Recommendation
 from app.schemas.jobs import JobCreate, QuizConfigSchema
 from app.schemas.public import ApplicationSubmit
-from app.schemas.scorecards import ScorecardCriterion, ensure_criterion_ids
+from app.schemas.scorecard_template import ScorecardCriterion, ensure_criterion_ids
 from app.services import activity, email_render, storage
 from app.services import applications as applications_service
 from app.services import company as company_service

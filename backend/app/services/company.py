@@ -6,7 +6,7 @@ from app.core import urls
 from app.models import Company
 from app.schemas.company import BrandingUpdate, CompanySettingsUpdate
 from app.schemas.public import PublicPrivacyNotice
-from app.schemas.scorecards import ensure_criterion_ids
+from app.schemas.scorecard_template import ensure_criterion_ids
 from app.services import storage
 
 RETENTION_DEFAULT_MONTHS = 6
