@@ -1433,7 +1433,13 @@ export interface TodayPanelData {
   events: { start: string | null; summary: string; location: string }[];
 }
 
-export type QueueItemKind = "job-quiz" | "integrity" | "unbooked" | "scorecard" | "scorecard-waiting";
+export type QueueItemKind =
+  | "job-quiz"
+  | "integrity"
+  | "unbooked"
+  | "scorecard"
+  | "scorecard-waiting"
+  | "role-stalled";
 
 /** A derived "Your queue" entry computed live by the backend (card D13). */
 export interface QueueItem {
@@ -1473,8 +1479,48 @@ export const dashboard = {
   },
 };
 
+export type BoardStatus = "empty" | "stalled" | "attention" | "on_track";
+
+export interface StageCounts {
+  new: number;
+  screening: number;
+  interview: number;
+  offer: number;
+}
+
+export interface BoardJob {
+  job_id: string;
+  title: string;
+  job_status: JobStatus;
+  status: BoardStatus;
+  live_by_stage: StageCounts;
+  waiting_on_team: number;
+  longest_wait_days: number | null;
+  overdue: number;
+  new_7d: number;
+  moved_7d: number;
+  days_open: number | null;
+  last_movement_at: string | null;
+  reason: string;
+}
+
+export interface BoardTotals {
+  active_jobs: number;
+  live: number;
+  waiting_on_team: number;
+  overdue: number;
+  new_7d: number;
+}
+
+export interface BoardOut {
+  stage_limit_days: number;
+  totals: BoardTotals;
+  jobs: BoardJob[];
+}
+
 export const stats = {
   overview: () => request<StatsOverview>("/api/v1/stats/overview"),
+  board: () => request<BoardOut>("/api/v1/stats/board"),
 };
 
 export type UserRole = "admin" | "member" | "reviewer";

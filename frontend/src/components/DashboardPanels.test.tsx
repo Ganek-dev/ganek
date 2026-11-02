@@ -302,3 +302,32 @@ describe("QueuePanel scorecard items", () => {
     expect(quizRow?.querySelector("[data-testid]")).toBeNull();
   });
 });
+
+describe("QueuePanel stalled role item", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.tasks.list.mockResolvedValue([]);
+  });
+
+  it("renders a stalled role item with its icon and link", async () => {
+    mocked.queue.list.mockResolvedValue({
+      items: [
+        {
+          key: "role-stalled:j9",
+          kind: "role-stalled" as const,
+          title: "Backend Engineer: no movement for 9 days",
+          hint: "3 waiting on you",
+          href: "/admin/applicants?job=j9",
+          since: null,
+        },
+      ],
+    });
+    render(<QueuePanel overview={null} />);
+    await screen.findByText("Backend Engineer: no movement for 9 days");
+    expect(screen.getByText("3 waiting on you")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Backend Engineer: no movement for 9 days/ }),
+    ).toHaveAttribute("href", "/admin/applicants?job=j9");
+    expect(screen.getByTestId("queue-icon-role-stalled")).toBeInTheDocument();
+  });
+});
