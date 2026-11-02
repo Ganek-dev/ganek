@@ -577,6 +577,17 @@ async def seed(
         await _spread_history(db, application)
         await _seed_sent_mail(db, company, application, job, cand.stage)
 
+    # publish_job stamps "now"; a job cannot predate nobody applying to it,
+    # so the board would read "1 d open" beside candidates 17 days old. Put
+    # each job a day before its oldest applicant (relative, so the nightly
+    # reset stays consistent).
+    oldest = min(a.created_at for a in applications)
+    for job in jobs:
+        job.published_at = min(
+            (a.created_at for a in applications if a.job_id == job.id), default=oldest
+        ) - timedelta(days=1)
+    await db.commit()
+
     await _seed_scorecards(db, applications, erika, jonas, max_berger)
     views = await _seed_views(db, jobs, rng)
     return SeedResult(
