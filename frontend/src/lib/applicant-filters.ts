@@ -29,6 +29,8 @@ export interface ApplicantFilters {
   days: number | null;
   /** Screening answers: all preferred matched, any mismatch, any skipped. */
   screening: ScreeningFilter | null;
+  /** Live applications waiting on the team or on the candidate. */
+  waiting: "team" | "candidate" | null;
 }
 
 export const DEFAULT_FILTERS: ApplicantFilters = {
@@ -42,6 +44,7 @@ export const DEFAULT_FILTERS: ApplicantFilters = {
   flagged: null,
   days: null,
   screening: null,
+  waiting: null,
 };
 
 const STAGES: ReadonlySet<string> = new Set([
@@ -85,6 +88,7 @@ export function parseFilters(params: URLSearchParams): ApplicantFilters {
   const flagged = params.get("flagged");
   const source = params.get("source");
   const screening = params.get("screening");
+  const waiting = params.get("waiting");
   return {
     job: params.get("job") ?? "",
     stage: stage !== null && STAGES.has(stage) ? (stage as ApplicantFilters["stage"]) : "all",
@@ -97,6 +101,7 @@ export function parseFilters(params: URLSearchParams): ApplicantFilters {
     days: intInRange(params.get("days"), 1, 365),
     screening:
       screening !== null && SCREENING.has(screening) ? (screening as ScreeningFilter) : null,
+    waiting: waiting === "team" || waiting === "candidate" ? waiting : null,
   };
 }
 
@@ -115,6 +120,7 @@ export function filtersToParams(
   if (filters.flagged !== null) params.set("flagged", String(filters.flagged));
   if (filters.days !== null) params.set("days", String(filters.days));
   if (filters.screening !== null) params.set("screening", filters.screening);
+  if (filters.waiting !== null) params.set("waiting", filters.waiting);
   for (const [key, value] of Object.entries(extra)) {
     if (value) params.set(key, value);
   }
@@ -134,11 +140,12 @@ export function toApiFilters(filters: ApplicantFilters): ApplicationFilters {
   if (filters.flagged !== null) api.flagged = filters.flagged;
   if (filters.days !== null) api.since_days = filters.days;
   if (filters.screening !== null) api.screening = filters.screening;
+  if (filters.waiting !== null) api.waiting = filters.waiting;
   return api;
 }
 
 /** How many narrowing filters are on: search, score, quiz, source, flags,
- * date. Job, stage and sort are navigation, not filters, so they do not
+ * date, screening, waiting. Job, stage and sort are navigation, not filters, so they do not
  * light up "Clear filters". */
 export function countActive(filters: ApplicantFilters): number {
   return [
@@ -149,6 +156,7 @@ export function countActive(filters: ApplicantFilters): number {
     filters.flagged !== null,
     filters.days !== null,
     filters.screening !== null,
+    filters.waiting !== null,
   ].filter(Boolean).length;
 }
 
@@ -161,6 +169,8 @@ export function clearNarrowing(filters: ApplicantFilters): ApplicantFilters {
     quiz: null,
     source: null,
     flagged: null,
-    days: null, screening: null,
+    days: null,
+    screening: null,
+    waiting: null,
   };
 }

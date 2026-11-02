@@ -340,6 +340,26 @@ async def test_demo_board_shows_every_chip(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
+async def test_demo_jobs_are_open_longer_than_their_oldest_application(
+    db_session: AsyncSession,
+) -> None:
+    company = await _seed_company(db_session)
+    now = datetime.now(UTC)
+    board = await pipeline_signals.board(db_session, company, now=now)
+    assert board.jobs
+    for entry in board.jobs:
+        oldest = (
+            await db_session.execute(
+                select(func.min(Application.created_at)).where(Application.job_id == entry.job_id)
+            )
+        ).scalar_one()
+        assert entry.days_open is not None
+        if oldest is None:
+            continue
+        assert entry.days_open >= (now.date() - oldest.date()).days
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
 async def test_demo_reports_have_history(db_session: AsyncSession) -> None:
     company = await _seed_company(db_session)
     out = await reports.reports(db_session, company, period="90d", job_id=None)

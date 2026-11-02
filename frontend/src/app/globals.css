@@ -32,6 +32,14 @@
   --accent: #7e14ff;
   --accent-soft: oklch(from #7e14ff calc(l + 0.25) c h);
 
+  /* reports (round 3): chart marks and the three funnel split fills. The
+     split tokens are gray ramp steps on purpose; counts print beside them */
+  --chart-accent: #7e14ff;
+  --accent-text: #7e14ff;
+  --split-rejected: var(--gray-600);
+  --split-withdrawn: var(--gray-400);
+  --split-still: var(--gray-300);
+
   /* semantic status hues (chips, alerts, quiz states) - single source for
      what was scattered per-file oklch literals before M5.7 H5 */
   --ok: oklch(0.37 0.084 168);
@@ -72,6 +80,9 @@
     --warn-soft: oklch(0.31 0.05 60);
     --danger: oklch(0.72 0.13 25);
     --danger-soft: oklch(0.3 0.06 25);
+
+    --chart-accent: #9a4dff; /* #7e14ff is 2.81:1 on the dark surface, this 3.99:1 */
+    --accent-text: var(--accent-soft);
   }
 }
 
@@ -94,6 +105,8 @@
   --color-inverse-foreground: var(--primary-btn-foreground);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-chart-accent: var(--chart-accent);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-brand: var(--brand-primary);

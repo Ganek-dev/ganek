@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clearNarrowing,
   countActive,
   DEFAULT_FILTERS,
   filtersToParams,
@@ -20,6 +21,7 @@ const FULL: ApplicantFilters = {
   flagged: true,
   days: 30,
   screening: "match",
+  waiting: "team",
 };
 
 describe("parseFilters", () => {
@@ -87,6 +89,7 @@ describe("toApiFilters", () => {
       flagged: true,
       since_days: 30,
       screening: "match",
+      waiting: "team",
     });
     expect(toApiFilters(DEFAULT_FILTERS)).toEqual({});
   });
@@ -100,7 +103,7 @@ describe("countActive", () => {
   it("counts the narrowing filters, not job, stage or sort", () => {
     expect(countActive(DEFAULT_FILTERS)).toBe(0);
     expect(countActive({ ...DEFAULT_FILTERS, job: "j", stage: "new", sort: "name_asc" })).toBe(0);
-    expect(countActive(FULL)).toBe(7);
+    expect(countActive(FULL)).toBe(8);
     expect(countActive({ ...DEFAULT_FILTERS, flagged: false })).toBe(1);
   });
 });
@@ -118,5 +121,27 @@ describe("screening filter", () => {
     expect(parseFilters(new URLSearchParams("screening=sideways")).screening).toBeNull();
     expect(filtersToParams(DEFAULT_FILTERS).has("screening")).toBe(false);
     expect(toApiFilters(DEFAULT_FILTERS).screening).toBeUndefined();
+  });
+});
+
+describe("waiting filter", () => {
+  it("round-trips waiting and maps it to the API param", () => {
+    const parsed = parseFilters(new URLSearchParams("waiting=candidate"));
+    expect(parsed.waiting).toBe("candidate");
+    expect(filtersToParams(parsed).get("waiting")).toBe("candidate");
+    expect(toApiFilters(parsed).waiting).toBe("candidate");
+  });
+
+  it("counts as an active filter and clearNarrowing resets it", () => {
+    const waiting = { ...DEFAULT_FILTERS, waiting: "team" as const };
+    expect(countActive(waiting)).toBe(1);
+    expect(clearNarrowing(FULL).waiting).toBeNull();
+    expect(countActive(clearNarrowing(FULL))).toBe(0);
+  });
+
+  it("drops an unknown waiting value and omits the default", () => {
+    expect(parseFilters(new URLSearchParams("waiting=nobody")).waiting).toBeNull();
+    expect(filtersToParams(DEFAULT_FILTERS).has("waiting")).toBe(false);
+    expect(toApiFilters(DEFAULT_FILTERS).waiting).toBeUndefined();
   });
 });

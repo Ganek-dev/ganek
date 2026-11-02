@@ -92,7 +92,34 @@ describe("ApplicantFilterBar", () => {
       flagged: null,
       days: null,
       screening: null,
+      waiting: null,
     });
+  });
+
+  it("toggles the waiting chips, mutually exclusive, and a second click clears", async () => {
+    const user = userEvent.setup();
+    const { onChange } = setup();
+    const team = screen.getByRole("button", { name: "Waiting on you" });
+    const candidate = screen.getByRole("button", { name: "Waiting on candidate" });
+    expect(team).toHaveAttribute("aria-pressed", "false");
+    await user.click(team);
+    expect(onChange).toHaveBeenLastCalledWith({ waiting: "team" });
+    await user.click(candidate);
+    expect(onChange).toHaveBeenLastCalledWith({ waiting: "candidate" });
+  });
+
+  it("shows the active chip pressed and clears it on a second click", async () => {
+    const user = userEvent.setup();
+    const { onChange } = setup({ waiting: "team" });
+    const team = screen.getByRole("button", { name: "Waiting on you" });
+    expect(team).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Waiting on candidate" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+    await user.click(team);
+    expect(onChange).toHaveBeenLastCalledWith({ waiting: null });
   });
 
   it("shows the current search text and keeps typing local until the debounce fires", async () => {
