@@ -101,7 +101,7 @@ describe("ReportsPage", () => {
     });
     render(<ReportsPage />);
     const tiles = await screen.findByRole("group", { name: "Headline numbers" });
-    expect(within(tiles).getByText("-6")).toBeInTheDocument();
+    expect(within(tiles).getByText("-6 d")).toBeInTheDocument();
   });
 
   it("shows a dash for a null median", async () => {

@@ -62,6 +62,7 @@ function Tiles({ cohort, previous }: { cohort: CohortKpis; previous: CohortKpis 
         value={median === null ? "-" : String(round1(median))}
         unit={median === null ? undefined : "days"}
         delta={medianDelta}
+        deltaUnit=" d"
         note={notes.join(" · ")}
       />
     </div>

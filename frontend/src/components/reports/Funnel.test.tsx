@@ -20,7 +20,7 @@ describe("Funnel", () => {
 
   it("names the first step Applied and prints pass-through between rows", () => {
     setup();
-    const chart = screen.getByRole("img");
+    const chart = screen.getByTestId("funnel-wide");
     expect(within(chart).getByText("Applied")).toBeInTheDocument();
     expect(within(chart).getByText("62 percent")).toBeInTheDocument();
     expect(within(chart).getByText("35 percent")).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe("Funnel", () => {
 
   it("prints the split counts beside every bar", () => {
     setup();
-    const chart = screen.getByRole("img");
+    const chart = screen.getByTestId("funnel-wide");
     const row = within(chart).getByText("Screening").closest("[data-row]") as HTMLElement;
     expect(within(row).getByText("42")).toBeInTheDocument();
     expect(within(row).getByText("5")).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("Funnel", () => {
 
   it("shows dashes in the split cells of the last step", () => {
     setup();
-    const row = within(screen.getByRole("img")).getByText("Hired").closest("[data-row]") as HTMLElement;
+    const row = within(screen.getByTestId("funnel-wide")).getByText("Hired").closest("[data-row]") as HTMLElement;
     expect(within(row).getAllByText("-")).toHaveLength(3);
   });
 
@@ -82,5 +82,14 @@ describe("Funnel", () => {
     }));
     render(<Funnel steps={empty} quiz={{ invited: 0, completed: 0, expired: 0 }} />);
     expect(screen.getByText("Quiz: 0 invited, 0 completed (-), 0 expired")).toBeInTheDocument();
+  });
+
+  it("stacks each step with a counts line for small screens", () => {
+    setup();
+    const stacked = screen.getByTestId("funnel-stacked");
+    expect(within(stacked).getByText("42 rejected · 5 withdrawn · 10 still here")).toBeInTheDocument();
+    expect(within(stacked).getAllByTestId("split-counts")).toHaveLength(4);
+    expect(within(stacked).getByText("35 percent")).toBeInTheDocument();
+    expect(within(stacked).getAllByTestId("funnel-bar-stacked")).toHaveLength(5);
   });
 });

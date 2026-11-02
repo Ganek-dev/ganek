@@ -39,4 +39,9 @@ describe("KpiTile", () => {
     render(<KpiTile label="Median time to hire" value="24" unit="days" note="n = 3" />);
     expect(screen.getByText("n = 3")).toBeInTheDocument();
   });
+
+  it("appends the delta unit", () => {
+    render(<KpiTile label="Median time to hire" value="24" delta={3} deltaUnit=" d" />);
+    expect(screen.getByText("+3 d")).toBeInTheDocument();
+  });
 });

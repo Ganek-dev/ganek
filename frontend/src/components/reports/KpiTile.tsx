@@ -20,6 +20,7 @@ export function KpiTile({
   value,
   unit,
   delta,
+  deltaUnit,
   note,
 }: {
   label: string;
@@ -27,6 +28,8 @@ export function KpiTile({
   unit?: string;
   /** undefined or null: no delta */
   delta?: number | null;
+  /** appended to the delta as is, e.g. " d" */
+  deltaUnit?: string;
   note?: string;
 }) {
   const hasDelta = delta !== undefined && delta !== null;
@@ -40,7 +43,7 @@ export function KpiTile({
       <p className="mt-1.5 flex items-center gap-1.5 text-[11px] leading-[15px] text-g500">
         {hasDelta ? (
           <>
-            <DeltaText value={delta} />
+            <DeltaText value={delta} unit={deltaUnit} />
             <span className="font-mono">vs previous</span>
           </>
         ) : null}

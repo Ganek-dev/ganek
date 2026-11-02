@@ -74,8 +74,11 @@ export function Funnel({
         <h2 className="font-heading text-[15px] font-semibold">Funnel</h2>
         <span className="font-mono text-[11px] text-g500">{first} applications</span>
       </div>
-      <div className="overflow-x-auto">
-        <div className="min-w-max [--funnel-w:480px] max-md:[--funnel-w:200px]">
+      <div role="img" aria-label={chartLabel}>
+        <div
+          data-testid="funnel-wide"
+          className="hidden [--funnel-w:320px] min-[1400px]:[--funnel-w:480px] xl:block"
+        >
           <div className={`mt-3.5 grid ${COLUMNS} gap-x-2.5 pb-2 text-[11px] text-g500`}>
             <span>Stage</span>
             <span className="text-right">Reached</span>
@@ -94,7 +97,7 @@ export function Funnel({
               still here
             </span>
           </div>
-          <div role="img" aria-label={chartLabel}>
+          <div>
             {steps.map((step, index) => {
               const last = index === steps.length - 1;
               const pass = percent(step.pass_through);
@@ -160,6 +163,53 @@ export function Funnel({
               );
             })}
           </div>
+        </div>
+        <div data-testid="funnel-stacked" className="mt-3.5 space-y-3.5 xl:hidden">
+          {steps.map((step, index) => {
+            const last = index === steps.length - 1;
+            const pass = percent(step.pass_through);
+            const segments = SEGMENTS.filter((s) => step[s.key] > 0);
+            return (
+              <div key={step.stage}>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[13px] font-medium text-strong">{label(step.stage)}</span>
+                  <span className="font-mono text-[13px] font-medium text-strong">{step.reached}</span>
+                </div>
+                <div className="mt-1">
+                  <div
+                    data-testid="funnel-bar-stacked"
+                    className="h-5 rounded-r-[4px]"
+                    style={{ width: `${share(step.reached) * 100}%`, background: "var(--chart-accent)" }}
+                  />
+                </div>
+                {last ? null : (
+                  <>
+                    <div className="mt-1.5 flex h-2 gap-[2px]">
+                      {segments.map((segment, i) => (
+                        <div
+                          key={segment.key}
+                          data-testid="split-segment-stacked"
+                          title={String(step[segment.key])}
+                          className={i === segments.length - 1 ? "rounded-r-[3px]" : ""}
+                          style={{
+                            width: `${share(step[segment.key]) * 100}%`,
+                            background: `var(${segment.token})`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p data-testid="split-counts" className="mt-1 text-[11px] text-g500">
+                      {`${step.rejected_from} rejected · ${step.withdrawn_from} withdrawn · ${step.still_here} still here`}
+                    </p>
+                    <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-g600">
+                      <ArrowDown aria-hidden className="h-3 w-3 shrink-0" />
+                      {pass}
+                    </span>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
       <p className="mt-3 text-[11.5px] leading-[17px] text-g600">
