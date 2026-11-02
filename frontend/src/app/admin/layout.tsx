@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   Briefcase,
   ClipboardList,
   Inbox,
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
   { href: "/admin/applicants", label: "Applicants", icon: Inbox },
+  { href: "/admin/reports", label: "Reports", icon: BarChart3 },
   { href: "/admin/questions", label: "Questions", icon: ListChecks },
   { href: "/admin/questionnaires", label: "Questionnaires", icon: ClipboardList },
   { href: "/admin/team", label: "Team", icon: Users, adminOnly: true },

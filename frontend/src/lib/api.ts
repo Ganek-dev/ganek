@@ -642,6 +642,8 @@ export interface ApplicationFilters {
   /** Applied within the last N days, 1..365. */
   since_days?: number;
   screening?: ScreeningFilter;
+  /** Live applications waiting on the team or on the candidate. */
+  waiting?: "team" | "candidate";
   sort?: ApplicationSortKey;
   /** Export only: a selection (the bulk bar), at most 100. */
   ids?: string[];
@@ -659,6 +661,7 @@ function applicationParams(filters: ApplicationFilters | undefined): URLSearchPa
   if (filters.flagged !== undefined) params.set("flagged", String(filters.flagged));
   if (filters.since_days !== undefined) params.set("since_days", String(filters.since_days));
   if (filters.screening) params.set("screening", filters.screening);
+  if (filters.waiting) params.set("waiting", filters.waiting);
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.ids && filters.ids.length > 0) params.set("ids", filters.ids.join(","));
   return params;
@@ -1518,9 +1521,74 @@ export interface BoardOut {
   jobs: BoardJob[];
 }
 
+export type ReportsPeriod = "30d" | "90d" | "12m" | "all";
+
+export interface CohortKpis {
+  applications: number;
+  reached_interview: number;
+  hires: number;
+  /** null below n = 3 */
+  median_time_to_hire_days: number | null;
+  hires_n: number;
+}
+
+export interface FunnelStep {
+  stage: ApplicationStage;
+  reached: number;
+  /** percent 0-100, one decimal; null when undefined */
+  pass_through: number | null;
+  rejected_from: number;
+  withdrawn_from: number;
+  still_here: number;
+}
+
+export interface QuizLine {
+  invited: number;
+  completed: number;
+  expired: number;
+}
+
+export interface StageTime {
+  stage: ApplicationStage;
+  /** null below n = 3 */
+  median_days: number | null;
+  n: number;
+  oldest_live_days: number | null;
+}
+
+export interface SourceRow {
+  /** "direct" when the application has no recorded source */
+  source: string;
+  applications: number;
+  reached_interview: number;
+  hires: number;
+}
+
+export interface ReportsOut {
+  period: ReportsPeriod;
+  job_id: string | null;
+  cohort: CohortKpis;
+  /** null for period "all" */
+  previous: CohortKpis | null;
+  funnel: FunnelStep[];
+  quiz: QuizLine;
+  time_in_stage: StageTime[];
+  sources: SourceRow[];
+  diagnosis: string[];
+  quiz_scores: StatsOverview["quiz"];
+  weekly: StatsOverview["weekly"];
+}
+
 export const stats = {
   overview: () => request<StatsOverview>("/api/v1/stats/overview"),
   board: () => request<BoardOut>("/api/v1/stats/board"),
+  reports: (params: { period?: ReportsPeriod; job_id?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.period) qs.set("period", params.period);
+    if (params.job_id) qs.set("job_id", params.job_id);
+    const query = qs.toString();
+    return request<ReportsOut>(`/api/v1/stats/reports${query ? `?${query}` : ""}`);
+  },
 };
 
 export type UserRole = "admin" | "member" | "reviewer";
@@ -1554,6 +1622,8 @@ export interface CompanyAdmin {
     privacy_contact_email?: string;
     retention_months?: number;
     privacy_policy_url?: string;
+    /** Days in a stage before a live application counts as overdue. */
+    stage_limit_days?: number;
   };
   screening_questions: ScreeningQuestion[];
   scorecard_template?: ScorecardCriterion[];
@@ -1566,6 +1636,7 @@ export interface CompanySettingsUpdate {
   privacy_contact_email?: string | null;
   retention_months?: number | null;
   privacy_policy_url?: string | null;
+  stage_limit_days?: number | null;
   /** Replaces the company default set; omit to leave it untouched. */
   screening_questions?: ScreeningQuestion[] | null;
   /** Replaces the company default scorecard; omit to leave it untouched. */

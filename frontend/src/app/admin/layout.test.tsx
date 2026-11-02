@@ -96,6 +96,19 @@ describe("AdminLayout", () => {
     expect(screen.getByText("grumpy@acme.dev")).toBeInTheDocument();
   });
 
+  it("lists Reports directly after Applicants", async () => {
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("page content");
+    const reports = screen.getByRole("link", { name: /Reports/ });
+    expect(reports).toHaveAttribute("href", "/admin/reports");
+    const links = screen.getAllByRole("link").map((l) => l.getAttribute("href"));
+    expect(links.indexOf("/admin/reports")).toBe(links.indexOf("/admin/applicants") + 1);
+  });
+
   it("sends a reviewer session to /review and fires no staff calls", async () => {
     mockedApi.me.mockResolvedValue({
       id: "u2",

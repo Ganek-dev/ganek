@@ -20,6 +20,7 @@ const FULL: ApplicantFilters = {
   flagged: true,
   days: 30,
   screening: "match",
+  waiting: "team",
 };
 
 describe("parseFilters", () => {
@@ -87,6 +88,7 @@ describe("toApiFilters", () => {
       flagged: true,
       since_days: 30,
       screening: "match",
+      waiting: "team",
     });
     expect(toApiFilters(DEFAULT_FILTERS)).toEqual({});
   });
@@ -118,5 +120,20 @@ describe("screening filter", () => {
     expect(parseFilters(new URLSearchParams("screening=sideways")).screening).toBeNull();
     expect(filtersToParams(DEFAULT_FILTERS).has("screening")).toBe(false);
     expect(toApiFilters(DEFAULT_FILTERS).screening).toBeUndefined();
+  });
+});
+
+describe("waiting filter", () => {
+  it("round-trips waiting and maps it to the API param", () => {
+    const parsed = parseFilters(new URLSearchParams("waiting=candidate"));
+    expect(parsed.waiting).toBe("candidate");
+    expect(filtersToParams(parsed).get("waiting")).toBe("candidate");
+    expect(toApiFilters(parsed).waiting).toBe("candidate");
+  });
+
+  it("drops an unknown waiting value and omits the default", () => {
+    expect(parseFilters(new URLSearchParams("waiting=nobody")).waiting).toBeNull();
+    expect(filtersToParams(DEFAULT_FILTERS).has("waiting")).toBe(false);
+    expect(toApiFilters(DEFAULT_FILTERS).waiting).toBeUndefined();
   });
 });
