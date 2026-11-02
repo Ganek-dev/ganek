@@ -25,8 +25,9 @@ import logging
 import os
 import random
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from textwrap import dedent
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -45,9 +46,12 @@ from app.models import (
     Company,
     EmailOutbox,
     EmailStatus,
+    EmploymentType,
     Job,
     JobView,
     QuizAttempt,
+    RemotePolicy,
+    SalaryPeriod,
     Scorecard,
     User,
     UserRole,
@@ -56,12 +60,13 @@ from app.models.scorecard import Recommendation
 from app.schemas.jobs import JobCreate, QuizConfigSchema
 from app.schemas.public import ApplicationSubmit
 from app.schemas.scorecard_template import ScorecardCriterion, ensure_criterion_ids
-from app.services import activity, email_render, storage
+from app.services import activity, email_render, screening, storage
 from app.services import applications as applications_service
 from app.services import company as company_service
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
 from app.services.email_templates import PREVIEW_LINK_PLACEHOLDER
+from app.services.screening import ScreeningAnswerIn, ScreeningQuestion
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +101,39 @@ class _Job:
     quiz_questions: int | None  # None = no quiz on this job
     description_md: str
     salary: tuple[int, int] | None = None
+    salary_period: SalaryPeriod = SalaryPeriod.YEAR
+    remote_policy: RemotePolicy = RemotePolicy.ONSITE
+    employment_type: EmploymentType = EmploymentType.FULL_TIME
+    closes_in_days: int | None = None  # advisory deadline, relative so the reset keeps it
+    # job-specific screening questions, asked after the company default set
+    screening: tuple[ScreeningQuestion, ...] = ()
 
+
+def _md(text: str) -> str:
+    return dedent(text).strip() + "\n"
+
+
+ABOUT = (
+    "ACME Ganek builds autonomous warehouse robots and the software that runs them. "
+    "We are 60 people in Berlin, hardware and software under one roof, and about "
+    "2,000 robots in customer warehouses that phone home every few seconds."
+)
+
+# Screening questions (board card "Per-job screening questions"): ids are
+# fixed so the seed stays deterministic. The company default set is copied
+# into every job; the per-job ones follow it.
+COMPANY_SCREENING = (
+    ScreeningQuestion(
+        id="sq_ac0e0001",
+        type="yes_no",
+        prompt="Do you have the right to work in the EU without visa sponsorship?",
+        preferred="yes",
+        required=True,
+    ),
+)
+NOTICE_PERIOD = ScreeningQuestion(
+    id="sq_ac0e0002", type="short_text", prompt="What is your notice period?"
+)
 
 JOBS = (
     _Job(
@@ -104,38 +141,352 @@ JOBS = (
         "Berlin",
         ["python", "fastapi", "sql"],
         8,
-        "## About the role\n\nYou own the services behind our fleet telemetry: FastAPI, "
-        "PostgreSQL, a worker queue, and the kind of data volumes a few thousand robots "
-        "produce.\n\n## What we look for\n\n- Solid Python and SQL\n- You have run "
-        "something in production and been paged for it\n- You write things down",
+        _md(
+            f"""
+            {ABOUT}
+
+            You will own the services behind our fleet telemetry: FastAPI, PostgreSQL,
+            a worker queue, and the data volumes a few thousand robots produce around
+            the clock. The team is six engineers; you report to the head of fleet software.
+
+            ## What you will do
+
+            - Design and ship the APIs the operator console and the robots talk to
+            - Keep the telemetry pipeline fast as the fleet grows (about 40k events a minute today)
+            - Own a few Postgres schemas end to end: migrations, indexes, query plans
+            - Take part in a light on-call rotation, about one week in eight
+            - Review code, write things down, and help two junior engineers grow
+
+            ## What you bring
+
+            - Solid Python and SQL; you have read an `EXPLAIN` output and acted on it
+            - You have run a service in production and been paged for it
+            - You can explain a trade-off in writing, to people outside your team
+            - Working proficiency in English; German is a plus, not a must
+
+            ## Nice to have
+
+            - FastAPI, SQLAlchemy or a comparable async stack
+            - Time-series data, message queues, or anything that moves hardware
+
+            ## What we offer
+
+            - 65,000 to 85,000 EUR a year, depending on experience
+            - Hybrid: two days a week in our Berlin-Adlershof lab, the rest wherever you work best
+            - 30 days of vacation, a 1,500 EUR yearly learning budget, Deutschlandticket
+            - A robot with your name on it. Really.
+            """
+        ),
         (65_000, 85_000),
+        remote_policy=RemotePolicy.HYBRID,
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0101",
+                type="single_choice",
+                prompt="How many years have you run a Python service in production?",
+                options=["None yet", "1 to 2", "3 to 5", "More than 5"],
+            ),
+            NOTICE_PERIOD,
+        ),
     ),
     _Job(
         "Site Reliability Engineer",
-        "Berlin or remote (EU)",
+        "Berlin",
         ["devops", "sql"],
-        None,
-        "## About the role\n\nKeep the control plane boring: observability, on-call "
-        "rotations, capacity. Kubernetes on bare metal, Postgres, a lot of Grafana.",
+        6,
+        _md(
+            f"""
+            {ABOUT}
+
+            Keep the control plane boring. You will own observability, capacity and the
+            on-call setup for the platform the robots report to: Kubernetes on bare metal
+            in two data centres, Postgres, a lot of Grafana.
+
+            ## What you will do
+
+            - Run and improve the Kubernetes clusters that host the fleet platform
+            - Define SLOs with the product teams and make the dashboards that show them
+            - Make deploys safer: progressive rollout, automatic rollback, fewer surprises
+            - Lead incident reviews that end with a fix, not with blame
+            - Be in the on-call rotation (paid, about one week in six)
+
+            ## What you bring
+
+            - Three or more years running production infrastructure
+            - Comfortable with Linux, networking and at least one infra-as-code tool
+            - Enough SQL to find the slow query yourself
+            - Calm in an incident and curious afterwards
+
+            ## Nice to have
+
+            - Bare-metal Kubernetes, Postgres operations, or fleet-scale MQTT
+
+            ## What we offer
+
+            - 70,000 to 90,000 EUR a year, plus on-call pay
+            - Hybrid from Berlin; remote weeks are fine when nothing is on fire
+            - 30 days of vacation, learning budget, a real hardware lab next door
+            """
+        ),
         (70_000, 90_000),
+        remote_policy=RemotePolicy.HYBRID,
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0201",
+                type="acknowledgment",
+                prompt=(
+                    "This role is part of a paid on-call rotation, about one week in six. "
+                    "I am fine with that."
+                ),
+            ),
+        ),
     ),
     _Job(
         "Product Designer",
         "Berlin",
-        ["frontend"],
+        ["design", "figma"],
         None,
-        "## About the role\n\nDesign the operator console our customers run their "
-        "warehouses from. Research, flows, a design system that engineers like.",
+        _md(
+            f"""
+            {ABOUT}
+
+            You will design the operator console our customers run their warehouses from:
+            a live map of a few hundred robots, task queues, alerts. The people using it
+            work night shifts on the warehouse floor. Their feedback is honest and fast.
+
+            ## What you will do
+
+            - Own the console end to end: research, flows, visual design, handoff
+            - Spend time in customer warehouses and bring back what you saw
+            - Grow a small design system that engineers like using
+            - Pair with frontend engineers daily; you ship together
+
+            ## What you bring
+
+            - A portfolio of shipped product work, ideally for complex or operational tools
+            - Fluent in Figma and in talking to engineers about what is feasible
+            - You test with real users and change your mind when the data says so
+            - Comfortable being the only designer, for now
+
+            ## Nice to have
+
+            - Data visualisation, maps, or anything real-time
+
+            ## What we offer
+
+            - Competitive salary, shared once we know your level
+            - On-site in Berlin-Adlershof: the robots are here, and so are the users
+            - 30 days of vacation, conference budget, a quiet studio corner
+            """
+        ),
         None,
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0301",
+                type="short_text",
+                prompt="Link one piece of work you are proud of and tell us why, in a line.",
+                required=True,
+            ),
+        ),
     ),
     _Job(
         "Senior Frontend Engineer",
-        "Remote (EU)",
+        "Anywhere in the EU",
         ["react", "typescript", "javascript"],
         None,
-        "## About the role\n\nReact and TypeScript on a real-time fleet map. You care "
-        "about rendering performance and accessibility in equal measure.",
+        _md(
+            f"""
+            {ABOUT}
+
+            React and TypeScript on a real-time fleet map that renders a few hundred moving
+            robots at 60 fps in a browser on a warehouse laptop. You care about rendering
+            performance and accessibility in equal measure, and you have opinions about both.
+
+            ## What you will do
+
+            - Lead frontend architecture for the operator console (Next.js, React, WebSockets)
+            - Make the map fast on hardware that is not fast
+            - Build the design system together with our product designer
+            - Mentor two mid-level engineers and set the bar in code review
+
+            ## What you bring
+
+            - Five or more years of production frontend work, TypeScript for most of it
+            - You have profiled a React app and fixed what you found
+            - Accessibility is part of done for you, not a ticket for later
+            - You write clear RFCs and are happy working async across time zones
+
+            ## Nice to have
+
+            - Canvas or WebGL rendering, maps, or real-time data
+
+            ## What we offer
+
+            - 75,000 to 95,000 EUR a year
+            - Fully remote within the EU, with two team weeks in Berlin a year
+            - 30 days of vacation, home office budget, learning budget
+            """
+        ),
         (75_000, 95_000),
+        remote_policy=RemotePolicy.REMOTE,
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0401",
+                type="yes_no",
+                prompt="Can you overlap at least four hours a day with Berlin working hours?",
+                preferred="yes",
+                required=True,
+            ),
+        ),
+    ),
+    _Job(
+        "Robotics Platform Engineer (Go)",
+        "Berlin",
+        ["go", "devops"],
+        6,
+        _md(
+            f"""
+            {ABOUT}
+
+            You will work on the software that runs on the robot: a Go agent that talks to
+            the motor controllers, keeps the local task queue, and syncs with the fleet
+            platform over flaky warehouse Wi-Fi. When it misbehaves, a 400 kg machine stops.
+
+            ## What you will do
+
+            - Build and maintain the on-robot agent in Go, from the serial port up
+            - Design the sync protocol between robots and the fleet platform
+            - Make over-the-air updates boring: staged rollouts, rollback, health checks
+            - Spend time in the lab with the hardware team when a robot does something odd
+
+            ## What you bring
+
+            - Strong Go, with care for concurrency, memory and failure modes
+            - Experience with systems that talk to hardware or run at the edge
+            - You can read a packet capture and a motor datasheet
+            - You like fixing the root cause more than the symptom
+
+            ## Nice to have
+
+            - ROS 2, CAN bus, MQTT, or embedded Linux
+
+            ## What we offer
+
+            - 70,000 to 92,000 EUR a year
+            - On-site in Berlin-Adlershof, in the building with the test warehouse
+            - 30 days of vacation, learning budget, Deutschlandticket
+            """
+        ),
+        (70_000, 92_000),
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0501",
+                type="single_choice",
+                prompt="Have you worked on software that moves physical hardware?",
+                options=["No", "A hobby project", "Yes, at work"],
+            ),
+            NOTICE_PERIOD,
+        ),
+    ),
+    _Job(
+        "Working Student, Data Engineering",
+        "Berlin",
+        ["sql", "python"],
+        5,
+        _md(
+            f"""
+            {ABOUT}
+
+            Help the fleet-data team turn robot telemetry into answers. You will write SQL
+            and Python, build small pipelines, and present what you found to the people who
+            run the warehouses. 15 to 20 hours a week, around your lectures.
+
+            ## What you will do
+
+            - Build and maintain reports on fleet health, task throughput and battery life
+            - Write the odd Python job that cleans, loads or checks data
+            - Help us document the data model so new colleagues find their way
+
+            ## What you bring
+
+            - Enrolled at a university in Germany for the next 12 months
+            - SQL you are comfortable with, Python you want to get better at
+            - Curiosity, and the patience to ask why a number looks wrong
+
+            ## What we offer
+
+            - 16 to 18 EUR an hour, flexible around exam periods
+            - Hybrid: one day a week in the Berlin lab, the rest from wherever you study
+            - A mentor on the team and a real chance to join full time afterwards
+            """
+        ),
+        (16, 18),
+        salary_period=SalaryPeriod.HOUR,
+        remote_policy=RemotePolicy.HYBRID,
+        employment_type=EmploymentType.PART_TIME,
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0601",
+                type="yes_no",
+                prompt="Will you be enrolled at a university in Germany for the next 12 months?",
+                preferred="yes",
+                required=True,
+            ),
+            ScreeningQuestion(
+                id="sq_ac0e0602",
+                type="single_choice",
+                prompt="How many hours a week can you work during the semester?",
+                options=["10", "15", "20"],
+            ),
+        ),
+    ),
+    _Job(
+        "Engineering Manager, Fleet Software",
+        "Berlin",
+        ["leadership"],
+        None,
+        _md(
+            f"""
+            {ABOUT}
+
+            Lead the fleet software group: three teams, 14 engineers, the platform every
+            robot reports to. You will still read code, but your job is the people, the
+            roadmap and the way the group works with hardware, product and customers.
+
+            ## What you will do
+
+            - Manage three team leads and grow the next ones
+            - Own the fleet software roadmap together with product
+            - Run hiring for the group, from the job post to the offer
+            - Keep delivery predictable and the on-call load humane
+
+            ## What you bring
+
+            - Three or more years managing software teams, ideally more than one at a time
+            - A technical background in backend or distributed systems
+            - You have hired, coached and, when needed, let people go, with care
+            - Clear in writing, direct and kind in person
+
+            ## What we offer
+
+            - 95,000 to 120,000 EUR a year, plus a yearly bonus
+            - Hybrid from Berlin, three days a week on site
+            - 30 days of vacation, a leadership coach, a seat at the company table
+
+            Applications close in three weeks. We review them as they come in.
+            """
+        ),
+        (95_000, 120_000),
+        remote_policy=RemotePolicy.HYBRID,
+        closes_in_days=21,
+        screening=(
+            ScreeningQuestion(
+                id="sq_ac0e0701",
+                type="single_choice",
+                prompt="How many engineers have you managed directly?",
+                options=["None", "1 to 3", "4 to 8", "More than 8"],
+            ),
+        ),
     ),
 )
 
@@ -155,6 +506,9 @@ class _Candidate:
     left_from: ApplicationStage | None = None
     # age of the application in days; None = spread by list position. Pins the stalled role.
     days_ago: float | None = None
+    # screening answers by question position (company default first); a
+    # position not listed gets a fitting default (_answers_for)
+    answers: dict[int, str | bool | None] = field(default_factory=dict)
 
 
 CANDIDATES = (
@@ -185,7 +539,9 @@ CANDIDATES = (
         "Lucas Moreau", 0, 3, ApplicationStage.REJECTED, left_from=ApplicationStage.SCREENING
     ),  # direct
     _Candidate("Aisha Khan", 0, 3, ApplicationStage.NEW, flag="fast", source="linkedin"),
-    _Candidate("Tomas Ferreira", 0, 2, ApplicationStage.REJECTED, source="google"),
+    _Candidate(
+        "Tomas Ferreira", 0, 2, ApplicationStage.REJECTED, source="google", answers={0: "no"}
+    ),
     _Candidate("Ingrid Solberg", 0, None, ApplicationStage.NEW, source="link:newsletter"),  # open
     _Candidate("Marek Novak", 0, None, ApplicationStage.NEW, source="hn"),
     _Candidate(
@@ -193,23 +549,64 @@ CANDIDATES = (
     ),  # direct
     # the Senior Frontend role is the stalled one: nothing has moved for 8+ days
     _Candidate("Lena Fischer", 3, None, ApplicationStage.SCREENING, source="linkedin", days_ago=16),
-    _Candidate("Omar Haddad", 3, None, ApplicationStage.NEW, days_ago=12),  # direct
+    _Candidate(
+        "Omar Haddad", 3, None, ApplicationStage.NEW, days_ago=12, answers={1: "no"}
+    ),  # direct
     _Candidate("Chloe Martin", 1, None, ApplicationStage.NEW, source="indeed"),
+    # two older hires: with Diego they give the reports a median time to hire
+    _Candidate("Ravi Mehta", 1, 5, ApplicationStage.HIRED, source="linkedin", days_ago=19),
+    _Candidate("Clara Vogel", 2, None, ApplicationStage.HIRED, source="website", days_ago=15),
+    # the Go role is young and busy: four applicants in a week, one already interviewing
+    _Candidate(
+        "Priya Raman",
+        4,
+        5,
+        ApplicationStage.INTERVIEW,
+        github="https://github.com/Ganek-dev",
+        message="I wrote the OTA updater for a fleet of delivery robots. Happy to talk CAN bus.",
+        source="github",
+        days_ago=6,
+        answers={1: "Yes, at work"},
+    ),
+    _Candidate("Jonas Weber", 4, 4, ApplicationStage.SCREENING, source="linkedin", days_ago=5),
+    _Candidate("Elif Demir", 4, 3, ApplicationStage.NEW, source="hn", days_ago=2.5),
+    _Candidate(
+        "Ben Carter", 4, 2, ApplicationStage.NEW, source="google", days_ago=1.2, answers={1: "No"}
+    ),
+    # working student: one quiz done, one still open
+    _Candidate("Leon Schulz", 5, 4, ApplicationStage.NEW, source="link:uni-jobboard", days_ago=4),
+    _Candidate(
+        "Amara Osei", 5, None, ApplicationStage.NEW, source="link:uni-jobboard", days_ago=0.8
+    ),
+    # the manager role went live this week
+    _Candidate(
+        "Felix Brandner",
+        6,
+        None,
+        ApplicationStage.NEW,
+        linkedin="https://www.linkedin.com/company/ganek-io",
+        source="xing",
+        days_ago=3,
+        answers={1: "4 to 8"},
+    ),
 )
 
 # Page views per job and day (spec job posts v2 5.5), by source, for the last
 # 30 days: base loads per weekday, a share per source, and one newsletter
 # send ten days ago that shows as a spike. Shares sum to 1.
-VIEW_BASE_PER_JOB = (28, 14, 10, 18)  # index into JOBS
+VIEW_BASE_PER_JOB = (28, 14, 10, 18, 16, 9, 12)  # index into JOBS
 VIEW_SHARES = (
     ("direct", 0.30),
     ("linkedin", 0.25),
     ("google", 0.18),
     ("indeed", 0.08),
-    ("link:newsletter", 0.07),
-    ("website", 0.05),
-    ("hn", 0.04),
-    ("ref:robotics-weekly.example", 0.03),
+    ("link:newsletter", 0.06),
+    ("website", 0.03),
+    ("hn", 0.03),
+    ("ref:robotics-weekly.example", 0.02),
+    ("link:uni-jobboard", 0.01),
+    ("xing", 0.01),
+    ("github", 0.01),
 )
 NEWSLETTER_DAYS_AGO = 10
 VIEW_DAYS = 30
@@ -229,6 +626,35 @@ NOTES = (
 
 def _email(name: str) -> str:
     return name.lower().replace(" ", ".") + "@example.com"
+
+
+NOTICE_PERIODS = ("Available now", "4 weeks", "3 months to the end of a quarter", "6 weeks")
+
+
+def _answers_for(
+    spec: _Candidate, questions: list[ScreeningQuestion], rng: random.Random
+) -> list[dict[str, Any]]:
+    """The candidate's screening answers in the shape the apply route stores:
+    overrides from the spec by position, a fitting default for the rest (the
+    preferred answer where there is one, a random option, a notice period).
+    build_answers validates like the route does, so a bad override fails loudly."""
+    answers: list[ScreeningAnswerIn] = []
+    for position, question in enumerate(questions):
+        answer: str | bool | None
+        if position in spec.answers:
+            answer = spec.answers[position]
+        elif question.type == "acknowledgment":
+            answer = True
+        elif question.type == "yes_no":
+            answer = question.preferred or "yes"
+        elif question.type == "single_choice":
+            answer = rng.choice(question.options or [])
+        elif question.required:
+            answer = "A fleet dashboard I shipped last year. People open it every shift."
+        else:
+            answer = rng.choice(NOTICE_PERIODS)
+        answers.append(ScreeningAnswerIn(question_id=question.id, answer=answer))
+    return screening.build_answers(questions, answers)
 
 
 async def _existing(db: AsyncSession, slug: str) -> Company | None:
@@ -453,19 +879,19 @@ async def seed(
     company = Company(
         slug=slug,
         name="ACME Ganek",
-        description=(
-            "Fictional demo company. ACME Ganek builds autonomous warehouse robots and "
-            "the software that runs them. "
-            "Berlin, 60 people, hardware and software under one roof."
-        ),
+        description="Robots that move the boxes. Software that moves the robots.",
         website=f"https://{domain}",
-        socials={"github": "https://github.com/Ganek-dev"},
+        socials={
+            "github": "https://github.com/Ganek-dev",
+            "linkedin": "https://www.linkedin.com/company/ganek-io",
+        },
         theme={"primary_color": BRAND_PRIMARY},
         settings={
             "legal_name": "ACME Ganek GmbH",
             "contact_email": f"privacy@{domain}",
             "quiz_expired_reissue": "auto",
         },
+        screening_questions=[question.model_dump() for question in COMPANY_SCREENING],
         scorecard_template=ensure_criterion_ids(
             [ScorecardCriterion(label=label) for label in SCORECARD_CRITERIA]
         ),
@@ -502,6 +928,7 @@ async def seed(
     authors = {"erika": erika, "jonas": jonas}
 
     jobs: list[Job] = []
+    now = datetime.now(UTC)
     for spec in JOBS:
         job = await jobs_service.create_job(
             db,
@@ -510,10 +937,19 @@ async def seed(
                 title=spec.title,
                 description_md=spec.description_md,
                 location=spec.location,
+                remote_policy=spec.remote_policy,
+                employment_type=spec.employment_type,
                 tags=spec.tags,
                 salary_min=spec.salary[0] if spec.salary else None,
                 salary_max=spec.salary[1] if spec.salary else None,
                 salary_currency="EUR" if spec.salary else None,
+                salary_period=spec.salary_period,
+                closes_at=(
+                    now + timedelta(days=spec.closes_in_days)
+                    if spec.closes_in_days is not None
+                    else None
+                ),
+                screening_questions=[*COMPANY_SCREENING, *spec.screening],
                 quiz_config=QuizConfigSchema(
                     enabled=spec.quiz_questions is not None,
                     question_count=spec.quiz_questions or 6,
@@ -525,8 +961,12 @@ async def seed(
 
     applications: list[Application] = []
     attempts = 0
+    # the implicit spread covers the candidates without a pinned age: oldest
+    # first, the newest a day ago, independent of how many pinned ones sit between
+    unpinned = [i for i, cand in enumerate(CANDIDATES) if cand.days_ago is None]
     for index, cand in enumerate(CANDIDATES):
         job = jobs[cand.job]
+        questions = [ScreeningQuestion(**q) for q in job.screening_questions]
         key = storage.build_cv_key(company.id)
         await storage.put_object(key, PDF_BYTES, storage.CV_CONTENT_TYPE)
         application = await applications_service.submit_application(
@@ -543,6 +983,7 @@ async def seed(
                 cv_filename=f"{cand.name.split()[-1].lower()}-cv.pdf",
                 source=cand.source,
             ),
+            screening_answers=_answers_for(cand, questions, rng),
         )
         attempt = await _take_quiz(db, company, application, job, cand, rng)
         if attempt is not None and cand.correct is not None:
@@ -569,10 +1010,13 @@ async def seed(
                     payload={},
                 )
                 await db.commit()
-        # oldest applicants first in the list, the newest a few hours ago
-        days_ago = 20.0 - index * (19.0 / max(1, len(CANDIDATES) - 1)) + rng.uniform(-0.3, 0.3)
+        # oldest applicants first in the list, the newest about a day ago
         if cand.days_ago is not None:
             days_ago = cand.days_ago
+        else:
+            position = unpinned.index(index)
+            days_ago = 20.0 - position * (19.0 / max(1, len(unpinned) - 1))
+            days_ago += rng.uniform(-0.3, 0.3)
         await _backdate(db, application, timedelta(days=max(0.1, days_ago)))
         await _spread_history(db, application)
         await _seed_sent_mail(db, company, application, job, cand.stage)
