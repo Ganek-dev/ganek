@@ -73,7 +73,9 @@ Tokens in these paths are capability links sent by email. Treat them as secrets.
 
 ## Admin API
 
-The admin UI talks to the same backend under `/api/v1/` with a session cookie and the tenancy of the signed-in user. The interactive OpenAPI reference is served by your own instance at `/api/docs` (schema at `/api/openapi.json`). ### API keys
+The admin UI talks to the same backend under `/api/v1/` with a session cookie and the tenancy of the signed-in user. The interactive OpenAPI reference is served by your own instance at `/api/docs` (schema at `/api/openapi.json`).
+
+### API keys
 
 Admins create keys under Settings, Developers. The secret (`gk_...`) is shown once; the list keeps only a prefix. Send it as a bearer token:
 
@@ -191,7 +193,7 @@ GET /api/v1/applications/export?format=csv        # or format=json
 GET /api/v1/applications/export?format=csv&job_id=<uuid>&stage=screening
 ```
 
-Rows are flat and spreadsheet-shaped: candidate name, plus first and last name split for ATS imports (everything before the last space, then the last token; a single-word name leaves first name empty), email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename, the candidate's message and `screening_mismatches` (how many preferred screening answers were missed; blank when the job asked none). No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
+Rows are flat and spreadsheet-shaped: candidate name, plus first and last name split for ATS imports (everything before the last space, then the last token; a single-word name leaves first name empty), email, job, stage, applied and decided timestamps, source, quiz status, score in percent, completion time, a one-line integrity summary, the extra-time multiplier when one was granted, CV filename, the candidate's message, `screening_mismatches` (how many preferred screening answers were missed; blank when the job asked none) and, for rejected applications, `rejection_reason` and `rejection_note`. No internal ids and nothing from inside the quiz (answers, keys) are included; the candidate email is the join key for your ATS. Every export is written to the activity log with who pulled it and how many rows.
 
 ### Extra time on the quiz
 

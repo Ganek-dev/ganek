@@ -8,8 +8,8 @@ Semantics:
   that record transitions to employee context, out of ATS scope.
 - Months are counted as 31 days so the purge never fires EARLIER than
   the privacy notice's "kept for N months" promise.
-- Each application goes through the G2 erasure primitive (S3 fail-closed,
-  Google best-effort); a storage failure skips just that application -
+- Each application goes through the G2 erasure primitive (S3 fail-closed);
+  a storage failure skips just that application -
   it is retried the next night.
 - Candidates keep existing while they still have any application; the
   orphan delete afterwards is what finally removes the person.

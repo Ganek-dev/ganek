@@ -1,10 +1,10 @@
-"""Symmetric encryption for stored third-party secrets (Google refresh tokens).
+"""Symmetric encryption for stored secrets (TOTP secrets, webhook signing secrets).
 
 Fernet with a key derived from GANEK_ENCRYPTION_KEY when set, else from
 GANEK_SECRET_KEY. Without the dedicated key, rotating the app secret
-invalidates stored credentials (users just reconnect); with it, the
-signing secret rotates freely and only rotating the encryption key
-itself forces reconnects.
+invalidates stored secrets (users re-enrol 2FA, webhook endpoints get a
+new secret); with it, the signing secret rotates freely and only
+rotating the encryption key itself forces that.
 """
 
 import base64

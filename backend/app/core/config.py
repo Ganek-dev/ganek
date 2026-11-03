@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     version: str = "0.6.0"  # the Sentry release tag; keep in step with the FastAPI title
     mode: Literal["single", "multi"] = "single"
     secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
-    # Separate key for encrypting stored third-party secrets (Google refresh
-    # tokens). Unset -> derived from secret_key, so rotating the signing secret
-    # also invalidates stored credentials; set it to decouple the two.
+    # Separate key for encrypting stored secrets (TOTP secrets, webhook signing
+    # secrets; core/crypto.py). Unset -> derived from secret_key, so rotating
+    # the signing secret also invalidates them; set it to decouple the two.
     encryption_key: str | None = None
     database_url: str = "postgresql+asyncpg://ganek:ganek@localhost:5432/ganek"
     redis_url: str = "redis://localhost:6379/0"
