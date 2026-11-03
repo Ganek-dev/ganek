@@ -42,17 +42,17 @@ Active questions per difficulty level:
 | Tag | 1 | 2 | 3 | 4 | 5 | Total |
 |---|---|---|---|---|---|---|
 | asyncio | 3 | 2 | 9 | 4 | 0 | 18 |
-| backend | 3 | 3 | 8 | 5 | 0 | 19 |
-| devops | 3 | 3 | 7 | 4 | 0 | 17 |
-| fastapi | 3 | 3 | 8 | 5 | 0 | 19 |
-| frontend | 2 | 4 | 6 | 4 | 0 | 16 |
-| git | 2 | 3 | 7 | 4 | 0 | 16 |
-| go | 4 | 2 | 7 | 5 | 0 | 18 |
-| javascript | 3 | 4 | 8 | 5 | 0 | 20 |
-| python | 5 | 9 | 11 | 5 | 1 | 31 |
-| react | 4 | 2 | 7 | 4 | 0 | 17 |
-| sql | 3 | 3 | 8 | 4 | 0 | 18 |
-| typescript | 3 | 2 | 7 | 4 | 0 | 16 |
+| backend | 3 | 6 | 5 | 5 | 0 | 19 |
+| devops | 3 | 5 | 7 | 2 | 0 | 17 |
+| fastapi | 3 | 3 | 9 | 4 | 0 | 19 |
+| frontend | 2 | 6 | 4 | 4 | 0 | 16 |
+| git | 2 | 4 | 8 | 2 | 0 | 16 |
+| go | 4 | 2 | 8 | 4 | 0 | 18 |
+| javascript | 3 | 6 | 6 | 5 | 0 | 20 |
+| python | 5 | 11 | 9 | 5 | 1 | 31 |
+| react | 4 | 3 | 6 | 4 | 0 | 17 |
+| sql | 3 | 5 | 8 | 2 | 0 | 18 |
+| typescript | 3 | 3 | 8 | 2 | 0 | 16 |
 
 (Update this table in PRs - total: 225 active questions. Long-term
 quiz-ready bar: ≥25 active questions in each of levels 1-4 per tag; level 5

@@ -15,9 +15,12 @@ pnpm lint && pnpm typecheck && pnpm test
 pnpm build        # production build (standalone output for Docker)
 ```
 
-Routes so far: `/login`, `/setup` (first-run company creation), `/admin`
-(auth-gated shell). Public careers pages land in M1.
+Route map (see `src/app/`): `/c/[slug]` and `/jobs/[jobSlug]` are the public
+careers pages (SSR, per-company theme); `/quiz/[token]`, `/application/[token]`
+and `/interview/[token]` are the candidate surfaces; `/login`, `/setup`
+(first-run company creation), `/reset`, `/verify` and `/invite/[token]` handle
+accounts; `/admin/*` is the recruiter shell and `/review/*` the reviewer shell.
 
 Notes:
 - No `next/font/google` - build must not depend on Google's network (self-hosters build offline).
-- shadcn/ui can be introduced when the admin UI grows; keep components hand-rolled until then.
+- shadcn/ui primitives live in `src/components/ui/` (dialog, menu, switch) and are adopted surface by surface; everything else stays hand-rolled on the design tokens in `globals.css`.

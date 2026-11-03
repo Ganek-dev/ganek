@@ -21,9 +21,10 @@
   replays them (`python -m app.services.tombstones`) so candidates erased
   after the backup stay erased. Policy: docs/compliance
   self-hosting guide, "Backups and erasure".
-- `dev_seed.sh [--reset]` - the ACME Ganek demo workspace (two
-  users, four jobs, 17 fictional applicants, 11 completed quizzes with
-  realistic timings and two integrity stories) built through the real
+- `dev_seed.sh [--reset]` - the ACME Ganek demo workspace (three
+  users: admin, member and reviewer; seven published jobs with screening
+  questions; 26 fictional applicants, 17 completed quizzes with realistic
+  timings, three hires and two integrity stories) built through the real
   service layer inside the running backend container. Exists -> no-op;
   `--reset` deletes and rebuilds. Log in as erika@acme.example /
   ganek-demo-1 (GANEK_DEMO_PASSWORD overrides). Docs: self-hosting,
