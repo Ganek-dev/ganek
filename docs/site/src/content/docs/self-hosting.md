@@ -8,7 +8,7 @@ Candidate personal data lives in your Ganek instance, so the production checklis
 
 ## Production checklist
 
-- **HTTPS everywhere.** Terminate TLS at your reverse proxy and keep `GANEK_COOKIE_SECURE=true`. Quiz, status and interview links are bearer tokens; plain HTTP exposes them.
+- **HTTPS everywhere.** Terminate TLS at your reverse proxy and set `GANEK_COOKIE_SECURE=true` (it defaults to `false` for plain-HTTP development). Quiz, status and interview links are bearer tokens; plain HTTP exposes them.
 - **Backend behind the proxy.** The default compose binds port 8000 to `127.0.0.1`. Keep it that way, or publish it only behind a proxy. `GANEK_TRUST_PROXY_HEADERS` reads `X-Forwarded-For`; a directly reachable backend lets clients spoof their IP and dodge the rate limits.
 - **Change every default credential.** `POSTGRES_PASSWORD`, `GANEK_S3_ACCESS_KEY`, `GANEK_S3_SECRET_KEY`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, and a fresh `GANEK_SECRET_KEY` plus `GANEK_ENCRYPTION_KEY`.
 - **MinIO stays private.** The console and API bind to localhost. Candidates only need the presigned-upload origin in `GANEK_S3_PUBLIC_ENDPOINT_URL`.
