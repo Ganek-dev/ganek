@@ -22,6 +22,8 @@ wrong address, ransomware making data unavailable: all breaches.
 | Container/host/proxy logs | Token-scrubbed access lines with client IPs (app-side); whatever *your* proxy logs |
 | Email relay / mailboxes | Sent candidate mails incl. quiz/status links |
 | Backups | Copies of the above (`{your inventory}`) |
+| Sentry host (if configured) | Scrubbed error events with request ids |
+| Webhook targets, ATS imports, API-key consumers | Whatever applicant data you pushed to them or let them pull |
 
 **Containment levers, in escalation order:**
 
@@ -30,9 +32,15 @@ wrong address, ransomware making data unavailable: all breaches.
   admin sessions. Recruiters log in again; candidates with live processes
   need re-sent links (quiz links can be re-issued from the applicant view).
   Unless you set a separate `GANEK_ENCRYPTION_KEY`, this also invalidates
-  stored 2FA secrets (recruiters re-enrol their authenticator).
+  stored 2FA secrets and webhook signing secrets (recruiters re-enrol their
+  authenticator; webhook endpoints are deleted and re-created).
 - **Rotate `GANEK_ENCRYPTION_KEY`** (if set) - invalidates stored 2FA
-  secrets only; recruiters re-enrol their authenticator.
+  secrets and webhook signing secrets; recruiters re-enrol their
+  authenticator and webhook endpoints are deleted and re-created.
+- **Revoke API keys and webhook endpoints** (Settings, Developers page):
+  delete any API key that may have leaked (a read key lists applicants and
+  downloads CVs) and delete or re-create webhook endpoints whose target or
+  secret may be compromised.
 - **Revoke Google sign-in access** (if you use it) at the account level
   (Google Account → Security → third-party access) for affected
   recruiters, and/or rotate the OAuth client's credentials in Google

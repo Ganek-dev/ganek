@@ -83,7 +83,7 @@ Work through this once, before the careers page goes public.
       them), TLS SMTP relay, change the MinIO defaults and don't expose its
       ports, keep the backend behind your reverse proxy, Redis AUTH outside
       the bundled compose network, and consider a separate
-      `GANEK_ENCRYPTION_KEY` for stored 2FA secrets.
+      `GANEK_ENCRYPTION_KEY` for stored 2FA and webhook secrets.
 - [ ] Turn on **two-factor authentication** for every admin account
       (**Settings → Account**, any TOTP authenticator app; keep the recovery
       codes offline). The same card signs out every other session if a
@@ -114,10 +114,13 @@ Work through this once, before the careers page goes public.
 **Access & portability requests (Art. 15/20).** Open the applicant, use the
 **⋯ → Export data (JSON)** action, and hand the candidate the bundle plus
 the CV file. The bundle contains everything Ganek stores about them:
-identity, all their applications and messages, quiz attempts with scores,
-per-question answers (with correctness, never the answer key), integrity
-events and flags (with your staff's identifiers scrubbed), interview
-records, note bodies, and a CV download link. Deliver it within one month
+identity, all their applications and messages, their answers to the
+screening questions, quiz attempts with scores, per-question answers (with
+correctness, never the answer key), integrity events and flags (with your
+staff's identifiers scrubbed), interview records, the rejection reason and
+note where one was recorded, note bodies, the delivery log of every email
+sent to them (kind, status, timestamps), the activity entries of each
+application, and a CV download link. Deliver it within one month
 of the request. Exports are deliberately admin-mediated - there is no
 candidate-side bulk download behind the status link, so a leaked link can
 never become a PII dump.
@@ -159,13 +162,14 @@ now" is for when someone asks and you have no live reason to keep the data.
 
 **Candidate-initiated requests.** The status page every candidate gets
 carries **"Request a copy of my data"** and **"Ask for my data to be
-deleted"**. Each creates a task on your dashboard (due in 14 days, deduped
-per application) with the candidate's name and email in the note - the task
+deleted"**. Each creates a task on your dashboard (due in 14 days; repeat clicks
+do not stack while a task for that candidate and request kind is open) with the candidate's name and email in the note - the task
 *is* the request; there is no auto-deletion. Answer like any other Art. 15/
 17 request, within the month. The task doesn't outlive the person it names:
 erasing the candidate removes it, and done request tasks are swept 90 days
-after completion (the PII-free activity entry is the lasting record that a
-request was received).
+after completion. The activity entry records that a request was received,
+but it belongs to the application and goes when the candidate is erased;
+only the count-only erasure receipt outlives them.
 
 **Withdrawals.** A candidate withdrawing moves the application to
 `withdrawn` - a pipeline state, not an erasure. The status page tells them
@@ -189,10 +193,11 @@ colleague names) and it goes with the application on erasure.
 **Offboarding recruiters.** You are also the controller for your own
 staff's accounts. **Team → ⋯ → Remove & anonymize…** tombstones the user:
 email replaced with a random placeholder, password and Google sign-in
-severed, saved interview availability and default meeting place wiped,
-account deactivated and sessions cut. It refuses while the
+severed, display name, saved interview availability and default meeting
+place wiped, their open scorecard requests dismissed and their name
+removed from scorecard activity, account deactivated and sessions cut. It refuses while the
 user still has upcoming interviews (cancel those first - there is no
-reassign) or is the last admin. One honest limit: activity-log entries
+reassign) or is the last admin. One honest limit: other activity-log entries
 written while they worked keep the staff email snapshotted in their
 payloads at the time (e.g. an interview entry records which interviewer
 email it was scheduled with), so the hiring trail stays legible - factor
@@ -289,7 +294,8 @@ exhaust on their own (three attempts, then "failed" on the trail).
   in Redis so it runs exactly once however many workers are up, and the
   outbox sweep and heartbeat are idempotent.
 - Abandoned CV uploads (file picked, form never submitted) are swept after
-  24 hours; expired team invites are swept nightly.
+  24 hours; expired team invites are swept nightly. In multi mode, signups
+  that never verified their email are deleted after 7 days.
 - **Status links expire after 30 days**, interview booking links after
   60 days; quiz links expire at their own deadline and are the only kind
   that can be re-issued (from the applicant view - a re-issue invalidates

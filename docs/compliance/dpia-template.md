@@ -34,11 +34,11 @@ staff (accounts, saved availability).
 | Category | Fields | Source |
 |---|---|---|
 | Identity & contact | Name, email | Apply form |
-| Application content | CV file, links (portfolio/profiles), free-text message | Apply form |
+| Application content | CV file, links (portfolio/profiles), free-text message, answers to the job's screening questions | Apply form |
 | Assessment | Per-question answers with correctness, total and per-tag scores, time used | Quiz engine (server-side scoring) |
-| Integrity telemetry | Events of exactly three types - window focus lost (with duration), paste occurred, window resized - each tied to the question that was open; derived review flags | Quiz page during an attempt |
+| Integrity telemetry | Events of exactly three types - quiz tab hidden (tab switch or minimised window, with duration), paste occurred, window resized - each tied to the question that was open; derived review flags | Quiz page during an attempt |
 | Scheduling | Chosen interview slot, timezone, meeting place or link; a calendar invite (.ics) emailed to the candidate and the interviewer | Booking page |
-| Pipeline metadata | Stage history, decision timestamps, recruiter notes about the candidate, activity entries | Recruiting staff |
+| Pipeline metadata | Stage history, decision timestamps, rejection reason and optional note, recruiter notes about the candidate, reviewer scorecards (criteria ratings, recommendation, comment), activity entries | Recruiting staff |
 | Page views (aggregate, not personal data) | Daily total of job-page loads per job and per source label (for example linkedin, google, direct, a tracked-link name, a referring site's domain; name tracked links after channels, never after a person); no IP, user agent, cookie or visitor identifier | Server render of the job page |
 
 **Explicitly not collected:** IP addresses and user agents are not stored
@@ -91,14 +91,16 @@ hosting/email choices.}`
 - **Minimization.** Three telemetry event types and no more; no IP/UA in
   candidate records; quiz answers stored with correctness but answer keys
   never exposed; interview invites carry name, email, time and meeting
-  place only; recruiter accounts hold no more than login, availability
-  and a default meeting place.
+  place only; recruiter accounts hold login, display name, an encrypted
+  2FA secret with hashed recovery codes when enrolled, availability, a
+  default meeting place and dashboard preferences.
 - **Retention.** Single configured window (`{retention_months}` months,
   default 6), automatically enforced, decision-anchored, no off switch;
   hired candidates transition to employee-record retention
   (`{your HR policy}`).
 - **Data-subject rights.** Admin DSAR export (JSON bundle incl. scores,
-  answers, telemetry, note bodies), candidate request buttons on the
+  answers, screening answers, telemetry, note bodies, scorecards,
+  rejection reason and note, email delivery log), candidate request buttons on the
   status page (copy of data / deletion) creating 14-day tasks, admin
   erasure across storage systems, email rectification, withdrawal at any
   time from the status page.
