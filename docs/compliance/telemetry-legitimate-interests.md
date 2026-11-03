@@ -11,8 +11,8 @@
 During a quiz attempt - and only then - the quiz page records events of
 exactly three types, each tagged with the question that was open:
 
-1. **blur** - the window lost focus (tab switch, app switch), with the
-   duration until focus returned;
+1. **blur** - the quiz tab was hidden (tab switch, minimised window), with
+   the duration until it was visible again;
 2. **paste** - a paste occurred on the quiz page (the event only; the
    pasted *content* is never read or transmitted);
 3. **resize** - the window was resized.

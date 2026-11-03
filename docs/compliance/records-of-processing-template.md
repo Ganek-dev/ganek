@@ -40,7 +40,8 @@ default 6 months), enforced by the nightly purge from the decision date.
 - **Legal basis:** Art. 6(1)(b) (steps prior to a contract, at the
   candidate's request).
 - **Data subjects:** job applicants.
-- **Data:** name, email, CV file, links, free-text message, stage history,
+- **Data:** name, email, CV file, links, free-text message, answers to the
+  job's screening questions, stage history,
   how the candidate reached the page (a source label such as linkedin,
   google, direct, a tracked-link name, or the referring site's domain;
   never the full referring URL).
@@ -68,7 +69,7 @@ default 6 months), enforced by the nightly purge from the decision date.
   the timed quiz). Balancing documented in the
   [legitimate interests assessment](telemetry-legitimate-interests.md).
 - **Legal basis:** Art. 6(1)(f).
-- **Data:** events of three types - focus lost (with duration), paste
+- **Data:** events of three types - quiz tab hidden (with duration), paste
   occurred, window resized - tied to the open question; derived flags.
   No IP, no user agent, no keystrokes, no clipboard contents.
 - **Recipients:** recruiting staff (informational flags only).
@@ -79,8 +80,10 @@ default 6 months), enforced by the nightly purge from the decision date.
 
 - **Purpose:** organising the hiring process; internal accountability.
 - **Legal basis:** Art. 6(1)(f) (managing recruitment).
-- **Data:** stage changes with decision timestamps, recruiter notes about
-  candidates (disclosable to the candidate on request), activity entries.
+- **Data:** stage changes with decision timestamps, rejection reason and
+  optional note, recruiter notes about candidates and reviewer scorecards
+  (ratings, recommendation, comment; both disclosable to the candidate on
+  request), activity entries.
 - **Recipients:** recruiting staff.
 - **Transfers:** none.
 - **Retention:** with the application (W); erasure receipts and purge
@@ -90,7 +93,9 @@ default 6 months), enforced by the nightly purge from the decision date.
 
 - **Purpose:** transactional email - application confirmation, quiz
   invitation and reminder (including re-issued links), decision updates
-  (opt-in per send), interview invitation, cancellation, and reminder.
+  (opt-in per send), one-off messages a recruiter writes to the candidate
+  (reply-to the recruiter), interview invitation, confirmation, reschedule,
+  cancellation, and reminder.
 - **Legal basis:** Art. 6(1)(b)/(f). No marketing, no newsletter - no
   ePrivacy opt-in involved.
 - **Data:** name, email, application/interview context; every mail carries
@@ -154,8 +159,10 @@ default 6 months), enforced by the nightly purge from the decision date.
   hiring tool.
 - **Legal basis:** Art. 6(1)(b) (employment relationship) / 6(1)(f).
 - **Data subjects:** our recruiting staff.
-- **Data:** email, password hash or Google sign-in linkage, role, last
-  login, saved interview availability and default meeting place.
+- **Data:** email, display name, password hash or Google sign-in linkage,
+  role, last login, encrypted 2FA secret and hashed recovery codes when
+  enrolled, saved interview availability and default meeting place,
+  dismissed dashboard items.
 - **Recipients:** `{hosting provider}`; Google LLC (sign-in only, if
   used).
 - **Transfers:** Google sign-in, if used (Google's terms; only the
