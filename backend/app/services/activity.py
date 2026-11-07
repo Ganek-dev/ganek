@@ -21,6 +21,7 @@ INTERVIEW_BOOKED = "interview.booked"
 INTERVIEW_CANCELLED = "interview.cancelled"
 NOTE_ADDED = "note.added"
 BULK_REJECTED = "applications.bulk_rejected"
+BULK_MOVED = "applications.bulk_moved"
 CANDIDATE_ERASED = "candidate.erased"
 CANDIDATE_EMAIL_UPDATED = "candidate.email_updated"
 EMAIL_CANCELLED = "email.cancelled"  # a scheduled rejection mail was held back
@@ -63,11 +64,18 @@ def record(
 
 
 async def list_recent(db: AsyncSession, company: Company, *, limit: int) -> list[ActivityLog]:
+    """The dashboard feed. Per-row `bulk: true` entries are left out: each
+    bulk call also records one summary (BULK_MOVED / BULK_REJECTED), so a
+    20-row move reads as one line. The applicant timeline and the DSAR
+    bundle read activity_log per application and keep the per-row rows."""
     return list(
         (
             await db.execute(
                 select(ActivityLog)
-                .where(ActivityLog.company_id == company.id)
+                .where(
+                    ActivityLog.company_id == company.id,
+                    ActivityLog.payload["bulk"].astext.is_distinct_from("true"),
+                )
                 .order_by(ActivityLog.created_at.desc())
                 .limit(limit)
             )

@@ -36,6 +36,16 @@ async def _stage_moves(client: AsyncClient) -> list[dict[str, object]]:
     return [row for row in feed if row["type"] == "stage.changed"]
 
 
+async def _bulk_moves(client: AsyncClient, *app_ids: str) -> list[dict[str, object]]:
+    """Per-row bulk entries live on each applicant's timeline; the dashboard
+    feed shows one summary per bulk call instead."""
+    moves: list[dict[str, object]] = []
+    for app_id in app_ids:
+        timeline = (await client.get(f"/api/v1/applications/{app_id}/timeline")).json()
+        moves += [event for event in timeline if event["kind"] == "stage.changed"]
+    return moves
+
+
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_reject_with_reason_stores_it_and_logs_it(client: AsyncClient) -> None:
     app_id = await _one_applicant(client)
@@ -158,7 +168,7 @@ async def test_bulk_reject_applies_the_reason_to_every_row(client: AsyncClient) 
         row = (await client.get(f"/api/v1/applications/{app_id}")).json()
         assert row["rejection_reason"] == "skills_gap"
         assert row["rejection_note"] == "Below the bar on the take-home"
-    moves = await _stage_moves(client)
+    moves = await _bulk_moves(client, a, b)
     assert len(moves) == 2
     assert all(
         m["payload"]
@@ -198,7 +208,8 @@ async def test_bulk_stage_to_rejected_takes_the_reason_and_other_stages_refuse_i
         assert row["stage"] == "rejected"
         assert row["rejection_reason"] == "no_response"
         assert row["rejection_note"] is None
-    moves = await _stage_moves(client)
+    moves = await _bulk_moves(client, a, b)
+    assert len(moves) == 2
     assert all(
         m["payload"] == {"from": "new", "to": "rejected", "bulk": True, "reason": "no_response"}
         for m in moves
