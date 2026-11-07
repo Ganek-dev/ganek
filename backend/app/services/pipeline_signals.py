@@ -19,13 +19,16 @@ from app.models.application import CLOSED_STAGES, Application, ApplicationStage
 from app.models.company import Company
 from app.models.interview import Interview, InterviewStatus
 from app.models.job import Job, JobStatus
-from app.models.quiz import AttemptStatus, QuizAttempt
+from app.models.quiz import AttemptAnswer, AttemptStatus, QuizAttempt
 from app.schemas.stats import BoardJob, BoardOut, BoardStatus, BoardTotals, StageCounts
 from app.services.activity import STAGE_CHANGED
 from app.services.applications import _latest_attempt_id
 
 STAGE_LIMIT_KEY = "stage_limit_days"
 DEFAULT_STAGE_LIMIT_DAYS = 7
+# An in_progress attempt whose last served question closed this long ago is abandoned:
+# the candidate left the quiz, so the team owns the next move (they can re-issue it).
+ABANDONED_GRACE = timedelta(hours=24)
 
 
 def stage_limit(company: Company) -> int:
@@ -42,6 +45,17 @@ class AttemptView:
     created_at: datetime
     completed_at: datetime | None
     expires_at: datetime
+    started_at: datetime | None = None
+    last_deadline_at: datetime | None = None  # newest served question's deadline
+
+
+def abandoned_at(attempt: AttemptView) -> datetime | None:
+    """When an in_progress attempt counts as abandoned: the last served question's
+    deadline (else the start) plus ABANDONED_GRACE. None for any other status."""
+    if attempt.status is not AttemptStatus.IN_PROGRESS:
+        return None
+    anchor = attempt.last_deadline_at or attempt.started_at or attempt.created_at
+    return anchor + ABANDONED_GRACE
 
 
 @dataclass(frozen=True)
@@ -58,10 +72,19 @@ class Waiting:
     since: datetime
 
 
-def attempt_view(attempt: QuizAttempt | None) -> AttemptView | None:
+def attempt_view(
+    attempt: QuizAttempt | None, last_deadline_at: datetime | None = None
+) -> AttemptView | None:
     if attempt is None:
         return None
-    return AttemptView(attempt.status, attempt.created_at, attempt.completed_at, attempt.expires_at)
+    return AttemptView(
+        attempt.status,
+        attempt.created_at,
+        attempt.completed_at,
+        attempt.expires_at,
+        attempt.started_at,
+        last_deadline_at,
+    )
 
 
 def interview_view(interview: Interview | None) -> InterviewView | None:
@@ -98,6 +121,9 @@ def waiting_on(
     if stage is ApplicationStage.NEW:
         if attempt is not None:
             if attempt.status is AttemptStatus.IN_PROGRESS:
+                gone = abandoned_at(attempt)
+                if gone is not None and gone <= now:
+                    return Waiting("team", gone)
                 return Waiting("candidate", attempt.created_at)
             if attempt.status is AttemptStatus.PENDING and attempt.expires_at > now:
                 return Waiting("candidate", attempt.created_at)
@@ -132,8 +158,8 @@ class LiveRow:
 
 
 async def _load_live(db: AsyncSession, company: Company) -> list[LiveRow]:
-    """Live applications of published and closed jobs with the latest attempt and the
-    active interview, in three queries."""
+    """Live applications of published and closed jobs with the latest attempt, its
+    newest question deadline and the active interview, in four queries."""
     applications = list(
         (
             await db.execute(
@@ -163,6 +189,19 @@ async def _load_live(db: AsyncSession, company: Company) -> list[LiveRow]:
         .scalars()
         .all()
     }
+    in_progress = [a.id for a in attempts.values() if a.status is AttemptStatus.IN_PROGRESS]
+    deadlines: dict[uuid.UUID, datetime] = {}
+    if in_progress:
+        deadlines = {
+            attempt_id: last
+            for attempt_id, last in (
+                await db.execute(
+                    select(AttemptAnswer.attempt_id, func.max(AttemptAnswer.deadline_at))
+                    .where(AttemptAnswer.attempt_id.in_(in_progress))
+                    .group_by(AttemptAnswer.attempt_id)
+                )
+            ).all()
+        }
     interviews = {
         interview.application_id: interview
         for interview in (
@@ -179,11 +218,17 @@ async def _load_live(db: AsyncSession, company: Company) -> list[LiveRow]:
     return [
         LiveRow(
             application,
-            attempt_view(attempts.get(application.id)),
+            _attempt_view_with_deadline(attempts.get(application.id), deadlines),
             interview_view(interviews.get(application.id)),
         )
         for application in applications
     ]
+
+
+def _attempt_view_with_deadline(
+    attempt: QuizAttempt | None, deadlines: dict[uuid.UUID, datetime]
+) -> AttemptView | None:
+    return attempt_view(attempt, deadlines.get(attempt.id) if attempt else None)
 
 
 async def waiting_ids(

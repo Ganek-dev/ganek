@@ -35,7 +35,8 @@ Every live candidate is waiting on exactly one side, counted from a date. The fi
 | An interview is booked and has not ended yet, at any stage | Candidate | The request |
 | An interview is booked and has ended, and the candidate has not moved stage since | You | The end of the interview |
 | An interview is booked and has ended, but the candidate moved stage after it | The stage rows below decide | |
-| Stage New, quiz sent and not expired, or in progress | Candidate | The quiz invitation |
+| Stage New, quiz sent and not expired, or in progress and not abandoned | Candidate | The quiz invitation |
+| Stage New, quiz in progress but abandoned (no question served in the last 24 hours) | You | 24 hours after the last question's time ran out |
 | Stage New, anything else (no quiz, quiz completed, expired or invalidated) | You | The completion, the expiry, or the move into the stage |
 | Stage Screening, no interview | You | The move into the stage |
 | Stage Interview, no interview requested or it was cancelled | You | The move into the stage |

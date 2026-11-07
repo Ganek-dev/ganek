@@ -12,6 +12,7 @@ from app.models import (
     ActivityLog,
     Application,
     ApplicationStage,
+    AttemptAnswer,
     AttemptStatus,
     Candidate,
     Company,
@@ -19,6 +20,8 @@ from app.models import (
     InterviewStatus,
     Job,
     JobStatus,
+    Question,
+    QuestionSource,
     QuizAttempt,
     User,
     UserRole,
@@ -407,6 +410,79 @@ async def test_pending_attempt_passes_through_as_a_candidate_wait(
     assert row.waiting_on_team == 0
     assert row.longest_wait_days is None
     assert row.overdue == 0
+
+
+async def _in_progress_attempt(
+    db: AsyncSession, application: Application, *, deadline: datetime
+) -> QuizAttempt:
+    question = Question(
+        id=f"pb-{uuid4().hex[:16]}",
+        company_id=application.company_id,
+        domain="company",
+        tags=["t"],
+        difficulty=2,
+        prompt_md="Prompt",
+        options={"a": "A", "b": "B"},
+        correct_key="a",
+        source=QuestionSource.COMPANY,
+    )
+    db.add(question)
+    await db.flush()
+    attempt = QuizAttempt(
+        company_id=application.company_id,
+        application_id=application.id,
+        status=AttemptStatus.IN_PROGRESS,
+        question_ids=[question.id, "never-served"],
+        started_at=deadline - timedelta(minutes=1),
+        expires_at=NOW + timedelta(days=3),
+    )
+    attempt.created_at = days_ago(4)
+    db.add(attempt)
+    await db.flush()
+    db.add(
+        AttemptAnswer(
+            attempt_id=attempt.id,
+            question_id=question.id,
+            option_order=["a", "b"],
+            served_at=deadline - timedelta(seconds=20),
+            deadline_at=deadline,
+        )
+    )
+    await db.commit()
+    return attempt
+
+
+async def test_abandoned_in_progress_attempt_waits_on_team(db_session: AsyncSession) -> None:
+    company = await _company(db_session)
+    job = await _job(db_session, company)
+    application = await _app(
+        db_session, job, stage=ApplicationStage.NEW, created=15, changed=15, moved=1
+    )
+    await _in_progress_attempt(db_session, application, deadline=days_ago(3))
+    live = await signals._load_live(db_session, company)
+    view = live[0].attempt_view
+    assert view is not None
+    assert view.last_deadline_at == days_ago(3)
+    row = _row(await _board(db_session, company), job)
+    assert row.waiting_on_team == 1
+    assert row.longest_wait_days == 2  # since deadline + 24h grace
+    team = await signals.waiting_ids(db_session, company, "team", now=NOW)
+    assert team == {application.id}
+
+
+async def test_in_progress_attempt_inside_its_deadline_waits_on_candidate(
+    db_session: AsyncSession,
+) -> None:
+    company = await _company(db_session)
+    job = await _job(db_session, company)
+    application = await _app(
+        db_session, job, stage=ApplicationStage.NEW, created=15, changed=15, moved=1
+    )
+    await _in_progress_attempt(db_session, application, deadline=NOW - timedelta(minutes=5))
+    row = _row(await _board(db_session, company), job)
+    assert row.waiting_on_team == 0
+    candidate = await signals.waiting_ids(db_session, company, "candidate", now=NOW)
+    assert candidate == {application.id}
 
 
 async def test_stalled_jobs_returns_only_stalled_rows(db_session: AsyncSession) -> None:

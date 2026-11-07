@@ -4,6 +4,7 @@ from app.models.application import ApplicationStage
 from app.models.interview import InterviewStatus
 from app.models.quiz import AttemptStatus
 from app.services.pipeline_signals import (
+    ABANDONED_GRACE,
     AttemptView,
     InterviewView,
     Waiting,
@@ -85,8 +86,50 @@ def test_new_pending_attempt_not_expired_is_candidate_since_attempt_created():
 
 
 def test_new_in_progress_is_candidate():
-    a = _attempt(AttemptStatus.IN_PROGRESS)
+    a = _in_progress(last_deadline=NOW - timedelta(minutes=5))
     assert _wait(ApplicationStage.NEW, a) == Waiting("candidate", a.created_at)
+
+
+def _in_progress(
+    *, started: datetime | None = None, last_deadline: datetime | None = None
+) -> AttemptView:
+    return AttemptView(
+        AttemptStatus.IN_PROGRESS,
+        NOW - timedelta(days=2),
+        None,
+        NOW + timedelta(days=5),
+        started,
+        last_deadline,
+    )
+
+
+def test_in_progress_inside_deadline_plus_grace_is_candidate():
+    a = _in_progress(started=NOW - timedelta(hours=30), last_deadline=NOW - timedelta(hours=23))
+    assert _wait(ApplicationStage.NEW, a) == Waiting("candidate", a.created_at)
+
+
+def test_abandoned_in_progress_is_team_since_last_deadline_plus_grace():
+    deadline = NOW - timedelta(days=3)
+    a = _in_progress(started=deadline - timedelta(minutes=5), last_deadline=deadline)
+    assert _wait(ApplicationStage.NEW, a) == Waiting("team", deadline + ABANDONED_GRACE)
+
+
+def test_abandoned_boundary_is_exactly_deadline_plus_grace():
+    on_edge = _in_progress(last_deadline=NOW - ABANDONED_GRACE)
+    assert _wait(ApplicationStage.NEW, on_edge) == Waiting("team", NOW)
+    just_inside = _in_progress(last_deadline=NOW - ABANDONED_GRACE + timedelta(seconds=1))
+    assert _wait(ApplicationStage.NEW, just_inside).who == "candidate"
+
+
+def test_in_progress_without_served_question_falls_back_to_started_at():
+    started = NOW - timedelta(days=2)
+    a = _in_progress(started=started)
+    assert _wait(ApplicationStage.NEW, a) == Waiting("team", started + ABANDONED_GRACE)
+
+
+def test_abandoned_in_progress_becomes_overdue_after_the_limit():
+    a = _in_progress(last_deadline=NOW - timedelta(days=10))
+    assert is_overdue(_wait(ApplicationStage.NEW, a), 7, NOW) is True
 
 
 def test_new_completed_is_team_since_completed_at():
