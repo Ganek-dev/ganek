@@ -10,7 +10,11 @@
 #   backend - ruff check/format + mypy + pytest on py3.12 (CI also runs
 #               py3.14; `--python "3.12 3.14"` runs both here), each leg
 #               against fresh throwaway postgres+minio containers
-#               (CI-faithful; never touches the dev stack or its data)
+#               (CI-faithful; never touches the dev stack or its data).
+#               pytest runs in a uv container on a private docker network
+#               next to them, so no DB connection crosses the Docker
+#               Desktop port proxy; GANEK_CI_PYTEST=host runs it on the
+#               host against the published ports instead (old behaviour)
 #   e2e - compose smoke + Playwright golden paths on a scratch
 #               `-p ganek-e2e` stack with the mandatory volume override;
 #               stops a running dev stack first and restores it after
@@ -31,13 +35,16 @@ PG_CTR=ganek-ci-postgres
 PG_PORT=55433
 MINIO_CTR=ganek-ci-minio
 MINIO_PORT=9100
+CI_NET=ganek-ci-net
+# where pytest runs: "container" (default) or "host"
+PYTEST_MODE="${GANEK_CI_PYTEST:-container}"
 E2E_COMPOSE="docker compose --env-file .env.example -p ganek-e2e -f docker-compose.yml -f docker-compose.e2e.yml"
 
 STAGES=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --python) PYTHONS="$2"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     questions|audit|frontend|docs|backend|e2e) STAGES="$STAGES $1"; shift ;;
     *) echo "unknown argument: $1 (see --help)"; exit 2 ;;
   esac
@@ -53,6 +60,7 @@ STOPPED_DEV=0
 E2E_UP=0
 cleanup() {
   docker rm -f "$PG_CTR" "$MINIO_CTR" >/dev/null 2>&1 || true
+  docker network rm "$CI_NET" >/dev/null 2>&1 || true
   if [ "$E2E_UP" = 1 ]; then $E2E_COMPOSE down -v >/dev/null 2>&1 || true; fi
   if [ "$STOPPED_DEV" = 1 ]; then
     echo "restoring dev stack..."
@@ -100,10 +108,14 @@ wait_stack() {
 
 start_backend_services() {
   docker rm -f "$PG_CTR" "$MINIO_CTR" >/dev/null 2>&1 || true
-  docker run -d --rm --name "$PG_CTR" \
+  docker network rm "$CI_NET" >/dev/null 2>&1 || true
+  docker network create "$CI_NET" >/dev/null || return 1
+  # the aliases serve the in-network pytest container; the loopback ports
+  # serve GANEK_CI_PYTEST=host
+  docker run -d --rm --name "$PG_CTR" --network "$CI_NET" --network-alias postgres \
     -e POSTGRES_USER=ganek -e POSTGRES_PASSWORD=ganek -e POSTGRES_DB=ganek_test \
     -p "127.0.0.1:$PG_PORT:5432" postgres:16-alpine >/dev/null
-  docker run -d --rm --name "$MINIO_CTR" \
+  docker run -d --rm --name "$MINIO_CTR" --network "$CI_NET" --network-alias minio \
     -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
     -p "127.0.0.1:$MINIO_PORT:9000" pgsty/minio:RELEASE.2026-08-04T00-00-00Z server /data >/dev/null
   local i
@@ -113,6 +125,30 @@ start_backend_services() {
   done
   echo "throwaway postgres did not become ready"
   return 1
+}
+
+run_pytest_in_network() {
+  # pytest in a throwaway uv container on $CI_NET: postgres and minio are
+  # reached by alias over the docker network, never through Docker Desktop's
+  # host port proxy. That proxy dropped fresh asyncpg connections under load
+  # (one random `asyncpg.connect` TimeoutError per run, a different test each
+  # time), while the same suite in a container on the compose network and
+  # on GitHub CI stayed green.
+  # The repo is mounted read-only; the venv and uv cache live in named
+  # volumes so later runs reuse them (`docker volume rm ganek-ci-venv-<py>`
+  # to start clean).
+  local py="$1"
+  local image="${GANEK_CI_PYTEST_IMAGE:-ghcr.io/astral-sh/uv:python$py-bookworm-slim}"
+  docker run --rm --network "$CI_NET" \
+    -v "$ROOT:/repo:ro" -w /repo/backend \
+    -v "ganek-ci-venv-$py:/venv" -v ganek-ci-uv-cache:/uv-cache \
+    -e UV_PROJECT_ENVIRONMENT=/venv -e UV_CACHE_DIR=/uv-cache \
+    -e UV_PYTHON="$py" -e UV_LINK_MODE=copy -e PYTHONDONTWRITEBYTECODE=1 \
+    -e GANEK_DATABASE_URL="postgresql+asyncpg://ganek:ganek@postgres:5432/ganek_test" \
+    -e GANEK_S3_ENDPOINT_URL="http://minio:9000" \
+    -e GANEK_S3_BUCKET=ganek-cvs-test \
+    "$image" \
+    sh -c 'uv sync --frozen -q && uv run --frozen pytest -p no:cacheprovider'
 }
 
 # --- stages ----------------------------------------------------------------
@@ -189,9 +225,14 @@ stage_backend() {
         && uv run --frozen ruff check . \
         && uv run --frozen ruff format --check . \
         && uv run --frozen mypy app \
-        && uv run --frozen pytest
+        && if [ "$PYTEST_MODE" = host ]; then
+          uv run --frozen pytest
+        else
+          run_pytest_in_network "$py"
+        fi
     ) || rc=1
     docker rm -f "$PG_CTR" "$MINIO_CTR" >/dev/null 2>&1 || true
+    docker network rm "$CI_NET" >/dev/null 2>&1 || true
     if [ "$rc" = 1 ]; then return 1; fi
   done
   return 0
