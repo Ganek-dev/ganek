@@ -1,0 +1,28 @@
+name: Auto-merge agent PRs
+
+# Owner decision 2026-11-07: PRs from the scheduled agent's `auto/*` branches
+# merge themselves (squash) once every required check on main passes. GitHub's
+# native auto-merge waits for the ruleset's required checks, so nothing merges
+# red, pending or skipped. Fork PRs never qualify.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    name: enable auto-merge
+    if: >-
+      startsWith(github.head_ref, 'auto/') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main' &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr merge --auto --squash --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
