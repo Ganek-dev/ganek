@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ScreeningQuestion } from "@/lib/api";
 
-import { ACK_HELP, ScreeningQuestionsEditor, newLocalQuestion } from "./ScreeningQuestionsEditor";
+import {
+  ACK_HELP,
+  ScreeningQuestionsEditor,
+  firstScreeningProblem,
+  newLocalQuestion,
+  questionProblem,
+} from "./ScreeningQuestionsEditor";
 
 const PERMIT: ScreeningQuestion = {
   id: "sq_0000aa01",
@@ -135,6 +141,41 @@ describe("ScreeningQuestionsEditor", () => {
     await user.click(screen.getByRole("button", { name: "Reset to company defaults" }));
     expect(confirm).toHaveBeenCalledTimes(2); // no dialog for an empty list
     expect(onReset).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a visible number on every row", () => {
+    render(<ScreeningQuestionsEditor value={[PERMIT, DAYS]} onChange={vi.fn()} />);
+    expect(
+      within(screen.getByRole("group", { name: "Question 2" })).getByText("Question 2"),
+    ).toBeVisible();
+  });
+
+  it.each([
+    ["an empty prompt", { ...PERMIT, prompt: "   " }, "Add a prompt"],
+    ["one option", { ...DAYS, options: ["0"] }, "Add at least two options"],
+    ["an empty option", { ...DAYS, options: ["0", " "] }, "Fill in or remove the empty option"],
+    ["duplicate options", { ...DAYS, options: ["0", " 0 "] }, "Options must be different"],
+  ])("refuses %s like the server does", (_, question, problem) => {
+    expect(questionProblem(question)).toBe(problem);
+    expect(firstScreeningProblem([PERMIT, question])).toBe(`Question 2: ${problem}`);
+  });
+
+  it("passes the states the server accepts", () => {
+    expect(firstScreeningProblem([PERMIT, DAYS, ACK])).toBeNull();
+    expect(firstScreeningProblem([])).toBeNull();
+    expect(questionProblem({ ...newLocalQuestion("short_text"), prompt: "Notice?" })).toBeNull();
+  });
+
+  it("marks refused rows only when asked to", () => {
+    const bad = { ...DAYS, options: ["0", "0"] };
+    const { rerender } = render(
+      <ScreeningQuestionsEditor value={[PERMIT, bad]} onChange={vi.fn()} />,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    rerender(<ScreeningQuestionsEditor value={[PERMIT, bad]} onChange={vi.fn()} showProblems />);
+    const row = screen.getByRole("group", { name: "Question 2" });
+    expect(within(row).getByRole("alert")).toHaveTextContent("Options must be different");
+    expect(within(screen.getByRole("group", { name: "Question 1" })).queryByRole("alert")).toBeNull();
   });
 
   it("has no reset button without onReset and caps the list at twenty", () => {

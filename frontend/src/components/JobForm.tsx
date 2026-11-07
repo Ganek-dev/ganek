@@ -8,7 +8,10 @@ import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-rea
 import { questionnaires, questions } from "@/lib/api";
 import { locationPolicyHint } from "@/lib/location-policy";
 import { ScorecardTemplateEditor, hasBlankLabel } from "@/components/ScorecardTemplateEditor";
-import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
+import {
+  ScreeningQuestionsEditor,
+  firstScreeningProblem,
+} from "@/components/ScreeningQuestionsEditor";
 import { Switch } from "@/components/ui/switch";
 import type {
   ScorecardCriterion,
@@ -102,6 +105,7 @@ export function JobForm({
   const [screening, setScreening] = useState<ScreeningQuestion[]>(
     initial?.screening_questions ?? defaultScreening ?? [],
   );
+  const [showScreeningProblems, setShowScreeningProblems] = useState(false);
   const [busy, setBusy] = useState(false);
   // tracked only for the location vs remote policy hint; the submit still reads FormData
   const [location, setLocation] = useState(initial?.location ?? "");
@@ -225,6 +229,13 @@ export function JobForm({
     setError(null);
     if (initial && hasBlankLabel(scorecard)) {
       setShowBlank(true);
+      return;
+    }
+    // the server would 422 the whole job; say which question before the round trip
+    const screeningProblem = firstScreeningProblem(screening);
+    if (screeningProblem) {
+      setShowScreeningProblems(true);
+      setError(screeningProblem);
       return;
     }
     setBusy(true);
@@ -494,6 +505,7 @@ export function JobForm({
           <ScreeningQuestionsEditor
             value={screening}
             onChange={setScreening}
+            showProblems={showScreeningProblems}
             onReset={
               defaultScreening ? () => setScreening(defaultScreening) : undefined
             }

@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { ScorecardTemplateEditor, hasBlankLabel } from "@/components/ScorecardTemplateEditor";
-import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
+import {
+  ScreeningQuestionsEditor,
+  firstScreeningProblem,
+} from "@/components/ScreeningQuestionsEditor";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, type ScorecardCriterion, type ScreeningQuestion } from "@/lib/api";
 
@@ -37,6 +40,7 @@ export default function HiringSettingsPage() {
   // the company default screening questions: new jobs start with a copy
   const [defaults, setDefaults] = useState<ScreeningQuestion[] | null>(null);
   const [savingDefaults, setSavingDefaults] = useState(false);
+  const [showScreeningProblems, setShowScreeningProblems] = useState(false);
   // the company default scorecard: new jobs copy it
   const [scorecard, setScorecard] = useState<ScorecardCriterion[] | null>(null);
   const [savingScorecard, setSavingScorecard] = useState(false);
@@ -158,13 +162,23 @@ export default function HiringSettingsPage() {
           <div aria-busy="true" className="mt-3 h-16 animate-pulse rounded-md bg-muted-fill" />
         ) : (
           <div className="mt-3">
-            <ScreeningQuestionsEditor value={defaults} onChange={setDefaults} />
+            <ScreeningQuestionsEditor
+              value={defaults}
+              onChange={setDefaults}
+              showProblems={showScreeningProblems}
+            />
             <button
               type="button"
               disabled={savingDefaults}
               onClick={async () => {
                 setError(null);
                 setNotice(null);
+                const problem = firstScreeningProblem(defaults);
+                if (problem) {
+                  setShowScreeningProblems(true);
+                  setError(problem);
+                  return;
+                }
                 setSavingDefaults(true);
                 try {
                   const saved = await companyApi.updateSettings({ screening_questions: defaults });

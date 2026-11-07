@@ -118,7 +118,8 @@ def pseudonymize(
     """The same submission with every personal value replaced. Only the
     captcha payload survives: it was already verified and carries no PII.
     Screening answers to choice and acknowledgment questions are kept (they
-    are picks, not typed text); short-text answers become a placeholder."""
+    are picks, not typed text); short-text answers become a placeholder, and
+    a whitespace-only one stays empty like the apply route reads it."""
     tag = secrets.token_hex(3)
     text_ids = {q.id for q in questions or [] if q.type == "short_text"}
     return ApplicationSubmit(
@@ -137,7 +138,9 @@ def pseudonymize(
                 question_id=answer.question_id,
                 answer=(
                     TEXT_ANSWER_PLACEHOLDER
-                    if answer.question_id in text_ids and answer.answer not in (None, "")
+                    if answer.question_id in text_ids
+                    and isinstance(answer.answer, str)
+                    and answer.answer.strip() != ""
                     else answer.answer
                 ),
             )

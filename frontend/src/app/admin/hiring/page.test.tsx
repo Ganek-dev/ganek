@@ -117,6 +117,15 @@ describe("HiringSettingsPage default screening questions", () => {
     );
     expect(await screen.findByRole("status")).toHaveTextContent("Saved");
   });
+
+  it("does not send a set the server would refuse", async () => {
+    render(<HiringSettingsPage />);
+    const prompt = await screen.findByLabelText("Prompt");
+    await userEvent.clear(prompt);
+    await userEvent.click(screen.getByRole("button", { name: "Save default questions" }));
+    expect(mocked.updateSettings).not.toHaveBeenCalled();
+    expect(screen.getByText("Question 1: Add a prompt")).toBeInTheDocument();
+  });
 });
 
 describe("HiringSettingsPage default scorecard", () => {

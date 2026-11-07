@@ -5,14 +5,15 @@ the job's list and the public apply form, plus the candidate's answers.
 Hard rule 5 applies in full: an answer never moves a stage, never sends a
 mail, never touches a score. A preferred answer only produces a mark the
 recruiter reads. ``preferred`` is recruiter-internal and leaves this module
-only through recruiter-facing schemas; ``public_view`` strips it.
+only through recruiter-facing schemas; the public apply form gets
+``schemas.public.PublicScreeningQuestion``, which drops it.
 """
 
 import re
 import secrets
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 ScreeningQuestionType = Literal["yes_no", "single_choice", "short_text", "acknowledgment"]
 
@@ -81,37 +82,42 @@ class ScreeningQuestion(BaseModel):
         return self
 
 
+def _row_reason(exc: ValidationError) -> str:
+    """The first problem of one question in words the editor uses."""
+    error = exc.errors(include_url=False)[0]
+    field = str(error["loc"][-1]) if error["loc"] else ""
+    if error["type"] == "value_error":
+        return str(error["ctx"]["error"])
+    if field == "prompt" and error["type"] == "string_too_short":
+        return "the prompt is empty"
+    return f"{field}: {error['msg']}" if field else str(error["msg"])
+
+
 def validate_questions(raw: list[dict[str, Any]]) -> list[ScreeningQuestion]:
     """The list as the admin API receives it: ids filled in when missing,
-    duplicates and the sanity ceiling refused (ValueError -> 422)."""
+    duplicates and the sanity ceiling refused (ValueError -> 422). A
+    question that does not validate is named by its 1-based row, the
+    number the editor shows, so the 422 points at the row to fix."""
     if len(raw) > MAX_QUESTIONS:
         raise ValueError(f"at most {MAX_QUESTIONS} screening questions")
     if any(not isinstance(item, dict) for item in raw):
         # a bare string or null would TypeError on the unpack below, which
         # pydantic does not turn into a 422
         raise ValueError("each screening question must be an object")
-    questions = [
-        ScreeningQuestion.model_validate({**item, "id": item.get("id") or new_question_id()})
-        for item in raw
-    ]
+    questions: list[ScreeningQuestion] = []
+    for row, item in enumerate(raw, start=1):
+        try:
+            questions.append(
+                ScreeningQuestion.model_validate(
+                    {**item, "id": item.get("id") or new_question_id()}
+                )
+            )
+        except ValidationError as exc:
+            raise ValueError(f"Question {row}: {_row_reason(exc)}") from None
     ids = [question.id for question in questions]
     if len(set(ids)) != len(ids):
         raise ValueError("duplicate question id")
     return questions
-
-
-def public_view(questions: list[ScreeningQuestion]) -> list[dict[str, Any]]:
-    """What a candidate may see: never ``preferred``."""
-    return [
-        {
-            "id": question.id,
-            "type": question.type,
-            "prompt": question.prompt,
-            "options": question.options,
-            "required": question.required,
-        }
-        for question in questions
-    ]
 
 
 # --- answers ----------------------------------------------------------------
