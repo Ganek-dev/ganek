@@ -312,7 +312,10 @@ export default function JobOverviewPage() {
         />
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* grid-cols-1 below lg: an implicit auto column grows to the widest
+          unbreakable line inside it (the Google Jobs JSON-LD), and the page
+          scrolled sideways below 1024 px */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="card overflow-visible">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-3">
             <span className="font-heading text-[15px] font-semibold">Pipeline</span>

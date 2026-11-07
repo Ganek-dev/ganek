@@ -167,7 +167,7 @@ function ReportsContent() {
           </Funnel>
           <TimeInStage rows={current.report.time_in_stage} />
           <SourcesTable rows={current.report.sources} />
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ScoreDistribution quiz={current.report.quiz_scores} />
             <WeeklyChart weekly={current.report.weekly} period={period} />
           </div>
