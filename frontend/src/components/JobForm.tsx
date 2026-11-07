@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
-import { questionnaires, questions } from "@/lib/api";
+import { questionnaires, questions, team } from "@/lib/api";
 import { locationPolicyHint } from "@/lib/location-policy";
 import { ScorecardTemplateEditor, hasBlankLabel } from "@/components/ScorecardTemplateEditor";
 import {
@@ -24,6 +24,8 @@ import type {
   QuizConfig,
   RemotePolicy,
   SalaryPeriod,
+  Seniority,
+  TeamUser,
 } from "@/lib/api";
 
 /** Job form, handoff screen 08: two-column layout with a fields card and a
@@ -31,7 +33,7 @@ import type {
  * segmented per-question timer). Questionnaire attach lands with D4. */
 
 const DIFFICULTIES: Difficulty[] = [1, 2, 3, 4, 5];
-const TIMER_PRESETS = [20, 25, 30];
+const TIMER_PRESETS = [20, 25, 30, 45, 60];
 
 const REMOTE_POLICIES: { value: RemotePolicy; label: string }[] = [
   { value: "onsite", label: "On-site" },
@@ -44,6 +46,34 @@ const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
   { value: "part_time", label: "Part-time" },
   { value: "contract", label: "Contract" },
   { value: "internship", label: "Internship" },
+];
+
+const SENIORITIES: { value: Seniority; label: string }[] = [
+  { value: "intern", label: "Intern" },
+  { value: "junior", label: "Junior" },
+  { value: "mid", label: "Mid-level" },
+  { value: "senior", label: "Senior" },
+  { value: "lead", label: "Lead" },
+  { value: "principal", label: "Principal" },
+];
+
+/** ISO 639-1 codes offered for the posting language; a stored code outside
+ * the list is kept as an extra option. */
+const LANGUAGES: { value: string; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "de", label: "German" },
+  { value: "fr", label: "French" },
+  { value: "es", label: "Spanish" },
+  { value: "it", label: "Italian" },
+  { value: "nl", label: "Dutch" },
+  { value: "pl", label: "Polish" },
+  { value: "pt", label: "Portuguese" },
+  { value: "sv", label: "Swedish" },
+  { value: "da", label: "Danish" },
+  { value: "fi", label: "Finnish" },
+  { value: "no", label: "Norwegian" },
+  { value: "cs", label: "Czech" },
+  { value: "uk", label: "Ukrainian" },
 ];
 
 const SALARY_PERIODS: { value: SalaryPeriod; label: string }[] = [
@@ -113,6 +143,12 @@ export function JobForm({
     initial?.remote_policy ?? "onsite",
   );
   const policyHint = locationPolicyHint(location, remotePolicy);
+  const [closesOn, setClosesOn] = useState(initial?.closes_at?.slice(0, 10) ?? "");
+  const [teammates, setTeammates] = useState<TeamUser[]>([]);
+  const languageOptions =
+    initial?.language && !LANGUAGES.some((l) => l.value === initial.language)
+      ? [...LANGUAGES, { value: initial.language, label: initial.language }]
+      : LANGUAGES;
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagDraft, setTagDraft] = useState("");
   const [quizEnabled, setQuizEnabled] = useState(initial?.quiz_config.enabled ?? false);
@@ -132,6 +168,24 @@ export function JobForm({
     Record<string, { easy: number; medium: number; hard: number; total: number; seconds: number }>
   >({});
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Owner picker: active teammates; best-effort, the field stays optional
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => team.list())
+      .then((users) => {
+        if (!cancelled && Array.isArray(users)) {
+          setTeammates(users.filter((user) => user.is_active));
+        }
+      })
+      .catch(() => {
+        // no options beyond the current owner; the form still submits
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load the list once the assessment section is expanded - populates the picker
   // and lets us look up the attached one by name without another fetch.
@@ -269,6 +323,12 @@ export function JobForm({
         salary_currency: str("salary_currency") === "" ? null : str("salary_currency"),
         salary_period: str("salary_period") as SalaryPeriod,
         closes_at: str("closes_at") === "" ? null : str("closes_at"),
+        auto_close: str("closes_at") !== "" && data.get("auto_close") === "on",
+        department: str("department"),
+        seniority: str("seniority") === "" ? null : (str("seniority") as Seniority),
+        language: str("language") === "" ? null : str("language"),
+        owner_user_id: str("owner_user_id") === "" ? null : str("owner_user_id"),
+        internal_note: str("internal_note"),
         tags,
         quiz_config,
         screening_questions: screening,
@@ -345,6 +405,30 @@ export function JobForm({
           </p>
         )}
 
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-2">
+            <span className={labelCls}>Department</span>
+            <input
+              name="department"
+              maxLength={100}
+              placeholder="Engineering"
+              defaultValue={initial?.department ?? ""}
+              className={inputCls}
+            />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className={labelCls}>Seniority</span>
+            <select name="seniority" defaultValue={initial?.seniority ?? ""} className={inputCls}>
+              <option value="">Not set</option>
+              {SENIORITIES.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <label className="flex flex-col gap-2">
             <span className={labelCls}>Salary min</span>
@@ -398,15 +482,82 @@ export function JobForm({
             <input
               name="closes_at"
               type="date"
-              defaultValue={initial?.closes_at?.slice(0, 10) ?? ""}
+              value={closesOn}
+              onChange={(e) => setClosesOn(e.target.value)}
               className={inputCls}
             />
             <span className="text-xs text-g500">
-              Optional. Tells search engines when the posting expires - it never
-              closes the job for you.
+              Optional. Tells search engines when the posting expires.
             </span>
           </label>
+          <div className="flex flex-col gap-2 sm:pt-7">
+            <label className="flex items-start gap-2 text-[13.5px]">
+              <input
+                type="checkbox"
+                name="auto_close"
+                defaultChecked={initial?.auto_close ?? false}
+                disabled={closesOn === ""}
+                aria-describedby="auto-close-hint"
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>Close the job automatically after this day</span>
+            </label>
+            <span id="auto-close-hint" className="text-xs text-g500">
+              {closesOn === ""
+                ? "Pick a closes-on date first. Off means the job stays open until you close it."
+                : "Closes when the day is over (UTC). Applicants already in the pipeline stay where they are."}
+            </span>
+          </div>
         </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-2">
+            <span className={labelCls}>Posting language</span>
+            <select name="language" defaultValue={initial?.language ?? ""} className={inputCls}>
+              <option value="">Not set</option>
+              {languageOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className={labelCls}>Owner</span>
+            <select
+              key={teammates.length}
+              name="owner_user_id"
+              defaultValue={initial?.owner_user_id ?? ""}
+              className={inputCls}
+            >
+              <option value="">No owner</option>
+              {initial?.owner_user_id &&
+              !teammates.some((user) => user.id === initial.owner_user_id) ? (
+                <option value={initial.owner_user_id}>Current owner</option>
+              ) : null}
+              {teammates.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.display_label || user.display_name || user.email}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-g500">Team only, never shown to candidates.</span>
+          </label>
+        </div>
+
+        <label className="flex flex-col gap-2">
+          <span className={labelCls}>Internal note</span>
+          <textarea
+            name="internal_note"
+            maxLength={5000}
+            rows={2}
+            defaultValue={initial?.internal_note ?? ""}
+            className="w-full rounded-md border border-edge bg-transparent px-3 py-2 text-sm outline-none focus:border-g400"
+          />
+          <span className="text-xs text-g500">
+            Team only: budget, approvals, who to ask. Never shown to candidates.
+          </span>
+        </label>
 
         {initial ? (
           <div className="flex flex-col gap-2">

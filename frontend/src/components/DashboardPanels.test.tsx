@@ -228,6 +228,14 @@ describe("ActivityPanel", () => {
         application_id: null,
         created_at: new Date(Date.now() - 18_000_000).toISOString(),
       },
+      {
+        id: "a6",
+        type: "job.auto_closed",
+        payload: { job: "Platform Engineer", job_id: "j1" },
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 21_600_000).toISOString(),
+      },
     ]);
     render(<ActivityPanel />);
     expect(
@@ -240,6 +248,9 @@ describe("ActivityPanel", () => {
     expect(screen.getByText("grumpy@acme.dev rejected 1 candidate")).toBeInTheDocument();
     expect(
       screen.getByText("grumpy@acme.dev imported 12 candidates into Backend Engineer (3 skipped)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Platform Engineer closed automatically after its closes-on day"),
     ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();

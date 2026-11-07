@@ -12,6 +12,23 @@ export const EMPLOYMENT_LABELS: Record<string, string> = {
   internship: "Internship",
 };
 
+export const SENIORITY_LABELS: Record<string, string> = {
+  intern: "Intern",
+  junior: "Junior",
+  mid: "Mid-level",
+  senior: "Senior",
+  lead: "Lead",
+  principal: "Principal",
+};
+
+/** Department and seniority, the job fields a candidate sees. */
+export function jobFieldChips(job: PublicJobSummary): string[] {
+  return [
+    job.department || null,
+    job.seniority ? (SENIORITY_LABELS[job.seniority] ?? null) : null,
+  ].filter(Boolean) as string[];
+}
+
 export const REMOTE_LABELS: Record<string, string> = {
   onsite: "On-site",
   hybrid: "Hybrid",
@@ -55,9 +72,11 @@ export function formatPostedAgo(publishedAt: string | null, now: Date = new Date
   return `${Math.max(1, Math.floor(days / 30))}mo ago`;
 }
 
-/** Mono meta line under a job title: location · remote · type · salary · age. */
+/** Mono meta line under a job title: department · seniority · location ·
+ * remote · type · salary · age. */
 export function jobMetaLine(job: PublicJobSummary, now: Date = new Date()): string {
   return [
+    ...jobFieldChips(job),
     job.location || null,
     REMOTE_LABELS[job.remote_policy],
     EMPLOYMENT_LABELS[job.employment_type],

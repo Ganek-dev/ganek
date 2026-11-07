@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import EmploymentType, JobStatus, RemotePolicy, SalaryPeriod
+from app.models import EmploymentType, JobStatus, RemotePolicy, SalaryPeriod, Seniority
 from app.schemas.scorecard_template import ScorecardCriterion, validate_criteria
 from app.services.screening import ScreeningQuestion, validate_questions
 
@@ -26,6 +26,11 @@ def _as_utc(value: datetime | None) -> datetime | None:
 
 
 ClosesAt = Annotated[datetime | None, AfterValidator(_as_utc)]
+
+# ISO 639-1, optionally with a region ("en", "pl", "pt-BR")
+Language = Annotated[str | None, Field(pattern=r"^[a-z]{2}(-[A-Z]{2})?$")]
+Department = Annotated[str, Field(max_length=100)]
+InternalNote = Annotated[str, Field(max_length=5_000)]
 
 
 def _screening_list(value: object) -> object:
@@ -103,6 +108,14 @@ class JobCreate(BaseModel):
     salary_currency: str | None = Field(default=None, min_length=3, max_length=3)
     salary_period: SalaryPeriod = SalaryPeriod.YEAR
     closes_at: ClosesAt = None
+    # close the posting once the closes-on day is over (worker, hourly)
+    auto_close: bool = False
+    department: Department = ""
+    seniority: Seniority | None = None
+    language: Language = None
+    # a teammate in this workspace (checked in services.jobs)
+    owner_user_id: uuid.UUID | None = None
+    internal_note: InternalNote = ""
     tags: list[str] = Field(default_factory=list, max_length=20)
     quiz_config: QuizConfigSchema = Field(default_factory=QuizConfigSchema)
     # None = copy the company default set (services.jobs.create_job)
@@ -142,6 +155,12 @@ class JobUpdate(BaseModel):
     salary_currency: str | None = Field(default=None, min_length=3, max_length=3)
     salary_period: SalaryPeriod | None = None
     closes_at: ClosesAt = None
+    auto_close: bool | None = None
+    department: Department | None = None
+    seniority: Seniority | None = None
+    language: Language = None
+    owner_user_id: uuid.UUID | None = None
+    internal_note: InternalNote | None = None
     tags: list[str] | None = Field(default=None, max_length=20)
     quiz_config: QuizConfigSchema | None = None
     # None = untouched; a list replaces the job's questions
@@ -175,6 +194,12 @@ class JobOut(BaseModel):
     salary_currency: str | None
     salary_period: SalaryPeriod
     closes_at: datetime | None
+    auto_close: bool = False
+    department: str = ""
+    seniority: Seniority | None = None
+    language: str | None = None
+    owner_user_id: uuid.UUID | None = None
+    internal_note: str = ""
     tags: list[str]
     status: JobStatus
     quiz_config: QuizConfigSchema

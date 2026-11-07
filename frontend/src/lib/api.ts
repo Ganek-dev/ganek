@@ -46,6 +46,7 @@ export type RemotePolicy = "onsite" | "hybrid" | "remote";
 export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
 export type SalaryPeriod = "hour" | "day" | "week" | "month" | "year";
 export type JobStatus = "draft" | "published" | "closed";
+export type Seniority = "intern" | "junior" | "mid" | "senior" | "lead" | "principal";
 
 export interface QuizConfig {
   enabled: boolean;
@@ -108,6 +109,16 @@ export interface JobOut {
   salary_currency: string | null;
   salary_period: SalaryPeriod;
   closes_at: string | null;
+  /** Close the posting once the closes-on day is over. */
+  auto_close?: boolean;
+  department?: string;
+  seniority?: Seniority | null;
+  /** ISO 639-1 code of the posting ("en", "pl"). */
+  language?: string | null;
+  /** A teammate; never shown to candidates. */
+  owner_user_id?: string | null;
+  /** Team-only note; never shown to candidates. */
+  internal_note?: string;
   tags: string[];
   status: JobStatus;
   quiz_config: QuizConfig;
@@ -132,6 +143,12 @@ export interface JobInput {
   salary_currency: string | null;
   salary_period: SalaryPeriod;
   closes_at: string | null;
+  auto_close?: boolean;
+  department?: string;
+  seniority?: Seniority | null;
+  language?: string | null;
+  owner_user_id?: string | null;
+  internal_note?: string;
   tags: string[];
   quiz_config: QuizConfig;
   screening_questions: ScreeningQuestion[];
@@ -365,6 +382,9 @@ export const api = {
       request<JobOut>(`/api/v1/jobs/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
     publish: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/publish`, { method: "POST" }),
     close: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/close`, { method: "POST" }),
+    /** A draft copy: posting, quiz, screening and scorecard; no closes-on date. */
+    duplicate: (id: string) =>
+      request<JobOut>(`/api/v1/jobs/${id}/duplicate`, { method: "POST" }),
     delete: (id: string) => request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
     quizPreview: (id: string) => request<QuizPreview>(`/api/v1/jobs/${id}/quiz-preview`),
     stats: (id: string) => request<JobStats>(`/api/v1/jobs/${id}/stats`),
@@ -495,6 +515,9 @@ export interface JobsFeedItem {
   location: string;
   remote_policy: RemotePolicy;
   employment_type: EmploymentType;
+  department?: string;
+  seniority?: Seniority | null;
+  language?: string | null;
   tags: string[];
   apply_url: string;
   posted_at: string | null;

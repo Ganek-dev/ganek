@@ -87,10 +87,15 @@
         row.rel = "noreferrer";
         var title = el("div", "font-size:14px;font-weight:600;color:" + brand, job.title);
         row.appendChild(title);
+        // department first ("Engineering \u00b7 Warsaw"); either may be blank
         var meta = el(
           "div",
           "margin-top:2px;font-size:12px;color:" + palette.muted,
-          job.location || "",
+          [job.department, job.location]
+            .filter(function (part) {
+              return part;
+            })
+            .join(" \u00b7 "),
         );
         row.appendChild(meta);
         if (showTags && job.tags && job.tags.length) {

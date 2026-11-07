@@ -42,6 +42,7 @@ SCORECARD_REQUESTED = "scorecard.requested"
 SCORECARD_SUBMITTED = "scorecard.submitted"
 SCORECARD_DECLINED = "scorecard.declined"
 SCORECARD_DISMISSED = "scorecard.dismissed"
+JOB_AUTO_CLOSED = "job.auto_closed"
 
 
 def record(

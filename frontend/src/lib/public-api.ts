@@ -2,7 +2,7 @@
 
 import "server-only";
 
-import type { EmploymentType, RemotePolicy, SalaryPeriod } from "@/lib/api";
+import type { EmploymentType, RemotePolicy, SalaryPeriod, Seniority } from "@/lib/api";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
@@ -18,6 +18,11 @@ export interface PublicJobSummary {
   salary_period: SalaryPeriod;
   tags: string[];
   published_at: string | null;
+  /** "" when unset. */
+  department?: string;
+  seniority?: Seniority | null;
+  /** ISO 639-1 code of the posting ("en", "pl"). */
+  language?: string | null;
 }
 
 /** A screening question as the apply form renders it: never the recruiter's

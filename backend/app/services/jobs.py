@@ -1,12 +1,14 @@
+import copy
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Job, JobStatus, Questionnaire
+from app.models import Company, Job, JobStatus, Questionnaire, User
 from app.schemas.jobs import JobCreate, JobUpdate
 from app.schemas.scorecard_template import ensure_criterion_ids
+from app.services import activity
 from app.services.slugs import slugify, with_random_suffix
 
 
@@ -36,6 +38,27 @@ async def _ensure_questionnaire_visible(
         raise ValueError(f"questionnaire {questionnaire_id} not found in this workspace")
 
 
+async def _ensure_owner_in_company(
+    db: AsyncSession, company: Company, owner_user_id: uuid.UUID | None
+) -> None:
+    """The owner is an active teammate of this workspace, never someone else's."""
+    if owner_user_id is None:
+        return
+    exists = (
+        await db.execute(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.company_id == company.id,
+                User.id == owner_user_id,
+                User.is_active.is_(True),
+            )
+        )
+    ).scalar_one()
+    if not exists:
+        raise ValueError("The job owner must be an active teammate in this workspace")
+
+
 async def _unique_slug(db: AsyncSession, company_id: uuid.UUID, base: str) -> str:
     slug = base
     while True:
@@ -53,6 +76,7 @@ async def _unique_slug(db: AsyncSession, company_id: uuid.UUID, base: str) -> st
 
 async def create_job(db: AsyncSession, company: Company, payload: JobCreate) -> Job:
     await _ensure_questionnaire_visible(db, company, payload.quiz_config.questionnaire_id)
+    await _ensure_owner_in_company(db, company, payload.owner_user_id)
     # python-mode dump: closes_at must stay a datetime for the timestamptz
     # column; quiz_config alone re-dumps json-mode (UUID -> str for JSONB)
     values = payload.model_dump()
@@ -99,6 +123,14 @@ async def update_job(db: AsyncSession, company: Company, job: Job, payload: JobU
     if payload.quiz_config is not None:
         await _ensure_questionnaire_visible(db, company, payload.quiz_config.questionnaire_id)
     values = payload.model_dump(exclude_unset=True)
+    if "owner_user_id" in values:
+        await _ensure_owner_in_company(db, company, payload.owner_user_id)
+    # NOT NULL columns: an explicit null clears the text or leaves the flag
+    for text_field in ("department", "internal_note"):
+        if text_field in values and values[text_field] is None:
+            values[text_field] = ""
+    if "auto_close" in values and values["auto_close"] is None:
+        values.pop("auto_close")
     if payload.quiz_config is not None:
         values["quiz_config"] = payload.quiz_config.model_dump(mode="json")
     if payload.screening_questions is not None:
@@ -143,6 +175,88 @@ async def close_job(db: AsyncSession, job: Job) -> Job:
     await db.commit()
     await db.refresh(job)
     return job
+
+
+# copied by "Duplicate"; status, slug, dates and the auto-close opt-in are not
+_DUPLICATED_FIELDS = (
+    "description_md",
+    "location",
+    "remote_policy",
+    "employment_type",
+    "salary_min",
+    "salary_max",
+    "salary_currency",
+    "salary_period",
+    "tags",
+    "quiz_config",
+    "screening_questions",
+    "scorecard_template",
+    "department",
+    "seniority",
+    "language",
+    "owner_user_id",
+    "internal_note",
+)
+
+
+async def duplicate_job(db: AsyncSession, company: Company, job: Job) -> Job:
+    """A draft copy of ``job``: same posting, quiz, screening and scorecard,
+    titled "<title> (copy)". The closes-on date is left out (it is usually in
+    the past for the role being copied), so auto-close starts off too."""
+    title = f"{job.title[:193]} (copy)"
+    clone = Job(
+        company_id=company.id,
+        slug=await _unique_slug(db, company.id, slugify(title)),
+        title=title,
+        status=JobStatus.DRAFT,
+        closes_at=None,
+        auto_close=False,
+        **{field: copy.deepcopy(getattr(job, field)) for field in _DUPLICATED_FIELDS},
+    )
+    db.add(clone)
+    await db.commit()
+    await db.refresh(clone)
+    return clone
+
+
+def auto_close_due(closes_at: datetime, now: datetime) -> bool:
+    """The closes-on day is a whole day: the posting stays open through it
+    and closes once it is over (UTC)."""
+    return now >= closes_at + timedelta(days=1)
+
+
+async def close_expired_jobs(db: AsyncSession, *, now: datetime) -> int:
+    """Close published jobs that opted into auto_close and whose closes-on
+    day is over. Rows are locked (SKIP LOCKED) so two workers never close the
+    same job twice. Applications are untouched: closing stops new applicants,
+    it never decides anything about the people already in the pipeline."""
+    rows = (
+        (
+            await db.execute(
+                select(Job)
+                .where(
+                    Job.status == JobStatus.PUBLISHED,
+                    Job.auto_close.is_(True),
+                    Job.closes_at.is_not(None),
+                    Job.closes_at <= now - timedelta(days=1),
+                )
+                .with_for_update(skip_locked=True)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for job in rows:
+        job.status = JobStatus.CLOSED
+        job.closed_at = now
+        activity.record(
+            db,
+            company_id=job.company_id,
+            type=activity.JOB_AUTO_CLOSED,
+            payload={"job_id": str(job.id), "job": job.title},
+        )
+    await db.commit()
+    return len(rows)
 
 
 async def delete_job(db: AsyncSession, job: Job) -> None:

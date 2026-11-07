@@ -11,7 +11,14 @@ from app.models.email_suppression import EmailSuppression
 from app.models.email_template import EmailTemplate
 from app.models.erasure_tombstone import ErasureTombstone
 from app.models.interview import Interview, InterviewStatus
-from app.models.job import EmploymentType, Job, JobStatus, RemotePolicy, SalaryPeriod
+from app.models.job import (
+    EmploymentType,
+    Job,
+    JobStatus,
+    RemotePolicy,
+    SalaryPeriod,
+    Seniority,
+)
 from app.models.job_view import JobView
 from app.models.question import (
     MAX_DIFFICULTY,
@@ -65,6 +72,7 @@ __all__ = [
     "RemotePolicy",
     "SalaryPeriod",
     "Scorecard",
+    "Seniority",
     "User",
     "UserInvite",
     "WebhookDelivery",

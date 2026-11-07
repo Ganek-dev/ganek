@@ -41,6 +41,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
         stats: vi.fn(),
         publish: vi.fn(),
         close: vi.fn(),
+        duplicate: vi.fn(),
         previewLink: vi.fn(),
       },
     },
@@ -602,5 +603,59 @@ describe("JobOverviewPage", () => {
     expect(await screen.findByRole("button", { name: "Publish" })).toBeInTheDocument();
     expect(mockedJobs.get).toHaveBeenCalledTimes(2);
     expect(mockedJobs.stats).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("JobOverviewPage job fields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedJobs.stats.mockResolvedValue(makeStats());
+    mockedCompany.get.mockRejectedValue(new Error("403 admin only"));
+    mockedCompany.summary.mockResolvedValue({
+      screening_questions: [],
+      slug: company.slug,
+      name: company.name,
+      mode: company.mode,
+    });
+    mockedJobs.previewLink.mockResolvedValue({
+      url: "http://localhost:3000/c/acme/jobs/senior-frontend-engineer?preview=default",
+      expires_at: "2026-11-02T00:00:00Z",
+    });
+    mockedApplications.list.mockResolvedValue({
+      items: [],
+      total: 0,
+      stage_counts: {},
+      sources: [],
+    });
+  });
+
+  it("shows department, seniority, language and the internal note in the header", async () => {
+    mockedJobs.get.mockResolvedValue(
+      makeJob({
+        department: "Engineering",
+        seniority: "lead",
+        language: "en",
+        internal_note: "Budget approved",
+      }),
+    );
+    render(<JobOverviewPage />);
+    expect(await screen.findByText("Engineering · Lead · EN")).toBeInTheDocument();
+    expect(screen.getByText("Budget approved")).toBeInTheDocument();
+  });
+
+  it("duplicates the job into a draft", async () => {
+    mockedJobs.get.mockResolvedValue(makeJob());
+    mockedJobs.duplicate.mockResolvedValue(makeJob({ id: "copy-1", status: "draft" }));
+    render(<JobOverviewPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Duplicate" }));
+    expect(mockedJobs.duplicate).toHaveBeenCalledWith(JOB_ID);
+  });
+
+  it("says when the copy could not be made", async () => {
+    mockedJobs.get.mockResolvedValue(makeJob());
+    mockedJobs.duplicate.mockRejectedValue(new Error("Job not found"));
+    render(<JobOverviewPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Duplicate" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Job not found");
   });
 });

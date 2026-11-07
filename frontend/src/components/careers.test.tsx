@@ -176,3 +176,18 @@ describe("JSON-LD", () => {
     expect(withDeadline.validThrough).toBe("2026-12-01T00:00:00Z");
   });
 });
+
+describe("job fields on the careers page", () => {
+  it("leads the meta line with department and seniority", () => {
+    const line = jobMetaLine(
+      { ...designJob, department: "Design", seniority: "senior" },
+      new Date("2026-07-22T00:00:00Z"),
+    );
+    expect(line.startsWith("Design · Senior · London")).toBe(true);
+  });
+
+  it("leaves them out when unset", () => {
+    const line = jobMetaLine({ ...designJob, department: "", seniority: null });
+    expect(line.startsWith("London")).toBe(true);
+  });
+});
