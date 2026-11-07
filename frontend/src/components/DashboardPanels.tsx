@@ -330,15 +330,45 @@ function activityCopy(item: ActivityItem): string {
   }
 }
 
+/** How long the Activity card waits before it gives up on the feed and offers
+ * a retry instead of a skeleton that never resolves. */
+export const ACTIVITY_TIMEOUT_MS = 10_000;
+
+type ActivityState =
+  | { status: "loading" }
+  | { status: "ready"; items: ActivityItem[] }
+  | { status: "error" };
+
 export function ActivityPanel() {
-  const [items, setItems] = useState<ActivityItem[] | null>(null);
+  const [state, setState] = useState<ActivityState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let settled = false;
+    setState({ status: "loading" });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      setState({ status: "error" });
+    }, ACTIVITY_TIMEOUT_MS);
     dashboard
       .activity()
-      .then(setItems)
-      .catch(() => setItems([]));
-  }, []);
+      .then((items) => {
+        if (settled) return;
+        settled = true;
+        setState({ status: "ready", items: Array.isArray(items) ? items : [] });
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        setState({ status: "error" });
+      })
+      .finally(() => clearTimeout(timer));
+    return () => {
+      settled = true;
+      clearTimeout(timer);
+    };
+  }, [attempt]);
 
   return (
     <section className={panelCls}>
@@ -346,13 +376,31 @@ export function ActivityPanel() {
         <Activity aria-hidden className="h-3.5 w-3.5" />
         Activity
       </h2>
-      {items === null ? (
-        <div aria-busy="true" className="mt-3 h-20 animate-pulse rounded-md bg-muted-fill" />
-      ) : items.length === 0 ? (
-        <p className="mt-3 text-[12.5px] text-g500">Activity shows up as candidates apply.</p>
+      {state.status === "loading" ? (
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Loading activity"
+          className="mt-3 h-20 animate-pulse rounded-md bg-muted-fill"
+        />
+      ) : state.status === "error" ? (
+        <div className="mt-3 text-[12.5px] text-g500">
+          <p>Couldn&apos;t load recent activity.</p>
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="mt-2 rounded-md border border-edge px-2.5 py-1 text-[12px] hover:bg-muted-fill/50"
+          >
+            Try again
+          </button>
+        </div>
+      ) : state.items.length === 0 ? (
+        <p className="mt-3 text-[12.5px] text-g500">
+          No activity yet. New applications, assessments and stage changes show up here.
+        </p>
       ) : (
         <ul className="mt-3 space-y-2">
-          {items.map((item) => (
+          {state.items.map((item) => (
             <li key={item.id} className="flex items-baseline justify-between gap-2">
               <p className="min-w-0 truncate text-[12.5px]">{activityCopy(item)}</p>
               <span className="shrink-0 font-mono text-[10.5px] text-g400">

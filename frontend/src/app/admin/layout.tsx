@@ -157,11 +157,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span className="flex-1">{label}</span>
                 {counter !== null ? (
                   <span
+                    title={label === "Applicants" ? `${counter} new applicants` : undefined}
                     className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] ${
                       active ? "bg-white/15 text-white" : "bg-white/10 text-zinc-300"
                     }`}
                   >
-                    {counter}
+                    {label === "Applicants" ? (
+                      <>
+                        {counter} new<span className="sr-only"> applicants</span>
+                      </>
+                    ) : (
+                      counter
+                    )}
                   </span>
                 ) : null}
               </Link>

@@ -92,7 +92,9 @@ describe("AdminLayout", () => {
       "aria-current",
     );
     await waitFor(() => expect(jobs).toHaveTextContent("4")); // 3 published + 1 draft
-    expect(screen.getByRole("link", { name: /Applicants/ })).toHaveTextContent("7");
+    const applicants = screen.getByRole("link", { name: /Applicants/ });
+    expect(applicants).toHaveTextContent("7 new");
+    expect(applicants).toHaveAccessibleName(/7 new applicants/);
     expect(screen.getByText("grumpy@acme.dev")).toBeInTheDocument();
   });
 
