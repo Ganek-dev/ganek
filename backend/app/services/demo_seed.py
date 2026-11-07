@@ -49,6 +49,7 @@ from app.models import (
     EmploymentType,
     Job,
     JobView,
+    Questionnaire,
     QuizAttempt,
     RemotePolicy,
     SalaryPeriod,
@@ -107,6 +108,8 @@ class _Job:
     closes_in_days: int | None = None  # advisory deadline, relative so the reset keeps it
     # job-specific screening questions, asked after the company default set
     screening: tuple[ScreeningQuestion, ...] = ()
+    # attach DEMO_QUESTIONNAIRE instead of tag-auto selection
+    questionnaire: bool = False
 
 
 def _md(text: str) -> str:
@@ -230,6 +233,7 @@ JOBS = (
         ),
         (70_000, 90_000),
         remote_policy=RemotePolicy.HYBRID,
+        questionnaire=True,
         screening=(
             ScreeningQuestion(
                 id="sq_ac0e0201",
@@ -614,6 +618,25 @@ VIEW_DAYS = 30
 # the default scorecard template every seeded job copies (spec scorecards 6)
 SCORECARD_CRITERIA = ("Problem solving", "Communication", "Role knowledge")
 
+# One curated set, so the questionnaires page and the job form show the
+# feature instead of an empty state. Open-bank ids, in serve order; the
+# SRE job uses it, every other quiz stays tag-auto.
+DEMO_QUESTIONNAIRE = {
+    "name": "SRE on-call basics",
+    "description": (
+        "Six questions for the SRE role: health checks, observability, safe "
+        "rollouts, what Kubernetes does, secrets, and reading a query plan."
+    ),
+    "question_refs": [
+        "devops-healthcheck-1",
+        "devops-observability-1",
+        "devops-blue-green-1",
+        "devops-orchestrator-1",
+        "devops-secrets-1",
+        "sql-explain-1",
+    ],
+}
+
 # index into CANDIDATES: Mia (interview) holds the submitted scorecard, Hanna
 # (screening, quiz and CV) Max's open request, Karol (interview) Erika's task
 SCORECARD_DONE, SCORECARD_WAITING, SCORECARD_MINE = 0, 3, 2
@@ -926,6 +949,9 @@ async def seed(
     db.add_all([erika, jonas, max_berger])
     await db.commit()
     authors = {"erika": erika, "jonas": jonas}
+    questionnaire = Questionnaire(company_id=company.id, **DEMO_QUESTIONNAIRE)
+    db.add(questionnaire)
+    await db.commit()
 
     jobs: list[Job] = []
     now = datetime.now(UTC)
@@ -954,6 +980,7 @@ async def seed(
                     enabled=spec.quiz_questions is not None,
                     question_count=spec.quiz_questions or 6,
                     time_limit_seconds=20,
+                    questionnaire_id=questionnaire.id if spec.questionnaire else None,
                 ),
             ),
         )
