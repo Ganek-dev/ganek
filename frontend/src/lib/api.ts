@@ -372,6 +372,13 @@ export const api = {
      * published or not; shareable with someone who has no login */
     previewLink: (id: string) =>
       request<PreviewLink>(`/api/v1/jobs/${id}/preview-link`, { method: "POST" }),
+    /** CSV import: rows mapped in the browser; `dry_run` is the preview
+     * (counts only, nothing written or mailed) */
+    importCandidates: (id: string, body: CandidateImportIn) =>
+      request<CandidateImportOut>(`/api/v1/jobs/${id}/import`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
   },
 };
 
@@ -1431,6 +1438,29 @@ export const questionnaires = {
 export interface PreviewLink {
   url: string;
   expires_at: string;
+}
+
+export interface CandidateImportRow {
+  name: string;
+  email: string;
+  source?: string | null;
+}
+
+export interface CandidateImportIn {
+  rows: CandidateImportRow[];
+  /** where the data came from - named in the first email (GDPR art. 14) */
+  origin: string;
+  dry_run?: boolean;
+}
+
+export interface CandidateImportOut {
+  imported: number;
+  duplicates: number;
+  invalid: number;
+  /** 1-based data row numbers (header excluded) */
+  duplicate_rows: number[];
+  invalid_rows: number[];
+  dry_run: boolean;
 }
 
 /** One job's overview numbers (GET /jobs/{id}/stats). Counts only. */

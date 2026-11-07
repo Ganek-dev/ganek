@@ -192,3 +192,39 @@ class PreviewLinkOut(BaseModel):
 
     url: str
     expires_at: datetime
+
+
+class ImportRowIn(BaseModel):
+    """One mapped CSV row. Lenient on purpose: a row the service cannot use
+    (blank name, bad email) is counted as invalid, never a 422 for the file."""
+
+    name: str = Field(default="", max_length=500)
+    email: str = Field(default="", max_length=500)
+    source: str | None = Field(default=None, max_length=200)
+
+
+class CandidateImportIn(BaseModel):
+    """CSV import of candidates into a job: rows mapped in the browser, plus
+    where the data came from (named in the GDPR art. 14 paragraph of the
+    first email). ``dry_run`` is the preview: counts only, nothing written."""
+
+    rows: list[ImportRowIn] = Field(min_length=1, max_length=1000)
+    origin: str = Field(min_length=2, max_length=200)
+    dry_run: bool = False
+
+    @field_validator("origin")
+    @classmethod
+    def _strip_origin(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if len(value) < 2:
+            raise ValueError("Say where these candidates came from")
+        return value
+
+
+class CandidateImportOut(BaseModel):
+    imported: int
+    duplicates: int
+    invalid: int
+    duplicate_rows: list[int]
+    invalid_rows: list[int]
+    dry_run: bool

@@ -90,6 +90,12 @@ export function PrivacyNotice({
               message or answers - they aren&apos;t asked for or wanted.
             </li>
             <li className={liCls}>
+              <span className={termCls}>Imported details</span> - if{" "}
+              {notice.company_name} added you from its own records (another hiring system or
+              a spreadsheet) instead of you applying here: your name, email and where they
+              came from. The first email you get from this site names that source.
+            </li>
+            <li className={liCls}>
               <span className={termCls}>Assessment answers</span> - if this role includes a
               screening assessment: your answers, per-question response times, and score.
             </li>
@@ -118,6 +124,12 @@ export function PrivacyNotice({
               <span className={termCls}>Keeping assessments fair</span> - integrity signals
               are collected on legitimate-interest grounds (art. 6(1)(f)). People review
               them; they never change your score and never reject anyone automatically.
+            </li>
+            <li className={liCls}>
+              <span className={termCls}>Imported candidates</span> - inviting someone{" "}
+              {notice.company_name} already had on record to this role&apos;s screening rests
+              on legitimate interest (art. 6(1)(f)); you can object or ask for deletion at
+              any time (below).
             </li>
             <li className={liCls}>
               <span className={termCls}>After a decision</span> - applications are kept for

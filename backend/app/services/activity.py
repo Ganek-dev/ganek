@@ -22,6 +22,7 @@ INTERVIEW_CANCELLED = "interview.cancelled"
 NOTE_ADDED = "note.added"
 BULK_REJECTED = "applications.bulk_rejected"
 BULK_MOVED = "applications.bulk_moved"
+APPLICATIONS_IMPORTED = "applications.imported"  # one CSV import (who, how many, skipped)
 CANDIDATE_ERASED = "candidate.erased"
 CANDIDATE_EMAIL_UPDATED = "candidate.email_updated"
 EMAIL_CANCELLED = "email.cancelled"  # a scheduled rejection mail was held back
