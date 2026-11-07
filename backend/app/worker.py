@@ -46,6 +46,7 @@ from app.services import demo_seed, email_templates, scheduled_emails
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import interviews as interviews_service
+from app.services import jobs as jobs_service
 from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
 from app.services import retention as retention_service
@@ -455,6 +456,15 @@ async def sweep_webhooks(ctx: dict[str, Any]) -> None:
         logger.info("webhook sweep: re-enqueued %d deliveries", len(stuck))
 
 
+async def close_expired_jobs(ctx: dict[str, Any]) -> None:
+    """Hourly: close published jobs that opted into auto-close once their
+    closes-on day is over. Row locks make overlapping workers harmless."""
+    async with ctx["session_factory"]() as db:
+        closed = await jobs_service.close_expired_jobs(db, now=datetime.now(UTC))
+    if closed:
+        logger.info("auto-close: closed %d jobs past their closes-on day", closed)
+
+
 class WorkerSettings:
     functions = [
         send_interview_reminder,
@@ -466,6 +476,7 @@ class WorkerSettings:
         sweep_outbox,
         deliver_webhook,
         sweep_webhooks,
+        close_expired_jobs,
         heartbeat,
     ]
     cron_jobs = [
@@ -474,6 +485,7 @@ class WorkerSettings:
         cron(reset_demo, hour=4, minute=7),  # no-op unless GANEK_DEMO_RESET_SLUG is set
         cron(sweep_outbox, minute={7, 17, 27, 37, 47, 57}),
         cron(sweep_webhooks, minute={3, 13, 23, 33, 43, 53}),
+        cron(close_expired_jobs, minute=11),
         cron(heartbeat),  # every minute
     ]
     on_startup = startup

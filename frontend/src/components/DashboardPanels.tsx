@@ -298,6 +298,8 @@ function activityCopy(item: ActivityItem): string {
         (skipped > 0 ? ` (${skipped} skipped)` : "")
       );
     }
+    case "job.auto_closed":
+      return `${String(p.job ?? "A job")} closed automatically after its closes-on day`;
     case "applications.bulk_rejected":
       return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {

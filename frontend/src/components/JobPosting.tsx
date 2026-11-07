@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import {
   EMPLOYMENT_LABELS,
   REMOTE_LABELS,
+  jobFieldChips,
   formatPostedAgo,
   formatSalary,
 } from "@/components/careers";
@@ -27,6 +28,7 @@ export function JobHero({
     background: "color-mix(in oklab, var(--brand-primary-foreground) 16%, transparent)",
   };
   const chips = [
+    ...jobFieldChips(job),
     job.location || null,
     REMOTE_LABELS[job.remote_policy],
     EMPLOYMENT_LABELS[job.employment_type],
@@ -205,7 +207,7 @@ export function JobPosting({
           }}
         />
       ) : null}
-      <div className="job-body">
+      <div className="job-body" lang={job.language ?? undefined}>
         <ReactMarkdown components={jobMd}>{job.description_md}</ReactMarkdown>
       </div>
     </article>

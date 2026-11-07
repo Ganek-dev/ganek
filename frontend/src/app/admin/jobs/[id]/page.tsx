@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { ExternalLink, Pencil } from "lucide-react";
+import { Copy, ExternalLink, Pencil } from "lucide-react";
 
 import { ScoreChip, StagePill } from "@/components/ApplicantChips";
 import { CopyButton } from "@/components/CopyButton";
@@ -138,6 +138,8 @@ export default function JobOverviewPage() {
   const [candidates, setCandidates] = useState<ApplicationOut[] | null>(null);
   const [stage, setStage] = useState<ApplicationStage | "all">("all");
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const [duplicating, setDuplicating] = useState(false);
   // bumped by a CSV import so the candidate table reloads
   const [imports, setImports] = useState(0);
 
@@ -205,6 +207,7 @@ export default function JobOverviewPage() {
   const rate = stats && !draft ? applyRate(views30, stats.last_30_days) : null;
   const sources = stats ? sourceRows(stats.views_by_source, stats.by_source) : null;
   const emptyViews = stats ? viewsEmptyState(job.status, stats.views.total, total) : null;
+  const fieldsLine = jobFieldsLine(job);
 
   return (
     <section className="space-y-5">
@@ -225,14 +228,41 @@ export default function JobOverviewPage() {
           <p className="mt-1.5 font-mono text-[11.5px] text-g500">
             {lifecycleLine(job, stats?.days_open ?? null)}
           </p>
+          {fieldsLine ? <p className="mt-1 text-[12.5px] text-g600">{fieldsLine}</p> : null}
+          {job.internal_note ? (
+            <p className="mt-1 max-w-[640px] text-[12.5px] whitespace-pre-line text-g500">
+              <span className="font-medium text-g700">Internal note:</span> {job.internal_note}
+            </p>
+          ) : null}
         </div>
-        <Link
-          href={`/admin/jobs/${job.id}/edit`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium text-g700 hover:bg-muted-fill"
-        >
-          <Pencil aria-hidden className="h-[14px] w-[14px]" />
-          Edit
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={duplicating}
+            onClick={async () => {
+              setDuplicating(true);
+              setError(null);
+              try {
+                const copy = await api.jobs.duplicate(job.id);
+                router.push(`/admin/jobs/${copy.id}/edit`);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Could not duplicate the job");
+                setDuplicating(false);
+              }
+            }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-60"
+          >
+            <Copy aria-hidden className="h-[14px] w-[14px]" />
+            Duplicate
+          </button>
+          <Link
+            href={`/admin/jobs/${job.id}/edit`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13.5px] font-medium text-g700 hover:bg-muted-fill"
+          >
+            <Pencil aria-hidden className="h-[14px] w-[14px]" />
+            Edit
+          </Link>
+        </div>
       </div>
 
       {error ? (
@@ -496,6 +526,26 @@ export default function JobOverviewPage() {
       </div>
     </section>
   );
+}
+
+const SENIORITY_LABELS: Record<string, string> = {
+  intern: "Intern",
+  junior: "Junior",
+  mid: "Mid-level",
+  senior: "Senior",
+  lead: "Lead",
+  principal: "Principal",
+};
+
+/** "Engineering · Senior · EN" for the header; empty when nothing is set. */
+export function jobFieldsLine(job: JobOut): string {
+  return [
+    job.department || null,
+    job.seniority ? (SENIORITY_LABELS[job.seniority] ?? null) : null,
+    job.language ? job.language.toUpperCase() : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function StageButton({

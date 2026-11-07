@@ -70,6 +70,14 @@ async def update_job(
         ) from None
 
 
+@router.post("/{job_id}/duplicate", response_model=JobOut, status_code=status.HTTP_201_CREATED)
+async def duplicate_job(job_id: uuid.UUID, db: DbSession, company: StaffCompany) -> Job:
+    """A draft copy of the job (posting, quiz config, screening, scorecard),
+    any status. The copy starts without a closes-on date."""
+    job = await _get_or_404(db, company, job_id)
+    return await jobs_service.duplicate_job(db, company, job)
+
+
 @router.get("/{job_id}/quiz-preview", response_model=QuizPreviewOut)
 async def quiz_preview(job_id: uuid.UUID, db: DbSession, company: StaffCompany) -> QuizPreviewOut:
     """What this job's quiz draws from right now. Read-only; sample redraws per call."""

@@ -27,6 +27,9 @@ GET {origin}/api/v1/public/companies/{slug}/jobs-feed
       "location": "Remote, Europe",
       "remote_policy": "remote",
       "employment_type": "full_time",
+      "department": "Engineering",
+      "seniority": "senior",
+      "language": "en",
       "tags": ["react", "typescript", "senior"],
       "apply_url": "https://jobs.example.com/c/your-company/jobs/senior-frontend-engineer",
       "posted_at": "2026-07-10T09:00:00Z"
@@ -34,6 +37,8 @@ GET {origin}/api/v1/public/companies/{slug}/jobs-feed
   ]
 }
 ```
+
+`department` is free text ("" when unset), `seniority` is one of `intern`, `junior`, `mid`, `senior`, `lead`, `principal` or `null`, and `language` is the posting's ISO 639-1 code or `null`. The job owner and the internal note are never in the feed.
 
 `apply_url` points at the Ganek careers page for the role, which is where the application form and the quiz live. Only published jobs appear.
 

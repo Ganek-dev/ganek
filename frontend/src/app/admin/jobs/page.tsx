@@ -74,6 +74,7 @@ function RowMenu({
         <MenuItem asChild>
           <Link href={`/admin/jobs/${job.id}/edit`}>Edit</Link>
         </MenuItem>
+        <MenuItem onSelect={() => onAction(() => api.jobs.duplicate(job.id))}>Duplicate</MenuItem>
         {job.status !== "published" ? (
           <MenuItem onSelect={() => onAction(() => api.jobs.publish(job.id))}>Publish</MenuItem>
         ) : (
@@ -162,6 +163,7 @@ function JobsPageInner() {
           const needle = query.trim().toLowerCase();
           return (
             job.title.toLowerCase().includes(needle) ||
+            (job.department ?? "").toLowerCase().includes(needle) ||
             job.tags.some((tag) => tag.toLowerCase().includes(needle))
           );
         });
@@ -276,6 +278,9 @@ function JobsPageInner() {
                       >
                         {job.title}
                       </Link>
+                      {job.department ? (
+                        <div className="mt-0.5 text-[12px] text-g500">{job.department}</div>
+                      ) : null}
                       {job.tags.length > 0 ? (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           {job.tags.slice(0, 3).map((tag) => (

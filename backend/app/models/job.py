@@ -3,7 +3,18 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +35,15 @@ class EmploymentType(enum.StrEnum):
     PART_TIME = "part_time"
     CONTRACT = "contract"
     INTERNSHIP = "internship"
+
+
+class Seniority(enum.StrEnum):
+    INTERN = "intern"
+    JUNIOR = "junior"
+    MID = "mid"
+    SENIOR = "senior"
+    LEAD = "lead"
+    PRINCIPAL = "principal"
 
 
 class JobStatus(enum.StrEnum):
@@ -75,9 +95,21 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     salary_period: Mapped[SalaryPeriod] = mapped_column(
         _str_enum(SalaryPeriod), default=SalaryPeriod.YEAR, server_default="year"
     )
-    # Advisory application deadline: surfaces as JSON-LD validThrough for Google
-    # Jobs; never auto-closes the posting (rule 5 - the tool decides nothing).
+    # Application deadline: surfaces as JSON-LD validThrough for Google Jobs.
+    # Advisory unless the team opts in with auto_close (0048): then the hourly
+    # worker closes the posting once the closes-on day is over (UTC).
     closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    auto_close: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # job fields (0048): department and seniority and language are public
+    # (careers page, feed, embed); the owner and the internal note never are
+    department: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    seniority: Mapped[Seniority | None] = mapped_column(_str_enum(Seniority), nullable=True)
+    # ISO 639-1 code of the posting's language ("en", "pl"); NULL = unset
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    internal_note: Mapped[str] = mapped_column(Text, default="", server_default="")
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
     status: Mapped[JobStatus] = mapped_column(_str_enum(JobStatus), default=JobStatus.DRAFT)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

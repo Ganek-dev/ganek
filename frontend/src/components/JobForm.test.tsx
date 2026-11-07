@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   questionnaires,
   questions,
+  team,
   type JobInput,
   type JobOut,
   type QuestionnaireOut,
@@ -19,6 +20,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...original,
     questionnaires: { ...original.questionnaires, list: vi.fn() },
     questions: { ...original.questions, resolve: vi.fn() },
+    team: { ...original.team, list: vi.fn() },
   };
 });
 
@@ -108,6 +110,7 @@ describe("JobForm", () => {
     vi.clearAllMocks();
     mockedQnr.list.mockResolvedValue([]);
     mockedQ.resolve.mockResolvedValue([]);
+    vi.mocked(team.list).mockResolvedValue([]);
   });
 
   it("renders fields with defaults and assessment collapsed", () => {
@@ -445,5 +448,128 @@ describe("JobForm blank scorecard label", () => {
     await userEvent.type(screen.getByLabelText("Criterion label"), "Design");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+  });
+});
+
+describe("JobForm job fields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedQnr.list.mockResolvedValue([]);
+    mockedQ.resolve.mockResolvedValue([]);
+    vi.mocked(team.list).mockResolvedValue([
+      {
+        id: "user-ana",
+        email: "ana@acme.test",
+        display_label: "Ana",
+        role: "admin",
+        is_active: true,
+        last_login_at: null,
+        created_at: "2026-07-01T00:00:00Z",
+      },
+      {
+        id: "user-gone",
+        email: "gone@acme.test",
+        display_label: "Gone",
+        role: "member",
+        is_active: false,
+        last_login_at: null,
+        created_at: "2026-07-01T00:00:00Z",
+      },
+    ]);
+  });
+
+  it("submits department, seniority, language, owner and the internal note", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+
+    await userEvent.type(screen.getByLabelText("Job title"), "Platform Engineer");
+    await userEvent.type(screen.getByLabelText("Department"), "Infrastructure");
+    await userEvent.selectOptions(screen.getByLabelText("Seniority"), "senior");
+    await userEvent.selectOptions(screen.getByLabelText("Posting language"), "pl");
+    await screen.findByRole("option", { name: "Ana" });
+    // inactive teammates are not offered
+    expect(screen.queryByRole("option", { name: "Gone" })).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText(/^Owner/), "user-ana");
+    await userEvent.type(screen.getByLabelText(/^Internal note/), "Budget approved");
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        department: "Infrastructure",
+        seniority: "senior",
+        language: "pl",
+        owner_user_id: "user-ana",
+        internal_note: "Budget approved",
+        auto_close: false,
+      }),
+    );
+  });
+
+  it("sends nulls for unset fields", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Dev");
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        department: "",
+        seniority: null,
+        language: null,
+        owner_user_id: null,
+        internal_note: "",
+      }),
+    );
+  });
+
+  it("offers auto-close only once a closes-on date is set", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    const toggle = screen.getByRole("checkbox", {
+      name: "Close the job automatically after this day",
+    });
+    expect(toggle).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Dev");
+    await userEvent.type(screen.getByLabelText(/Closes on/), "2026-12-01");
+    expect(toggle).toBeEnabled();
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ closes_at: "2026-12-01", auto_close: true }),
+    );
+  });
+
+  it("keeps a stored owner and language that the pickers do not list", async () => {
+    vi.mocked(team.list).mockRejectedValue(new Error("offline"));
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(
+      <JobForm
+        initial={makeJob({ owner_user_id: "user-x", language: "ja", department: "Data" })}
+        submitLabel="Save changes"
+        onSubmit={onSubmit}
+      />,
+    );
+    expect(screen.getByLabelText("Department")).toHaveValue("Data");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ owner_user_id: "user-x", language: "ja", department: "Data" }),
+      ),
+    );
+  });
+
+  it("offers 45 and 60 second timers for longer questions", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    await userEvent.type(screen.getByLabelText("Job title"), "Backend Dev");
+    await userEvent.click(screen.getByRole("switch", { name: "Skills assessment" }));
+    expect(screen.getByRole("button", { name: "45s" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "60s" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create job" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quiz_config: expect.objectContaining({ time_limit_seconds: 60 }),
+      }),
+    );
   });
 });

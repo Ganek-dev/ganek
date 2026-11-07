@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
 from app.core import challenge
-from app.models import EmploymentType, RemotePolicy, SalaryPeriod
+from app.models import EmploymentType, RemotePolicy, SalaryPeriod, Seniority
 from app.services.screening import MAX_QUESTIONS, ScreeningAnswerIn, ScreeningQuestionType
 
 
@@ -28,6 +28,10 @@ class PublicJobSummary(BaseModel):
     salary_period: SalaryPeriod
     tags: list[str]
     published_at: datetime | None
+    # public job fields (0048); the owner and the internal note never leave
+    department: str = ""
+    seniority: Seniority | None = None
+    language: str | None = None
 
 
 class PublicScreeningQuestion(BaseModel):
@@ -95,6 +99,9 @@ class JobsFeedItem(BaseModel):
     location: str
     remote_policy: RemotePolicy
     employment_type: EmploymentType
+    department: str = ""
+    seniority: Seniority | None = None
+    language: str | None = None
     tags: list[str]
     apply_url: str
     posted_at: datetime | None
