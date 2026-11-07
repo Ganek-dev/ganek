@@ -371,7 +371,14 @@ export const publicApply = {
   uploadTicket: (basePath: string) =>
     request<CvUploadTicket>(`${basePath}/apply/upload-url`, { method: "POST" }),
   submit: (basePath: string, payload: ApplicationPayload) =>
-    request<{ status: string; quiz_token: string | null; status_token: string | null }>(
+    request<{
+      status: string;
+      quiz_token: string | null;
+      status_token: string | null;
+      /** Assessment length for the success panel; absent without a quiz. */
+      question_count?: number | null;
+      seconds_per_question?: number | null;
+    }>(
       `${basePath}/apply`,
       {
         method: "POST",

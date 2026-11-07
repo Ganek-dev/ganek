@@ -47,6 +47,7 @@ from app.services import email as email_service
 from app.services import health as health_service
 from app.services import interviews as interviews_service
 from app.services import outbox as outbox_service
+from app.services import quiz as quiz_service
 from app.services import retention as retention_service
 from app.services import scorecards as scorecards_service
 from app.services import webhooks as webhooks_service
@@ -212,6 +213,8 @@ async def send_quiz_nudge(ctx: dict[str, Any], attempt_id: str) -> None:
             quiz_url=urls.quiz_url(company, create_quiz_token(attempt.id)),
             expires_at=attempt.expires_at,
             days_left=days_left,
+            question_count=len(attempt.question_ids),
+            seconds_per_question=quiz_service.seconds_per_question(attempt),
             controller_name=company_service.controller_name(company),
             privacy_url=urls.privacy_notice_url(company),
         )

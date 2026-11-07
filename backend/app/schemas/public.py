@@ -174,6 +174,10 @@ class ApplicationReceived(BaseModel):
     status: str = "received"
     quiz_token: str | None = None
     status_token: str | None = None
+    # the assessment's length for the success panel: the same two numbers the
+    # invite prints, so the candidate reads one duration everywhere
+    question_count: int | None = None
+    seconds_per_question: int | None = None
 
 
 class StatusQuizOut(BaseModel):
