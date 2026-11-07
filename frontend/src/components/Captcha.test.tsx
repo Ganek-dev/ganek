@@ -33,13 +33,24 @@ describe("Captcha", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders nothing when the instance has the feature off (404)", async () => {
-    const fetchMock = stubFetch(404);
+  it("renders nothing when the instance has the feature off (204)", async () => {
+    const fetchMock = stubFetch(204, "");
     const onChange = vi.fn();
     const { container } = render(<Captcha onChange={onChange} />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(CHALLENGE_PATH, expect.anything()));
+    // let the probe chain settle: an empty 204 body must never mount the widget
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(container).toBeEmptyDOMElement();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("still treats an older backend's 404 as feature off", async () => {
+    const fetchMock = stubFetch(404);
+    const { container } = render(<Captcha onChange={vi.fn()} />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(CHALLENGE_PATH, expect.anything()));
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders nothing when the probe fails, so a form is never blocked", async () => {

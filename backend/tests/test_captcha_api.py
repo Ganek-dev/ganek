@@ -73,8 +73,11 @@ async def _apply(client: AsyncClient, base: str, altcha: str | None) -> int:
 
 
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
-async def test_challenge_endpoint_is_404_while_off(client: AsyncClient) -> None:
-    assert (await client.get("/api/v1/public/challenge")).status_code == 404
+async def test_challenge_endpoint_is_204_while_off(client: AsyncClient) -> None:
+    # 204, not 404: the probe runs on every job page and a 404 is console noise
+    resp = await client.get("/api/v1/public/challenge")
+    assert resp.status_code == 204
+    assert resp.content == b""
 
 
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
