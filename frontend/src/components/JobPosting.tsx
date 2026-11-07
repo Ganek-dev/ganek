@@ -8,8 +8,9 @@ import {
   formatPostedAgo,
   formatSalary,
 } from "@/components/careers";
+import { applyEffort } from "@/lib/apply-duration";
 import { jobPostingJsonLd } from "@/lib/job-posting";
-import type { PublicCompany, PublicJobDetail } from "@/lib/public-api";
+import type { PublicCompany, PublicJobDetail, PublicScreeningQuestion } from "@/lib/public-api";
 
 /** Compact brand band for the job detail page (screen 02): logo chip + name,
  * back link, job title, meta chips on the brand color. */
@@ -86,11 +87,18 @@ export function JobHero({
   );
 }
 
-/** Numbered hiring-steps card (screen 02). Copy stays platform-generic -
- * quiz settings are per-job and not exposed on the public API. */
-export function HowWeHire() {
+/** Numbered hiring-steps card (screen 02). The apply step reads the same
+ * form config as the apply form itself; quiz settings are per-job and not
+ * exposed on the public API, so that step stays generic. */
+export function HowWeHire({
+  demo = false,
+  screeningQuestions = [],
+}: {
+  demo?: boolean;
+  screeningQuestions?: PublicScreeningQuestion[];
+} = {}) {
   const steps = [
-    "Apply - three fields, about two minutes",
+    `Apply - ${applyEffort({ demo, screeningQuestions })}`,
     "A short skills assessment for most roles - timed, one shot",
     "Interviews with the team",
   ];
