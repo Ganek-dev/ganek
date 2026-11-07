@@ -45,6 +45,30 @@ export function newLocalQuestion(type: ScreeningQuestionType): ScreeningQuestion
   };
 }
 
+/** What the server would refuse about one question (services/screening.py
+ * ScreeningQuestion), in the editor's words, or null when it saves. The
+ * server strips the prompt and the options before checking, so this does
+ * too. Length caps are enforced by the inputs' maxLength. */
+export function questionProblem(question: ScreeningQuestion): string | null {
+  if (question.prompt.trim() === "") return "Add a prompt";
+  if (question.type !== "single_choice") return null;
+  const options = (question.options ?? []).map((option) => option.trim());
+  if (options.length < 2) return "Add at least two options";
+  if (options.some((option) => option === "")) return "Fill in or remove the empty option";
+  if (new Set(options).size !== options.length) return "Options must be different";
+  return null;
+}
+
+/** The first refused row as "Question N: problem" (N is the number the
+ * editor shows), or null when the whole list saves. */
+export function firstScreeningProblem(questions: ScreeningQuestion[]): string | null {
+  for (const [index, question] of questions.entries()) {
+    const problem = questionProblem(question);
+    if (problem) return `Question ${index + 1}: ${problem}`;
+  }
+  return null;
+}
+
 /** The same question re-typed: options and the preferred answer only make
  * sense for their own type, so a switch clears them. */
 function retype(question: ScreeningQuestion, type: ScreeningQuestionType): ScreeningQuestion {
@@ -61,11 +85,15 @@ export function ScreeningQuestionsEditor({
   value,
   onChange,
   onReset,
+  showProblems = false,
 }: {
   value: ScreeningQuestion[];
   onChange: (next: ScreeningQuestion[]) => void;
   /** "Reset to company defaults"; rendered only when given. */
   onReset?: () => void;
+  /** Mark every row the server would refuse; the parent turns this on
+   * after a save it blocked, so a fresh empty row is not flagged at once. */
+  showProblems?: boolean;
 }) {
   function update(index: number, patch: Partial<ScreeningQuestion>) {
     onChange(value.map((q, i) => (i === index ? { ...q, ...patch } : q)));
@@ -80,12 +108,18 @@ export function ScreeningQuestionsEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      {value.map((question, index) => (
+      {value.map((question, index) => {
+        const problem = showProblems ? questionProblem(question) : null;
+        return (
         <fieldset
           key={question.id}
           aria-label={`Question ${index + 1}`}
-          className="rounded-md border border-edge p-3.5"
+          aria-invalid={problem ? true : undefined}
+          className={`rounded-md border p-3.5 ${problem ? "border-red-600 dark:border-red-400" : "border-edge"}`}
         >
+          <p aria-hidden className="mb-2 text-xs font-semibold text-g600">
+            Question {index + 1}
+          </p>
           <div className="flex items-start gap-2">
             <label className="block flex-1 space-y-1.5">
               <span className="text-xs font-medium text-g600">Prompt</span>
@@ -244,8 +278,14 @@ export function ScreeningQuestionsEditor({
           {question.type === "acknowledgment" ? (
             <p className="mt-2 text-xs leading-[18px] text-g500">{ACK_HELP}</p>
           ) : null}
+          {problem ? (
+            <p role="alert" className="mt-2 text-xs text-red-600 dark:text-red-400">
+              {problem}
+            </p>
+          ) : null}
         </fieldset>
-      ))}
+        );
+      })}
 
       <div className="flex flex-wrap items-center gap-2">
         <button

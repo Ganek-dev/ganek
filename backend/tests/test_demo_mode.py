@@ -273,3 +273,16 @@ def test_pseudonymize_keeps_choice_answers_and_replaces_text_answers() -> None:
     assert answers["sq_0000aa03"] == demo_mode.TEXT_ANSWER_PLACEHOLDER
     assert answers["sq_0000aa04"] is True
     assert "+49" not in out.model_dump_json()
+
+
+def test_pseudonymize_keeps_a_whitespace_text_answer_empty() -> None:
+    questions = validate_questions(
+        [{"id": "sq_0000aa03", "type": "short_text", "prompt": "Notice period?"}]
+    )
+    out = demo_mode.pseudonymize(
+        _real_submission(screening_answers=[{"question_id": "sq_0000aa03", "answer": "   "}]),
+        cv_object_key="k",
+        questions=questions,
+    )
+    assert out.screening_answers[0].answer == "   "
+    assert demo_mode.TEXT_ANSWER_PLACEHOLDER not in out.model_dump_json()

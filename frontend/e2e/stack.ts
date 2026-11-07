@@ -62,7 +62,8 @@ export async function ensureCompanyAndJob(api: APIRequestContext): Promise<void>
         time_limit_seconds: 20,
       },
       // one screening question on the apply form (card "Per-job screening
-      // questions"); the candidate path answers it, the recruiter path reads it
+      // questions"); the candidate path answers it (the recruiter spec does not
+      // read it: the applicant answers are covered by vitest)
       screening_questions: [
         {
           type: "yes_no",

@@ -7,13 +7,13 @@ import re
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.public import PublicScreeningQuestion
 from app.services.screening import (
     InvalidAnswers,
     ScreeningAnswerIn,
     ScreeningQuestion,
     build_answers,
     new_question_id,
-    public_view,
     validate_questions,
 )
 
@@ -112,11 +112,39 @@ def test_duplicate_ids_rejected_and_ceiling_is_twenty() -> None:
     assert len(validate_questions([{"type": "yes_no", "prompt": f"q{i}"} for i in range(20)])) == 20
 
 
-def test_public_view_strips_preferred() -> None:
+def test_public_schema_strips_preferred() -> None:
     [q] = validate_questions([{"type": "yes_no", "prompt": "Permit?", "preferred": "yes"}])
-    assert public_view([q]) == [
-        {"id": q.id, "type": "yes_no", "prompt": "Permit?", "options": None, "required": False}
-    ]
+    assert PublicScreeningQuestion.model_validate(q.model_dump()).model_dump() == {
+        "id": q.id,
+        "type": "yes_no",
+        "prompt": "Permit?",
+        "options": None,
+        "required": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("bad", "message"),
+    [
+        ({"type": "yes_no", "prompt": "   "}, "Question 2: the prompt is empty"),
+        (
+            {"type": "single_choice", "prompt": "Days?", "options": ["0"]},
+            "Question 2: single choice needs 2 to 10 options",
+        ),
+        (
+            {"type": "single_choice", "prompt": "Days?", "options": ["0", " 0 "]},
+            "Question 2: options must be unique",
+        ),
+        (
+            {"type": "single_choice", "prompt": "Days?", "options": ["0", ""]},
+            "Question 2: options must be 1 to 100 characters",
+        ),
+    ],
+)
+def test_refused_question_names_its_row(bad: dict[str, object], message: str) -> None:
+    with pytest.raises(ValueError) as exc:
+        validate_questions([{"type": "yes_no", "prompt": "Permit?"}, bad])
+    assert str(exc.value) == message
 
 
 # --- answers: validation against the job's list and the write-once snapshot --

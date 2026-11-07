@@ -138,6 +138,26 @@ describe("JobForm", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("blocks the save while a screening question would be refused and names the row", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    const user = userEvent.setup();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    await user.type(screen.getByLabelText("Job title"), "SRE");
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    await user.click(screen.getByRole("button", { name: "Create job" }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("alert").map((el) => el.textContent)).toEqual([
+      "Add a prompt",
+      "Question 1: Add a prompt",
+    ]);
+    await user.type(screen.getByLabelText("Prompt"), "Can you work in Germany?");
+    await user.click(screen.getByRole("button", { name: "Create job" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].screening_questions).toMatchObject([
+      { prompt: "Can you work in Germany?" },
+    ]);
+  });
+
   it("hints on an existing job that already contradicts itself", () => {
     render(
       <JobForm
