@@ -149,7 +149,66 @@ export class ApiError extends Error {
   }
 }
 
+/** Hard-load dedupe (board card "Admin: dedupe API calls on hard page loads"):
+ * the admin shell and the cards it mounts each read the same session-scoped
+ * GETs (auth/me, company, stats overview, providers, usage), so one hard load
+ * fired them two or three times. These reads go through sharedGet, which hands
+ * every caller the same in-flight or just-settled response for a few seconds.
+ * A failure is never kept, and any write clears the memo so a save is never
+ * followed by a stale read. Browser only: the module cache must not be shared
+ * between users on the server. */
+const SHARED_GET_TTL_MS = 5_000;
+
+interface SharedEntry {
+  promise: Promise<unknown>;
+  /** null while the request is still in flight. */
+  settledAt: number | null;
+}
+
+const sharedGets = new Map<string, SharedEntry>();
+
+/** Drops every memoized read (writes call this; tests reset with it). */
+export function clearSharedGets(): void {
+  sharedGets.clear();
+}
+
+function sharedGet<T>(path: string): Promise<T> {
+  if (typeof window === "undefined") return request<T>(path);
+  const hit = sharedGets.get(path);
+  if (hit && (hit.settledAt === null || Date.now() - hit.settledAt < SHARED_GET_TTL_MS)) {
+    return hit.promise as Promise<T>;
+  }
+  const promise = request<T>(path);
+  const entry: SharedEntry = { promise, settledAt: null };
+  sharedGets.set(path, entry);
+  promise.then(
+    () => {
+      entry.settledAt = Date.now();
+    },
+    () => {
+      if (sharedGets.get(path) === entry) sharedGets.delete(path);
+    },
+  );
+  return promise;
+}
+
+function isWrite(init?: RequestInit): boolean {
+  const method = (init?.method ?? "GET").toUpperCase();
+  return method !== "GET" && method !== "HEAD";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const write = isWrite(init);
+  if (write) clearSharedGets();
+  try {
+    return await send<T>(path, init);
+  } finally {
+    // a read that started while this write was in flight may hold old data
+    if (write) clearSharedGets();
+  }
+}
+
+async function send<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(path, {
     credentials: "same-origin",
     // FormData bodies must set their own multipart boundary header
@@ -268,8 +327,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  me: () => request<UserOut>("/api/v1/auth/me"),
-  providers: () => request<Providers>("/api/v1/auth/providers"),
+  me: () => sharedGet<UserOut>("/api/v1/auth/me"),
+  providers: () => sharedGet<Providers>("/api/v1/auth/providers"),
   availability: {
     get: () => request<Availability>("/api/v1/users/me/availability"),
     set: (payload: AvailabilityIn) =>
@@ -1587,7 +1646,7 @@ export interface ReportsOut {
 }
 
 export const stats = {
-  overview: () => request<StatsOverview>("/api/v1/stats/overview"),
+  overview: () => sharedGet<StatsOverview>("/api/v1/stats/overview"),
   board: () => request<BoardOut>("/api/v1/stats/board"),
   reports: (params: { period?: ReportsPeriod; job_id?: string } = {}) => {
     const qs = new URLSearchParams();
@@ -1827,9 +1886,9 @@ export const publicPages = {
 };
 
 export const companyApi = {
-  get: () => request<CompanyAdmin>("/api/v1/company"),
-  summary: () => request<CompanySummary>("/api/v1/company/summary"),
-  usage: () => request<UsageOut>("/api/v1/company/usage"),
+  get: () => sharedGet<CompanyAdmin>("/api/v1/company"),
+  summary: () => sharedGet<CompanySummary>("/api/v1/company/summary"),
+  usage: () => sharedGet<UsageOut>("/api/v1/company/usage"),
   updateBranding: (patch: BrandingUpdate) =>
     request<CompanyAdmin>("/api/v1/company/branding", {
       method: "PATCH",

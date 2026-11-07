@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api, applications } from "./api";
+import { ApiError, api, applications, clearSharedGets, companyApi, stats } from "./api";
 
 function mockFetch(status: number, body: unknown, statusText = "Unprocessable Content") {
   vi.stubGlobal(
@@ -122,5 +122,75 @@ describe("applications query params", () => {
 
   it("leaves unset filters out of the query", () => {
     expect(applications.exportUrl("json")).toBe("/api/v1/applications/export?format=json");
+  });
+});
+
+describe("shared session reads (hard-load dedupe)", () => {
+  function okFetch() {
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ id: "u1", role: "admin" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  afterEach(() => {
+    clearSharedGets();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("fires one request for concurrent and just-settled callers", async () => {
+    const fetchMock = okFetch();
+    await Promise.all([api.me(), api.me(), api.me()]);
+    await api.me();
+    await Promise.all([companyApi.get(), companyApi.get(), companyApi.get()]);
+    await Promise.all([stats.overview(), stats.overview()]);
+    await Promise.all([api.providers(), api.providers()]);
+    const paths = fetchMock.mock.calls.map(([path]) => path as string);
+    expect(paths).toEqual([
+      "/api/v1/auth/me",
+      "/api/v1/company",
+      "/api/v1/stats/overview",
+      "/api/v1/auth/providers",
+    ]);
+  });
+
+  it("refetches once the short window has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const fetchMock = okFetch();
+    await api.me();
+    vi.setSystemTime(Date.now() + 6_000);
+    await api.me();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("never keeps a failure", async () => {
+    mockFetch(503, { detail: "down" }, "Service Unavailable");
+    await expect(api.me()).rejects.toBeInstanceOf(ApiError);
+    const fetchMock = okFetch();
+    await expect(api.me()).resolves.toMatchObject({ id: "u1" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops memoized reads after any write", async () => {
+    const fetchMock = okFetch();
+    await api.me();
+    await api.updateProfile("Max");
+    await api.me();
+    const paths = fetchMock.mock.calls.map(([path]) => path as string);
+    expect(paths).toEqual(["/api/v1/auth/me", "/api/v1/users/me", "/api/v1/auth/me"]);
+  });
+
+  it("leaves uncached reads alone", async () => {
+    const fetchMock = okFetch();
+    await Promise.all([api.availability.get(), api.availability.get()]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
