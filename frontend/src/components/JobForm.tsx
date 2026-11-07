@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bold, ExternalLink, Heading2, Italic, Link2, List, X } from "lucide-react";
 
 import { questionnaires, questions } from "@/lib/api";
+import { locationPolicyHint } from "@/lib/location-policy";
 import { ScorecardTemplateEditor, hasBlankLabel } from "@/components/ScorecardTemplateEditor";
 import { ScreeningQuestionsEditor } from "@/components/ScreeningQuestionsEditor";
 import { Switch } from "@/components/ui/switch";
@@ -102,6 +103,12 @@ export function JobForm({
     initial?.screening_questions ?? defaultScreening ?? [],
   );
   const [busy, setBusy] = useState(false);
+  // tracked only for the location vs remote policy hint; the submit still reads FormData
+  const [location, setLocation] = useState(initial?.location ?? "");
+  const [remotePolicy, setRemotePolicy] = useState<RemotePolicy>(
+    initial?.remote_policy ?? "onsite",
+  );
+  const policyHint = locationPolicyHint(location, remotePolicy);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagDraft, setTagDraft] = useState("");
   const [quizEnabled, setQuizEnabled] = useState(initial?.quiz_config.enabled ?? false);
@@ -275,7 +282,13 @@ export function JobForm({
           </label>
           <label className="flex flex-col gap-2">
             <span className={labelCls}>Location</span>
-            <input name="location" defaultValue={initial?.location} className={inputCls} />
+            <input
+              name="location"
+              defaultValue={initial?.location}
+              onChange={(e) => setLocation(e.target.value)}
+              aria-describedby={policyHint ? "location-policy-hint" : undefined}
+              className={inputCls}
+            />
           </label>
         </div>
 
@@ -285,6 +298,8 @@ export function JobForm({
             <select
               name="remote_policy"
               defaultValue={initial?.remote_policy ?? "onsite"}
+              onChange={(e) => setRemotePolicy(e.target.value as RemotePolicy)}
+              aria-describedby={policyHint ? "location-policy-hint" : undefined}
               className={inputCls}
             >
               {REMOTE_POLICIES.map((o) => (
@@ -309,6 +324,15 @@ export function JobForm({
             </select>
           </label>
         </div>
+        {policyHint && (
+          <p
+            id="location-policy-hint"
+            role="status"
+            className="-mt-2 text-[12.5px] leading-[18px] text-amber-700 dark:text-amber-300"
+          >
+            {policyHint}
+          </p>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <label className="flex flex-col gap-2">

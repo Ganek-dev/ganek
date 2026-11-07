@@ -120,6 +120,35 @@ describe("JobForm", () => {
     expect(screen.getByRole("button", { name: "Create job" })).toBeInTheDocument();
   });
 
+  it("hints when the location contradicts the remote policy but still saves", async () => {
+    const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
+    const user = userEvent.setup();
+    render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Job title"), "SRE");
+    await user.type(screen.getByLabelText("Location"), "Berlin or remote (EU)");
+    expect(screen.getByRole("status")).toHaveTextContent("remote policy is On-site");
+    await user.click(screen.getByRole("button", { name: "Create job" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      location: "Berlin or remote (EU)",
+      remote_policy: "onsite",
+    });
+    await user.selectOptions(screen.getByLabelText("Remote policy"), "remote");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("hints on an existing job that already contradicts itself", () => {
+    render(
+      <JobForm
+        submitLabel="Save"
+        onSubmit={vi.fn()}
+        initial={makeJob({ location: "Berlin, on-site", remote_policy: "remote" })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("mentions on-site work");
+  });
+
   it("adds and removes tags via the chip input", async () => {
     const onSubmit = vi.fn<(values: JobInput) => Promise<void>>().mockResolvedValue();
     render(<JobForm submitLabel="Create job" onSubmit={onSubmit} />);
