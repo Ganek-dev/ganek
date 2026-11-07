@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { ApiError, emailTemplates, type EmailKind, type EmailPreview } from "@/lib/api";
+import { ApiError, emailTemplates, type EmailPreview, type TemplateKind } from "@/lib/api";
 import { placeholderHelp } from "@/lib/email-placeholders";
 
 /** The template editor (card "Candidate emails", PR 3): name, subject, a
@@ -42,7 +42,7 @@ export function EmailTemplateEditor({
   onCancel,
 }: {
   open: boolean;
-  kind: EmailKind;
+  kind: TemplateKind;
   label: string;
   placeholders: string[];
   initial: { id?: string; name: string; subject: string; body: string };

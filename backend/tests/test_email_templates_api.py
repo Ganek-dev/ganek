@@ -15,8 +15,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 BASE = "/api/v1/company/email-templates"
-KINDS = ["quiz_invite", "quiz_reminder", "stage_advance", "rejection"]
-LABELS = ["Assessment invite", "Assessment reminder", "Interview", "Rejection"]
+KINDS = ["application_received", "quiz_invite", "quiz_reminder", "stage_advance", "rejection"]
+LABELS = [
+    "Application received",
+    "Assessment invite",
+    "Assessment reminder",
+    "Interview",
+    "Rejection",
+]
 
 
 @pytest.fixture
@@ -70,14 +76,24 @@ async def _kind(client: AsyncClient, kind: str) -> dict[str, object]:
 
 
 @pytest.mark.usefixtures("migrated_db", "multi_mode")
-async def test_list_shows_four_kinds_with_builtin_and_placeholders(client: AsyncClient) -> None:
+async def test_list_shows_every_kind_with_builtin_and_placeholders(client: AsyncClient) -> None:
     await _register_admin(client)
     resp = await client.get(BASE)
     assert resp.status_code == 200, resp.text
     kinds = resp.json()["kinds"]
     assert [k["kind"] for k in kinds] == KINDS
     assert [k["label"] for k in kinds] == LABELS
-    rejection = kinds[3]
+    received = kinds[0]
+    assert received["placeholders"] == [
+        "candidate_name",
+        "candidate_first_name",
+        "job_title",
+        "company_name",
+    ]
+    assert received["builtin"]["subject"] == (
+        "Application received - {{job_title}} at {{company_name}}"
+    )
+    rejection = kinds[4]
     assert rejection["placeholders"] == [
         "candidate_name",
         "candidate_first_name",
@@ -215,6 +231,34 @@ async def test_sample_preview_renders_unsaved_text(client: AsyncClient) -> None:
     assert "personal-link" in body["html"]
     resp = await client.post(
         f"{BASE}/preview", json={"kind": "rejection", "subject": "x", "body": "{{quiz_url}}"}
+    )
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == "Unknown placeholder: quiz_url"
+
+
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_sample_preview_renders_the_application_confirmation(
+    client: AsyncClient,
+) -> None:
+    """The Settings preview of the confirmation: neutral card, sign-off,
+    privacy footer, no action block."""
+    await _register_admin(client)
+    builtin = (await _kind(client, "application_received"))["builtin"]
+    resp = await client.post(
+        f"{BASE}/preview",
+        json={"kind": "application_received", **builtin},  # type: ignore[dict-item]
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["kind"] == "application_received"
+    assert body["subject"].startswith("Application received - Backend Engineer at Mail Co ")
+    assert body["text"].startswith("Hi Alex Example,\n\nThanks for applying for the")
+    assert "hiring team" in body["html"] and "privacy notice" in body["html"]
+    assert "Start the assessment" not in body["html"]
+    assert "See open positions" not in body["html"]
+    resp = await client.post(
+        f"{BASE}/preview",
+        json={"kind": "application_received", "subject": "x", "body": "{{quiz_url}}"},
     )
     assert resp.status_code == 422, resp.text
     assert resp.json()["detail"] == "Unknown placeholder: quiz_url"

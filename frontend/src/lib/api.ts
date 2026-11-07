@@ -733,9 +733,14 @@ function applicationParams(filters: ApplicationFilters | undefined): URLSearchPa
   return params;
 }
 
+/** The stage mails a recruiter sends from the stage dialog. */
 export type EmailKind = "quiz_invite" | "quiz_reminder" | "stage_advance" | "rejection";
+/** Every kind a workspace can template in Settings > Emails: the stage
+ * mails plus the application confirmation (sent on apply, never from the
+ * stage dialog). */
+export type TemplateKind = EmailKind | "application_received";
 /** A preview can also be a one-off message (PR 4). */
-export type PreviewKind = EmailKind | "message";
+export type PreviewKind = TemplateKind | "message";
 
 export interface EmailPreview {
   kind: PreviewKind;
@@ -1755,7 +1760,7 @@ export interface ApiKeyCreated extends ApiKey {
  * and the workspace's own templates. Writes are admin-only. */
 export interface EmailTemplate {
   id: string;
-  kind: EmailKind;
+  kind: TemplateKind;
   name: string;
   subject: string;
   body: string;
@@ -1765,7 +1770,7 @@ export interface EmailTemplate {
 }
 
 export interface EmailKindInfo {
-  kind: EmailKind;
+  kind: TemplateKind;
   label: string;
   placeholders: string[];
   builtin: { subject: string; body: string };
@@ -1780,7 +1785,7 @@ export interface EmailTemplateInput {
 
 export const emailTemplates = {
   list: () => request<{ kinds: EmailKindInfo[] }>("/api/v1/company/email-templates"),
-  create: (payload: EmailTemplateInput & { kind: EmailKind }) =>
+  create: (payload: EmailTemplateInput & { kind: TemplateKind }) =>
     request<EmailTemplate>("/api/v1/company/email-templates", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -1795,13 +1800,13 @@ export const emailTemplates = {
   setDefault: (id: string) =>
     request<EmailTemplate>(`/api/v1/company/email-templates/${id}/default`, { method: "POST" }),
   /** Back to the Ganek default for a kind: no custom template keeps the flag. */
-  setBuiltinDefault: (kind: EmailKind) =>
+  setBuiltinDefault: (kind: TemplateKind) =>
     request<void>("/api/v1/company/email-templates/builtin/default", {
       method: "POST",
       body: JSON.stringify({ kind }),
     }),
   /** The editor's live preview: unsaved text rendered for a sample candidate. */
-  preview: (payload: { kind: EmailKind; subject: string; body: string }) =>
+  preview: (payload: { kind: TemplateKind; subject: string; body: string }) =>
     request<EmailPreview>("/api/v1/company/email-templates/preview", {
       method: "POST",
       body: JSON.stringify(payload),

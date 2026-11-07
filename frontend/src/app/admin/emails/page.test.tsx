@@ -45,6 +45,13 @@ function template(overrides: Partial<EmailTemplate>): EmailTemplate {
 
 const KINDS: EmailKindInfo[] = [
   {
+    kind: "application_received",
+    label: "Application received",
+    placeholders: ["candidate_name", "job_title"],
+    builtin: { subject: "Application received - {{job_title}} at {{company_name}}", body: "Hi" },
+    templates: [],
+  },
+  {
     kind: "quiz_invite",
     label: "Assessment invite",
     placeholders: ["candidate_name", "question_count"],
@@ -100,10 +107,11 @@ describe("EmailsSettingsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lists the four kinds with Ganek default first and custom templates after", async () => {
+  it("lists every kind with Ganek default first and custom templates after", async () => {
     render(<EmailsSettingsPage />);
     expect(await screen.findByRole("heading", { name: "Emails" })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Application received",
       "Assessment invite",
       "Assessment reminder",
       "Interview",
