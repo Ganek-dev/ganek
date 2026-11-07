@@ -6,7 +6,7 @@ questions:
     prompt: "What is the DOM?"
     options:
       a: "The browser's live object tree of the page that scripts can read and modify"
-      b: "The raw HTML file on the server"
+      b: "The raw HTML source file as served, which scripts can read but never modify"
       c: "A CSS naming convention"
       d: "The browser's network cache"
     correct: a
@@ -19,7 +19,7 @@ questions:
     prompt: "Why prefer `<nav>`, `<main>`, `<button>` over styled `<div>`s?"
     options:
       a: "Semantics give assistive tech and browsers meaning: accessibility, SEO, keyboard behavior for free"
-      b: "They render faster"
+      b: "They render faster, because browsers skip the style recalculation step for semantic elements"
       c: "divs are deprecated"
       d: "Only semantic tags accept CSS"
     correct: a
@@ -32,7 +32,7 @@ questions:
     prompt: "What is the `alt` attribute on `<img>` for?"
     options:
       a: "Text for screen readers and when the image fails to load"
-      b: "The tooltip on hover"
+      b: "The tooltip text shown when a mouse hovers the image"
       c: "SEO keywords only"
       d: "A backup image URL"
     correct: a
@@ -47,7 +47,7 @@ questions:
       a: "Makes the layout use the device's real width - the basis of responsive design on mobile"
       b: "Locks the page orientation"
       c: "Enables fullscreen mode"
-      d: "Disables zooming entirely"
+      d: "Disables pinch zooming so the page always renders at its designed desktop width"
     correct: a
     explanation: >
       Without it, mobile browsers render a ~980px virtual viewport and
@@ -70,7 +70,7 @@ questions:
     options:
       a: "localStorage persists across browser restarts; sessionStorage lives only for the tab session"
       b: "sessionStorage is shared across devices"
-      c: "localStorage is sent with every request"
+      c: "localStorage is sent to the server with every request, like cookies; sessionStorage is not"
       d: "They are identical"
     correct: a
     explanation: >
@@ -82,7 +82,7 @@ questions:
     prompt: "In a flex container, what does `justify-content` control?"
     options:
       a: "Distribution of items along the MAIN axis"
-      b: "Alignment along the cross axis"
+      b: "Alignment of items along the CROSS axis"
       c: "The wrapping behavior"
       d: "The order of items"
     correct: a
@@ -108,7 +108,7 @@ questions:
     prompt: "What does the `defer` attribute on a `<script>` change?"
     options:
       a: "The script downloads in parallel and executes after HTML parsing, preserving order"
-      b: "The script never blocks anything and runs immediately when ready"
+      b: "The script never blocks parsing and runs immediately when downloaded, in any order"
       c: "The script loads only on user interaction"
       d: "The script runs in a web worker"
     correct: a
@@ -121,7 +121,7 @@ questions:
     prompt: "Debouncing a search input means what?"
     options:
       a: "Waiting until typing pauses (e.g. 300ms) before firing the request"
-      b: "Sending at most one request per keypress"
+      b: "Sending at most one request per keypress, dropping the duplicates"
       c: "Caching identical queries"
       d: "Cancelling all requests"
     correct: a
@@ -134,7 +134,7 @@ questions:
     prompt: "The core defense against XSS when displaying user content?"
     options:
       a: "Escaping/encoding output for its context (or safe framework defaults) - never inject raw HTML"
-      b: "Validating input length"
+      b: "Validating input length and rejecting angle brackets whenever the user submits the form"
       c: "Using HTTPS"
       d: "Obfuscating the JavaScript bundle"
     correct: a
@@ -149,7 +149,7 @@ questions:
       a: "Giving an accessible name to a control with no visible text, like an icon-only button"
       b: "Styling labels"
       c: "Hiding elements from screen readers"
-      d: "Adding tooltips for mouse users"
+      d: "Adding a visible hover tooltip for mouse users, which screen readers then skip over"
     correct: a
     explanation: >
       Prefer visible text or a <label>; aria-label fills the gap for
@@ -160,7 +160,7 @@ questions:
     prompt: "Event delegation attaches ONE listener on a list container instead of per item. What makes this work?"
     options:
       a: "Event bubbling: events propagate upward, and event.target tells you the origin"
-      b: "The browser clones the listener to each child"
+      b: "The browser clones the container's listener onto each child element at load"
       c: "CSS pointer-events forwarding"
       d: "It only works with jQuery"
     correct: a
@@ -174,7 +174,7 @@ questions:
     options:
       a: "Each read forces a synchronous layout (reflow) so the browser can answer accurately - layout thrashing"
       b: "offsetHeight is O(n²) by itself"
-      c: "Style writes are asynchronous and get lost"
+      c: "Style writes are batched asynchronously, so each read must wait for a full repaint of the page"
       d: "It triggers garbage collection"
     correct: a
     explanation: >
@@ -186,7 +186,7 @@ questions:
     prompt: "What causes Cumulative Layout Shift (CLS), and a standard prevention?"
     options:
       a: "Content jumping as late assets load - reserve space (width/height on images, skeletons)"
-      b: "Slow JavaScript - minify it"
+      b: "Slow JavaScript blocking the main thread - minify the code and split the bundles by route"
       c: "Large DOM trees - paginate"
       d: "Unused CSS - purge it"
     correct: a
@@ -199,7 +199,7 @@ questions:
     prompt: "In SSR frameworks, what is hydration?"
     options:
       a: "Attaching event listeners and state to server-rendered HTML so it becomes interactive"
-      b: "Streaming CSS with the HTML"
+      b: "Streaming the page's CSS alongside the server-rendered HTML so it paints sooner"
       c: "Re-fetching the page as JSON"
       d: "Caching HTML in the service worker"
     correct: a

@@ -9,7 +9,7 @@ questions:
       a: "Static types checked at compile time; it compiles to plain JS"
       b: "A faster runtime engine"
       c: "Multithreading"
-      d: "Runtime type enforcement in the browser"
+      d: "Runtime type enforcement in the browser, with errors thrown on mismatch"
     correct: a
     explanation: >
       Types exist only at build time - they're erased in the emitted
@@ -33,7 +33,7 @@ questions:
     prompt: "What is an `interface` for?"
     options:
       a: "Describing the shape of an object - its properties and their types"
-      b: "Creating class instances"
+      b: "Creating class instances with typed constructors and default values"
       c: "Importing modules"
       d: "Declaring global variables"
     correct: a
@@ -86,7 +86,7 @@ questions:
     prompt: "Inside `if (typeof x === \"string\")`, what does the checker know about `x: string | number`?"
     options:
       a: "x is narrowed to string; string methods are allowed"
-      b: "x is still string | number"
+      b: "x is still string | number until you add a cast"
       c: "x becomes any"
       d: "The comparison is a type error"
     correct: a
@@ -101,7 +101,7 @@ questions:
     options:
       a: "unknown accepts any value but you must narrow it before use"
       b: "They are aliases"
-      c: "unknown is only for errors in catch clauses"
+      c: "unknown is only allowed for the error variable in catch clauses"
       d: "unknown values cannot be stored in variables"
     correct: a
     explanation: >
@@ -114,7 +114,7 @@ questions:
     prompt: "What do generics like `function first<T>(xs: T[]): T` provide?"
     options:
       a: "Type-safe reuse: the relationship between input and output types is preserved per call"
-      b: "Faster execution through specialization"
+      b: "Faster execution, because the compiler emits a specialized copy of the function per type"
       c: "Runtime type information"
       d: "Automatic memoization"
     correct: a
@@ -128,7 +128,7 @@ questions:
     prompt: "What does `readonly` on a property enforce?"
     options:
       a: "No reassignment after initialization - checked at compile time only"
-      b: "Deep runtime immutability"
+      b: "Deep immutability, enforced at runtime by freezing the object and its children"
       c: "The property is hidden from JSON"
       d: "The property must be a constant literal"
     correct: a
@@ -158,7 +158,7 @@ questions:
       a: "null/undefined stop being assignable to every type - absence must be explicit"
       b: "null becomes a syntax error"
       c: "All variables become optional"
-      d: "Runtime null checks are inserted"
+      d: "The compiler inserts runtime null and undefined checks before every property access"
     correct: a
     explanation: >
       With it on, `string` means string only; use `string | null` to opt
@@ -170,7 +170,7 @@ questions:
     prompt: "TypeScript's type system is structural. What does that mean?"
     options:
       a: "Compatibility is by shape: any object with the right members satisfies the type, regardless of declarations"
-      b: "Types match only by explicit `implements` clauses"
+      b: "Types are compatible only when a class explicitly declares the relationship with an `implements` clause"
       c: "Types are compared by class name"
       d: "Only primitive types are checked"
     correct: a
@@ -184,7 +184,7 @@ questions:
     prompt: "What does the `never` type represent?"
     options:
       a: "A value that cannot exist - functions that always throw, or exhausted unions"
-      b: "A value that is null"
+      b: "A value that is always null or undefined, like an optional field with no data"
       c: "A function returning undefined"
       d: "A deprecated API"
     correct: a
@@ -213,7 +213,7 @@ questions:
     options:
       a: "Switching on the shared literal `kind` narrows to the exact variant, typed fields included"
       b: "It serializes faster"
-      c: "It allows inheritance between the variants"
+      c: "It lets the variants inherit fields from each other, like subclasses of a base type"
       d: "The checker prevents constructing the err case"
     correct: a
     explanation: >

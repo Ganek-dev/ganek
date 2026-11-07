@@ -8,7 +8,7 @@ questions:
     options:
       a: "`===` compares without type coercion; `==` coerces types first"
       b: "They are identical"
-      c: "`===` also compares object contents deeply"
+      c: "`===` also compares object and array contents deeply, `==` does not"
       d: "`==` is a syntax error in modern JS"
     correct: a
     explanation: >
@@ -116,7 +116,7 @@ questions:
     options:
       a: "A function that retains access to variables from the scope where it was created"
       b: "A function with no parameters"
-      c: "A class with private fields"
+      c: "A class whose private `#fields` are hidden from all code outside its own body"
       d: "An immediately-invoked function"
     correct: a
     explanation: >
@@ -129,7 +129,7 @@ questions:
     prompt: "What does `.then()` return, enabling chaining?"
     options:
       a: "A new Promise resolving with the callback's return value"
-      b: "The same promise it was called on"
+      b: "The same promise it was called on, so handlers stack up"
       c: "The resolved value synchronously"
       d: "undefined"
     correct: a
@@ -157,7 +157,7 @@ questions:
     prompt: "What does `arr.map(fn)` do to `arr`?"
     options:
       a: "Nothing - it returns a NEW array of the transformed elements"
-      b: "Replaces each element in place"
+      b: "Replaces each element in place with fn's return value"
       c: "Removes elements where fn returns false"
       d: "Sorts the array by fn's result"
     correct: a
@@ -171,7 +171,7 @@ questions:
     prompt: "After `const { name, age = 18 } = person`, what is `age` if `person.age` is undefined?"
     options:
       a: "`18` - the destructuring default applies"
-      b: "`undefined`"
+      b: "`undefined` - defaults apply only to missing keys"
       c: "`null`"
       d: "A ReferenceError"
     correct: a
@@ -186,7 +186,7 @@ questions:
     options:
       a: "undefined = never assigned / missing; null = intentional explicit absence"
       b: "They are interchangeable in every way"
-      c: "null appears only in JSON"
+      c: "null only appears in parsed JSON; JavaScript code itself always uses undefined"
       d: "undefined is an error state that throws when read"
     correct: a
     explanation: >
@@ -199,7 +199,7 @@ questions:
     prompt: "What does `{ ...defaults, ...overrides }` produce?"
     options:
       a: "A new object; keys in overrides win over the same keys in defaults"
-      b: "A deep merge of nested objects"
+      b: "A deep merge, where nested objects from both are combined recursively"
       c: "An array of both objects"
       d: "A TypeError - spread only works on arrays"
     correct: a
@@ -213,7 +213,7 @@ questions:
     prompt: "Accessing a `let` variable before its declaration line throws. Why?"
     options:
       a: "It sits in the temporal dead zone: hoisted but uninitialized until the declaration runs"
-      b: "let variables are not hoisted at all"
+      b: "`let` variables are not hoisted at all, so the name simply does not exist yet in that scope"
       c: "The parser removes the access"
       d: "It returns undefined like var - no throw"
     correct: a
@@ -228,7 +228,7 @@ questions:
     prompt: "How does `this` behave in an arrow function?"
     options:
       a: "Lexically inherited from the enclosing scope - call site doesn't change it"
-      b: "Bound to the object the arrow is called on"
+      b: "Bound to the object the arrow function is called on, like a regular method"
       c: "Always undefined"
       d: "Bound to the global object, always"
     correct: a
@@ -243,7 +243,7 @@ questions:
     prompt: "`setTimeout(f, 0)` and `Promise.resolve().then(g)` are both pending - which runs first?"
     options:
       a: "g - microtasks (promise callbacks) run before the next macrotask"
-      b: "f - timers have priority"
+      b: "f - timers scheduled with a 0ms delay run before promise callbacks"
       c: "Whichever was scheduled first"
       d: "They run in parallel threads"
     correct: a
@@ -257,7 +257,7 @@ questions:
     prompt: "Why is `0.1 + 0.2 === 0.3` false?"
     options:
       a: "Binary floating point cannot represent 0.1 and 0.2 exactly; the sum is 0.30000000000000004"
-      b: "A parser bug in most engines"
+      b: "A long-standing bug in how engines parse decimal literals, which the spec still allows for compatibility"
       c: "+ concatenates the numbers as strings"
       d: "It's true in strict mode"
     correct: a
@@ -271,7 +271,7 @@ questions:
     prompt: "When you read `obj.foo` and `obj` has no own property `foo`, what happens?"
     options:
       a: "The engine walks up the prototype chain until it finds foo or reaches null"
-      b: "A ReferenceError is thrown immediately"
+      b: "A ReferenceError is thrown, since the property was never defined on obj"
       c: "The property is auto-created as undefined"
       d: "The nearest class definition is re-executed"
     correct: a
