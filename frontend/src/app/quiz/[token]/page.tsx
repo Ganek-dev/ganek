@@ -13,6 +13,7 @@ import {
   type QuizQuestion,
   type QuizState,
 } from "@/lib/api";
+import { assessmentMinutes } from "@/lib/assessment-duration";
 import { brandStyle } from "@/lib/brand";
 import { answeredSummary } from "@/lib/quiz-progress";
 import { clockOffsetMs, useCountdownMs } from "@/lib/use-countdown";
@@ -507,10 +508,8 @@ export default function QuizPage() {
   if (phase === "intro" && state !== null) {
     // screen 18 - the rules gate; the timer only runs once they start
     const firstName = state.candidate_name.split(" ")[0] || state.candidate_name;
-    const estimatedMinutes =
-      state.seconds_per_question === null
-        ? null
-        : Math.max(1, Math.ceil((state.total * state.seconds_per_question) / 60));
+    // same helper as the apply success panel, so both print one figure
+    const estimatedMinutes = assessmentMinutes(state.total, state.seconds_per_question);
     const validUntil = new Date(state.expires_at).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",

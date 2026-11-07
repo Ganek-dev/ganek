@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { Check, FileText, Timer } from "lucide-react";
 
 import { ApiError, publicApply } from "@/lib/api";
+import { applyEffort } from "@/lib/apply-duration";
 import { assessmentDuration } from "@/lib/assessment-duration";
 import type { PublicScreeningQuestion } from "@/lib/public-api";
 
@@ -26,6 +27,10 @@ type CvState =
 const inputCls =
   "h-[42px] w-full rounded-md border-[1.5px] border-edge bg-transparent px-3.5 text-[15px] text-foreground focus:border-brand focus:outline-none";
 const labelCls = "text-sm font-medium";
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -393,7 +398,7 @@ export function ApplyForm({
         Apply{jobTitle ? ` - ${jobTitle}` : " for this position"}
       </h2>
       <p className="mt-2.5 text-[14.5px] leading-[22px] text-g600">
-        {demo ? "Two fields, about one minute." : "Three fields, about two minutes."}
+        {capitalize(applyEffort({ demo, screeningQuestions }))}.
       </p>
       {demo ? (
         <p

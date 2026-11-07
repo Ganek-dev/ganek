@@ -44,6 +44,23 @@ describe("ApplyForm", () => {
     mocked.submit.mockResolvedValue({ status: "received", quiz_token: null, status_token: "st-tok" });
   });
 
+  it("states the field count and time from the form config", () => {
+    const { unmount } = render(<ApplyForm apiBasePath="/x" jobTitle="Developer" />);
+    expect(screen.getByText("Three fields, about two minutes.")).toBeInTheDocument();
+    unmount();
+    render(
+      <ApplyForm
+        apiBasePath="/x"
+        jobTitle="Developer"
+        demo
+        screeningQuestions={[
+          { id: "q1", type: "acknowledgment", prompt: "I agree", options: null, required: true },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Three fields, about two minutes.")).toBeInTheDocument();
+  });
+
   it("uploads the CV on selection, then submits with the ticket key", async () => {
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" jobTitle="Developer" />);
     const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });

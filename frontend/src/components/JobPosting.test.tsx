@@ -62,6 +62,22 @@ describe("HowWeHire", () => {
     expect(screen.getByText(/three fields/)).toBeInTheDocument();
     expect(screen.getByText(/timed, one shot/)).toBeInTheDocument();
   });
+
+  it("derives the apply step from the same form config as the apply form", () => {
+    render(
+      <HowWeHire
+        screeningQuestions={[
+          { id: "q1", type: "yes_no", prompt: "Right to work?", options: null, required: true },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Apply - four fields, about three minutes")).toBeInTheDocument();
+  });
+
+  it("drops the CV field on the demo", () => {
+    render(<HowWeHire demo />);
+    expect(screen.getByText("Apply - two fields, about one minute")).toBeInTheDocument();
+  });
 });
 
 describe("JobGone", () => {

@@ -90,7 +90,7 @@ export default async function SingleModeJobPage({ params, searchParams }: Props)
       <JobHero company={page.company} job={job} backHref="/" />
       <div className="mx-auto max-w-[720px] px-5 pt-7 pb-10 sm:px-6 sm:pt-9 sm:pb-14">
         <JobPosting company={page.company} job={job} jsonLd={!demo && !previewing} />
-        <HowWeHire />
+        <HowWeHire demo={demo} screeningQuestions={job.screening_questions} />
         {previewing ? (
           <p className="mt-6 flex h-[46px] w-full items-center justify-center rounded-md border border-edge font-mono text-[12.5px] text-g500">
             Applications open when the job is published.
