@@ -142,6 +142,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
+                aria-label={
+                  label === "Applicants" && counter !== null
+                    ? `Applicants, ${counter} new applicants`
+                    : undefined
+                }
                 className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ${
                   active
                     ? "font-medium text-accent-soft"
@@ -162,13 +167,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       active ? "bg-white/15 text-white" : "bg-white/10 text-zinc-300"
                     }`}
                   >
-                    {label === "Applicants" ? (
-                      <>
-                        {counter} new<span className="sr-only"> applicants</span>
-                      </>
-                    ) : (
-                      counter
-                    )}
+                    {label === "Applicants" ? `${counter} new` : counter}
                   </span>
                 ) : null}
               </Link>

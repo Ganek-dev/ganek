@@ -345,7 +345,6 @@ export function ActivityPanel() {
 
   useEffect(() => {
     let settled = false;
-    setState({ status: "loading" });
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
@@ -388,7 +387,10 @@ export function ActivityPanel() {
           <p>Couldn&apos;t load recent activity.</p>
           <button
             type="button"
-            onClick={() => setAttempt((n) => n + 1)}
+            onClick={() => {
+              setState({ status: "loading" });
+              setAttempt((n) => n + 1);
+            }}
             className="mt-2 rounded-md border border-edge px-2.5 py-1 text-[12px] hover:bg-muted-fill/50"
           >
             Try again
