@@ -38,7 +38,7 @@ questions:
       a: "It returns a coroutine object; the body never executes"
       b: "The body executes synchronously"
       c: "It raises a SyntaxError"
-      d: "The body executes in a background thread"
+      d: "The body starts running in a background thread right away"
     correct: a
     explanation: >
       Calling a coroutine function just creates a coroutine object. The body
@@ -53,7 +53,7 @@ questions:
     prompt: "What does `await` do inside an `async def` function?"
     options:
       a: "Pauses this coroutine until the awaitable completes, letting the loop run other tasks"
-      b: "Blocks the whole program until the result is ready"
+      b: "Blocks the whole program, including other tasks, until the awaited result is ready"
       c: "Starts a new operating-system thread"
       d: "Ignores the result of the call"
     correct: a
@@ -81,7 +81,7 @@ questions:
     prompt: "What is the event loop in asyncio?"
     options:
       a: "The scheduler that runs tasks and callbacks, one at a time, switching at await points"
-      b: "A pool of worker threads"
+      b: "A pool of worker threads that runs each coroutine on its own thread in parallel"
       c: "A queue of HTTP requests"
       d: "A loop that retries failed coroutines"
     correct: a
@@ -95,7 +95,7 @@ questions:
     prompt: "Why is calling the blocking `requests.get(...)` inside a coroutine a problem?"
     options:
       a: "It blocks the event loop, freezing every other task until it returns"
-      b: "It raises a TypeError in async code"
+      b: "It raises a TypeError because sync calls are not allowed in async code"
       c: "requests is deprecated"
       d: "It leaks one thread per call"
     correct: a
@@ -109,7 +109,7 @@ questions:
     prompt: "What does `asyncio.create_task(coro())` do?"
     options:
       a: "Schedules the coroutine to run concurrently and returns a Task immediately"
-      b: "Runs the coroutine to completion before returning"
+      b: "Runs the coroutine to completion first, then returns its result wrapped in a Task"
       c: "Runs the coroutine in a separate process"
       d: "Just wraps the coroutine without scheduling it"
     correct: a
@@ -124,7 +124,7 @@ questions:
     options:
       a: "The inner task is cancelled and TimeoutError is raised"
       b: "It returns None"
-      c: "The task keeps running in the background"
+      c: "The inner task keeps running in the background and None is returned"
       d: "The event loop shuts down"
     correct: a
     explanation: >
@@ -137,7 +137,7 @@ questions:
     prompt: "asyncio runs in one thread - can two tasks still corrupt shared state?"
     options:
       a: "Yes - interleaving at await points can produce lost updates between read and write"
-      b: "No, single-threaded code cannot have races"
+      b: "No - with one thread, a read-modify-write can never be interrupted by another task"
       c: "Only when using threads too"
       d: "Only on multi-core machines"
     correct: a
@@ -152,7 +152,7 @@ questions:
     options:
       a: "Exceptions are returned in the results list instead of being raised"
       b: "Failed coroutines are retried once"
-      c: "Exceptions are silently discarded"
+      c: "Exceptions are logged and silently dropped from the results list"
       d: "Only the first exception is raised"
     correct: a
     explanation: >
@@ -167,7 +167,7 @@ questions:
       a: "CancelledError is raised inside the coroutine at its next await point"
       b: "The coroutine is killed instantly without any exception"
       c: "The task finishes its current function first"
-      d: "cancel() only sets a flag the task must poll"
+      d: "cancel() only sets a flag that the coroutine must poll and check itself"
     correct: a
     explanation: >
       Cancellation is delivered as an exception at an await point, so
@@ -179,7 +179,7 @@ questions:
     prompt: "What is `loop.run_in_executor` (or `asyncio.to_thread`) for?"
     options:
       a: "Running blocking code in a thread pool so the event loop stays responsive"
-      b: "Making CPU-bound code truly parallel in one process"
+      b: "Making CPU-bound Python code truly parallel across cores in one process"
       c: "Restarting crashed coroutines"
       d: "Executing shell commands"
     correct: a
@@ -193,7 +193,7 @@ questions:
     prompt: "What is `asyncio.Semaphore(10)` typically used for?"
     options:
       a: "Limiting how many tasks run a section concurrently (e.g. max 10 requests in flight)"
-      b: "Batching results into groups of 10"
+      b: "Batching the results of concurrent tasks into groups of 10 before returning them"
       c: "Retrying failed operations 10 times"
       d: "Creating 10 event loops"
     correct: a
@@ -207,7 +207,7 @@ questions:
     prompt: "How does `asyncio.TaskGroup` (3.11+) react when one child task fails?"
     options:
       a: "The remaining tasks are cancelled and the errors propagate as an ExceptionGroup"
-      b: "Other tasks continue; the exception is logged"
+      b: "The other tasks keep running to completion; the failure is only logged at the end"
       c: "The whole process exits"
       d: "The failed task is restarted"
     correct: a
@@ -222,7 +222,7 @@ questions:
     options:
       a: "The loop holds only a weak reference - the task can be garbage-collected mid-flight"
       b: "The task runs twice"
-      c: "It blocks the event loop"
+      c: "It blocks the event loop until the task finishes, because nothing ever awaits it"
       d: "It leaks a thread per task"
     correct: a
     explanation: >
@@ -235,7 +235,7 @@ questions:
     prompt: "What does `asyncio.shield(op())` do?"
     options:
       a: "Protects the inner operation from cancellation aimed at the awaiting task"
-      b: "Catches and suppresses all exceptions from op()"
+      b: "Catches and suppresses every exception raised by op() so the caller never sees it"
       c: "Gives the task higher scheduling priority"
       d: "Runs op() in a separate process"
     correct: a
@@ -249,7 +249,7 @@ questions:
     prompt: "Why doesn't asyncio speed up CPU-bound work like hashing or parsing?"
     options:
       a: "Everything runs in one thread - a computing task never yields, so nothing else runs either"
-      b: "The GIL disables the event loop"
+      b: "The GIL pauses the event loop while CPU-bound code runs, so tasks cannot switch at all"
       c: "asyncio only works with sockets"
       d: "It does - tasks run on all cores"
     correct: a

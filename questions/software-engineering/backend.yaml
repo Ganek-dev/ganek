@@ -6,7 +6,7 @@ questions:
     prompt: "Semantically, GET vs POST?"
     options:
       a: "GET retrieves without side effects; POST submits data / creates or changes state"
-      b: "GET is encrypted, POST is not"
+      b: "GET is encrypted by the browser in transit, while POST sends its form data in plain text"
       c: "POST is cacheable, GET is not"
       d: "GET can carry a body, POST cannot"
     correct: a
@@ -42,7 +42,7 @@ questions:
     prompt: "What does HTTPS add over HTTP?"
     options:
       a: "TLS encryption plus server authentication in transit"
-      b: "Compression"
+      b: "Compression of headers and bodies for faster transfer"
       c: "Guaranteed delivery"
       d: "Server-side caching"
     correct: a
@@ -81,7 +81,7 @@ questions:
     prompt: "401 vs 403?"
     options:
       a: "401: not authenticated (who are you?); 403: authenticated but not allowed"
-      b: "401: forbidden; 403: unauthenticated"
+      b: "401: authenticated but not allowed; 403: not authenticated (who are you?)"
       c: "Both mean login expired"
       d: "403 is retryable, 401 is not"
     correct: a
@@ -95,7 +95,7 @@ questions:
     options:
       a: "Repeating the same request leaves the same final state as doing it once"
       b: "It cannot fail"
-      c: "It is safe to cache"
+      c: "It is safe to cache, since repeated responses are always byte-identical"
       d: "It requires authentication"
     correct: a
     explanation: >
@@ -107,7 +107,7 @@ questions:
     prompt: "HTTP is stateless - what follows for API design?"
     options:
       a: "Each request must carry everything needed (auth, context); the server keeps no per-connection memory"
-      b: "Servers cannot use databases"
+      b: "Servers may not keep any data between requests, so an API cannot be backed by a database at all"
       c: "Clients may send only one request per connection"
       d: "Sessions are impossible"
     correct: a
@@ -122,7 +122,7 @@ questions:
       a: "Unbounded responses grow with data: memory, latency and payload blow up"
       b: "REST requires it"
       c: "Browsers can't render long JSON"
-      d: "It improves write performance"
+      d: "It improves write performance by splitting inserts into smaller transactions"
     correct: a
     explanation: >
       Bounded pages keep response time predictable as tables grow;
@@ -133,7 +133,7 @@ questions:
     prompt: "What is rate limiting for?"
     options:
       a: "Protecting the service from abuse and overload by capping requests per client/time"
-      b: "Compressing repeated requests"
+      b: "Compressing repeated identical requests from the same client into a single cached reply"
       c: "Ordering requests fairly"
       d: "Encrypting bursts of traffic"
     correct: a
@@ -146,7 +146,7 @@ questions:
     prompt: "How do ETag and If-None-Match reduce bandwidth?"
     options:
       a: "The server replies 304 Not Modified with no body when the client's cached version is current"
-      b: "They gzip the response"
+      b: "They tell the server to gzip the response body so the client downloads fewer bytes each time"
       c: "They deduplicate concurrent requests"
       d: "They pin the response to a CDN"
     correct: a
@@ -160,7 +160,7 @@ questions:
     options:
       a: "PUT replaces the whole resource; PATCH applies a partial modification"
       b: "PATCH is just a faster PUT"
-      c: "PUT creates, PATCH deletes"
+      c: "PUT creates a new resource; PATCH deletes the fields you list in the body"
       d: "PATCH bypasses validation"
     correct: a
     explanation: >
@@ -172,7 +172,7 @@ questions:
     prompt: "What problem does CORS address?"
     options:
       a: "Browsers block cross-origin reads by default; CORS headers let a server opt in to specific origins"
-      b: "Server-to-server API authentication"
+      b: "Authenticating server-to-server API calls with signed headers so only trusted backends can call each other"
       c: "Encrypting cross-site traffic"
       d: "Preventing SQL injection"
     correct: a
@@ -185,7 +185,7 @@ questions:
     prompt: "Two users edit the same record; last write silently wins. A common fix?"
     options:
       a: "Optimistic locking: carry a version, reject the save if the version changed (409)"
-      b: "Locking the whole table during edits"
+      b: "Pessimistic table locks: lock the whole table for the duration of every edit"
       c: "Queueing all writes through one worker"
       d: "Retrying the lost write automatically"
     correct: a
@@ -198,7 +198,7 @@ questions:
     prompt: "Why do payment APIs accept an Idempotency-Key header?"
     options:
       a: "So a retried request (timeout, crash) executes the operation once, returning the recorded result"
-      b: "To sign the request body"
+      b: "To sign the request body so the payment provider can detect any tampering by a proxy in transit"
       c: "To route to the same server"
       d: "To rate-limit by customer"
     correct: a
@@ -211,7 +211,7 @@ questions:
     prompt: "What's the main architectural gain of a message queue between services?"
     options:
       a: "Decoupling: producers and consumers scale and fail independently; bursts are absorbed"
-      b: "Lower latency than direct calls"
+      b: "Lower latency than direct calls, because messages skip the network stack between services"
       c: "Stronger consistency than a database"
       d: "Automatic schema migration"
     correct: a
@@ -226,7 +226,7 @@ questions:
       a: "Connections are expensive to open and DBs cap them - reuse keeps latency low and load bounded"
       b: "Pools encrypt database traffic"
       c: "Each query legally requires its own connection"
-      d: "Pools cache query results"
+      d: "Pools cache query results, so repeated queries are answered without touching the database"
     correct: a
     explanation: >
       Handshake + auth per request would dominate latency and exhaust
@@ -237,7 +237,7 @@ questions:
     prompt: "A hot cache key expires and 1000 requests hit the DB at once. This is called - and mitigated by?"
     options:
       a: "Cache stampede - single-flight locks, staggered TTLs, or serving stale while revalidating"
-      b: "Cache poisoning - input validation"
+      b: "Cache poisoning - validate input and sign cache keys so attackers can't plant entries"
       c: "Thundering read - sharding"
       d: "TTL inversion - longer TTLs everywhere"
     correct: a

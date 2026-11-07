@@ -6,7 +6,7 @@ questions:
     prompt: "What is a git commit?"
     options:
       a: "A snapshot of the tracked files, with author, message and parent link"
-      b: "A diff file sent to the server"
+      b: "A diff of your changes that is sent to the server when you push"
       c: "A compressed backup of the repo"
       d: "A tag on the latest push"
     correct: a
@@ -32,7 +32,7 @@ questions:
     prompt: "What does `git status` show?"
     options:
       a: "Modified/staged/untracked files and your position relative to the upstream branch"
-      b: "The full commit history"
+      b: "The full commit history of the current branch with authors, newest commits first"
       c: "The server's health"
       d: "Who last edited each line"
     correct: a
@@ -45,7 +45,7 @@ questions:
       a: "Keeps matching UNTRACKED files from being added or shown as changes"
       b: "Deletes matching files from history"
       c: "Hides files from collaborators only"
-      d: "Stops tracking files that are already committed"
+      d: "Stops tracking matching files, even ones that are already committed"
     correct: a
     explanation: >
       Already-tracked files keep being tracked; you must `git rm --cached`
@@ -58,7 +58,7 @@ questions:
       a: "`git fetch` then `git merge` (or rebase, if configured)"
       b: "`git clone` then `git checkout`"
       c: "`git add` then `git commit`"
-      d: "`git fetch` then `git push`"
+      d: "`git fetch` then `git push` (to sync both directions)"
     correct: a
     explanation: >
       fetch downloads remote refs; pull additionally integrates them into
@@ -69,7 +69,7 @@ questions:
     prompt: "What is the staging area (index) for?"
     options:
       a: "Composing exactly what the next commit will contain, separately from the working tree"
-      b: "A backup of the last commit"
+      b: "A backup copy of the last commit that git restores if the working tree gets broken"
       c: "A queue of commits waiting to push"
       d: "Temporary storage for conflicts"
     correct: a
@@ -82,7 +82,7 @@ questions:
     prompt: "What is HEAD?"
     options:
       a: "The pointer to your current checkout - usually the tip of the current branch"
-      b: "The newest commit in the repository"
+      b: "The newest commit anywhere in the repository, across all branches and remotes"
       c: "The default branch on the server"
       d: "The first commit ever made"
     correct: a
@@ -94,8 +94,8 @@ questions:
     difficulty: 3
     prompt: "Merge vs rebase for integrating main into your feature branch?"
     options:
-      a: "Merge adds a joining commit preserving both histories; rebase replays your commits on top for a linear history"
-      b: "Rebase is merge without conflicts"
+      a: "Merge adds a merge commit preserving both histories; rebase replays your commits for a linear history"
+      b: "Rebase is a merge that can never conflict, because it applies your commits one at a time on top"
       c: "Merge rewrites your commits"
       d: "They produce identical history"
     correct: a
@@ -108,7 +108,7 @@ questions:
     prompt: "On a shared branch, undo a bad commit with revert rather than reset - why?"
     options:
       a: "Revert adds a new inverse commit; reset rewrites history others already have"
-      b: "Reset only works locally on new repos"
+      b: "Reset only works in fresh local repositories whose commits were never pushed anywhere"
       c: "Revert is faster"
       d: "Reset cannot touch pushed commits at all"
     correct: a
@@ -121,7 +121,7 @@ questions:
     prompt: "What does `git stash` do?"
     options:
       a: "Shelves your uncommitted changes so you get a clean tree, restorable with stash pop"
-      b: "Creates a hidden commit on the current branch"
+      b: "Creates a hidden commit on the current branch that is pushed with your next push"
       c: "Uploads changes to a private remote"
       d: "Discards uncommitted changes permanently"
     correct: a
@@ -135,7 +135,7 @@ questions:
     options:
       a: "A merge conflict: both sides changed the region - edit to the desired result, then stage"
       b: "Corrupted repository data"
-      c: "Auto-resolved changes for review"
+      c: "Changes git auto-resolved for you, marked so you can review them before committing"
       d: "Comments added by the remote"
     correct: a
     explanation: >
@@ -147,7 +147,7 @@ questions:
     prompt: "Why is `git push --force` to a shared branch dangerous, and the safer flag?"
     options:
       a: "It can erase others' commits; --force-with-lease refuses if the remote moved since you fetched"
-      b: "It deletes the remote branch first; --force-safe"
+      b: "It deletes and recreates the remote branch, losing its protection rules; use --force-safe"
       c: "It bypasses CI; --force-verify"
       d: "Nothing - force is required for every push"
     correct: a
@@ -160,7 +160,7 @@ questions:
     prompt: "Why must you not rebase commits that others have already based work on?"
     options:
       a: "Rebase creates new hashes - the old commits live on in their branches, causing duplicates and painful merges"
-      b: "Rebase deletes the reflog"
+      b: "Rebase deletes the reflog and the original objects on the server, so collaborators can no longer fetch them"
       c: "The server blocks it automatically"
       d: "Rebased commits lose their messages"
     correct: a
@@ -174,7 +174,7 @@ questions:
     options:
       a: "`git reflog` - the local log of where HEAD has been; the commit is recoverable until GC"
       b: "Nowhere; hard reset is immediate deletion"
-      c: "The remote keeps every local commit"
+      c: "On the remote - it keeps a copy of every local commit, even ones you never pushed"
       d: "In .gitignore history"
     correct: a
     explanation: >
@@ -186,7 +186,7 @@ questions:
     prompt: "What does `git cherry-pick <hash>` do?"
     options:
       a: "Applies that commit's changes as a NEW commit on your current branch"
-      b: "Moves the commit out of its original branch"
+      b: "Moves that commit out of its original branch and onto your current one"
       c: "Merges the whole source branch"
       d: "Marks the commit as reviewed"
     correct: a
@@ -199,7 +199,7 @@ questions:
     prompt: "What does `git bisect` automate?"
     options:
       a: "Binary-searching history to find the exact commit that introduced a bug"
-      b: "Splitting large commits in two"
+      b: "Splitting a large commit into two smaller commits along file boundaries"
       c: "Halving repository size"
       d: "Dividing a branch between two developers"
     correct: a

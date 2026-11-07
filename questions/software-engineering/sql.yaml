@@ -7,7 +7,7 @@ questions:
     prompt: "What does the WHERE clause do?"
     options:
       a: "Filters rows before they are returned or modified"
-      b: "Chooses which columns appear"
+      b: "Chooses which columns appear in the result set"
       c: "Sorts the result"
       d: "Joins two tables"
     correct: a
@@ -20,7 +20,7 @@ questions:
     options:
       a: "Each row is uniquely identified; values are unique and not NULL"
       b: "The column is encrypted"
-      c: "The table is sorted by it on disk in every database"
+      c: "The table is physically sorted by it on disk in every database"
       d: "Foreign tables update automatically"
     correct: a
     explanation: >
@@ -57,7 +57,7 @@ questions:
     prompt: "Which statement adds a row?"
     options:
       a: "`INSERT INTO users (name) VALUES ('Jane')`"
-      b: "`ADD ROW users ('Jane')`"
+      b: "`ADD ROW INTO users (name) VALUES ('Jane')`"
       c: "`UPDATE users APPEND ('Jane')`"
       d: "`CREATE ROW IN users ('Jane')`"
     correct: a
@@ -82,7 +82,7 @@ questions:
     options:
       a: "LEFT JOIN keeps unmatched left-side rows (with NULLs); INNER keeps only matches"
       b: "LEFT JOIN is faster INNER JOIN"
-      c: "INNER JOIN keeps unmatched rows from both sides"
+      c: "INNER JOIN keeps unmatched rows from both sides, filling the gaps with NULLs"
       d: "LEFT JOIN ignores the join condition"
     correct: a
     explanation: >
@@ -95,7 +95,7 @@ questions:
     prompt: "Why does `WHERE deleted_at = NULL` match nothing?"
     options:
       a: "Comparisons with NULL yield UNKNOWN - use IS NULL instead"
-      b: "NULL must be quoted"
+      b: "NULL must be quoted as a string: `WHERE deleted_at = 'NULL'`"
       c: "deleted_at cannot store NULL"
       d: "= only works on numbers"
     correct: a
@@ -123,7 +123,7 @@ questions:
     prompt: "WHERE vs HAVING?"
     options:
       a: "WHERE filters rows before grouping; HAVING filters groups after aggregation"
-      b: "HAVING is faster WHERE"
+      b: "HAVING is just a faster WHERE that the planner applies before reading rows"
       c: "WHERE works only with joins"
       d: "They are interchangeable"
     correct: a
@@ -137,7 +137,7 @@ questions:
     prompt: "What does a FOREIGN KEY constraint enforce?"
     options:
       a: "Referential integrity: the value must exist in the referenced table (or be NULL)"
-      b: "The column is indexed automatically in all databases"
+      b: "The column is automatically indexed in every database, which speeds up joins on it"
       c: "Rows are copied to the other table"
       d: "The referenced table becomes read-only"
     correct: a
@@ -152,7 +152,7 @@ questions:
     options:
       a: "Faster lookups on that column, but slower writes and extra storage"
       b: "Faster everything"
-      c: "Faster writes, slower reads"
+      c: "Faster writes thanks to sorted inserts, but slower reads and extra storage"
       d: "Only storage cost, no performance impact"
     correct: a
     explanation: >
@@ -165,7 +165,7 @@ questions:
     prompt: "The correct defense against SQL injection?"
     options:
       a: "Parameterized queries / prepared statements - never string-concatenate user input"
-      b: "Escaping quotes with a regex"
+      b: "Escaping single quotes in user input with a regex before building the query string"
       c: "Base64-encoding the input"
       d: "Hiding error messages"
     correct: a
@@ -179,7 +179,7 @@ questions:
     prompt: "What does `LIMIT 10 OFFSET 20` do?"
     options:
       a: "Skips the first 20 result rows and returns the next 10"
-      b: "Returns rows 10 through 20"
+      b: "Returns rows 10 through 20 of the result, counting from zero"
       c: "Limits the query to 20 seconds"
       d: "Samples 10 random rows"
     correct: a
@@ -193,7 +193,7 @@ questions:
     prompt: "Two UPDATEs run inside one transaction and the second fails; you ROLLBACK. What's the state?"
     options:
       a: "Neither update is applied - atomicity restores the pre-transaction state"
-      b: "The first update persists"
+      b: "The first update persists, because each statement autocommits on success"
       c: "Both persist but flagged dirty"
       d: "The table is locked until repaired"
     correct: a
@@ -207,7 +207,7 @@ questions:
     prompt: "What is the N+1 query problem?"
     options:
       a: "One query for a list, then one more per item for its relations - instead of a single join/batch"
-      b: "A query that returns N+1 duplicate rows"
+      b: "A query whose join fan-out returns N+1 duplicate rows for every parent record in the list"
       c: "An off-by-one error in LIMIT"
       d: "Using N+1 indexes on one table"
     correct: a
@@ -222,7 +222,7 @@ questions:
     options:
       a: "The planner's execution plan - scans, index usage, join strategy, cost estimates"
       b: "Documentation for the tables involved"
-      c: "The query rewritten in standard SQL"
+      c: "The query rewritten in standard SQL, with vendor-specific syntax removed"
       d: "Which user last ran the query"
     correct: a
     explanation: >
@@ -236,7 +236,7 @@ questions:
     options:
       a: "Different rows - other transactions' commits between them are visible (non-repeatable reads)"
       b: "Always identical results"
-      c: "Uncommitted data from other transactions"
+      c: "Uncommitted changes from other concurrent transactions, as soon as those rows are written"
       d: "Only data older than the transaction"
     correct: a
     explanation: >

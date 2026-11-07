@@ -7,7 +7,7 @@ questions:
     prompt: "FastAPI is built on top of which two libraries?"
     options:
       a: "Starlette (ASGI toolkit) and Pydantic (validation)"
-      b: "Flask and Marshmallow"
+      b: "Flask (WSGI toolkit) and Marshmallow (validation)"
       c: "Django and DRF"
       d: "Tornado and attrs"
     correct: a
@@ -21,7 +21,7 @@ questions:
     prompt: 'In `@app.get("/items/{item_id}")`, how does the handler receive `item_id`?'
     options:
       a: "As a function parameter with the same name, converted to its annotated type"
-      b: "Via `request.params[\"item_id\"]` only"
+      b: "Only via `request.path_params['item_id']`, always as a raw string"
       c: "As a global variable"
       d: "It must be parsed manually from the URL"
     correct: a
@@ -49,7 +49,7 @@ questions:
     prompt: "How do you declare a JSON request body in FastAPI?"
     options:
       a: "Annotate a parameter with a Pydantic model: `def create(item: Item)`"
-      b: "Call `request.get_json()` inside the handler"
+      b: "Call `await request.get_json()` inside the handler and parse it"
       c: "Use the `@body` decorator"
       d: "Read `sys.stdin`"
     correct: a
@@ -63,7 +63,7 @@ questions:
     prompt: "What role does uvicorn play for a FastAPI app?"
     options:
       a: "It is the ASGI server that runs the application"
-      b: "It compiles the app to C"
+      b: "It compiles the app to C for faster startup"
       c: "It is FastAPI's ORM"
       d: "It manages database migrations"
     correct: a
@@ -92,7 +92,7 @@ questions:
     options:
       a: "422 with a JSON list describing each invalid field"
       b: "500 Internal Server Error"
-      c: "400 with an HTML error page"
+      c: "400 with an HTML page listing the invalid fields"
       d: "It calls the handler with None values"
     correct: a
     explanation: >
@@ -105,7 +105,7 @@ questions:
     prompt: "What is `Depends()` used for?"
     options:
       a: "Declaring injectable dependencies (db sessions, auth) resolved per request"
-      b: "Declaring pip package requirements"
+      b: "Declaring the pip packages a route needs, installed on first request"
       c: "Ordering middleware"
       d: "Marking endpoints as deprecated"
     correct: a
@@ -120,7 +120,7 @@ questions:
     options:
       a: "In a thread pool, so it doesn't block the event loop"
       b: "It refuses to start"
-      c: "Directly on the event loop, blocking it"
+      c: "Directly on the event loop, blocking it while it runs"
       d: "In a subprocess"
     correct: a
     explanation: >
@@ -133,7 +133,7 @@ questions:
     prompt: "What does `response_model=UserOut` on a route do?"
     options:
       a: "Validates and filters the returned data to exactly UserOut's fields"
-      b: "Documents the response without changing it"
+      b: "Documents the response shape in OpenAPI without changing the data"
       c: "Caches responses of that shape"
       d: "Converts the response to XML"
     correct: a
@@ -147,7 +147,7 @@ questions:
     prompt: "The standard way to return a 404 from inside a handler?"
     options:
       a: "`raise HTTPException(status_code=404, detail=\"Not found\")`"
-      b: "`return 404`"
+      b: '`return {"status_code": 404, "detail": "Not found"}`'
       c: "`response.status = 404`"
       d: "`raise KeyError`"
     correct: a
@@ -176,7 +176,7 @@ questions:
     options:
       a: "Runs fn after the response is sent, without delaying the client"
       b: "Runs fn on a schedule like cron"
-      c: "Runs fn in a separate worker process"
+      c: "Runs fn in a separate worker process that survives app restarts"
       d: "Queues fn in Redis"
     correct: a
     explanation: >
@@ -190,7 +190,7 @@ questions:
     options:
       a: "Grouping related routes in modules, then including them in the app with a prefix"
       b: "Load-balancing between app instances"
-      c: "Routing between microservices"
+      c: "Routing requests between microservices, like an API gateway in front of them"
       d: "Defining database routers"
     correct: a
     explanation: >
@@ -203,7 +203,7 @@ questions:
     prompt: "In a dependency written with `yield` (e.g. a DB session), when does the code after `yield` run?"
     options:
       a: "After the response is delivered - it's the cleanup phase, like closing the session"
-      b: "Before the handler starts"
+      b: "Right before the handler starts, so setup and teardown both happen up front"
       c: "Only when an exception occurs"
       d: "Never; code after yield is unreachable"
     correct: a
@@ -217,7 +217,7 @@ questions:
     prompt: "Two dependencies in one request both depend on `get_db`. How many times does `get_db` run?"
     options:
       a: "Once - resolved dependencies are cached within a request by default"
-      b: "Twice, once per dependent"
+      b: "Twice - each dependent gets its own fresh call and its own session"
       c: "Zero - FastAPI mocks it"
       d: "It's undefined behavior"
     correct: a
@@ -231,7 +231,7 @@ questions:
     prompt: "The idiomatic way to swap a real dependency for a fake in tests?"
     options:
       a: "`app.dependency_overrides[get_db] = fake_get_db`"
-      b: "Monkeypatching the router table"
+      b: "Monkeypatching `app.router.routes` to point at the fake"
       c: "Setting the FASTAPI_TEST env var"
       d: "Editing the OpenAPI schema"
     correct: a
@@ -245,7 +245,7 @@ questions:
     prompt: "What does `model_config = ConfigDict(from_attributes=True)` enable on a Pydantic model?"
     options:
       a: "Validating from object attributes (e.g. ORM instances), not just dicts"
-      b: "Loading values from environment variables"
+      b: "Loading field values from environment variables instead of dicts"
       c: "Making all fields optional"
       d: "Freezing the model"
     correct: a
@@ -258,8 +258,8 @@ questions:
     difficulty: 4
     prompt: "What can HTTP middleware do that a dependency cannot?"
     options:
-      a: "Wrap EVERY request/response - including 404s and other apps' routes - e.g. to add headers or timing"
-      b: "Access the request body"
+      a: "Wrap EVERY request/response, including 404s and mounted apps, e.g. to add headers"
+      b: "Access the raw request body, which dependencies are never allowed to read"
       c: "Raise HTTPException"
       d: "Read query parameters"
     correct: a

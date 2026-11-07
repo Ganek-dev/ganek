@@ -19,7 +19,7 @@ questions:
     prompt: "In CPython, what does the GIL prevent?"
     options:
       a: "Multiple threads executing Python bytecode simultaneously"
-      b: "Multiple processes running simultaneously"
+      b: "Multiple processes running Python code at the same time"
       c: "Any use of threads in Python"
       d: "Race conditions of any kind"
     correct: a
@@ -158,7 +158,7 @@ questions:
     prompt: "When does a `finally:` block run?"
     options:
       a: "Always - even if the try block raises or returns"
-      b: "Only when no exception occurred"
+      b: "Only when the try block completes without raising"
       c: "Only when an exception occurred"
       d: "Only if the exception was not caught"
     correct: a
@@ -173,7 +173,7 @@ questions:
       a: "Isolating a project's installed packages from other projects"
       b: "Running Python in a virtual machine"
       c: "Compiling Python to machine code"
-      d: "Sandboxing Python away from the filesystem"
+      d: "Sandboxing a Python process away from the rest of the filesystem"
     correct: a
     explanation: >
       A venv gives each project its own interpreter environment and
@@ -210,7 +210,7 @@ questions:
     prompt: "Calling a function whose body contains `yield` returns what?"
     options:
       a: "A generator object; the body has not run yet"
-      b: "The first yielded value"
+      b: "The first yielded value, with the rest buffered"
       c: "A list of all yielded values"
       d: "`None`"
     correct: a
@@ -236,7 +236,7 @@ questions:
     prompt: "After `[x for x in range(3)]` at module level, is `x` defined?"
     options:
       a: "No - comprehensions have their own scope in Python 3"
-      b: "Yes, `x` is `2`"
+      b: "Yes - it leaks out and holds the last value, `2`"
       c: "Yes, `x` is `0`"
       d: "Only inside functions"
     correct: a
@@ -250,7 +250,7 @@ questions:
     options:
       a: "The file is closed when the block exits, even on an exception"
       b: "The file cannot be opened by other processes"
-      c: "All writes are flushed to disk immediately"
+      c: "All writes are flushed and synced to disk after each call"
       d: "The file is opened read-only"
     correct: a
     explanation: >
@@ -275,7 +275,7 @@ questions:
     prompt: "`b = a.copy()` on a list of lists is a shallow copy - meaning?"
     options:
       a: "The outer list is new, but inner lists are shared with `a`"
-      b: "Everything is duplicated recursively"
+      b: "Everything, including the inner lists, is duplicated recursively"
       c: "`b` is just another name for `a`"
       d: "Only the first element is copied"
     correct: a
@@ -290,7 +290,7 @@ questions:
       a: "Strings are immutable, so each `+=` builds a whole new string"
       b: "`join` sorts the parts first"
       c: "`+=` is not allowed on strings"
-      d: "`join` works in parallel"
+      d: "`join` concatenates the parts in parallel using multiple threads"
     correct: a
     explanation: >
       Repeated concatenation of immutable strings is quadratic in total;
@@ -302,7 +302,7 @@ questions:
     options:
       a: "`__init__`, `__repr__` and `__eq__` from the declared fields"
       b: "Database table mappings"
-      c: "JSON serialization methods"
+      c: "`to_dict()` and `to_json()` serialization methods for each field"
       d: "Getters and setters for each field"
     correct: a
     explanation: >
@@ -314,7 +314,7 @@ questions:
     prompt: "What does `raise NewError(...) from err` do?"
     options:
       a: "Chains explicitly: sets `err` as the new exception's `__cause__`"
-      b: "Suppresses the original traceback entirely"
+      b: "Suppresses the original traceback so only the new error is shown"
       c: "Re-raises `err` unchanged"
       d: "Retries the failed operation once"
     correct: a
@@ -368,7 +368,7 @@ questions:
     options:
       a: "Instances get fixed attributes and no per-instance `__dict__`, saving memory"
       b: "The class becomes thread-safe"
-      c: "Attributes become read-only"
+      c: "Attributes become read-only after `__init__` finishes, saving memory"
       d: "The class can no longer be subclassed"
     correct: a
     explanation: >

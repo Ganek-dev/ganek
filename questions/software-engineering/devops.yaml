@@ -7,7 +7,7 @@ questions:
     options:
       a: "An image is the immutable template; a container is a running instance of it"
       b: "They are synonyms"
-      c: "Containers are stored in registries, images run"
+      c: "Containers are the files stored in registries; images are what actually runs"
       d: "An image is one running process, a container is many"
     correct: a
     explanation: >
@@ -21,7 +21,7 @@ questions:
       a: "A recipe of instructions for building an image"
       b: "The container's runtime log"
       c: "A Docker Hub account settings file"
-      d: "A container backup archive"
+      d: "A compressed backup archive of a container"
     correct: a
     explanation: >
       FROM/COPY/RUN etc. build the image layer by layer, reproducibly.
@@ -31,7 +31,7 @@ questions:
     prompt: "What is Continuous Integration (CI)?"
     options:
       a: "Automatically building and testing every change pushed to the repository"
-      b: "Deploying to production on every commit"
+      b: "Automatically deploying every commit straight to production without review"
       c: "Merging branches once a week"
       d: "Continuously monitoring servers"
     correct: a
@@ -44,7 +44,7 @@ questions:
     prompt: "Why configure apps via environment variables rather than baked-in files?"
     options:
       a: "The same build runs in every environment; secrets stay out of the image and repo"
-      b: "Env vars are encrypted automatically"
+      b: "Environment variables are encrypted automatically, so secrets in them are safe"
       c: "Files cannot be read inside containers"
       d: "It makes the image smaller"
     correct: a
@@ -58,7 +58,7 @@ questions:
     options:
       a: "Defining and running a multi-container application (app + db + cache) from one file"
       b: "Composing multiple images into one"
-      c: "Orchestrating containers across many servers"
+      c: "Orchestrating and auto-scaling containers across a cluster of many production servers"
       d: "Compressing images"
     correct: a
     explanation: >
@@ -81,7 +81,7 @@ questions:
     prompt: "Containers vs virtual machines?"
     options:
       a: "Containers share the host kernel and isolate processes; VMs virtualize hardware with a full OS each"
-      b: "Containers are small VMs"
+      b: "Containers are just small VMs: each one boots its own guest kernel on a lightweight hypervisor"
       c: "VMs share the kernel, containers don't"
       d: "Containers cannot run Linux software"
     correct: a
@@ -93,8 +93,8 @@ questions:
     difficulty: 3
     prompt: "Why do deployments define health checks?"
     options:
-      a: "So the platform routes traffic only to instances that actually work, and restarts/holds back the rest"
-      b: "To measure code coverage in production"
+      a: "So the platform sends traffic only to working instances and restarts or holds back the rest"
+      b: "To measure code coverage and test pass rates against the live production instances"
       c: "To warm CPU caches"
       d: "To validate TLS certificates"
     correct: a
@@ -108,7 +108,7 @@ questions:
     options:
       a: "The runtime captures the streams so the platform can collect, ship and rotate logs uniformly"
       b: "Files are read-only in containers"
-      c: "stdout is faster than disk"
+      c: "Writing to stdout is faster than disk I/O, so logging never slows the application down"
       d: "It encrypts the logs"
     correct: a
     explanation: >
@@ -120,7 +120,7 @@ questions:
     prompt: "Why COPY dependency manifests and install BEFORE copying the app code in a Dockerfile?"
     options:
       a: "Layer caching: code changes then reuse the cached dependency layer instead of reinstalling"
-      b: "It reduces the final image size"
+      b: "It reduces the final image size because the dependency files are deleted after install"
       c: "Later layers run with fewer privileges"
       d: "The order is required by Docker"
     correct: a
@@ -134,7 +134,7 @@ questions:
     options:
       a: "Replacing instances gradually so some old and some new serve traffic during the rollout"
       b: "Deploying at a fixed time daily"
-      c: "Deploying to all servers simultaneously"
+      c: "Deploying the new version to all servers at once, then rolling back if errors appear"
       d: "Rolling back after every deploy"
     correct: a
     explanation: >
@@ -146,7 +146,7 @@ questions:
     prompt: "What does a reverse proxy (nginx, Caddy) in front of an app typically do?"
     options:
       a: "Terminates TLS, routes requests to backends, load-balances, serves static files"
-      b: "Hides the client's IP from the internet"
+      b: "Hides the client's IP address from the internet, like a VPN for outgoing traffic"
       c: "Replaces the application server"
       d: "Caches database queries"
     correct: a
@@ -161,7 +161,7 @@ questions:
       a: "Images are widely copied and layers are inspectable - anyone with the image has the secret"
       b: "Secrets make images too large"
       c: "Docker refuses to build them"
-      d: "Secrets expire when images are pushed"
+      d: "Secrets expire automatically when the image is pushed, so containers fail to start later"
     correct: a
     explanation: >
       Even 'deleted' files persist in earlier layers. Inject at runtime:
@@ -172,7 +172,7 @@ questions:
     prompt: "Blue-green vs canary deployment?"
     options:
       a: "Blue-green switches all traffic between two full environments; canary shifts a small share to the new version first"
-      b: "Canary is for databases, blue-green for apps"
+      b: "Canary is reserved for database schema changes, while blue-green is the strategy used for stateless application code"
       c: "Blue-green requires Kubernetes"
       d: "They are the same strategy"
     correct: a
@@ -187,7 +187,7 @@ questions:
       a: "Continuously reconciles declared desired state - scheduling, scaling, healing across a cluster"
       b: "Builds container images faster"
       c: "Replaces the need for load balancers"
-      d: "Runs containers with kernel-level isolation"
+      d: "Runs each container with its own kernel for stronger isolation than plain Docker provides"
     correct: a
     explanation: >
       You declare what should run; the control loop makes reality match -
@@ -198,7 +198,7 @@ questions:
     prompt: "What is immutable infrastructure?"
     options:
       a: "Servers/containers are never patched in place - changes ship as new images replacing old instances"
-      b: "Infrastructure that cannot be deleted"
+      b: "Infrastructure protected by deletion locks so that no server or volume can ever be removed by anyone"
       c: "Read-only file systems everywhere"
       d: "Hardware without firmware updates"
     correct: a
