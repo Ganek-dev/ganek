@@ -5,12 +5,13 @@ import { notFound } from "next/navigation";
 import { CareersFooter, CompanyHero, themeStyle } from "@/components/careers";
 import { JobList } from "@/components/careers-list";
 import { DemoBanner } from "@/components/DemoBanner";
+import { parseCareersFilters } from "@/lib/careers-filters";
 import { demoRobots, fetchInstanceInfo, publicApi } from "@/lib/public-api";
 import { resolveSource, sourceSuffix, websiteHostOf } from "@/lib/source";
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ src?: string | string[]; utm_source?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -44,7 +45,12 @@ export default async function CompanyCareersPage({ params, searchParams }: Props
       {demo ? <DemoBanner tone="brand" /> : null}
       <CompanyHero company={page.company} jobCount={page.jobs.length} />
       <section className="mx-auto max-w-[720px] px-5 pt-[18px] pb-8 sm:px-6 sm:pt-8 sm:pb-12">
-        <JobList jobs={page.jobs} hrefPrefix={`/c/${slug}/jobs`} hrefSuffix={sourceSuffix(source)} />
+        <JobList
+          jobs={page.jobs}
+          hrefPrefix={`/c/${slug}/jobs`}
+          hrefSuffix={sourceSuffix(source)}
+          initialFilters={parseCareersFilters(query)}
+        />
         <CareersFooter privacyHref={`/c/${slug}/privacy`} />
       </section>
     </main>

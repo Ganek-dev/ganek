@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -6,6 +6,7 @@ import type { PublicCompany, PublicJobDetail, PublicJobSummary } from "@/lib/pub
 
 import { CompanyHero, formatPostedAgo, formatSalary, jobMetaLine } from "./careers";
 import { JobList } from "./careers-list";
+import { EMPTY_CAREERS_FILTERS } from "@/lib/careers-filters";
 import { jobPostingJsonLd } from "@/lib/job-posting";
 
 const company: PublicCompany = {
@@ -84,39 +85,94 @@ describe("job list", () => {
   it("shows the empty state without pills when there are no jobs", () => {
     render(<JobList jobs={[]} hrefPrefix="/jobs" />);
     expect(screen.getByText(/No open positions right now/)).toBeInTheDocument();
-    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
   });
 
-  it("filters by tag pill and resets via All", async () => {
+  it("filters by tag pill link and resets via All", async () => {
     const user = userEvent.setup();
     render(<JobList jobs={[job, designJob]} hrefPrefix="/jobs" />);
 
-    const pills = screen.getByRole("group", { name: "Filter jobs" });
-    expect(pills).toBeInTheDocument();
+    const pills = screen.getByRole("navigation", { name: "Filter by skill" });
+    const design = within(pills).getByRole("link", { name: "design" });
+    // a plain link: filters without JS on the SSR page
+    expect(design).toHaveAttribute("href", "?tag=design");
 
-    await user.click(screen.getByRole("button", { name: "design" }));
+    await user.click(design);
     expect(screen.queryByRole("link", { name: /Senior Python Developer/ })).toBeNull();
     expect(screen.getByRole("link", { name: /Product Designer/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "design" })).toHaveAttribute(
-      "aria-pressed",
+    expect(within(pills).getByRole("link", { name: "design" })).toHaveAttribute(
+      "aria-current",
       "true",
     );
+    expect(window.location.search).toBe("?tag=design");
 
-    await user.click(screen.getByRole("button", { name: "All" }));
-    expect(screen.getAllByRole("link")).toHaveLength(2);
+    await user.click(within(pills).getByRole("link", { name: "All" }));
+    expect(screen.getByRole("link", { name: /Senior Python Developer/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Product Designer/ })).toBeInTheDocument();
+    expect(window.location.search).toBe("");
   });
 
-  it("offers a Remote-only pill when remote and non-remote jobs mix", async () => {
+  it("filters by work model in place", async () => {
     const user = userEvent.setup();
     render(<JobList jobs={[job, designJob]} hrefPrefix="/jobs" />);
-    await user.click(screen.getByRole("button", { name: "Remote only" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Work model" }), "remote");
     expect(screen.getByRole("link", { name: /Product Designer/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Senior Python Developer/ })).toBeNull();
+    expect(screen.getByText("1 of 2 positions")).toBeInTheDocument();
+    window.history.replaceState(null, "", "/");
   });
 
-  it("hides the pill row for a single job", () => {
+  it("renders the SSR filter state from the query params", () => {
+    render(
+      <JobList
+        jobs={[job, designJob]}
+        hrefPrefix="/jobs"
+        hrefSuffix="?src=linkedin"
+        initialFilters={{ ...EMPTY_CAREERS_FILTERS, location: "Warsaw" }}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: /Product Designer/ })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Location" })).toHaveValue("Warsaw");
+    // the filter form and the clear link keep the source bucket
+    const form = screen.getByRole("search", { name: "Filter jobs" });
+    expect(form).toHaveAttribute("method", "get");
+    expect(form.querySelector('input[name="src"]')).toHaveValue("linkedin");
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
+      "href",
+      "?src=linkedin",
+    );
+  });
+
+  it("says so when nothing matches", () => {
+    render(
+      <JobList
+        jobs={[job, designJob]}
+        hrefPrefix="/jobs"
+        initialFilters={{ ...EMPTY_CAREERS_FILTERS, q: "kubernetes" }}
+      />,
+    );
+    expect(screen.getByText("No positions match these filters.")).toBeInTheDocument();
+  });
+
+  it("groups jobs by department once there are two", () => {
+    render(
+      <JobList
+        jobs={[
+          { ...job, department: "Engineering" },
+          { ...designJob, department: "Design" },
+        ]}
+        hrefPrefix="/jobs"
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /Engineering/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Design/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Department" })).toBeInTheDocument();
+  });
+
+  it("hides the filter controls for a single job", () => {
     render(<JobList jobs={[job]} hrefPrefix="/jobs" />);
-    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 });
 
