@@ -335,11 +335,15 @@ def application_payload(application: Application, company: Company) -> dict[str,
             "public_url": urls.job_url(company, application.job.slug),
         },
         "quiz": quiz,
-        "cv": {
-            "filename": application.cv_filename,
-            "size_bytes": application.cv_size,
-            "url": urls.application_cv_api_url(company, application.id),
-        },
+        "cv": (
+            {
+                "filename": application.cv_filename,
+                "size_bytes": application.cv_size,
+                "url": urls.application_cv_api_url(company, application.id),
+            }
+            if application.cv_object_key
+            else None
+        ),
     }
 
 

@@ -270,8 +270,12 @@ export default function StatusPage() {
           <span>{status.candidate_name}</span>
           <span aria-hidden>·</span>
           <span>applied {formatDate(status.applied_at)}</span>
-          <span aria-hidden>·</span>
-          <span>{status.cv_filename}</span>
+          {status.cv_filename !== null ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{status.cv_filename}</span>
+            </>
+          ) : null}
         </div>
 
         <div className="mt-9 flex flex-col">

@@ -564,8 +564,9 @@ export interface ApplicationOut {
   id: string;
   job_id: string;
   candidate: CandidateOut;
-  cv_filename: string;
-  cv_size: number;
+  /** null for an application created without a CV (CSV import, screen link, connectors) */
+  cv_filename: string | null;
+  cv_size: number | null;
   message: string | null;
   stage: ApplicationStage;
   source: string | null;
@@ -1134,7 +1135,7 @@ export interface ApplicationStatus {
   brand_primary: string | null;
   job_title: string;
   candidate_name: string;
-  cv_filename: string;
+  cv_filename: string | null;
   applied_at: string;
   stage: string;
   quiz: StatusQuiz | null;

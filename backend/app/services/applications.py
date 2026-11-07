@@ -129,21 +129,37 @@ async def submit_application(
     payload: ApplicationSubmit,
     *,
     screening_answers: list[dict[str, Any]] | None = None,
+    allow_missing_cv: bool = False,
 ) -> Application:
     """``screening_answers`` is the validated snapshot from
     services.screening.build_answers; it is stored as given and never
-    influences anything else here (hard rule 5)."""
+    influences anything else here (hard rule 5).
+
+    ``allow_missing_cv`` is for internal callers only (CSV import, screen
+    link, connectors): a payload without a CV then creates an application
+    whose cv_* columns are all NULL. The public apply route never passes it,
+    so the candidate-facing form keeps requiring a CV."""
+    cv_object_key: str | None = None
+    cv_filename: str | None = None
+    cv_size: int | None = None
     if payload.cv_object_key is None or payload.cv_filename is None:
-        raise InvalidCvError("CV is required")
-    stat = await _validated_cv(company, payload.cv_object_key)
+        if not allow_missing_cv or payload.cv_object_key or payload.cv_filename:
+            raise InvalidCvError("CV is required")
+    else:
+        stat = await _validated_cv(company, payload.cv_object_key)
+        cv_object_key, cv_filename, cv_size = (
+            payload.cv_object_key,
+            payload.cv_filename,
+            stat.size,
+        )
     candidate = await _get_or_create_candidate(db, company, payload)
     application = Application(
         company_id=company.id,
         job_id=job.id,
         candidate_id=candidate.id,
-        cv_object_key=payload.cv_object_key,
-        cv_filename=payload.cv_filename,
-        cv_size=stat.size,
+        cv_object_key=cv_object_key,
+        cv_filename=cv_filename,
+        cv_size=cv_size,
         message=payload.message,
         source=normalize_source(payload.source),
         screening_answers=screening_answers or [],
@@ -432,7 +448,7 @@ def export_row(application: Application) -> dict[str, str | int]:
             if attempt is not None and (attempt.time_multiplier or 1.0) > 1.0
             else ""
         ),
-        "cv_filename": application.cv_filename,
+        "cv_filename": application.cv_filename or "",
         "message": application.message or "",
         # screening (0039): how many preferred answers were missed; blank when
         # the job asked nothing. The answers themselves stay in the admin UI.

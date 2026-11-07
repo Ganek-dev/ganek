@@ -1084,6 +1084,18 @@ async def _queue_stage_email(
         )
 
 
+NO_CV_DETAIL = "This application has no CV"
+
+
+def _cv_or_404(application: Application) -> tuple[str, str]:
+    """(object key, filename) of the application's CV, or 404 when it was
+    created without one (CSV import, screen link, connectors; 0046). Checked
+    before the access log, so a missing CV is never logged as a download."""
+    if application.cv_object_key is None or application.cv_filename is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_CV_DETAIL)
+    return application.cv_object_key, application.cv_filename
+
+
 @router.get(
     "/{application_id}/cv", response_class=RedirectResponse, status_code=status.HTTP_302_FOUND
 )
@@ -1094,6 +1106,7 @@ async def cv_download(
     link, which needs no Authorization header). The access-log row commits
     before the redirect is returned."""
     application = await _get_or_404(db, reader.company, application_id)
+    cv_object_key, cv_filename = _cv_or_404(application)
     await access_log.record(
         db,
         company=reader.company,
@@ -1103,7 +1116,7 @@ async def cv_download(
         api_key=reader.api_key,
     )
     return RedirectResponse(
-        url=storage.presign_cv_download(application.cv_object_key, application.cv_filename),
+        url=storage.presign_cv_download(cv_object_key, cv_filename),
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -1113,6 +1126,7 @@ async def cv_download_url(
     application_id: uuid.UUID, db: DbSession, reader: ReadActor
 ) -> CvDownload:
     application = await _get_or_404(db, reader.company, application_id)
+    cv_object_key, cv_filename = _cv_or_404(application)
     await access_log.record(
         db,
         company=reader.company,
@@ -1121,9 +1135,7 @@ async def cv_download_url(
         user=reader.user,
         api_key=reader.api_key,
     )
-    return CvDownload(
-        download_url=storage.presign_cv_download(application.cv_object_key, application.cv_filename)
-    )
+    return CvDownload(download_url=storage.presign_cv_download(cv_object_key, cv_filename))
 
 
 @router.get("/{application_id}/email-preview", response_model=EmailPreviewOut)

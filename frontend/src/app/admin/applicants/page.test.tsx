@@ -396,6 +396,18 @@ describe("ApplicantsPage", () => {
     expect(screen.getByText("1 flag")).toBeInTheDocument();
   });
 
+  it("shows No CV instead of a download link for an application without a CV", async () => {
+    mockedApps.list.mockResolvedValue(
+      pageOf([makeApp({ id: "app-1", cv_filename: null, cv_size: null })]),
+    );
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    expect(screen.getByText("No CV")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /jane\.pdf/ })).not.toBeInTheDocument();
+    expect(mockedApps.cvUrl).not.toHaveBeenCalled();
+  });
+
   it("mounts the scorecards card for the selected applicant and opens the form on ?scorecard=1", async () => {
     search = new URLSearchParams("selected=app-2&scorecard=1");
     mockedScorecards.list.mockResolvedValue([

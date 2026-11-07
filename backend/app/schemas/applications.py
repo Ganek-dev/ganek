@@ -93,8 +93,9 @@ class ApplicationOut(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID
     candidate: CandidateOut
-    cv_filename: str
-    cv_size: int
+    # None for an application created without a CV (0046)
+    cv_filename: str | None
+    cv_size: int | None
     message: str | None
     stage: ApplicationStage
     source: str | None
