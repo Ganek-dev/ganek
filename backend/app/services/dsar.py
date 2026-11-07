@@ -222,7 +222,7 @@ async def export_candidate(
                 applied_at=application.created_at,
                 cv_download_url=(
                     storage.presign_cv_download(application.cv_object_key, application.cv_filename)
-                    if application.cv_object_key
+                    if application.cv_object_key and application.cv_filename
                     else None
                 ),
                 screening_answers=[

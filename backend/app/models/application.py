@@ -51,9 +51,12 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"))
     candidate_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"))
-    cv_object_key: Mapped[str] = mapped_column(String(500))
-    cv_filename: Mapped[str] = mapped_column(String(255))
-    cv_size: Mapped[int] = mapped_column(Integer)
+    # all three NULL together for an application created without a CV by an
+    # internal caller (CSV import, screen link, connectors; 0046). The public
+    # apply form still requires one.
+    cv_object_key: Mapped[str | None] = mapped_column(String(500))
+    cv_filename: Mapped[str | None] = mapped_column(String(255))
+    cv_size: Mapped[int | None] = mapped_column(Integer)
     message: Mapped[str | None] = mapped_column(Text)
     # answers to the job's screening questions with a snapshot of each
     # question (0039, GIN-indexed); written once at apply time

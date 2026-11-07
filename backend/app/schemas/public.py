@@ -204,7 +204,7 @@ class ApplicationStatusOut(BaseModel):
     brand_primary: str | None
     job_title: str
     candidate_name: str
-    cv_filename: str
+    cv_filename: str | None
     applied_at: datetime
     stage: str
     quiz: StatusQuizOut | None

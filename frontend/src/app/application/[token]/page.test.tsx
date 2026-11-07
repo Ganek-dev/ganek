@@ -100,6 +100,14 @@ describe("StatusPage", () => {
     expect(screen.queryByText(/Assessment/)).not.toBeInTheDocument();
   });
 
+  it("leaves the CV out of the header for an application without one", async () => {
+    mocked.status.mockResolvedValue(makeStatus({ cv_filename: null }));
+    render(<StatusPage />);
+    await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+    expect(screen.queryByText("marta-vidal-cv.pdf")).not.toBeInTheDocument();
+    expect(screen.getByText("Marta Vidal")).toBeInTheDocument();
+  });
+
   it("withdraws after an explicit confirm and shows the withdrawn state", async () => {
     render(<StatusPage />);
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });

@@ -951,14 +951,21 @@ function DetailPanel({
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-3.5 text-[13px] text-g600">
             <span className="font-mono text-xs">{app.candidate.email}</span>
-            <button
-              type="button"
-              onClick={onDownloadCv}
-              className="inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
-            >
-              <FileText aria-hidden className="h-[13px] w-[13px]" />
-              {app.cv_filename} ({formatBytes(app.cv_size)})
-            </button>
+            {app.cv_filename !== null ? (
+              <button
+                type="button"
+                onClick={onDownloadCv}
+                className="inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
+              >
+                <FileText aria-hidden className="h-[13px] w-[13px]" />
+                {app.cv_filename} ({formatBytes(app.cv_size ?? 0)})
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-g500">
+                <FileText aria-hidden className="h-[13px] w-[13px]" />
+                No CV
+              </span>
+            )}
             <span className="font-mono text-[11.5px] text-g400">
               {jobTitle} · applied {relativeTime(app.created_at, now)}
               {app.source ? ` · via ${app.source}` : ""}
