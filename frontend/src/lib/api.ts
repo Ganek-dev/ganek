@@ -1606,6 +1606,8 @@ export interface CohortKpis {
   /** null below n = 3 */
   median_time_to_hire_days: number | null;
   hires_n: number;
+  /** days from application to hire, one per counted hire, ascending */
+  hire_days: number[];
 }
 
 export interface FunnelStep {

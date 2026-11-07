@@ -10,6 +10,7 @@ import { ReportFilters, type JobOption } from "@/components/reports/ReportFilter
 import { ScoreDistribution } from "@/components/reports/ScoreDistribution";
 import { SourcesTable } from "@/components/reports/SourcesTable";
 import { TimeInStage } from "@/components/reports/TimeInStage";
+import { TimeToHire } from "@/components/reports/TimeToHire";
 import { WeeklyChart } from "@/components/reports/WeeklyChart";
 import { stats, type CohortKpis, type ReportsOut, type ReportsPeriod } from "@/lib/api";
 
@@ -165,7 +166,10 @@ function ReportsContent() {
           <Funnel steps={current.report.funnel} quiz={current.report.quiz}>
             <Diagnosis lines={current.report.diagnosis} />
           </Funnel>
-          <TimeInStage rows={current.report.time_in_stage} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[7fr_5fr]">
+            <TimeInStage rows={current.report.time_in_stage} />
+            <TimeToHire cohort={current.report.cohort} />
+          </div>
           <SourcesTable rows={current.report.sources} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ScoreDistribution quiz={current.report.quiz_scores} />

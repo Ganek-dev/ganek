@@ -252,9 +252,11 @@ async def test_previous_median_below_three_is_none(db_session: AsyncSession) -> 
     report = await _report(db_session, company, "30d")
     assert report.cohort.median_time_to_hire_days == 5.0
     assert report.cohort.hires_n == 3
+    assert report.cohort.hire_days == [5.0, 5.0, 5.0]
     assert report.previous is not None
     assert report.previous.hires == 2
     assert report.previous.median_time_to_hire_days is None
+    assert report.previous.hire_days == [10.0, 10.0]
 
 
 async def test_time_in_stage_and_funnel_from_history(db_session: AsyncSession) -> None:
