@@ -173,6 +173,10 @@ export default function QuizPage() {
   const [reissueState, setReissueState] = useState<
     "idle" | "busy" | "emailed" | "notified" | "already"
   >("idle");
+  // intro "Need more time?": the request goes to the team, never auto-granted
+  const [extraTimeState, setExtraTimeState] = useState<"idle" | "busy" | "sent" | "failed">(
+    "idle",
+  );
   const [altcha, setAltcha] = useState<string | null>(null);
   const [captchaError, setCaptchaError] = useState<ReturnType<typeof isCaptchaError>>(null);
   const advancedFor = useRef<string | null>(null);
@@ -474,6 +478,10 @@ export default function QuizPage() {
             <p className="mt-3 max-w-[420px] text-center text-[15px] leading-[23px] text-g600 [text-wrap:pretty]">
               Your answers went straight to the hiring team, alongside your application.
             </p>
+            <p className="mt-2 max-w-[420px] text-center text-[13px] leading-5 text-g500 [text-wrap:pretty]">
+              No result is shown here on purpose: the team reads your answers together
+              with your CV, never as a number on its own.
+            </p>
             {state ? (
               <div className="mt-6 font-mono text-xs text-g600">{answeredSummary(state)}</div>
             ) : null}
@@ -507,6 +515,16 @@ export default function QuizPage() {
   }
   if (phase === "intro" && state !== null) {
     // screen 18 - the rules gate; the timer only runs once they start
+    const requestExtraTime = async () => {
+      setExtraTimeState("busy");
+      try {
+        await publicQuiz.requestExtraTime(token);
+        setExtraTimeState("sent");
+      } catch {
+        setExtraTimeState("failed");
+      }
+    };
+    const extraTimeAsked = state.extra_time_requested === true || extraTimeState === "sent";
     const firstName = state.candidate_name.split(" ")[0] || state.candidate_name;
     // same helper as the apply success panel, so both print one figure
     const estimatedMinutes = assessmentMinutes(state.total, state.seconds_per_question);
@@ -620,6 +638,33 @@ export default function QuizPage() {
                 practice: sample questions, unlimited runs, nothing recorded · real: timer
                 starts immediately
               </p>
+            ) : null}
+            {state.can_request_extra_time ? (
+              extraTimeAsked ? (
+                <p role="status" className="mt-3 text-center text-[13px] text-g600">
+                  Extra time requested - the hiring team will look at it. If they grant it,
+                  you&apos;ll get the same link again by email with the longer timer, so you
+                  can wait for that before starting.
+                </p>
+              ) : (
+                <p className="mt-3 text-center text-[13px] text-g500">
+                  Need more time per question?{" "}
+                  <button
+                    type="button"
+                    onClick={requestExtraTime}
+                    disabled={extraTimeState === "busy"}
+                    className="font-medium text-brand hover:underline disabled:opacity-50"
+                  >
+                    {extraTimeState === "busy" ? "Asking…" : "Ask the team for extra time"}
+                  </button>{" "}
+                  - no reason needed.
+                  {extraTimeState === "failed" ? (
+                    <span role="alert" className="block" style={{ color: RED }}>
+                      That didn&apos;t go through - try again in a moment.
+                    </span>
+                  ) : null}
+                </p>
+              )
             ) : null}
             {/* the objection route the telemetry LIA relies on - skipping is a real option */}
             <p className="mt-3 text-center text-[13px] text-g500">

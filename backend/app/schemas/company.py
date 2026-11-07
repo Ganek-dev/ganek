@@ -82,6 +82,10 @@ class CompanySettingsUpdate(BaseModel):
     request does (27c): 'manual' (default) records it for the team,
     'auto' re-issues a fresh link once without waiting for a recruiter.
 
+    ``decision_window_days`` is the decision date the candidate status page
+    promises, in days after applying (unset -> 14); a date set on one
+    application wins over it.
+
     The privacy keys feed the candidate-facing privacy notice and the
     retention engine: ``legal_name`` is the controller identity shown to
     candidates (unset -> display name), ``privacy_contact_email`` receives
@@ -96,6 +100,8 @@ class CompanySettingsUpdate(BaseModel):
     retention_months: int | None = Field(default=None, ge=1, le=24)
     privacy_policy_url: HttpUrl | None = None
     stage_limit_days: int | None = Field(default=None, ge=1, le=60)
+    # days after applying the status page promises a decision (default 14)
+    decision_window_days: int | None = Field(default=None, ge=1, le=90)
     # a column, not a settings key (0039): the list replaces the company set;
     # omitted = untouched. Validated like the job's list (ids filled, <= 20).
     screening_questions: list[ScreeningQuestion] | None = None

@@ -184,6 +184,37 @@ describe("HiringSettingsPage pipeline", () => {
     mocked.updateSettings.mockResolvedValue(makeCompany());
   });
 
+  it("shows the decision window, saves a new value and sends the default as null", async () => {
+    const user = userEvent.setup();
+    mocked.get.mockResolvedValue(makeCompany({ decision_window_days: 21 }));
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Decision expected within");
+    await waitFor(() => expect(input).toHaveValue(21));
+    await user.clear(input);
+    await user.type(input, "10{Enter}");
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenCalledWith({ decision_window_days: 10 }),
+    );
+    await user.clear(input);
+    await user.type(input, "14");
+    await user.tab();
+    await waitFor(() =>
+      expect(mocked.updateSettings).toHaveBeenLastCalledWith({ decision_window_days: null }),
+    );
+  });
+
+  it("rejects a decision window outside 1 to 90 without a request", async () => {
+    const user = userEvent.setup();
+    render(<HiringSettingsPage />);
+    const input = await screen.findByLabelText("Decision expected within");
+    await waitFor(() => expect(input).toHaveValue(14));
+    await user.clear(input);
+    await user.type(input, "91");
+    await user.tab();
+    expect(await screen.findByText("Enter a whole number from 1 to 90.")).toBeInTheDocument();
+    expect(mocked.updateSettings).not.toHaveBeenCalled();
+  });
+
   it("shows the stage limit from settings and saves a new value", async () => {
     const user = userEvent.setup();
     mocked.updateSettings.mockResolvedValue(makeCompany({ stage_limit_days: 14 }));

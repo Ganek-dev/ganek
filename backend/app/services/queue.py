@@ -105,6 +105,47 @@ async def _open_integrity_flags(db: AsyncSession, company: Company) -> list[Queu
     return items
 
 
+async def _extra_time_requests(db: AsyncSession, company: Company) -> list[QueueItem]:
+    """Candidates who asked for extra time from the quiz intro and are still
+    waiting: the attempt is unstarted and no grant raised its multiplier.
+    Granting from the review page resolves the item."""
+    rows = (
+        await db.execute(
+            select(QuizAttempt, Application.id, Candidate.name, Job.title)
+            .join(Application, Application.id == QuizAttempt.application_id)
+            .join(Candidate, Candidate.id == Application.candidate_id)
+            .join(Job, Job.id == Application.job_id)
+            .where(
+                QuizAttempt.company_id == company.id,
+                QuizAttempt.status == AttemptStatus.PENDING,
+                QuizAttempt.integrity.has_key("extra_time_requested"),
+                QuizAttempt.time_multiplier <= 1.0,
+                Application.stage.not_in(CLOSED_STAGES),
+            )
+            .order_by(QuizAttempt.created_at)
+            .limit(PER_SOURCE_LIMIT)
+        )
+    ).all()
+    items: list[QueueItem] = []
+    for attempt, application_id, candidate_name, job_title in rows:
+        request = attempt.integrity.get("extra_time_requested") or {}
+        try:
+            since = datetime.fromisoformat(str(request.get("at")))
+        except ValueError:
+            since = attempt.created_at
+        items.append(
+            QueueItem(
+                key=f"extra-time:{attempt.id}",
+                kind="extra-time",
+                title=f"Extra time requested: {candidate_name}",
+                hint=f"{job_title} · before starting the quiz",
+                href=f"/admin/applicants/{application_id}/integrity",
+                since=since,
+            )
+        )
+    return items
+
+
 async def _unbooked_interviews(db: AsyncSession, company: Company) -> list[QueueItem]:
     interviews = (
         (
@@ -277,6 +318,7 @@ async def derived_items(
     if user.role in (UserRole.ADMIN, UserRole.MEMBER):
         items += await _jobs_without_quiz(db, company)
         items += await _open_integrity_flags(db, company)
+        items += await _extra_time_requests(db, company)
         items += await _unbooked_interviews(db, company)
         items += await _scorecards_waiting(db, company, now=now)
         items += await _stalled_roles(db, company, now=now)

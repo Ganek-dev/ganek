@@ -27,6 +27,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       events: vi.fn(),
       practice: vi.fn(),
       requestReissue: vi.fn(),
+      requestExtraTime: vi.fn(),
     },
   };
 });
@@ -218,6 +219,45 @@ describe("QuizPage", () => {
     const optionA = screen.getByRole("button", { name: /Any use of threads/ });
     expect(optionA).toHaveTextContent(/^A/);
     expect(screen.getByLabelText("time remaining")).toBeInTheDocument();
+  });
+
+  it("asks the team for extra time from the intro, no reason needed", async () => {
+    mocked.state.mockResolvedValue(makeState({ can_request_extra_time: true }));
+    mocked.requestExtraTime.mockResolvedValue({ requested: true });
+    render(<QuizPage />);
+    await screen.findByText("Ready when you are, Jane");
+    expect(screen.getByText(/no reason needed/)).toBeInTheDocument();
+    // asking does not need the monitoring acknowledgment: nothing starts
+    await userEvent.click(screen.getByRole("button", { name: "Ask the team for extra time" }));
+    expect(mocked.requestExtraTime).toHaveBeenCalledWith("tok-123");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Extra time requested - the hiring team will look at it/,
+    );
+    expect(screen.queryByRole("button", { name: "Ask the team for extra time" })).toBeNull();
+    expect(mocked.next).not.toHaveBeenCalled();
+  });
+
+  it("remembers an earlier request and hides the link once extra time is granted", async () => {
+    mocked.state.mockResolvedValue(
+      makeState({ can_request_extra_time: true, extra_time_requested: true }),
+    );
+    const { unmount } = render(<QuizPage />);
+    expect(await screen.findByText(/Extra time requested/)).toBeInTheDocument();
+    unmount();
+
+    mocked.state.mockResolvedValue(makeState({ can_request_extra_time: false }));
+    render(<QuizPage />);
+    await screen.findByText("Ready when you are, Jane");
+    expect(screen.queryByText(/extra time/i)).toBeNull();
+  });
+
+  it("explains on the finished screen why there is no score", async () => {
+    mocked.state.mockResolvedValue(makeState({ status: "completed", answered: 2 }));
+    render(<QuizPage />);
+    expect(await screen.findByText(/That's it - submitted/)).toBeInTheDocument();
+    expect(screen.getByText(/No result is shown here on purpose/)).toBeInTheDocument();
+    expect(screen.getByText(/together\s+with your CV/)).toBeInTheDocument();
+    expect(screen.queryByText(/%|score/i)).toBeNull(); // the copy itself never says score
   });
 
   it("requires the monitoring acknowledgment before practice or the real start", async () => {

@@ -99,6 +99,7 @@ NOT_SESSION_GATED: frozenset[tuple[str, str]] = frozenset(
         ("POST", "/api/v1/public/quiz/{token}/answer"),
         ("POST", "/api/v1/public/quiz/{token}/events"),
         ("POST", "/api/v1/public/quiz/{token}/request-reissue"),
+        ("POST", "/api/v1/public/quiz/{token}/request-extra-time"),
         ("GET", "/api/v1/public/applications/{token}"),
         ("POST", "/api/v1/public/applications/{token}/withdraw"),
         ("POST", "/api/v1/public/applications/{token}/request-data"),

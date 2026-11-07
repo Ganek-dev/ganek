@@ -1,9 +1,10 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -84,6 +85,9 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # cleared when it leaves; the stage.changed payload keeps the history
     rejection_reason: Mapped[str | None] = mapped_column(String(40))
     rejection_note: Mapped[str | None] = mapped_column(Text)
+    # the decision date the team promised this candidate (0047); NULL =
+    # applied + the company's decision window (services.decision_dates)
+    decision_expected_on: Mapped[date | None] = mapped_column(Date)
 
     candidate: Mapped["Candidate"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship()

@@ -228,6 +228,32 @@ describe("IntegrityReviewPage", () => {
     expect(screen.getByLabelText("Extra time")).toHaveValue("1.5");
   });
 
+  it("surfaces a candidate's extra-time request until it is granted", async () => {
+    const request = { at: "2026-08-06T09:00:00Z", count: 1 };
+    mocked.get.mockResolvedValue(
+      makeApp({ quiz_attempt: makeAttempt({ integrity: { extra_time_requested: request } }) }),
+    );
+    const { unmount } = render(<IntegrityReviewPage />);
+    expect(await screen.findByText("candidate asked for extra time")).toBeInTheDocument();
+    expect(screen.getByText(/asked for extra time from the assessment intro/)).toBeInTheDocument();
+    unmount();
+
+    mocked.get.mockResolvedValue(
+      makeApp({
+        quiz_attempt: makeAttempt({
+          time_multiplier: 2,
+          integrity: {
+            extra_time_requested: request,
+            accommodation: { time_multiplier: 2, by_user_id: "u1", at: "2026-08-06T10:00:00Z" },
+          },
+        }),
+      }),
+    );
+    render(<IntegrityReviewPage />);
+    expect(await screen.findByText("extra time 2x")).toBeInTheDocument();
+    expect(screen.queryByText("candidate asked for extra time")).toBeNull();
+  });
+
   it("shows re-issue provenance chips on a re-issued attempt", async () => {
     mocked.get.mockResolvedValue(
       makeApp({

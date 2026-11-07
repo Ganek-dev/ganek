@@ -554,6 +554,8 @@ export interface QuizIntegrity {
   review?: { decision: string; by_user_id: string; at: string };
   /** Candidate asked for a new link from the expired screen (27c). */
   reissue_requested?: { at: string; count: number };
+  /** Candidate asked for extra time from the quiz intro; no reason is stored. */
+  extra_time_requested?: { at: string; count: number };
 }
 
 export interface QuizResult {
@@ -587,6 +589,8 @@ export interface ApplicationOut {
   rejection_note: string | null;
   /** Screening answer snapshots with preferred + match: recruiter-facing only. */
   screening_answers: ScreeningAnswer[];
+  /** The team's own decision date (YYYY-MM-DD); null = the Hiring settings window. */
+  decision_expected_on?: string | null;
 }
 
 /** The optional internal reason sent with a rejection; a key left
@@ -898,6 +902,12 @@ export const applications = {
   /** Art. 15/20: candidate-destined JSON bundle, admin-only. */
   dsarExport: (id: string) =>
     request<Record<string, unknown>>(`/api/v1/applications/${id}/dsar-export`),
+  /** The decision date the candidate's status page shows; null = the settings window. */
+  setDecisionDate: (id: string, date: string | null) =>
+    request<ApplicationOut>(`/api/v1/applications/${id}/decision-date`, {
+      method: "PUT",
+      body: JSON.stringify({ decision_expected_on: date }),
+    }),
   /** Art. 16: rectify the delivery address for every candidate link. */
   updateCandidateEmail: (id: string, email: string) =>
     request<ApplicationOut>(`/api/v1/applications/${id}/candidate-email`, {
@@ -1115,6 +1125,10 @@ export interface QuizState {
   practice_available: boolean;
   status_token: string;
   privacy_url: string;
+  /** The intro's "Need more time?" link: unstarted and no extra time granted yet. */
+  can_request_extra_time?: boolean;
+  /** The candidate already asked the team for extra time. */
+  extra_time_requested?: boolean;
 }
 
 export interface PracticeQuestion {
@@ -1146,7 +1160,10 @@ export interface ApplicationStatus {
   applied_at: string;
   stage: string;
   quiz: StatusQuiz | null;
+  /** A day (YYYY-MM-DD): the team's date, else applied + the decision window. */
   decision_expected_by: string;
+  /** That day passed without a decision: say the team is running late. */
+  decision_overdue?: boolean;
   /** Effective retention window (server-resolved default) for the honest copy. */
   retention_months: number;
   /** Absolute link to the company's privacy notice. */
@@ -1285,6 +1302,10 @@ export const publicQuiz = {
     }),
   /** Expired-link screen (27c): ask for a fresh link. reissued=true means a
    * new link was auto-emailed; false means the team was notified. */
+  requestExtraTime: (token: string) =>
+    request<{ requested: boolean }>(`/api/v1/public/quiz/${token}/request-extra-time`, {
+      method: "POST",
+    }),
   requestReissue: (token: string, altcha?: string | null) =>
     request<{ reissued: boolean }>(`/api/v1/public/quiz/${token}/request-reissue`, {
       method: "POST",
@@ -1546,6 +1567,7 @@ export interface TodayPanelData {
 export type QueueItemKind =
   | "job-quiz"
   | "integrity"
+  | "extra-time"
   | "unbooked"
   | "scorecard"
   | "scorecard-waiting"
@@ -1733,6 +1755,8 @@ export interface CompanyAdmin {
     privacy_policy_url?: string;
     /** Days in a stage before a live application counts as overdue. */
     stage_limit_days?: number;
+    /** Days after applying the status page promises a decision (default 14). */
+    decision_window_days?: number;
   };
   screening_questions: ScreeningQuestion[];
   scorecard_template?: ScorecardCriterion[];
@@ -1746,6 +1770,7 @@ export interface CompanySettingsUpdate {
   retention_months?: number | null;
   privacy_policy_url?: string | null;
   stage_limit_days?: number | null;
+  decision_window_days?: number | null;
   /** Replaces the company default set; omit to leave it untouched. */
   screening_questions?: ScreeningQuestion[] | null;
   /** Replaces the company default scorecard; omit to leave it untouched. */

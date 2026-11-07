@@ -174,6 +174,11 @@ export default function IntegrityReviewPage() {
               extra time {integrity.accommodation.time_multiplier}x
             </span>
           ) : null}
+          {integrity.extra_time_requested && (attempt?.time_multiplier ?? 1) <= 1 ? (
+            <span className="inline-flex h-6 items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 text-[11.5px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+              candidate asked for extra time
+            </span>
+          ) : null}
           {integrity.reissue_requested ? (
             <span className="inline-flex h-6 items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 text-[11.5px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
               candidate requested a new link
@@ -320,6 +325,13 @@ export default function IntegrityReviewPage() {
               An accommodation the candidate asked for. Recorded on the attempt; scoring is
               unchanged. A quiz that already started is re-issued with the new timing.
             </p>
+            {integrity.extra_time_requested && (attempt.time_multiplier ?? 1) <= 1 ? (
+              <p className="mt-1.5 text-[12.5px] font-medium leading-[18px] text-amber-700 dark:text-amber-300">
+                The candidate asked for extra time from the assessment intro (no reason is
+                asked for). Pick 1.5x or 2x and confirm: they get the same link again with the
+                longer timer.
+              </p>
+            ) : null}
           </div>
           <select
             aria-label="Extra time"

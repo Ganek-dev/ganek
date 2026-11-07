@@ -1,7 +1,7 @@
 """Recruiter-facing application schemas."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -107,6 +107,15 @@ class ApplicationOut(BaseModel):
     rejection_note: str | None
     # answer snapshots with preferred + match (0039): recruiter-facing only
     screening_answers: list[dict[str, Any]] = []
+    # the team's own decision date for this candidate (0047); null = the
+    # status page derives it from the company's decision window
+    decision_expected_on: date | None = None
+
+
+class DecisionDateIn(BaseModel):
+    """Set (or, with null, clear) the decision date the candidate sees."""
+
+    decision_expected_on: date | None
 
 
 class ApplicationPage(BaseModel):

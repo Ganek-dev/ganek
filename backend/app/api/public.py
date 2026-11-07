@@ -31,6 +31,7 @@ from app.models import (
     Task,
     UserInvite,
 )
+from app.models.application import CLOSED_STAGES
 from app.schemas.auth import UserOut
 from app.schemas.public import (
     ApplicationReceived,
@@ -64,6 +65,7 @@ from app.schemas.public import (
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import (
     activity,
+    decision_dates,
     demo_mode,
     ics,
     quotas,
@@ -523,6 +525,10 @@ async def quiz_state(token: str, db: DbSession) -> QuizStateOut:
         practice_available=practice_available,
         status_token=create_status_token(attempt.application_id),
         privacy_url=urls.privacy_notice_url(company),
+        can_request_extra_time=(
+            attempt.status is AttemptStatus.PENDING and (attempt.time_multiplier or 1.0) <= 1.0
+        ),
+        extra_time_requested="extra_time_requested" in (attempt.integrity or {}),
     )
 
 
@@ -625,6 +631,41 @@ async def quiz_events(token: str, payload: QuizEventsIn, db: DbSession) -> QuizE
 
 
 @router.post(
+    "/quiz/{token}/request-extra-time",
+    response_model=dict[str, bool],
+    dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
+)
+async def quiz_request_extra_time(token: str, db: DbSession) -> dict[str, bool]:
+    """Intro screen (18) "Need more time?": ask the team for an extra-time
+    accommodation before starting.
+
+    Always goes to the team first, like an expired link in 'manual' mode:
+    the request lands on the attempt's integrity data and in the recruiter
+    queue, and a recruiter grants it with the existing extra-time control
+    (which re-sends the invite). No reason is asked for or stored - the
+    candidate never has to disclose why. Repeats bump a count.
+    """
+    attempt = await _attempt_or_404(db, token)
+    if attempt.status is not AttemptStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Extra time can only be requested before the assessment starts",
+        )
+    if datetime.now(UTC) > attempt.expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This assessment link has expired",
+        )
+    if (attempt.time_multiplier or 1.0) > 1.0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Extra time is already granted for this assessment",
+        )
+    await quiz_service.record_extra_time_request(db, attempt)
+    return {"requested": True}
+
+
+@router.post(
     "/quiz/{token}/request-reissue",
     response_model=dict[str, bool],
     dependencies=[rate_limit("quiz", lambda: settings.rate_limit_quiz_per_minute)],
@@ -703,9 +744,6 @@ async def quiz_request_reissue(
     return {"reissued": False}
 
 
-DECISION_WINDOW = timedelta(days=14)  # "you'll hear back within two weeks of applying"
-
-
 async def _application_by_status_token_or_404(db: DbSession, token: str) -> Application:
     application_id = read_status_token(token)
     application = (
@@ -747,6 +785,7 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         else None
     )
     shown_stage = application.stage.value
+    decision_on = decision_dates.decision_expected_on(application, company)
     if (
         application.stage is ApplicationStage.REJECTED
         and await scheduled_emails.scheduled_rejection(db, application) is not None
@@ -761,7 +800,11 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         applied_at=application.created_at,
         stage=shown_stage,
         quiz=quiz,
-        decision_expected_by=application.created_at + DECISION_WINDOW,
+        decision_expected_by=decision_on,
+        decision_overdue=(
+            shown_stage not in {stage.value for stage in CLOSED_STAGES}
+            and datetime.now(UTC).date() > decision_on
+        ),
         retention_months=company_service.privacy_notice(company).retention_months,
         privacy_url=urls.privacy_notice_url(company),
         screening_answers=[

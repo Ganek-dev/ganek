@@ -52,6 +52,7 @@ import { BUILTIN_TEMPLATE, REASON_HELPER, StageEmailDialog } from "@/components/
 import { formatSendAfter, presetSendAfter, type SendAfterPreset } from "@/lib/send-after";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
+import { DecisionDateControl } from "@/components/DecisionDateControl";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
 import { NotesCard } from "@/components/NotesCard";
@@ -832,6 +833,7 @@ function DetailPanel({
   onExport,
   onErase,
   onUpdateEmail,
+  onSetDecisionDate,
   onSendMessage,
   now,
   trailTick,
@@ -846,6 +848,8 @@ function DetailPanel({
   onExport: () => void;
   onErase: () => Promise<boolean>;
   onUpdateEmail: (email: string) => Promise<string | null>;
+  /** The candidate's promised decision date (null = settings window): an error, or null. */
+  onSetDecisionDate: (date: string | null) => Promise<string | null>;
   /** A one-off message (PR 4): resolves to an error to show, or null. */
   onSendMessage: (fields: MessageInput) => Promise<string | null>;
   now: Date;
@@ -1192,6 +1196,15 @@ function DetailPanel({
 
       <ScreeningAnswers answers={app.screening_answers} />
 
+      {app.stage !== "rejected" && app.stage !== "withdrawn" && app.stage !== "hired" ? (
+        <DecisionDateControl
+          key={`decision-${app.id}`}
+          value={app.decision_expected_on ?? null}
+          appliedAt={app.created_at}
+          onSave={onSetDecisionDate}
+        />
+      ) : null}
+
       {app.stage !== "rejected" && app.stage !== "withdrawn" ? (
         <div className="mt-4">
           <InterviewCard key={app.id} applicationId={app.id} />
@@ -1228,9 +1241,24 @@ function DetailPanel({
           </div>
         </>
       ) : app.quiz_attempt ? (
-        <p className="mt-5 text-sm text-g500">
-          Quiz {app.quiz_attempt.status.replace("_", " ")}.
-        </p>
+        <>
+          <p className="mt-5 text-sm text-g500">
+            Quiz {app.quiz_attempt.status.replace("_", " ")}.
+          </p>
+          {app.quiz_attempt.integrity.extra_time_requested &&
+          app.quiz_attempt.status === "pending" &&
+          (app.quiz_attempt.time_multiplier ?? 1) <= 1 ? (
+            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+              The candidate asked for extra time before starting.{" "}
+              <Link
+                href={`/admin/applicants/${app.id}/integrity`}
+                className="underline hover:no-underline"
+              >
+                Grant it on the review page
+              </Link>
+            </p>
+          ) : null}
+        </>
       ) : (
         <p className="mt-5 text-sm text-g500">This job did not include a screening quiz.</p>
       )}
@@ -1610,6 +1638,16 @@ function ApplicantsContent() {
     }
   }
 
+  async function setDecisionDate(id: string, date: string | null): Promise<string | null> {
+    try {
+      await applications.setDecisionDate(id, date);
+      reload();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : "Saving the decision date failed";
+    }
+  }
+
   const selected = items?.find((app) => app.id === selectedId) ?? null;
 
   function toggleChecked(id: string, name: string, isChecked: boolean) {
@@ -1865,6 +1903,7 @@ function ApplicantsContent() {
             onExport={() => void downloadDsar(selected)}
             onErase={() => eraseCandidate(selected.id)}
             onUpdateEmail={(email) => updateCandidateEmail(selected.id, email)}
+            onSetDecisionDate={(date) => setDecisionDate(selected.id, date)}
             onSendMessage={(fields) => sendMessage(selected.id, fields)}
             now={now}
             trailTick={trailTick}

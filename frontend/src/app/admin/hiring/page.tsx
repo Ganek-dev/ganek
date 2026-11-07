@@ -15,6 +15,8 @@ import { companyApi, type ScorecardCriterion, type ScreeningQuestion } from "@/l
  * more hiring settings land here as they ship. */
 
 const DEFAULT_STAGE_LIMIT = 7;
+// the decision date the candidate status page promises, in days after applying
+const DEFAULT_DECISION_WINDOW = 14;
 
 type ReissueMode = "manual" | "auto";
 
@@ -49,6 +51,10 @@ export default function HiringSettingsPage() {
   const [limit, setLimit] = useState("7");
   const [savedLimit, setSavedLimit] = useState(7);
   const [limitError, setLimitError] = useState<string | null>(null);
+  // the decision window: same typed / saved / inline-error trio
+  const [decisionWindow, setDecisionWindow] = useState(String(DEFAULT_DECISION_WINDOW));
+  const [savedWindow, setSavedWindow] = useState(DEFAULT_DECISION_WINDOW);
+  const [windowError, setWindowError] = useState<string | null>(null);
 
   useEffect(() => {
     companyApi
@@ -58,6 +64,9 @@ export default function HiringSettingsPage() {
         const stored = company.settings.stage_limit_days ?? DEFAULT_STAGE_LIMIT;
         setSavedLimit(stored);
         setLimit(String(stored));
+        const storedWindow = company.settings.decision_window_days ?? DEFAULT_DECISION_WINDOW;
+        setSavedWindow(storedWindow);
+        setDecisionWindow(String(storedWindow));
         setDefaults(company.screening_questions);
         setScorecard(company.scorecard_template ?? []);
       })
@@ -95,6 +104,33 @@ export default function HiringSettingsPage() {
     try {
       await companyApi.updateSettings({ stage_limit_days: value });
       setSavedLimit(value);
+      setNotice("Saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  async function saveWindow() {
+    const value = Number(decisionWindow);
+    setError(null);
+    setNotice(null);
+    if (
+      decisionWindow.trim() === "" ||
+      !Number.isInteger(value) ||
+      value < 1 ||
+      value > 90
+    ) {
+      setWindowError("Enter a whole number from 1 to 90.");
+      return;
+    }
+    setWindowError(null);
+    if (value === savedWindow) return;
+    try {
+      // the default goes back as null so a later default change reaches it
+      await companyApi.updateSettings({
+        decision_window_days: value === DEFAULT_DECISION_WINDOW ? null : value,
+      });
+      setSavedWindow(value);
       setNotice("Saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -150,6 +186,53 @@ export default function HiringSettingsPage() {
         ) : null}
         <p id="stage-limit-help" className="mt-2 text-[12.5px] leading-[18px] text-g500">
           Used for the Overdue tile, the Needs attention chip and the stalled-role queue item.
+        </p>
+      </div>
+
+      <div className="card p-4">
+        <h2 className="text-[13.5px] font-semibold">What candidates are promised</h2>
+        <label htmlFor="decision-window" className="mt-3 block text-[13px] font-medium">
+          Decision expected within
+        </label>
+        <div className="mt-1.5 flex items-center gap-2">
+          <input
+            id="decision-window"
+            type="number"
+            min={1}
+            max={90}
+            value={decisionWindow}
+            aria-invalid={windowError !== null}
+            aria-describedby={
+              windowError ? "decision-window-error decision-window-help" : "decision-window-help"
+            }
+            onChange={(event) => setDecisionWindow(event.target.value)}
+            onBlur={saveWindow}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void saveWindow();
+              }
+            }}
+            className="h-8 w-[72px] rounded-md border border-edge bg-surface px-2 font-mono text-[13px] outline-none focus:border-g400"
+          />
+          <span className="text-[13px] text-g600">days of applying</span>
+        </div>
+        {windowError ? (
+          <p
+            id="decision-window-error"
+            className="mt-1.5 text-[12.5px] text-red-600 dark:text-red-400"
+          >
+            {windowError}
+          </p>
+        ) : null}
+        <p id="decision-window-help" className="mt-2 text-[12.5px] leading-[18px] text-g500">
+          The candidate status page shows this date. Change it for one candidate from their
+          panel; once it passes without a decision the page says you are running late instead
+          of showing an expired promise.
+        </p>
+        <p className="mt-3 text-[12.5px] leading-[18px] text-g500">
+          Extra-time requests from the assessment intro always go to the team first: they show
+          up in your queue and on the applicant, and you grant them from the review page.
         </p>
       </div>
 
