@@ -1065,16 +1065,8 @@ describe("ApplicantsPage", () => {
       "Ganek default",
       "A",
     ]);
-    expect(
-      await screen.findByText(
-        "Rejection email. Shown for Jane Applicant; each candidate gets their own values.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Interview email. Shown for Jane Applicant; each candidate gets their own values.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Rejection email:")).toBeInTheDocument();
+    expect(screen.getByText("Interview email:")).toBeInTheDocument();
     await waitFor(() =>
       expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "rejection", "t-a"),
     );
@@ -1097,6 +1089,41 @@ describe("ApplicantsPage", () => {
         sendAfter: expect.stringMatching(/T09:00:00/),
       }),
     );
+  });
+
+  it("bulk bar keeps each email preview to one line until Show, the confirm step shows it in full", async () => {
+    render(<ApplicantsPage />);
+    await screen.findByRole("button", { name: /Jane Applicant/ });
+    await userEvent.click(screen.getByRole("checkbox", { name: /select jane applicant/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /also email candidates/i }));
+    const showReject = await screen.findByRole("button", { name: "Show rejection email" });
+    expect(screen.getByRole("button", { name: "Show interview email" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    // collapsed: subject lines only, no mail body in the sticky bar (#368)
+    expect(screen.getAllByText("Your application to ACME Ganek")).toHaveLength(2);
+    expect(screen.queryByTestId("bulk-email-text")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Shown for Jane Applicant; each candidate gets their own values."),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(showReject);
+    expect(screen.getByRole("button", { name: "Hide rejection email" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getAllByTestId("bulk-email-text")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Hide rejection email" }));
+    expect(screen.queryByTestId("bulk-email-text")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await screen.findByText("Reject 1 applicant?");
+    const body = await screen.findByTestId("bulk-email-text");
+    expect(body).toHaveTextContent("Thank you, Jane Applicant");
+    expect(
+      screen.getByText("Shown for Jane Applicant; each candidate gets their own values."),
+    ).toBeInTheDocument();
   });
 
   it("bulk reject with email defaults to tomorrow morning and passes send_after", async () => {

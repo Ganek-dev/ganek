@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   AlertTriangle,
@@ -285,21 +285,28 @@ type BulkPreviewState =
   | { kind: "error" };
 
 /** The rejection email as the first selected candidate would receive it
- * (card "Candidate emails", PR 3): every candidate gets their own values. */
+ * (card "Candidate emails", PR 3): every candidate gets their own values.
+ * In the sticky bar it is one line (label + subject) with a Show toggle, so
+ * two previews never grow the bar over the list rows (#368); the reject
+ * confirmation renders it expanded, so the full mail is seen before sending. */
 function BulkPreview({
   kind,
   label,
   applicationId,
   candidateName,
   templateId,
+  defaultOpen = false,
 }: {
   kind: EmailKind;
   label: string;
   applicationId: string;
   candidateName: string;
   templateId: string | undefined;
+  defaultOpen?: boolean;
 }) {
   const [fetched, setFetched] = useState<{ key: string; state: BulkPreviewState } | null>(null);
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
   const key = `${kind}:${applicationId}:${templateId ?? ""}`;
 
   useEffect(() => {
@@ -328,23 +335,39 @@ function BulkPreview({
   const state: BulkPreviewState =
     fetched !== null && fetched.key === key ? fetched.state : { kind: "loading" };
   return (
-    <div className="space-y-1">
-      <p className="text-[11.5px] text-g500">
-        {label}. Shown for {candidateName}; each candidate gets their own values.
-      </p>
-      {state.kind === "loading" ? (
-        <div aria-busy="true" aria-label="Loading preview" className="space-y-1.5">
-          <div className="h-4 w-56 animate-pulse rounded-sm bg-muted-fill" />
-          <div className="h-16 animate-pulse rounded-md bg-muted-fill" />
-        </div>
-      ) : state.kind === "error" ? (
-        <p className="text-[12px] text-g600">
-          Preview unavailable. The emails are still sent when you confirm.
-        </p>
-      ) : (
-        <>
-          <p className="text-[12.5px] text-g600">
-            Subject: <span className="font-medium text-foreground">{state.subject}</span>
+    <div className="w-full min-w-0 space-y-1">
+      <div className="flex min-w-0 items-center gap-2 text-[12px] text-g600">
+        <span className="shrink-0 font-medium text-g700">{label}:</span>
+        <span className="min-w-0 flex-1 truncate">
+          {state.kind === "loading" ? (
+            <span aria-busy="true" aria-label="Loading preview" className="text-g500">
+              Loading preview…
+            </span>
+          ) : state.kind === "error" ? (
+            "Preview unavailable. The emails are still sent when you confirm."
+          ) : (
+            <span className="font-medium text-foreground" title={state.subject}>
+              {state.subject}
+            </span>
+          )}
+        </span>
+        {state.kind === "ready" ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            aria-label={`${open ? "Hide" : "Show"} ${label.toLowerCase()}`}
+            onClick={() => setOpen((value) => !value)}
+            className="shrink-0 text-[12px] font-medium text-accent hover:underline"
+          >
+            {open ? "Hide" : "Show"}
+          </button>
+        ) : null}
+      </div>
+      {state.kind === "ready" && open ? (
+        <div id={bodyId} className="space-y-1">
+          <p className="text-[11.5px] text-g500">
+            Shown for {candidateName}; each candidate gets their own values.
           </p>
           <pre
             data-testid="bulk-email-text"
@@ -352,8 +375,8 @@ function BulkPreview({
           >
             {state.text}
           </pre>
-        </>
-      )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -505,6 +528,16 @@ function BulkActionBar({
               />
               <p className="text-[11px] text-g500">{REASON_HELPER}</p>
               {notify ? <SendAfterRadios value={bulkPreset} onChange={setBulkPreset} /> : null}
+              {notify && kinds !== null && ids.length > 0 ? (
+                <BulkPreview
+                  kind="rejection"
+                  label="Rejection email"
+                  applicationId={ids[0]}
+                  candidateName={names[0]}
+                  templateId={rejectTemplate || undefined}
+                  defaultOpen
+                />
+              ) : null}
             </div>
             <button
               type="button"
