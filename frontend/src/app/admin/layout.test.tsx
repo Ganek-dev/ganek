@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,9 +7,10 @@ import { api, companyApi, stats, type CompanyAdmin } from "@/lib/api";
 import AdminLayout from "./layout";
 
 const replace = vi.fn();
+let pathname = "/admin/jobs";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
-  usePathname: () => "/admin/jobs",
+  usePathname: () => pathname,
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -29,6 +30,7 @@ const mockedStats = vi.mocked(stats);
 describe("AdminLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pathname = "/admin/jobs";
     mockedApi.me.mockResolvedValue({
       id: "u1",
       company_id: "c1",
@@ -283,5 +285,83 @@ describe("AdminLayout", () => {
     expect(await screen.findByTestId("demo-banner")).toHaveTextContent("Demo workspace.");
     await waitFor(() => expect(mockedCompany.get).toHaveBeenCalled());
     expect(screen.queryByText(/Email is not configured on this instance/)).toBeNull();
+  });
+
+  describe("mobile top bar", () => {
+    async function renderShell() {
+      const view = render(
+        <AdminLayout>
+          <p>page content</p>
+        </AdminLayout>,
+      );
+      await screen.findByText("page content");
+      return view;
+    }
+
+    it("shows the menu button, wordmark and avatar, with the drawer closed", async () => {
+      await renderShell();
+      const open = screen.getByRole("button", { name: "Open navigation" });
+      expect(open).toHaveAttribute("aria-expanded", "false");
+      expect(open).toHaveAttribute("aria-controls", "admin-nav");
+      const banner = screen.getByRole("banner");
+      expect(banner).toHaveTextContent("Ganek.");
+      expect(banner).toHaveTextContent("GR"); // initials of grumpy@acme.dev
+      const drawer = document.getElementById("admin-nav");
+      expect(drawer).toHaveClass("-translate-x-full", "max-md:invisible", "md:translate-x-0");
+      expect(screen.queryByTestId("nav-backdrop")).not.toBeInTheDocument();
+    });
+
+    it("opens the drawer, focuses the first link and closes on Escape", async () => {
+      const user = userEvent.setup();
+      await renderShell();
+      const open = screen.getByRole("button", { name: "Open navigation" });
+      await user.click(open);
+      expect(open).toHaveAttribute("aria-expanded", "true");
+      const drawer = document.getElementById("admin-nav");
+      expect(drawer).toHaveClass("translate-x-0");
+      expect(drawer).not.toHaveClass("max-md:invisible");
+      expect(screen.getByRole("link", { name: /Dashboard/ })).toHaveFocus();
+      expect(document.body.style.overflow).toBe("hidden");
+
+      await user.keyboard("{Escape}");
+      expect(open).toHaveAttribute("aria-expanded", "false");
+      expect(open).toHaveFocus();
+      expect(document.body.style.overflow).toBe("");
+    });
+
+    it("closes from the close button, the backdrop and a nav link", async () => {
+      const user = userEvent.setup();
+      await renderShell();
+      const open = screen.getByRole("button", { name: "Open navigation" });
+
+      await user.click(open);
+      await user.click(screen.getByRole("button", { name: "Close navigation" }));
+      expect(open).toHaveAttribute("aria-expanded", "false");
+      expect(open).toHaveFocus();
+
+      await user.click(open);
+      fireEvent.click(screen.getByTestId("nav-backdrop"));
+      expect(open).toHaveAttribute("aria-expanded", "false");
+
+      await user.click(open);
+      fireEvent.click(screen.getByRole("link", { name: /Jobs/ }));
+      expect(open).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("closes when the route changes", async () => {
+      const user = userEvent.setup();
+      const view = await renderShell();
+      const open = screen.getByRole("button", { name: "Open navigation" });
+      await user.click(open);
+      expect(open).toHaveAttribute("aria-expanded", "true");
+
+      pathname = "/admin/reports";
+      view.rerender(
+        <AdminLayout>
+          <p>page content</p>
+        </AdminLayout>,
+      );
+      expect(open).toHaveAttribute("aria-expanded", "false");
+    });
   });
 });

@@ -8,12 +8,14 @@ import {
   LayoutGrid,
   ListChecks,
   LogOut,
+  Menu,
   Settings,
   Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DemoBanner } from "@/components/DemoBanner";
 import { Wordmark } from "@/components/Wordmark";
@@ -38,7 +40,9 @@ function counterFor(label: string, overview: StatsOverview | null): number | nul
 }
 
 /** Dark 224px sidebar shell from the design handoff (screen 06). Constant-dark
- *  in both color modes; active item = accent tint over the sidebar color. */
+ *  in both color modes; active item = accent tint over the sidebar color.
+ *  Below md the sidebar becomes a drawer opened from a 52px top bar in the
+ *  sidebar colour (design round 3, screens R3 03 and R3 09). */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,7 +52,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [usageWarnings, setUsageWarnings] = useState<string[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [navPath, setNavPath] = useState(pathname);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const drawer = useRef<HTMLElement>(null);
   const role = user?.role;
+
+  // following a nav link closes the drawer (state adjusted during render, not in an effect)
+  if (navPath !== pathname) {
+    setNavPath(pathname);
+    setNavOpen(false);
+  }
 
   useEffect(() => {
     if (loadFailed) return; // retry re-arms by flipping this back
@@ -92,6 +106,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then(setOverview)
       .catch(() => setOverview(null)); // counters are decoration; never block the shell
   }, [pathname, user]);
+  useEffect(() => {
+    if (!navOpen) return;
+    // move focus into the drawer, close on Escape, keep the page behind it still
+    drawer.current?.querySelector<HTMLElement>("a[href]")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setNavOpen(false);
+      menuButton.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [navOpen]);
 
   if (loadFailed) {
     return (
@@ -126,11 +157,60 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const initials = user.email.slice(0, 2).toUpperCase();
   const visibleNav = NAV.filter((n) => !("adminOnly" in n) || user.role === "admin");
 
+  const avatarStyle = { background: "color-mix(in oklab, var(--accent) 55%, var(--sidebar))" };
+
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 flex w-56 flex-col bg-sidebar text-sidebar-foreground">
-        <div className="px-5 py-5">
+    <div className="min-h-screen bg-background md:flex">
+      <header className="sticky top-0 z-20 flex h-[52px] items-center gap-3 bg-sidebar px-4 text-sidebar-foreground md:hidden">
+        <button
+          ref={menuButton}
+          type="button"
+          aria-label="Open navigation"
+          aria-expanded={navOpen}
+          aria-controls="admin-nav"
+          onClick={() => setNavOpen(true)}
+          className="-ml-3 inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-white/10"
+        >
+          <Menu size={20} aria-hidden />
+        </button>
+        <Wordmark className="text-[18px]" accentClassName="text-accent-soft" />
+        <span
+          aria-hidden
+          className="ml-auto flex h-7 w-7 items-center justify-center rounded-full font-mono text-[11px] text-white"
+          style={avatarStyle}
+        >
+          {initials}
+        </span>
+      </header>
+      {navOpen ? (
+        <div
+          aria-hidden
+          data-testid="nav-backdrop"
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setNavOpen(false)}
+        />
+      ) : null}
+      <aside
+        id="admin-nav"
+        ref={drawer}
+        aria-label="Admin navigation"
+        className={`fixed inset-y-0 left-0 z-40 flex w-56 flex-col bg-sidebar text-sidebar-foreground transition-transform md:z-auto md:translate-x-0 ${
+          navOpen ? "translate-x-0" : "-translate-x-full max-md:invisible"
+        }`}
+      >
+        <div className="flex items-center justify-between px-5 py-5">
           <Wordmark className="text-xl" accentClassName="text-accent-soft" />
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => {
+              setNavOpen(false);
+              menuButton.current?.focus();
+            }}
+            className="-mr-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-zinc-400 hover:bg-white/10 hover:text-zinc-200 md:hidden"
+          >
+            <X size={18} aria-hidden />
+          </button>
         </div>
         <nav className="flex-1 space-y-0.5 px-3">
           {visibleNav.map(({ href, label, icon: Icon, ...item }) => {
@@ -141,6 +221,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={href}
                 href={href}
+                onClick={() => setNavOpen(false)}
                 aria-current={active ? "page" : undefined}
                 aria-label={
                   label === "Applicants" && counter !== null
@@ -178,7 +259,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span
             aria-hidden
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-[11px] text-white"
-            style={{ background: "color-mix(in oklab, var(--accent) 55%, var(--sidebar))" }}
+            style={avatarStyle}
           >
             {initials}
           </span>
@@ -196,7 +277,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      <div className="ml-56 flex-1 p-7">
+      <div className="min-w-0 flex-1 p-4 md:ml-56 md:p-7">
         {demo ? <DemoBanner /> : null}
         {smtpMissing && !demo ? (
           <div
