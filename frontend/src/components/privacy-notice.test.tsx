@@ -107,3 +107,14 @@ describe("PrivacyNotice screening questions", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("PrivacyNotice imports", () => {
+  it("covers people the company imported, with the source and the legal basis", () => {
+    render(<PrivacyNotice notice={makeNotice()} backHref="/" />);
+    expect(screen.getByText("Imported details")).toBeInTheDocument();
+    expect(
+      screen.getByText(/The first email you get from this site names that source/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Imported candidates")).toBeInTheDocument();
+  });
+});

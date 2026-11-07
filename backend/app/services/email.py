@@ -96,6 +96,7 @@ def send_application_received(
     template_id: str | None = None,
     template_subject: str | None = None,
     template_body: str | None = None,
+    data_origin: str | None = None,
 ) -> None:
     """Confirmation for a job without an assessment, in the neutral card.
     Templated like the stage mails: the outbox snapshots the workspace's
@@ -113,6 +114,7 @@ def send_application_received(
             "company_name": company_name,
             "controller_name": controller_name,
             "privacy_url": privacy_url,
+            "data_origin": data_origin,
         },
     )
 
@@ -165,10 +167,13 @@ def send_quiz_invite(
     template_body: str | None = None,
     override_subject: str | None = None,
     override_body: str | None = None,
+    data_origin: str | None = None,
 ) -> None:
     """Assessment invite (design 17a): quiz link + what-to-expect details.
 
     Replaces the generic confirmation when the job has an assessment.
+    ``data_origin`` (CSV import) adds the GDPR art. 14 paragraph naming
+    where the candidate's details came from.
     """
     _send_stage(
         "quiz_invite",
@@ -189,6 +194,7 @@ def send_quiz_invite(
             "expires_at": expires_at,
             "controller_name": controller_name,
             "privacy_url": privacy_url,
+            "data_origin": data_origin,
         },
     )
 

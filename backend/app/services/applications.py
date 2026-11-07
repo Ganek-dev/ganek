@@ -130,6 +130,7 @@ async def submit_application(
     *,
     screening_answers: list[dict[str, Any]] | None = None,
     allow_missing_cv: bool = False,
+    imported: bool = False,
 ) -> Application:
     """``screening_answers`` is the validated snapshot from
     services.screening.build_answers; it is stored as given and never
@@ -138,7 +139,11 @@ async def submit_application(
     ``allow_missing_cv`` is for internal callers only (CSV import, screen
     link, connectors): a payload without a CV then creates an application
     whose cv_* columns are all NULL. The public apply route never passes it,
-    so the candidate-facing form keeps requiring a CV."""
+    so the candidate-facing form keeps requiring a CV.
+
+    ``imported`` (CSV import) marks the received entry ``bulk`` so the
+    dashboard feed shows the one import summary instead of a line per row;
+    the applicant timeline keeps the per-row entry."""
     cv_object_key: str | None = None
     cv_filename: str | None = None
     cv_size: int | None = None
@@ -172,7 +177,11 @@ async def submit_application(
             company_id=company.id,
             type=activity.APPLICATION_RECEIVED,
             application_id=application.id,
-            payload={"candidate": candidate.name, "job": job.title},
+            payload={
+                "candidate": candidate.name,
+                "job": job.title,
+                **({"bulk": True, "imported": True} if imported else {}),
+            },
         )
         await db.commit()
     except IntegrityError:

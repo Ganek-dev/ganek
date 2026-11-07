@@ -3,12 +3,14 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import AdminUser, DbSession, StaffCompany
+from app.api.deps import AdminUser, DbSession, StaffCompany, StaffUser
 from app.core import urls
 from app.core.config import settings
 from app.core.security import PREVIEW_TOKEN_MAX_AGE_SECONDS, create_preview_token
 from app.models import Job, JobStatus
 from app.schemas.jobs import (
+    CandidateImportIn,
+    CandidateImportOut,
     JobCreate,
     JobOut,
     JobUpdate,
@@ -17,9 +19,10 @@ from app.schemas.jobs import (
     QuizPreviewQuestion,
 )
 from app.schemas.stats import JobStats
+from app.services import demo_mode, quotas
+from app.services import imports as imports_service
 from app.services import jobs as jobs_service
 from app.services import quiz as quiz_service
-from app.services import quotas
 from app.services import stats as stats_service
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -119,6 +122,53 @@ async def preview_link(job_id: uuid.UUID, db: DbSession, company: StaffCompany) 
     return PreviewLinkOut(
         url=f"{urls.job_url(company, job.slug)}?preview={token}",
         expires_at=datetime.now(UTC) + timedelta(seconds=PREVIEW_TOKEN_MAX_AGE_SECONDS),
+    )
+
+
+@router.post("/{job_id}/import", response_model=CandidateImportOut, dependencies=[demo_mode.locked])
+async def import_candidates(
+    job_id: uuid.UUID,
+    payload: CandidateImportIn,
+    db: DbSession,
+    company: StaffCompany,
+    user: StaffUser,
+) -> CandidateImportOut:
+    """CSV import (rows mapped in the browser): an application without a CV
+    and the job's invite, with the data-origin paragraph, for every new
+    person; duplicates by email per company are skipped and counted.
+    ``dry_run`` is the preview. Published jobs only: the invite links to a
+    live job."""
+    job = await _get_or_404(db, company, job_id)
+    if job.status is not JobStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Publish the job before importing candidates",
+        )
+    if not payload.dry_run:
+        try:
+            await quotas.guard(db, company, quotas.EMAILS, consume=False)
+        except quotas.QuotaExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Daily email limit reached - import again tomorrow",
+                headers={"Retry-After": str(exc.retry_after)},
+            ) from None
+    result = await imports_service.import_candidates(
+        db,
+        company,
+        job,
+        [imports_service.ImportRow(row.name, row.email, row.source) for row in payload.rows],
+        origin=payload.origin,
+        actor_user_id=user.id,
+        dry_run=payload.dry_run,
+    )
+    return CandidateImportOut(
+        imported=result.imported,
+        duplicates=result.duplicates,
+        invalid=result.invalid,
+        duplicate_rows=result.duplicate_rows,
+        invalid_rows=result.invalid_rows,
+        dry_run=payload.dry_run,
     )
 
 

@@ -290,6 +290,14 @@ function activityCopy(item: ActivityItem): string {
       return `${item.actor_email ?? "Someone"} moved a candidate from ${String(p.from)} to ${String(p.to)}`;
     case "applications.bulk_moved":
       return `${item.actor_email ?? "Someone"} moved ${candidates(p.count)} to ${String(p.to)}`;
+    case "applications.imported": {
+      const skipped = (Number(p.duplicates) || 0) + (Number(p.invalid) || 0);
+      const into = String(p.job ?? "a job");
+      return (
+        `${item.actor_email ?? "Someone"} imported ${candidates(p.count)} into ${into}` +
+        (skipped > 0 ? ` (${skipped} skipped)` : "")
+      );
+    }
     case "applications.bulk_rejected":
       return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {

@@ -10,6 +10,7 @@ import { ScoreChip, StagePill } from "@/components/ApplicantChips";
 import { CopyButton } from "@/components/CopyButton";
 import { DailyChart } from "@/components/DailyChart";
 import { GoogleJobsCard } from "@/components/GoogleJobsCard";
+import { ImportCandidatesCard } from "@/components/ImportCandidatesCard";
 import { AssessmentChip, StatusPill } from "@/components/JobStatus";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { QuizPreviewPanel } from "@/components/QuizPreviewPanel";
@@ -137,6 +138,8 @@ export default function JobOverviewPage() {
   const [candidates, setCandidates] = useState<ApplicationOut[] | null>(null);
   const [stage, setStage] = useState<ApplicationStage | "all">("all");
   const [error, setError] = useState<string | null>(null);
+  // bumped by a CSV import so the candidate table reloads
+  const [imports, setImports] = useState(0);
 
   const reload = useCallback(() => {
     api.jobs
@@ -171,7 +174,7 @@ export default function JobOverviewPage() {
       })
       .then((page) => setCandidates(page.items))
       .catch(() => setCandidates([]));
-  }, [params.id, stage]);
+  }, [params.id, stage, imports]);
 
   if (error && !job) {
     return (
@@ -410,6 +413,13 @@ export default function JobOverviewPage() {
           <ShareLinksCard jobUrl={live ? jobUrl : null} live={live} urlFailed={companyFailed} />
           <JobStatusCard job={job} publicUrl={jobUrl} onError={setError} onChanged={reload} />
           <GoogleJobsCard job={job} company={company} urlFailed={companyFailed} />
+          <ImportCandidatesCard
+            job={job}
+            onImported={() => {
+              reload();
+              setImports((n) => n + 1);
+            }}
+          />
           <div className="card px-5 py-[18px]">
             <div className="flex items-center justify-between">
               <span className="font-heading text-[15px] font-semibold">Assessment</span>

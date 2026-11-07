@@ -346,6 +346,26 @@ def _action_block(
     return text, html
 
 
+_ORIGIN_STYLE = (
+    "margin-top: 22px; border: 1px solid #e4e4e7; border-radius: 10px; padding: 12px 16px; "
+    "font-size: 12.5px; line-height: 19px; color: #52525b;"
+)
+
+
+def data_origin_notice(origin: str, company_name: str, job_title: str) -> tuple[str, str]:
+    """(text, html) of the GDPR art. 14 paragraph for a person the team
+    imported (CSV import): where the details came from, what they are used
+    for, and where the rights are explained. It follows the action block and
+    no template can remove it."""
+    sentence = (
+        f"Where we got your details: {company_name} received your name and email "
+        f"address from {origin}, not from you directly. They are used only to consider "
+        f"you for {job_title}. You can ask for a copy of your data or for its deletion "
+        "at any time - the privacy notice linked below explains how."
+    )
+    return f"\n{sentence}\n", f'<div style="{_ORIGIN_STYLE}">{_text(sentence)}</div>'
+
+
 def render(
     kind: str, template: Template, context: dict[str, Any], *, literal: bool = False
 ) -> Rendered:
@@ -373,6 +393,13 @@ def render(
         brand_fg = brand_foreground(brand)
         bar = brand
     action_text, action_html = _action_block(kind, context, values, brand, brand_fg)
+    origin = context.get("data_origin")
+    if origin:
+        origin_text, origin_html = data_origin_notice(
+            str(origin), values["company_name"], values["job_title"]
+        )
+        action_text += origin_text
+        action_html += origin_html
 
     body = "\n\n".join([heading, *rest])
     text = body + "\n\n" + action_text + privacy_text(context.get("privacy_url"))

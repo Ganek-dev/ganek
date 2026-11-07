@@ -220,6 +220,14 @@ describe("ActivityPanel", () => {
         application_id: null,
         created_at: new Date(Date.now() - 14_400_000).toISOString(),
       },
+         {
+        id: "a5",
+        type: "applications.imported",
+        payload: { count: 12, duplicates: 2, invalid: 1, job: "Backend Engineer" },
+        actor_email: "grumpy@acme.dev",
+        application_id: null,
+        created_at: new Date(Date.now() - 18_000_000).toISOString(),
+      },
     ]);
     render(<ActivityPanel />);
     expect(
@@ -230,6 +238,9 @@ describe("ActivityPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("grumpy@acme.dev moved 20 candidates to interview")).toBeInTheDocument();
     expect(screen.getByText("grumpy@acme.dev rejected 1 candidate")).toBeInTheDocument();
+    expect(
+      screen.getByText("grumpy@acme.dev imported 12 candidates into Backend Engineer (3 skipped)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();
   });
