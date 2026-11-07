@@ -266,6 +266,17 @@ describe("JobOverviewPage", () => {
     ]);
   });
 
+  it("keeps the pipeline and rail grid to one shrinkable column below lg", async () => {
+    // jsdom has no layout, so pin the class: without an explicit column the
+    // implicit auto track grows to the JSON-LD's longest line (12k px wide at
+    // a 1000 px viewport)
+    render(<JobOverviewPage />);
+    const share = await screen.findByText("Share this job");
+    const grid = share.closest("div.card")!.parentElement!.parentElement!;
+    expect(grid).toHaveClass("grid", "grid-cols-1", "lg:grid-cols-[minmax(0,1fr)_320px]");
+    expect(within(grid).getByText("Pipeline")).toBeInTheDocument();
+  });
+
   it("offers tracked share links on a live job and asks a draft to publish first", async () => {
     render(<JobOverviewPage />);
     const card = (await screen.findByText("Share this job")).closest("div")!;
