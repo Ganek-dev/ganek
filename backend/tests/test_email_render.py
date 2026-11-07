@@ -4,6 +4,7 @@ sender's context, HTML escapes what text keeps raw, and validation names
 unknown placeholders. Pure, no database."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -15,6 +16,8 @@ from app.services.email_render import (
     PLACEHOLDERS,
     Template,
     TemplateError,
+    assessment_duration,
+    assessment_minutes,
     render,
     render_message,
     validate,
@@ -128,6 +131,73 @@ def test_invite_action_block_lists_details_and_link() -> None:
     assert "#3d5afe" in r.html
     assert "Start the assessment</a>" in r.html
     assert '<b style="font-weight: 600;">Senior Frontend Engineer</b>' in r.html
+
+
+@pytest.mark.parametrize(
+    ("count", "seconds", "minutes", "phrase"),
+    [
+        (8, 20, 3, "about 3 minutes"),
+        (12, 25, 5, "about 5 minutes"),
+        (2, 20, 1, "about 1 minute"),
+        (3, 20, 1, "about 1 minute"),
+        (8, None, None, "a few minutes"),
+        (0, 20, None, "a few minutes"),
+    ],
+)
+def test_assessment_duration_is_questions_times_seconds_rounded_up(
+    count: int, seconds: int | None, minutes: int | None, phrase: str
+) -> None:
+    assert assessment_minutes(count, seconds) == minutes
+    assert assessment_duration(count, seconds) == phrase
+
+
+def test_invite_and_reminder_print_the_computed_duration() -> None:
+    invite = render(
+        "quiz_invite",
+        BUILTIN["quiz_invite"],
+        {**INVITE_CTX, "question_count": 8, "seconds_per_question": 20},
+    )
+    assert "one attempt - set aside about 3 minutes" in invite.text
+    assert "one attempt - set aside about 3 minutes" in invite.html
+    reminder = render(
+        "quiz_reminder",
+        BUILTIN["quiz_reminder"],
+        {**_reminder_ctx(3), "question_count": 8, "seconds_per_question": 20},
+    )
+    assert "It takes about 3 minutes." in reminder.text
+    assert "It takes about 3 minutes." in reminder.html
+    assert "Take it now - ~3 min</a>" in reminder.html
+    for r in (invite, reminder):
+        assert "10 min" not in r.text
+        assert "10 min" not in r.html
+
+
+def test_reminder_without_a_fixed_limit_names_no_number() -> None:
+    # a reminder queued before the duration existed has neither number
+    r = render("quiz_reminder", BUILTIN["quiz_reminder"], _reminder_ctx(3))
+    assert "It takes a few minutes." in r.text
+    assert "Take it now</a>" in r.html
+    assert "~" not in r.text
+
+
+def test_assessment_duration_is_a_placeholder_of_both_quiz_mails() -> None:
+    assert "assessment_duration" in PLACEHOLDERS["quiz_invite"]
+    assert "assessment_duration" in PLACEHOLDERS["quiz_reminder"]
+    validate("quiz_reminder", "S", "It takes {{assessment_duration}}.")
+    r = render(
+        "quiz_invite",
+        Template("{{assessment_duration}}", "Head\n\nAllow {{assessment_duration}}."),
+        {**INVITE_CTX, "question_count": 8, "seconds_per_question": 20},
+    )
+    assert r.subject == "about 3 minutes"
+    assert "Allow about 3 minutes." in r.text
+
+
+def test_no_hard_coded_assessment_length_left_in_the_email_services() -> None:
+    services = Path(__file__).resolve().parents[1] / "app" / "services"
+    for path in sorted(services.glob("email*.py")):
+        assert "10 minutes" not in path.read_text(), path.name
+        assert "10 min" not in path.read_text(), path.name
 
 
 def test_invite_omits_the_timer_row_without_a_limit() -> None:

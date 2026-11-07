@@ -119,6 +119,8 @@ describe("ApplyForm", () => {
       status: "received",
       quiz_token: "tok123",
       status_token: "st-tok",
+      question_count: 8,
+      seconds_per_question: 20,
     });
     render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
     const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
@@ -131,6 +133,30 @@ describe("ApplyForm", () => {
     const linkBox = screen.getByLabelText("Assessment link") as HTMLInputElement;
     expect(linkBox.value).toContain("/quiz/tok123");
     expect(screen.getByText(/tab switches, pastes & resizes are recorded/)).toBeInTheDocument();
+    // the real duration, 8 x 20s, never a fixed figure or a static 0:00
+    expect(screen.getByText("20s")).toBeInTheDocument();
+    expect(screen.getByText(/per question - each locks itself/)).toBeInTheDocument();
+    expect(screen.getByText(/Set aside about 3 minutes/)).toBeInTheDocument();
+    expect(screen.queryByText("0:00")).not.toBeInTheDocument();
+    expect(screen.queryByText(/10 minutes/)).not.toBeInTheDocument();
+  });
+
+  it("promises no number when questions keep their own limits", async () => {
+    mocked.submit.mockResolvedValue({
+      status: "received",
+      quiz_token: "tok123",
+      status_token: "st-tok",
+      question_count: 8,
+      seconds_per_question: null,
+    });
+    render(<ApplyForm apiBasePath="/api/v1/public/company/jobs/dev" />);
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    await fillAndUpload(file);
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+
+    expect(await screen.findByText(/Set aside a few minutes/)).toBeInTheDocument();
+    expect(screen.getByText("each question locks itself when its time is up")).toBeInTheDocument();
+    expect(screen.queryByText("0:00")).not.toBeInTheDocument();
   });
 
   it("surfaces upload errors and lets the candidate retry", async () => {

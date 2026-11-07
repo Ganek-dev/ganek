@@ -12,6 +12,7 @@ privacy footer. Pure: no database, no request.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -31,8 +32,16 @@ KINDS: tuple[str, ...] = ("quiz_invite", "quiz_reminder", "stage_advance", "reje
 
 _COMMON: tuple[str, ...] = ("candidate_name", "candidate_first_name", "job_title", "company_name")
 PLACEHOLDERS: dict[str, tuple[str, ...]] = {
-    "quiz_invite": _COMMON + ("question_count", "time_per_question", "valid_until"),
-    "quiz_reminder": _COMMON + ("valid_until", "days_left", "expires_phrase", "days_left_phrase"),
+    "quiz_invite": _COMMON
+    + ("question_count", "time_per_question", "assessment_duration", "valid_until"),
+    "quiz_reminder": _COMMON
+    + (
+        "assessment_duration",
+        "valid_until",
+        "days_left",
+        "expires_phrase",
+        "days_left_phrase",
+    ),
     "stage_advance": _COMMON,
     "rejection": _COMMON + ("assessment_thanks",),
 }
@@ -51,6 +60,24 @@ ASSESSMENT_THANKS = (
     " We were glad you took the time to complete the assessment - "
     "a real person reviewed it, not a filter."
 )
+
+
+def assessment_minutes(question_count: Any, seconds_per_question: Any) -> int | None:
+    """Whole minutes the assessment takes at most: questions x seconds,
+    rounded up, at least 1. None when either number is unknown (each
+    question keeps its own limit). Same rounding as the quiz intro."""
+    if not question_count or seconds_per_question is None:
+        return None
+    return max(1, math.ceil(int(question_count) * int(seconds_per_question) / 60))
+
+
+def assessment_duration(question_count: Any, seconds_per_question: Any) -> str:
+    """The ``{{assessment_duration}}`` phrase: "about 3 minutes", or
+    "a few minutes" when the length is not fixed per job."""
+    minutes = assessment_minutes(question_count, seconds_per_question)
+    if minutes is None:
+        return "a few minutes"
+    return f"about {minutes} minute" + ("" if minutes == 1 else "s")
 
 
 @dataclass(frozen=True)
@@ -92,7 +119,7 @@ BUILTIN: dict[str, Template] = {
         body=(
             "Still in - {{days_left_phrase}}\n"
             "\n"
-            "Your assessment for {{job_title}} is waiting. It takes about 10 minutes."
+            "Your assessment for {{job_title}} is waiting. It takes {{assessment_duration}}."
         ),
     ),
     "stage_advance": Template(
@@ -147,6 +174,10 @@ def _values(kind: str, context: dict[str, Any]) -> dict[str, str]:
     expires_at = context.get("expires_at")
     if kind in ("quiz_invite", "quiz_reminder") and isinstance(expires_at, datetime):
         values["valid_until"] = _valid_until(expires_at)
+    if kind in ("quiz_invite", "quiz_reminder"):
+        values["assessment_duration"] = assessment_duration(
+            context.get("question_count"), context.get("seconds_per_question")
+        )
     if kind == "quiz_invite":
         values["question_count"] = str(context.get("question_count") or "")
         seconds = context.get("seconds_per_question")
@@ -223,7 +254,7 @@ def _action_block(
             rows.append(
                 (values["time_per_question"], "per question - each locks when time runs out")
             )
-        rows.append(("1×", "one attempt - find a quiet 10 minutes"))
+        rows.append(("1×", f"one attempt - set aside {values['assessment_duration']}"))
         quiz_url = str(context.get("quiz_url") or "")
         text = (
             "\n".join(f"  {figure:>4}  {label}" for figure, label in rows)
@@ -251,6 +282,10 @@ def _action_block(
         return text, html
     if kind == "quiz_reminder":
         quiz_url = str(context.get("quiz_url") or "")
+        minutes = assessment_minutes(
+            context.get("question_count"), context.get("seconds_per_question")
+        )
+        button = "Take it now" + (f" - ~{minutes} min" if minutes is not None else "")
         text = f"The link stops working after {values['valid_until']}.\n\nTake it now: {quiz_url}\n"
         html = (
             f'<div style="margin-top: 18px; border: 1px solid #f0d9b5; background: #fdf9f2; '
@@ -260,7 +295,7 @@ def _action_block(
             f'<a href="{escape(quiz_url)}" style="margin-top: 20px; display: block; '
             f"text-align: center; height: 46px; line-height: 46px; background: {brand}; "
             f"color: {brand_fg}; border-radius: 10px; font-size: 15px; font-weight: 600; "
-            f'text-decoration: none;">Take it now - ~10 min</a>'
+            f'text-decoration: none;">{button}</a>'
         )
         return text, html
     if kind == "stage_advance":
