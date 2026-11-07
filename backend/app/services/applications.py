@@ -623,7 +623,9 @@ async def bulk_set_stage(
     overridden), ids from another tenant and unknown ids are skipped
     silently; the route derives `skipped` from the count difference. Each
     moved row gets its own `stage.changed` activity entry (payload marks
-    `bulk`) and webhook, so the trail reads the same as single moves.
+    `bulk`) and webhook, so the trail reads the same as single moves; one
+    `applications.bulk_moved{count, to}` summary covers the call for the
+    dashboard feed (only recorded when something moved).
     """
     applications = list(
         (
@@ -662,6 +664,14 @@ async def bulk_set_stage(
             },
         )
         moved.append((application, previous))
+    if moved:
+        activity.record(
+            db,
+            company_id=company.id,
+            type=activity.BULK_MOVED,
+            actor_user_id=actor_user_id,
+            payload={"count": len(moved), "to": stage.value},
+        )
     await db.commit()
     for application, previous in moved:
         await webhooks.emit_application_event(

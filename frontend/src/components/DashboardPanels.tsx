@@ -276,6 +276,11 @@ export function QueuePanel({ overview }: { overview: StatsOverview | null }) {
   );
 }
 
+function candidates(count: unknown): string {
+  const n = Number(count) || 0;
+  return `${n} candidate${n === 1 ? "" : "s"}`;
+}
+
 function activityCopy(item: ActivityItem): string {
   const p = item.payload;
   switch (item.type) {
@@ -283,6 +288,10 @@ function activityCopy(item: ActivityItem): string {
       return `${String(p.candidate ?? "Someone")} applied - ${String(p.job ?? "a job")}`;
     case "stage.changed":
       return `${item.actor_email ?? "Someone"} moved a candidate from ${String(p.from)} to ${String(p.to)}`;
+    case "applications.bulk_moved":
+      return `${item.actor_email ?? "Someone"} moved ${candidates(p.count)} to ${String(p.to)}`;
+    case "applications.bulk_rejected":
+      return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {
       const score = typeof p.score === "number" ? ` - ${Math.round(p.score * 100)}%` : "";
       return `Assessment completed${score}`;

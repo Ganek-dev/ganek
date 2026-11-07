@@ -1,6 +1,7 @@
 """Bulk stage change (board card "Applicant list", bulk bar "Move to"):
 moves every open row the actor may touch, skips the rest, one activity
-entry per moved row so the coming timeline can show who moved whom."""
+entry per moved row so the timeline can show who moved whom, and one
+summary for the dashboard feed."""
 
 from uuid import uuid4
 
@@ -164,7 +165,43 @@ async def test_bulk_stage_records_activity_per_row(client: AsyncClient) -> None:
     )
     assert resp.status_code == 200
 
+    for app_id in (a, b):
+        timeline = (await client.get(f"/api/v1/applications/{app_id}/timeline")).json()
+        moves = [event for event in timeline if event["kind"] == "stage.changed"]
+        assert [event["payload"] for event in moves] == [
+            {"from": "new", "to": "screening", "bulk": True}
+        ]
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_bulk_stage_feed_shows_one_summary(client: AsyncClient) -> None:
+    """Board card "Dashboard feed: collapse bulk per-row stage entries"."""
+    applicants, _ = await _company_with_applicants(client, 3)
+    ids = await _ids_by_email(client)
+    a, b, c = (ids[app["email"]] for app in applicants)
+
+    resp = await client.patch(f"/api/v1/applications/{c}/stage", json={"stage": "screening"})
+    assert resp.status_code == 200
+
+    resp = await client.post(
+        "/api/v1/applications/bulk-stage",
+        json={"application_ids": [a, b, c], "stage": "screening"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"updated": 2, "skipped": 1}
+
     feed = (await client.get("/api/v1/activity")).json()
+    summaries = [row for row in feed if row["type"] == "applications.bulk_moved"]
+    assert [row["payload"] for row in summaries] == [{"count": 2, "to": "screening"}]
+    assert summaries[0]["actor_email"]
     moves = [row for row in feed if row["type"] == "stage.changed"]
-    assert len(moves) == 2
-    assert all(row["payload"] == {"from": "new", "to": "screening", "bulk": True} for row in moves)
+    assert [row["application_id"] for row in moves] == [c]
+    assert moves[0]["payload"] == {"from": "new", "to": "screening"}
+
+    resp = await client.post(
+        "/api/v1/applications/bulk-stage",
+        json={"application_ids": [a, b, c], "stage": "screening"},
+    )
+    assert resp.status_code == 200 and resp.json() == {"updated": 0, "skipped": 3}
+    feed = (await client.get("/api/v1/activity")).json()
+    assert len([row for row in feed if row["type"] == "applications.bulk_moved"]) == 1
