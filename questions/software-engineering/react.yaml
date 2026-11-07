@@ -7,7 +7,7 @@ questions:
     prompt: "What is JSX?"
     options:
       a: "A syntax extension that compiles to React element-creating function calls"
-      b: "A templating language rendered by the browser natively"
+      b: "A templating language that modern browsers parse and render natively"
       c: "React's CSS-in-JS solution"
       d: "A JSON schema format"
     correct: a
@@ -35,7 +35,7 @@ questions:
     prompt: "Can a component modify the props it receives?"
     options:
       a: "No - props are read-only; data flows down, changes flow up via callbacks"
-      b: "Yes, that's how state updates work"
+      b: "Yes - assigning to a prop updates the parent's state, which is how data flows up"
       c: "Only inside event handlers"
       d: "Only class components can"
     correct: a
@@ -51,7 +51,7 @@ questions:
       a: "A pair: the current value and a setter function"
       b: "Just the current value"
       c: "An observable stream"
-      d: "A ref object with .current"
+      d: "A ref object whose `.current` holds the value"
     correct: a
     explanation: >
       `const [count, setCount] = useState(0)` - calling the setter
@@ -64,7 +64,7 @@ questions:
     options:
       a: "To identify items across renders so it can reorder/reuse instead of rebuilding"
       b: "For CSS styling hooks"
-      c: "Keys are sent to the server for hydration"
+      c: "Keys are sent to the server so it can match list rows to records during hydration"
       d: "To make items focusable"
     correct: a
     explanation: >
@@ -91,7 +91,7 @@ questions:
     prompt: "When does `useEffect(fn, [dep])` run `fn`?"
     options:
       a: "After the render is committed, on mount and whenever dep changes"
-      b: "During rendering, before JSX is returned"
+      b: "During rendering, right before the component's JSX is returned"
       c: "Only once, before mount"
       d: "On every browser event"
     correct: a
@@ -106,7 +106,7 @@ questions:
     options:
       a: "Cleanup - it runs before the effect re-runs and on unmount"
       b: "It renders fallback UI"
-      c: "It memoizes the effect"
+      c: "It memoizes the effect so it runs only once per mount"
       d: "It is called on every click"
     correct: a
     explanation: >
@@ -120,7 +120,7 @@ questions:
     options:
       a: "The old value - state updates apply on the next render"
       b: "The new value immediately"
-      c: "undefined until React flushes"
+      c: "undefined, until React flushes the pending state update"
       d: "It depends on the browser"
     correct: a
     explanation: >
@@ -135,7 +135,7 @@ questions:
       a: "Moving shared state to the closest common ancestor and passing it down as props"
       b: "Storing state in localStorage"
       c: "Moving state into global variables"
-      d: "Converting props into state"
+      d: "Converting incoming props into local state so each child can change them freely"
     correct: a
     explanation: >
       When siblings need the same data, their parent owns it and
@@ -148,7 +148,7 @@ questions:
     options:
       a: "An input whose value comes from React state and changes via onChange"
       b: "An input with the disabled attribute"
-      c: "An input validated by the browser"
+      c: "An input validated by the browser through `required` and `pattern`"
       d: "An input inside a form tag"
     correct: a
     explanation: >
@@ -163,7 +163,7 @@ questions:
       a: "React tracks hooks by call order - it must be identical every render"
       b: "Conditional hooks are slower"
       c: "It's only a style convention"
-      d: "Hooks inside conditions leak memory"
+      d: "Hooks inside conditions leak memory because their cleanup never runs"
     correct: a
     explanation: >
       Hook state is matched positionally between renders; a skipped call
@@ -175,7 +175,7 @@ questions:
     prompt: "What does `<>...</>` (a Fragment) let you do?"
     options:
       a: "Return multiple siblings without adding a wrapper DOM node"
-      b: "Render outside the React root"
+      b: "Render children outside the React root, like a portal does"
       c: "Delay rendering until data loads"
       d: "Scope CSS to its children"
     correct: a
@@ -188,8 +188,8 @@ questions:
     difficulty: 4
     prompt: "What problem do `useMemo`/`useCallback` primarily solve?"
     options:
-      a: "Preserving referential identity (and skipping recomputation) across renders so memoized children and effect deps don't fire needlessly"
-      b: "Persisting values after unmount"
+      a: "Keeping values and callbacks referentially stable across renders so memoized children and effects don't re-fire"
+      b: "Persisting computed values after the component unmounts, so a remount can reuse them without recomputing"
       c: "Making renders asynchronous"
       d: "Sharing state between components"
     correct: a
@@ -203,7 +203,7 @@ questions:
     prompt: "A setInterval callback set up in useEffect with `[]` deps always logs the initial count. Why?"
     options:
       a: "The callback closed over the first render's state; it never sees later values"
-      b: "setInterval pauses React state updates"
+      b: "setInterval callbacks run outside React, which pauses state updates while active"
       c: "The effect re-runs and resets count"
       d: "State can't be read inside timers"
     correct: a
@@ -217,7 +217,7 @@ questions:
     prompt: "In development, StrictMode mounts, unmounts and remounts components (double-invoking effects). Why?"
     options:
       a: "To surface missing effect cleanups and non-idempotent logic before they bite in production"
-      b: "To measure render performance"
+      b: "To measure render performance by timing every component mount twice and averaging the results"
       c: "A React bug fixed in v19"
       d: "To warm the component cache"
     correct: a
@@ -232,7 +232,7 @@ questions:
     options:
       a: "Every consumer of that context, regardless of memoization of intermediate parents"
       b: "Only the provider"
-      c: "The whole tree unconditionally"
+      c: "The entire tree below the provider, unconditionally, including components that don't consume it"
       d: "Nothing until they next receive props"
     correct: a
     explanation: >

@@ -23,7 +23,7 @@ questions:
       a: "Declares x with an inferred type and assigns 5"
       b: "Compares x to 5"
       c: "Declares a constant"
-      d: "Assigns to an existing global x"
+      d: "Assigns 5 to an existing package-level variable x"
     correct: a
     explanation: >
       Short variable declaration; only valid inside functions.
@@ -47,7 +47,7 @@ questions:
     prompt: "What makes an identifier exported (public) in Go?"
     options:
       a: "Starting with an uppercase letter"
-      b: "The `public` keyword"
+      b: "Being declared with the `public` keyword"
       c: "An @export annotation"
       d: "Being listed in go.mod"
     correct: a
@@ -62,7 +62,7 @@ questions:
     options:
       a: "The canonical code formatter - one standard style for all Go code"
       b: "Go's package manager"
-      c: "A linter for bugs"
+      c: "A linter that flags likely bugs and unused variables in Go code"
       d: "The Go compiler"
     correct: a
     explanation: >
@@ -75,7 +75,7 @@ questions:
     prompt: "The idiomatic way a Go function reports failure?"
     options:
       a: "Returning an error as the last return value, checked with `if err != nil`"
-      b: "Throwing an exception"
+      b: "Panicking with an error value that the caller catches using `recover()`"
       c: "Returning -1"
       d: "Setting a global errno"
     correct: a
@@ -89,7 +89,7 @@ questions:
     prompt: "The key difference between a slice and an array in Go?"
     options:
       a: "Arrays have fixed length in their type; slices are resizable views over a backing array"
-      b: "Slices are immutable"
+      b: "Slices are immutable copies of an array, so appending always allocates a new array"
       c: "Arrays live on the heap, slices on the stack"
       d: "There is no difference"
     correct: a
@@ -103,7 +103,7 @@ questions:
     prompt: "When and in what order do `defer`red calls run?"
     options:
       a: "When the surrounding function returns, last-deferred first (LIFO)"
-      b: "At the end of the enclosing block, in order"
+      b: "At the end of the enclosing block, in the order they were written"
       c: "Immediately, on a background goroutine"
       d: "Only if the function panics"
     correct: a
@@ -117,7 +117,7 @@ questions:
     prompt: "`var m map[string]int` (nil map). What happens on `m[\"a\"] = 1`?"
     options:
       a: "A runtime panic - writes to nil maps are illegal"
-      b: "The map is auto-initialized"
+      b: "The map is auto-initialized on the first write"
       c: "The write is silently dropped"
       d: "A compile error"
     correct: a
@@ -133,7 +133,7 @@ questions:
       a: "Typed communication and synchronization between goroutines"
       b: "Streaming logs to stdout"
       c: "Reading files line by line"
-      d: "Sharing memory without synchronization"
+      d: "Sharing memory between goroutines without any synchronization"
     correct: a
     explanation: >
       "Share memory by communicating": sends and receives transfer values
@@ -145,7 +145,7 @@ questions:
     prompt: "A send on an UNbuffered channel does what?"
     options:
       a: "Blocks until another goroutine is ready to receive"
-      b: "Queues the value and continues"
+      b: "Queues the value in a one-slot buffer and continues"
       c: "Drops the value if no receiver"
       d: "Panics"
     correct: a
@@ -160,7 +160,7 @@ questions:
     options:
       a: "Index and a copy of the element at that index"
       b: "Pointer and element"
-      c: "Element and index, in that order"
+      c: "Element and index, in that order, both by value"
       d: "Key and value of a map only"
     correct: a
     explanation: >
@@ -174,7 +174,7 @@ questions:
     options:
       a: "Add(n) before starting, Done() in each goroutine, Wait() blocks until the counter is zero"
       b: "It kills goroutines after a timeout"
-      c: "It limits concurrency to n"
+      c: "It caps how many goroutines can run at once to n, blocking new ones until one finishes"
       d: "It restarts panicked goroutines"
     correct: a
     explanation: >
@@ -187,7 +187,7 @@ questions:
     prompt: "How does a type implement an interface in Go?"
     options:
       a: "Implicitly - by having the right method set; no declaration needed"
-      b: "With an `implements` clause"
+      b: "Explicitly, with an `implements` clause on the type declaration"
       c: "By embedding the interface"
       d: "By registering in an interface table"
     correct: a
@@ -203,7 +203,7 @@ questions:
       a: "Returns the zero value immediately, with ok=false in the two-value form"
       b: "Panics"
       c: "Blocks forever"
-      d: "Returns the last sent value repeatedly, ok=true"
+      d: "Returns the last value that was sent, again on every receive, with ok=true"
     correct: a
     explanation: >
       Closed channels drain buffered values then yield zero,false;
@@ -216,7 +216,7 @@ questions:
     options:
       a: "Picks one of the ready cases at random (uniform pseudo-random)"
       b: "Runs them all in order"
-      c: "Always the first written case"
+      c: "Always the case written first in the select, top to bottom"
       d: "Deadlocks"
     correct: a
     explanation: >
@@ -229,7 +229,7 @@ questions:
     prompt: "A function returns `error` by returning a nil *MyErr pointer. Why is `err != nil` then true?"
     options:
       a: "The interface holds a (type, value) pair; with a non-nil type it isn't nil even if the value is"
-      b: "Comparing errors with != is undefined"
+      b: "Comparing error values with != is undefined behavior in Go; only errors.Is gives a reliable answer"
       c: "The compiler wraps errors automatically"
       d: "It's a known compiler bug"
     correct: a
@@ -243,7 +243,7 @@ questions:
     prompt: "A goroutine blocked forever on a channel nobody will touch again is called what - and why does it matter?"
     options:
       a: "A goroutine leak - its stack and references are never freed"
-      b: "A deadlock - the whole program stops"
+      b: "A deadlock - the runtime stops the whole program with a fatal error"
       c: "Harmless - the GC collects blocked goroutines"
       d: "A race condition"
     correct: a

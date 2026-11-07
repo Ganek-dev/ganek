@@ -6,6 +6,7 @@ Open, community-maintained pool of screening questions. Layout: `{domain}/{tag}.
 
 - **15-second rule:** someone who knows the topic answers almost instantly; someone who doesn't can't Google it in time. Recall and recognition, not computation.
 - Exactly one correct option; distractors = plausible misconceptions.
+- Keep options similar in length: test-wise candidates pick the longest one. `validate.py` fails when the correct option beats every distractor by more than 10 characters - lengthen a distractor rather than padding the answer.
 - No "all/none of the above", no negatively-worded trick questions.
 - Prompts and options support inline markdown (backticks for code).
 - IDs are permanent: `{prefix}-{topic}-{n}`. Never reuse or renumber. Retire (`status: retired`) instead of deleting.

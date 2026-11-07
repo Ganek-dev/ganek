@@ -24,6 +24,15 @@ errors: list[str] = []
 all_ids: Counter[str] = Counter()
 # house rule: never an em or en dash in any copy, plain "-" only
 DASH = re.compile("[" + chr(0x2013) + chr(0x2014) + "]")  # en dash, em dash
+
+# Test-wise candidates pick the longest option. An active question fails when
+# its correct option is longer than every distractor by more than this many
+# characters: lengthen a distractor (or tighten the answer) instead.
+LONGEST_MARGIN = 10
+# Questions where the longest correct option is unavoidable: id -> reason.
+LONGEST_ALLOWLIST: dict[str, str] = {}
+n_active = 0
+n_correct_longest = 0
 files = sorted(ROOT.glob("*/*.yaml"))
 
 if not files:
@@ -66,10 +75,29 @@ for path in files:
             texts = [str(v).strip().lower() for v in opts.values()]
             if len(set(texts)) != len(texts):
                 errors.append(f"{rel}: {qid}: duplicate option texts")
+            correct = q.get("correct")
+            if q.get("status", "active") == "active" and correct in opts:
+                n_active += 1
+                answer = len(str(opts[correct]).strip())
+                longest_other = max(
+                    (len(str(v).strip()) for k, v in opts.items() if k != correct),
+                    default=0,
+                )
+                if answer > longest_other:
+                    n_correct_longest += 1
+                margin = answer - longest_other
+                if margin > LONGEST_MARGIN and qid not in LONGEST_ALLOWLIST:
+                    errors.append(
+                        f"{rel}: {qid}: correct option is the longest by {margin} "
+                        f"chars (max {LONGEST_MARGIN}); lengthen a distractor"
+                    )
 
 for qid, n in all_ids.items():
     if n > 1:
         errors.append(f"duplicate question id across bank: {qid} ({n}x)")
+for qid in LONGEST_ALLOWLIST:
+    if qid not in all_ids:
+        errors.append(f"LONGEST_ALLOWLIST names unknown question id: {qid}")
 
 if errors:
     print(f"✗ {len(errors)} error(s):")
@@ -80,3 +108,9 @@ if errors:
 n_files = len(files)
 n_q = sum(all_ids.values())
 print(f"✓ question bank valid: {n_files} file(s), {n_q} question(s)")
+if n_active:
+    share = 100 * n_correct_longest / n_active
+    print(
+        f"  correct option is the strict longest in {n_correct_longest}/{n_active}"
+        f" active question(s) ({share:.0f}%; 25% is chance)"
+    )
