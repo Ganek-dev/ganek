@@ -6,14 +6,18 @@ import { AlertTriangle, Check, ExternalLink } from "lucide-react";
 
 import { CopyButton } from "@/components/CopyButton";
 import { api, publicPages, type CompanySummary, type JobOut } from "@/lib/api";
-import { jobPostingChecks, jobPostingJsonLd, type JobPostingJsonLd } from "@/lib/job-posting";
+import type { JobPostingCheck, JobPostingJsonLd } from "@/lib/job-posting";
 import { EMBED_DOCS_URL } from "@/lib/share-links";
 
 /** "Google Jobs markup" rail card on the job overview: the JobPosting
  * JSON-LD the public job page emits, built from the same public payloads
  * the page renders from, with Google's required-field check, a copy button
  * and the docs link. A demo instance switches the markup off (fictional
- * vacancies, search engines asked to stay away), and the card says so. */
+ * vacancies, search engines asked to stay away), and the card says so.
+ *
+ * The JSON-LD builder pulls in the markdown pipeline (unified/remark, about
+ * 100 KB of JS), so it is imported only once the card has a published job to
+ * describe: the admin job page no longer ships it on every load. */
 
 export const GOOGLE_JOBS_DOCS_URL = `${EMBED_DOCS_URL}#google-jobs-markup`;
 
@@ -21,7 +25,7 @@ type State =
   | { kind: "loading" }
   | { kind: "demo" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; jsonLd: JobPostingJsonLd };
+  | { kind: "ready"; jsonLd: JobPostingJsonLd; checks: JobPostingCheck[] };
 
 const LOAD_FAILED = "Could not load the public page for this job.";
 
@@ -47,11 +51,13 @@ export function GoogleJobsCard({
       .providers()
       .then(async (providers): Promise<State> => {
         if (providers.demo) return { kind: "demo" };
-        const [publicCompany, publicJob] = await Promise.all([
+        const [publicCompany, publicJob, markup] = await Promise.all([
           publicPages.company(mode, slug),
           publicPages.job(mode, slug, job.slug),
+          import("@/lib/job-posting"),
         ]);
-        return { kind: "ready", jsonLd: jobPostingJsonLd(publicCompany, publicJob) };
+        const jsonLd = markup.jobPostingJsonLd(publicCompany, publicJob);
+        return { kind: "ready", jsonLd, checks: markup.jobPostingChecks(jsonLd) };
       })
       .catch((): State => ({ kind: "error", message: LOAD_FAILED }))
       .then((next) => {
@@ -113,7 +119,7 @@ export function GoogleJobsCard({
       case "error":
         return <p className="text-sm text-g500">{state.message}</p>;
       case "ready":
-        return <Markup jsonLd={state.jsonLd} />;
+        return <Markup jsonLd={state.jsonLd} checks={state.checks} />;
     }
   }
 }
@@ -127,8 +133,7 @@ function Skeleton() {
   );
 }
 
-function Markup({ jsonLd }: { jsonLd: JobPostingJsonLd }) {
-  const checks = jobPostingChecks(jsonLd);
+function Markup({ jsonLd, checks }: { jsonLd: JobPostingJsonLd; checks: JobPostingCheck[] }) {
   const required = checks.filter((check) => check.required);
   const recommended = checks.filter((check) => !check.required);
   const requiredOk = required.filter((check) => check.ok).length;
