@@ -407,6 +407,7 @@ async def _apply(
             candidate_name=payload.name,
             job_title=job.title,
             company_name=company.name,
+            controller_name=company_service.controller_name(company),
             privacy_url=urls.privacy_notice_url(company),
         )
     return ApplicationReceived(

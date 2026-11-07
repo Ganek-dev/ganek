@@ -1,4 +1,5 @@
-"""Template renderer for the four candidate stage mails (assessment invite,
+"""Template renderer for the candidate mails a workspace can edit: the
+application confirmation and the four stage mails (assessment invite,
 assessment reminder, interview, rejection).
 
 A ``Template`` is a subject and a plain-text body: paragraphs separated by
@@ -28,10 +29,19 @@ from app.services.email_frame import (
     privacy_text,
 )
 
-KINDS: tuple[str, ...] = ("quiz_invite", "quiz_reminder", "stage_advance", "rejection")
+KINDS: tuple[str, ...] = (
+    "application_received",
+    "quiz_invite",
+    "quiz_reminder",
+    "stage_advance",
+    "rejection",
+)
+# neutral card (no brand bar): the confirmation and the rejection
+_NEUTRAL_KINDS = ("application_received", "rejection")
 
 _COMMON: tuple[str, ...] = ("candidate_name", "candidate_first_name", "job_title", "company_name")
 PLACEHOLDERS: dict[str, tuple[str, ...]] = {
+    "application_received": _COMMON,
     "quiz_invite": _COMMON
     + ("question_count", "time_per_question", "assessment_duration", "valid_until"),
     "quiz_reminder": _COMMON
@@ -105,6 +115,16 @@ class TemplateError(ValueError):
 
 
 BUILTIN: dict[str, Template] = {
+    # sent when the job has no assessment (with one, the invite replaces it)
+    "application_received": Template(
+        subject="Application received - {{job_title}} at {{company_name}}",
+        body=(
+            "Hi {{candidate_name}},\n"
+            "\n"
+            "Thanks for applying for the {{job_title}} position at {{company_name}}. "
+            "Your application was received; the team will review it and get back to you."
+        ),
+    ),
     "quiz_invite": Template(
         subject="Your {{company_name}} assessment - one step left",
         body=(
@@ -248,6 +268,9 @@ def _action_block(
 ) -> tuple[str, str]:
     """(text, html) of the fixed block that follows the body for this kind."""
     company = values["company_name"]
+    if kind == "application_received":
+        # no action block: the sign-off alone
+        return _signoff(company, "Thanks again,")
     if kind == "quiz_invite":
         rows: list[tuple[str, str]] = [(values["question_count"], "questions, single choice")]
         if values["time_per_question"]:
@@ -343,7 +366,7 @@ def render(
         (html_paragraphs[0], html_paragraphs[1:]) if html_paragraphs else ("", [])
     )
 
-    if kind == "rejection":
+    if kind in _NEUTRAL_KINDS:
         brand, brand_fg, bar = DEFAULT_BRAND_PRIMARY, "#ffffff", NEUTRAL_BAR
     else:
         brand = str(context.get("brand_primary") or DEFAULT_BRAND_PRIMARY)

@@ -9,6 +9,7 @@ import pytest
 from app.core.config import settings
 from app.services import email as email_service
 from app.services import email_providers
+from app.services.email_frame import NEUTRAL_BAR
 
 
 class FakeSMTP:
@@ -86,10 +87,62 @@ def test_sends_via_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
     message = FakeSMTP.sent[0]
     assert message["To"] == "jane@example.com"
     assert message["Subject"] == "Application received - Backend Engineer at Acme"
-    assert "Hi Jane," in message.get_content()
-    assert "Backend Engineer position at Acme" in message.get_content()
+    text = str(message.get_body(preferencelist=("plain",)).get_content())
+    assert "Hi Jane," in text
+    assert "Backend Engineer position at Acme" in text
     assert FakeSMTP.logins == [("mailer", "hunter2")]
     assert FakeSMTP.starttls_calls == 1
+
+
+def test_application_received_has_the_designed_html_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The confirmation (job without an assessment) carries the neutral card
+    like the other candidate mails: heading, sign-off, privacy footer."""
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_application_received(
+        to="jane@example.com",
+        candidate_name="Jane <Doe>",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        controller_name="Acme Sp. z o.o.",
+        privacy_url="https://jobs.example.com/c/acme/privacy",
+    )
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert FakeSMTP.sent[0]["Subject"] == "Application received - Backend Engineer at Acme"
+    assert text.startswith("Hi Jane <Doe>,\n\nThanks for applying for the Backend Engineer")
+    assert "The Acme hiring team" in text
+    assert "Privacy & your data: https://jobs.example.com/c/acme/privacy" in text
+    assert "<h1" in html and "Hi Jane &lt;Doe&gt;,</h1>" in html
+    assert NEUTRAL_BAR in html
+    assert "The Acme hiring team" in html
+    assert 'href="https://jobs.example.com/c/acme/privacy"' in html
+    assert "Sent by Ganek on behalf of Acme Sp. z o.o." in html
+
+
+def test_application_received_renders_the_template_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A workspace template queued with the mail wins over the built-in."""
+    monkeypatch.setattr(settings, "smtp_host", "mail.example.com")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_service.send_application_received(
+        to="jane@example.com",
+        candidate_name="Jane Doe",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        template_subject="We got it, {{candidate_first_name}}",
+        template_body="Thanks {{candidate_first_name}}\n\nWe read every {{job_title}} application.",
+    )
+
+    text, html = _sent_parts(FakeSMTP.sent[0])
+    assert FakeSMTP.sent[0]["Subject"] == "We got it, Jane"
+    assert text.startswith("Thanks Jane\n\nWe read every Backend Engineer application.")
+    assert "Thanks Jane</h1>" in html
 
 
 def _invite_kwargs(**overrides: Any) -> dict[str, Any]:

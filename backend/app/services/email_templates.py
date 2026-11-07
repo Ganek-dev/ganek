@@ -16,6 +16,7 @@ from app.services import email_render
 from app.services.email_render import Template
 
 KIND_LABELS: dict[str, str] = {
+    "application_received": "Application received",
     "quiz_invite": "Assessment invite",
     "quiz_reminder": "Assessment reminder",
     "stage_advance": "Interview",
@@ -270,6 +271,6 @@ def sample_context(company: Company, job_title: str, kind: str) -> dict[str, Any
             brand_primary=brand,
             status_url=urls.status_url(company, PREVIEW_LINK_PLACEHOLDER),
         )
-    else:
+    elif kind == "rejection":
         context.update(careers_url=urls.careers_url(company), completed_assessment=True)
     return context

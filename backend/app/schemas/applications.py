@@ -263,9 +263,11 @@ class BulkStageOut(BaseModel):
 
 
 EmailKind = Literal["quiz_invite", "quiz_reminder", "stage_advance", "rejection"]
-# a preview can also be a one-off message (PR 4); only the four stage kinds
-# are templated and selectable on GET /email-preview
-PreviewKind = EmailKind | Literal["message"]
+# the application confirmation is templated too (Settings > Emails) but is
+# never sent from the stage dialog, so it is not selectable on GET /email-preview
+TemplateKind = EmailKind | Literal["application_received"]
+# a preview can also be a one-off message (PR 4)
+PreviewKind = TemplateKind | Literal["message"]
 
 
 class EmailPreviewOut(BaseModel):

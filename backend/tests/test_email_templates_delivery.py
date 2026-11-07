@@ -16,6 +16,7 @@ from app.services import email as email_service
 from app.services import email_render
 from app.services import outbox as outbox_service
 from tests.db import database_reachable, s3_reachable
+from tests.helpers import upload_pdf
 from tests.test_bulk_reject import _company_with_applicants, _ids_by_email
 from tests.test_email_preview_api import _company_with_applicant
 
@@ -157,7 +158,7 @@ async def test_delivery_uses_the_snapshot_after_the_template_is_deleted(
 
     (row,) = await _rows(db_session, app_id)
     outbox_service.dispatch(row)
-    (mail,) = sent
+    (mail,) = [m for m in sent if m["to"].startswith("cand-")]
     assert mail["subject"] == f"Custom {company_name}"
     assert mail["body"].startswith("Hello Jane\n\nCustom body.")
 
@@ -269,3 +270,62 @@ async def test_resolver_follows_the_default_switch_and_the_builtin_reset(
     assert (await client.get(url, params={"kind": "rejection"})).json()["subject"] == (
         f"Your application to {company_name}"
     )
+
+
+async def _apply(client: AsyncClient, slug: str, job_slug: str) -> None:
+    base = f"/api/v1/public/companies/{slug}/jobs/{job_slug}"
+    ticket = (await client.post(f"{base}/apply/upload-url")).json()
+    assert (await upload_pdf(ticket, b"%PDF-1.4 confirmation")).is_success
+    resp = await client.post(
+        f"{base}/apply",
+        json={
+            "name": "Jane Applicant",
+            "email": f"cand-{uuid4().hex[:8]}@ganek-ci.dev",
+            "cv_object_key": ticket["object_key"],
+            "cv_filename": "jane.pdf",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
+async def test_application_received_uses_the_workspace_default(
+    client: AsyncClient, db_session: AsyncSession, sent: list[dict[str, Any]]
+) -> None:
+    """The confirmation (job without an assessment) is snapshotted like the
+    stage mails and delivered as the designed card with the workspace text."""
+    creds = {"email": f"admin-{uuid4().hex[:8]}@ganek-ci.dev", "password": "a-long-secure-password"}
+    name = f"Confirm Co {uuid4().hex[:6]}"
+    resp = await client.post("/api/v1/auth/register", json={"company_name": name, **creds})
+    assert resp.status_code == 201, resp.text
+    template = await _template(
+        client,
+        "application_received",
+        default=True,
+        subject="Thanks from {{company_name}}",
+        body="Got it, {{candidate_first_name}}\n\nWe read every {{job_title}} application.",
+    )
+    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    await client.post("/api/v1/auth/logout")
+
+    await _apply(client, name.lower().replace(" ", "-"), job["slug"])
+
+    (row,) = (
+        (
+            await db_session.execute(
+                select(EmailOutbox).where(
+                    EmailOutbox.kind == "application_received",
+                    EmailOutbox.payload["template_id"].astext == template["id"],
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert row.payload["template_subject"] == "Thanks from {{company_name}}"
+    (mail,) = [m for m in sent if m["to"].startswith("cand-")]
+    assert mail["subject"] == f"Thanks from {name}"
+    assert mail["body"].startswith("Got it, Jane\n\nWe read every Backend Engineer application.")
+    assert "Got it, Jane</h1>" in mail["html"]
+    assert "privacy notice" in mail["html"]

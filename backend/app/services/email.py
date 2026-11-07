@@ -91,19 +91,30 @@ def send_application_received(
     candidate_name: str,
     job_title: str,
     company_name: str,
+    controller_name: str | None = None,
     privacy_url: str | None = None,
+    template_id: str | None = None,
+    template_subject: str | None = None,
+    template_body: str | None = None,
 ) -> None:
-    subject = f"Application received - {job_title} at {company_name}"
-    body = (
-        f"Hi {candidate_name},\n"
-        f"\n"
-        f"Thanks for applying for the {job_title} position at {company_name}.\n"
-        f"Your application and CV were received; the team will review them and\n"
-        f"get back to you.\n"
-        f"\n"
-        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+    """Confirmation for a job without an assessment, in the neutral card.
+    Templated like the stage mails: the outbox snapshots the workspace's
+    default at queue time; rows queued before that fall back to the
+    built-in."""
+    _send_stage(
+        "application_received",
+        to=to,
+        ref=ref,
+        template_subject=template_subject,
+        template_body=template_body,
+        context={
+            "candidate_name": candidate_name,
+            "job_title": job_title,
+            "company_name": company_name,
+            "controller_name": controller_name,
+            "privacy_url": privacy_url,
+        },
     )
-    send_email(to=to, subject=subject, body=body, ref=ref)
 
 
 def _send_stage(
@@ -117,7 +128,7 @@ def _send_stage(
     override_subject: str | None = None,
     override_body: str | None = None,
 ) -> None:
-    """Render one of the four candidate stage mails and send it: from the
+    """Render one of the templated candidate mails and send it: from the
     recruiter's one-off edit of this send (PR 4, literal text), else from
     the template snapshot the outbox took at queue time (PR 3), else from
     the built-in. The preview endpoint renders the same context through the

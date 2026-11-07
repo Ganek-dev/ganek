@@ -7,9 +7,10 @@ import { SettingsTabs } from "@/components/SettingsTabs";
 import { emailTemplates, type EmailKindInfo, type EmailTemplate } from "@/lib/api";
 
 /** Emails settings (card "Candidate emails", PR 3): the workspace's own
- * templates per stage mail kind. "Ganek default" is the built-in text and
- * stays available; a custom template can be the kind's default and the
- * Ganek default can take it back. The editor opens from New template,
+ * templates per candidate mail kind (the application confirmation and the
+ * stage mails). "Ganek default" is the built-in text and stays available;
+ * a custom template can be the kind's default and the Ganek default can
+ * take it back. The editor opens from New template,
  * Duplicate and Edit. Admin-only like Privacy. */
 
 export const EXPLAINER = "The link and the privacy footer are always added by Ganek.";
@@ -83,7 +84,7 @@ export default function EmailsSettingsPage() {
       {kinds === null ? (
         !error ? (
           <div aria-busy="true" aria-label="Loading templates" className="space-y-2">
-            {Array.from({ length: 4 }, (_, i) => (
+            {Array.from({ length: 5 }, (_, i) => (
               <div key={i} className="h-24 animate-pulse rounded-lg bg-muted-fill" />
             ))}
           </div>

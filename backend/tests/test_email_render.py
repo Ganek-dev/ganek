@@ -1,4 +1,4 @@
-"""The template renderer behind the four candidate stage mails: built-in
+"""The template renderer behind the templated candidate mails: built-in
 templates reproduce the designed emails, placeholders resolve from the
 sender's context, HTML escapes what text keeps raw, and validation names
 unknown placeholders. Pure, no database."""
@@ -322,3 +322,49 @@ def test_render_message_is_the_neutral_card_without_an_action_block() -> None:
     assert "See open positions" not in rendered.html and "Start the assessment" not in rendered.html
     assert NEUTRAL_BAR in rendered.html and "privacy notice" in rendered.html
     assert "Could you send your portfolio?</p>" in rendered.html
+
+
+RECEIVED_CTX: dict[str, Any] = {
+    "candidate_name": "Marta Vidal",
+    "job_title": "Senior Frontend Engineer",
+    "company_name": "ACME Ganek",
+    "controller_name": None,
+    "privacy_url": "https://jobs.example.com/c/acme/privacy",
+}
+
+
+def test_application_received_builtin_is_the_neutral_card_with_a_signoff() -> None:
+    rendered = render("application_received", BUILTIN["application_received"], RECEIVED_CTX)
+    assert rendered.subject == "Application received - Senior Frontend Engineer at ACME Ganek"
+    assert rendered.body == (
+        "Hi Marta Vidal,\n"
+        "\n"
+        "Thanks for applying for the Senior Frontend Engineer position at ACME Ganek. "
+        "Your application was received; the team will review it and get back to you."
+    )
+    assert rendered.text == (
+        rendered.body + "\n\nThanks again,\nThe ACME Ganek hiring team\n\n"
+        "Privacy & your data: https://jobs.example.com/c/acme/privacy\n"
+    )
+    assert "Hi Marta Vidal,</h1>" in rendered.html
+    assert '<b style="font-weight: 600;">Senior Frontend Engineer</b>' in rendered.html
+    assert NEUTRAL_BAR in rendered.html and "privacy notice" in rendered.html
+    assert "The ACME Ganek hiring team" in rendered.html
+    for action in ("Start the assessment", "See open positions", "application status"):
+        assert action not in rendered.html
+
+
+def test_application_received_ignores_a_brand_color() -> None:
+    """Neutral like the rejection: the confirmation never wears the brand bar."""
+    branded = render(
+        "application_received",
+        BUILTIN["application_received"],
+        {**RECEIVED_CTX, "brand_primary": "#3d5afe"},
+    )
+    assert "#3d5afe" not in branded.html
+
+
+def test_application_received_takes_only_the_common_placeholders() -> None:
+    with pytest.raises(TemplateError) as info:
+        validate("application_received", "Hi", "{{quiz_url}} {{assessment_thanks}}")
+    assert info.value.placeholders == ["assessment_thanks", "quiz_url"]
