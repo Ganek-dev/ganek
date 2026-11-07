@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 /** Self-hosted proof-of-work check for public forms (board card A5).
  *
- * Probes `/api/v1/public/challenge`: 404 means the instance has the feature
- * off (every single-company instance, and multi mode until the operator
+ * Probes `/api/v1/public/challenge`: 204 means the instance has the feature
+ * off (404 from an older backend means the same) (every single-company instance, and multi mode until the operator
  * enables it), so nothing renders and candidate pages stay exactly as they
  * were. On 200 the ALTCHA widget (bundled, no third-party request, no
  * cookies) solves the challenge in a Web Worker and hands the payload back
@@ -53,7 +53,8 @@ export function Captcha({ onChange, error }: Props) {
     let cancelled = false;
     fetch(CHALLENGE_PATH, { headers: { Accept: "application/json" } })
       .then(async (res) => {
-        if (res.status === 404) return null;
+        // 204 = feature off; 404 is the pre-204 backend answer, same meaning
+        if (res.status === 204 || res.status === 404) return null;
         if (!res.ok) throw new Error(`challenge ${res.status}`);
         return res.text();
       })

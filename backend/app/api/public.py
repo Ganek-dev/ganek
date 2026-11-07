@@ -254,13 +254,15 @@ async def company_jobs_feed(company: PublicCompany, db: DbSession, response: Res
 @router.get(
     "/challenge",
     dependencies=[rate_limit("public", lambda: settings.rate_limit_public_per_minute)],
+    response_model=None,
 )
-async def captcha_challenge() -> dict[str, object]:
+async def captcha_challenge() -> dict[str, object] | Response:
     """Fresh proof-of-work challenge for the ALTCHA widget (card A5).
-    404 while the feature is off, which is how the forms learn whether to
-    render the widget at all."""
+    204 No Content while the feature is off, which is how the forms learn
+    whether to render the widget at all. Not a 404: the probe runs on every
+    public job page and a 404 shows up as an error in the browser console."""
     if not challenge.active():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Captcha is off")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     return challenge.create()
 
 
