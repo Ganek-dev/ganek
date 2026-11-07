@@ -1,4 +1,7 @@
+from types import SimpleNamespace
+
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 
 from app.core import ratelimit
@@ -11,8 +14,22 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+# 100 ms before a minute boundary: the worst case for a fixed-window limiter.
+JUST_BEFORE_BOUNDARY = 1_700_000_040.0 - 0.1  # 1_700_000_040 is a multiple of 60
+
+
 @pytest.fixture
-def limited(monkeypatch: pytest.MonkeyPatch) -> None:
+def clock(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Frozen clock for the limiter only. Without it a test that starts
+    just before a minute boundary splits its requests across two windows
+    and sees 401 where it expects 429 (PR #331 CI flake)."""
+    state = SimpleNamespace(now=JUST_BEFORE_BOUNDARY)
+    monkeypatch.setattr(ratelimit, "time", SimpleNamespace(time=lambda: state.now))
+    return state
+
+
+@pytest.fixture
+def limited(monkeypatch: pytest.MonkeyPatch, clock: SimpleNamespace) -> None:
     monkeypatch.setattr(settings, "rate_limit_enabled", True)
     monkeypatch.setattr(settings, "rate_limit_auth_per_minute", 3)
     # deterministic memory backend in tests
@@ -41,6 +58,35 @@ async def test_scopes_are_independent(client: AsyncClient) -> None:
     # auth scope exhausted, but unlimited endpoints still respond
     resp = await client.get("/api/health")
     assert resp.status_code == 200
+
+
+class _FakeRequest:
+    headers: dict[str, str] = {}
+    client = SimpleNamespace(host="198.51.100.9")
+
+
+@pytest.mark.usefixtures("limited")
+async def test_limit_holds_across_slow_requests_before_boundary(clock: SimpleNamespace) -> None:
+    # requests spread over the last 100 ms of a window all count in that window
+    request = _FakeRequest()
+    for step in range(3):
+        clock.now = JUST_BEFORE_BOUNDARY + step * 0.03
+        await ratelimit.check_rate_limit(request, "auth", 3)  # type: ignore[arg-type]
+    clock.now = JUST_BEFORE_BOUNDARY + 0.09
+    with pytest.raises(HTTPException) as exc:
+        await ratelimit.check_rate_limit(request, "auth", 3)  # type: ignore[arg-type]
+    assert exc.value.status_code == 429
+    assert exc.value.headers == {"Retry-After": "1"}
+
+
+@pytest.mark.usefixtures("limited")
+async def test_window_resets_after_boundary(clock: SimpleNamespace) -> None:
+    # documents the root cause: crossing the boundary starts a fresh count
+    request = _FakeRequest()
+    for _ in range(3):
+        await ratelimit.check_rate_limit(request, "auth", 3)  # type: ignore[arg-type]
+    clock.now = JUST_BEFORE_BOUNDARY + 0.2
+    await ratelimit.check_rate_limit(request, "auth", 3)  # type: ignore[arg-type]
 
 
 async def test_disabled_by_conftest_default(client: AsyncClient) -> None:
