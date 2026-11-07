@@ -212,10 +212,17 @@ def test_kpis_counts_and_hire_median_rules() -> None:
     two = r.kpis([hired(10), hired(20), hist(S.NEW)])
     assert (two.applications, two.hires, two.hires_n) == (3, 2, 2)
     assert two.median_time_to_hire_days is None
+    assert two.hire_days == [10.0, 20.0]
     three = r.kpis([hired(10), hired(20), hired(30), hist(S.INTERVIEW, ev(5, S.NEW, S.INTERVIEW))])
     assert three.median_time_to_hire_days == 20.0
     assert three.reached_interview == 4
     assert three.hires == 3
+    assert three.hire_days == [10.0, 20.0, 30.0]
+    # a hire without a known date counts as a hire but draws no dot
+    undated = r.kpis([hired(30), hired(10), hist(S.HIRED, created=30)])
+    assert (undated.hires, undated.hires_n) == (3, 2)
+    assert undated.hire_days == [10.0, 30.0]
+    assert r.kpis([]).hire_days == []
 
 
 def _steps(left: list[int], pass_through: list[float | None]) -> list[FunnelStep]:

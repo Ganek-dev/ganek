@@ -194,6 +194,7 @@ def kpis(histories: list[AppHistory]) -> CohortKpis:
         hires=len(hired),
         median_time_to_hire_days=float(median(times)) if len(times) >= MIN_N else None,
         hires_n=len(times),
+        hire_days=sorted(times),
     )
 
 

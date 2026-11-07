@@ -11,6 +11,7 @@ export const reportsFixture: ReportsOut = {
     hires: 3,
     median_time_to_hire_days: 24,
     hires_n: 3,
+    hire_days: [17, 24, 31],
   },
   previous: {
     applications: 124,
@@ -18,6 +19,7 @@ export const reportsFixture: ReportsOut = {
     hires: 2,
     median_time_to_hire_days: null,
     hires_n: 2,
+    hire_days: [12, 40],
   },
   funnel: [
     { stage: "new", reached: 142, pass_through: 62, rejected_from: 38, withdrawn_from: 6, still_here: 10 },

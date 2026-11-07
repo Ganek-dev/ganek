@@ -146,6 +146,7 @@ class CohortKpis(BaseModel):
     hires: int
     median_time_to_hire_days: float | None  # None below n = 3
     hires_n: int  # hires the median is based on
+    hire_days: list[float]  # one per counted hire, ascending; the dot strip
 
 
 class FunnelStep(BaseModel):
