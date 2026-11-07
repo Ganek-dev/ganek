@@ -10,6 +10,10 @@ export const PLACEHOLDER_HELP: Record<string, { label: string; example: string }
   company_name: { label: "Company name", example: "your workspace name" },
   question_count: { label: "Question count", example: "8" },
   time_per_question: { label: "Time per question", example: "25s" },
+  assessment_duration: {
+    label: "Assessment duration",
+    example: "about 4 minutes (questions x time per question), or a few minutes",
+  },
   valid_until: { label: "Valid until", example: "Thu, Nov 6" },
   days_left: { label: "Days left", example: "3" },
   expires_phrase: { label: "Expires phrase", example: "today / in 1 day / in 3 days" },

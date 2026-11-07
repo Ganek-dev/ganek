@@ -68,6 +68,9 @@ async def test_grant_on_pending_attempt_applies_in_place_and_resends_invite(
     applied, creds = await _apply_with_quiz(client)
     token = applied["quiz_token"]
     assert token is not None
+    # the apply response carries the numbers the success panel prints
+    assert applied["question_count"] == 2
+    assert applied["seconds_per_question"] == 20
     assert (await client.get(f"/api/v1/public/quiz/{token}")).json()["seconds_per_question"] == 20
     sent.clear()
 

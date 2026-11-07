@@ -262,6 +262,8 @@ def sample_context(company: Company, job_title: str, kind: str) -> dict[str, Any
             quiz_url=urls.quiz_url(company, PREVIEW_LINK_PLACEHOLDER),
             expires_at=now + timedelta(days=3),
             days_left=3,
+            question_count=8,
+            seconds_per_question=25,
         )
     elif kind == "stage_advance":
         context.update(

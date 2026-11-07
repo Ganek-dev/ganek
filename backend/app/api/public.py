@@ -410,7 +410,12 @@ async def _apply(
             privacy_url=urls.privacy_notice_url(company),
         )
     return ApplicationReceived(
-        quiz_token=quiz_token, status_token=create_status_token(application.id)
+        quiz_token=quiz_token,
+        status_token=create_status_token(application.id),
+        question_count=len(attempt.question_ids) if attempt is not None else None,
+        seconds_per_question=(
+            quiz_service.seconds_per_question(attempt) if attempt is not None else None
+        ),
     )
 
 

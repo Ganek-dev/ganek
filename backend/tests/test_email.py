@@ -216,6 +216,8 @@ def test_quiz_reminder_renders_expiry_and_link(monkeypatch: pytest.MonkeyPatch) 
         quiz_url="https://jobs.example.com/quiz/tok123",
         expires_at=datetime(2026, 7, 31, 18, 0, tzinfo=UTC),
         days_left=2,
+        question_count=8,
+        seconds_per_question=20,
     )
 
     message = FakeSMTP.sent[0]
@@ -227,6 +229,7 @@ def test_quiz_reminder_renders_expiry_and_link(monkeypatch: pytest.MonkeyPatch) 
         assert "https://jobs.example.com/quiz/tok123" in part
         assert "Jul 31" in part
         assert "stops working" in part  # never claims the application auto-closes
+        assert "It takes about 3 minutes." in part  # 8 x 20s, not a fixed figure
     assert "#3d5afe" in html
 
 

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 
-import { Check, FileText } from "lucide-react";
+import { Check, FileText, Timer } from "lucide-react";
 
 import { ApiError, publicApply } from "@/lib/api";
 import { applyEffort } from "@/lib/apply-duration";
+import { assessmentDuration } from "@/lib/assessment-duration";
 import type { PublicScreeningQuestion } from "@/lib/public-api";
 
 
@@ -14,8 +15,9 @@ import { Captcha, isCaptchaError } from "./Captcha";
 
 /** Apply flow, screens 03 (form + CV upload states) and 04 (assessment
  * invite). The CV uploads as soon as it is picked; submit stays disabled
- * until the upload finishes. All numbers shown are platform truths (24h
- * start TTL), not per-job quiz config, which is not public. */
+ * until the upload finishes. The assessment facts come from the apply
+ * response (question count, seconds per question) plus the platform's 24h
+ * start TTL, so the panel and the invite email print the same duration. */
 
 type CvState =
   | { status: "empty" }
@@ -34,11 +36,22 @@ function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const ASSESSMENT_FACTS: [string, string][] = [
-  ["1×", "one attempt - no going back between questions"],
-  ["0:00", "each question locks itself when its time is up"],
-  ["24h", "start any time in the next 24 hours"],
-];
+function assessmentFacts(secondsPerQuestion: number | null): [React.ReactNode, string][] {
+  return [
+    ["1×", "one attempt - no going back between questions"],
+    [
+      secondsPerQuestion !== null ? (
+        `${secondsPerQuestion}s`
+      ) : (
+        <Timer aria-hidden className="h-3.5 w-3.5" />
+      ),
+      secondsPerQuestion !== null
+        ? "per question - each locks itself when its time is up"
+        : "each question locks itself when its time is up",
+    ],
+    ["24h", "start any time in the next 24 hours"],
+  ];
+}
 
 /** The posted answer for one question: null when an optional one was left
  * blank; a ticked acknowledgment is `true`. Required ones never reach here
@@ -187,6 +200,8 @@ export function ApplyForm({
     firstName: string;
     quizToken: string | null;
     statusToken: string | null;
+    questionCount: number | null;
+    secondsPerQuestion: number | null;
   } | null>(
     null,
   );
@@ -270,6 +285,8 @@ export function ApplyForm({
         firstName: str("name").split(/\s+/)[0] ?? "",
         quizToken: received.quiz_token,
         statusToken: received.status_token,
+        questionCount: received.question_count ?? null,
+        secondsPerQuestion: received.seconds_per_question ?? null,
       });
     } catch (err) {
       const screening =
@@ -319,9 +336,9 @@ export function ApplyForm({
                 Skills assessment
               </span>
               <div className="mt-3.5 flex flex-col gap-2 text-sm leading-5 text-g700">
-                {ASSESSMENT_FACTS.map(([marker, fact]) => (
-                  <div key={marker} className="flex gap-2.5">
-                    <span className="w-[34px] shrink-0 font-mono text-xs font-semibold text-brand">
+                {assessmentFacts(done.secondsPerQuestion).map(([marker, fact]) => (
+                  <div key={fact} className="flex gap-2.5">
+                    <span className="flex w-[34px] shrink-0 items-start pt-0.5 font-mono text-xs leading-4 font-semibold text-brand">
                       {marker}
                     </span>
                     <span>{fact}</span>
@@ -348,7 +365,8 @@ export function ApplyForm({
               />
             </div>
             <p className="mt-6 font-mono text-[11px] text-g400">
-              Find a quiet 10 minutes - tab switches, pastes &amp; resizes are recorded
+              Set aside {assessmentDuration(done.questionCount, done.secondsPerQuestion)} - tab
+              switches, pastes &amp; resizes are recorded
             </p>
           </>
         ) : (
