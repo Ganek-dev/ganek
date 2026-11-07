@@ -1,10 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { dashboard, type StatsOverview } from "@/lib/api";
 
-import { ActivityPanel, QueuePanel, TodayPanel } from "./DashboardPanels";
+import { ACTIVITY_TIMEOUT_MS, ActivityPanel, QueuePanel, TodayPanel } from "./DashboardPanels";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
@@ -214,6 +214,41 @@ describe("ActivityPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();
+  });
+
+  it("shows an explicit empty state when the feed is empty", async () => {
+    mocked.activity.mockResolvedValue([]);
+    render(<ActivityPanel />);
+    expect(await screen.findByText(/No activity yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Loading activity" })).not.toBeInTheDocument();
+  });
+
+  it("replaces the skeleton with a retry when the feed fails", async () => {
+    mocked.activity.mockRejectedValueOnce(new Error("boom"));
+    render(<ActivityPanel />);
+    expect(await screen.findByText("Couldn't load recent activity.")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Loading activity" })).not.toBeInTheDocument();
+
+    mocked.activity.mockResolvedValueOnce([]);
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/No activity yet/)).toBeInTheDocument();
+    expect(mocked.activity).toHaveBeenCalledTimes(2);
+  });
+
+  it("never leaves a bare skeleton when the request hangs", async () => {
+    vi.useFakeTimers();
+    try {
+      mocked.activity.mockReturnValue(new Promise(() => {}));
+      render(<ActivityPanel />);
+      expect(screen.getByRole("status", { name: "Loading activity" })).toBeInTheDocument();
+      await act(async () => {
+        vi.advanceTimersByTime(ACTIVITY_TIMEOUT_MS + 1);
+      });
+      expect(screen.getByText("Couldn't load recent activity.")).toBeInTheDocument();
+      expect(screen.queryByRole("status", { name: "Loading activity" })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("maps privacy event types (G2/G3) to readable copy", async () => {
