@@ -5,11 +5,12 @@ import { redirect } from "next/navigation";
 import { CareersFooter, CompanyHero, themeStyle } from "@/components/careers";
 import { JobList } from "@/components/careers-list";
 import { DemoBanner } from "@/components/DemoBanner";
+import { parseCareersFilters } from "@/lib/careers-filters";
 import { demoRobots, fetchInstanceInfo, publicApi } from "@/lib/public-api";
 import { resolveSource, sourceSuffix, websiteHostOf } from "@/lib/source";
 
 interface Props {
-  searchParams: Promise<{ src?: string | string[]; utm_source?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /** The flagship self-host careers page must carry the company's identity,
@@ -49,7 +50,12 @@ export default async function Home({ searchParams }: Props) {
       {demo ? <DemoBanner tone="brand" /> : null}
       <CompanyHero company={page.company} jobCount={page.jobs.length} />
       <section className="mx-auto max-w-[720px] px-5 pt-[18px] pb-8 sm:px-6 sm:pt-8 sm:pb-12">
-        <JobList jobs={page.jobs} hrefPrefix="/jobs" hrefSuffix={sourceSuffix(source)} />
+        <JobList
+          jobs={page.jobs}
+          hrefPrefix="/jobs"
+          hrefSuffix={sourceSuffix(source)}
+          initialFilters={parseCareersFilters(query)}
+        />
         <CareersFooter privacyHref="/privacy" />
       </section>
     </main>
