@@ -375,6 +375,22 @@ async def record_reissue_request(db: AsyncSession, attempt: QuizAttempt) -> Quiz
     return attempt
 
 
+async def record_extra_time_request(db: AsyncSession, attempt: QuizAttempt) -> QuizAttempt:
+    """Candidate asked for extra time from the intro screen: surface it to
+    the team on the pending attempt (the recruiter queue reads it until a
+    grant raises the multiplier). Idempotent - repeats bump a count. No
+    reason is stored: an accommodation never needs one."""
+    integrity = dict(attempt.integrity)
+    request = dict(integrity.get("extra_time_requested") or {})
+    request["at"] = request.get("at") or _now().isoformat()
+    request["count"] = int(request.get("count", 0)) + 1
+    integrity["extra_time_requested"] = request
+    attempt.integrity = integrity
+    await db.commit()
+    await db.refresh(attempt)
+    return attempt
+
+
 async def dismiss_flags(
     db: AsyncSession, attempt: QuizAttempt, *, by_user_id: uuid.UUID
 ) -> QuizAttempt:

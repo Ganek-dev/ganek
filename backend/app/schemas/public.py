@@ -4,7 +4,7 @@ Deliberately minimal: no ids, no status, no quiz_config, no timestamps
 beyond published_at. What is not serialized cannot leak.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
@@ -208,7 +208,12 @@ class ApplicationStatusOut(BaseModel):
     applied_at: datetime
     stage: str
     quiz: StatusQuizOut | None
-    decision_expected_by: datetime
+    # a day, not a timestamp: the team's date for this application, else
+    # applied + the company's decision window (services.decision_dates)
+    decision_expected_by: date
+    # true once that day has passed without a decision: the page says the
+    # team is running late instead of showing an expired promise
+    decision_overdue: bool = False
     # G2: honest retention copy + the notice link, server-resolved defaults
     retention_months: int
     privacy_url: str
@@ -256,6 +261,11 @@ class QuizStateOut(BaseModel):
     status_token: str
     # the acknowledgment checkbox links the full telemetry disclosure
     privacy_url: str
+    # the intro's "Need more time?" link: shown while the attempt is unstarted
+    # and no extra time was granted (the multiplier itself stays server-side)
+    can_request_extra_time: bool = False
+    # the candidate already asked the team for extra time on this attempt
+    extra_time_requested: bool = False
 
 
 class QuizNextOut(BaseModel):

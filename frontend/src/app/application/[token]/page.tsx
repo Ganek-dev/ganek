@@ -19,6 +19,16 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** A server day (YYYY-MM-DD) read as that calendar day wherever the reader
+ * is: `new Date("2026-11-11")` is UTC midnight, which is Nov 10 in the US. */
+function formatDay(day: string): string {
+  const [year, month, date] = day.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function formatDateTime(iso: string): string {
   const date = new Date(iso);
   const time = date.toLocaleTimeString("en-US", {
@@ -217,7 +227,7 @@ export default function StatusPage() {
         <span className="max-w-[380px] text-[13.5px] leading-5 text-g600">
           The hiring team is looking at your application
           {status.quiz !== null ? " and assessment together" : ""}. You&apos;ll hear back
-          by email within two weeks of applying.
+          by email, either way.
         </span>
       ),
     });
@@ -235,7 +245,9 @@ export default function StatusPage() {
             title: "Decision",
             detail: (
               <span className="font-mono text-[11.5px] text-g400">
-                expected by {formatDate(status.decision_expected_by)}
+                {status.decision_overdue
+                  ? `planned for ${formatDay(status.decision_expected_by)} - running late, you'll still hear back by email`
+                  : `expected by ${formatDay(status.decision_expected_by)}`}
               </span>
             ),
           },

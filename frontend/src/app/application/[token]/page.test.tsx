@@ -41,7 +41,8 @@ function makeStatus(overrides: Partial<ApplicationStatus> = {}): ApplicationStat
       total: 12,
       completed_at: "2026-07-24T15:12:00Z",
     },
-    decision_expected_by: "2026-08-07T14:58:00Z",
+    decision_expected_by: "2026-08-07",
+    decision_overdue: false,
     retention_months: 6,
     privacy_url: "https://jobs.example/c/acme/privacy",
     ...overrides,
@@ -68,12 +69,23 @@ describe("StatusPage", () => {
     expect(screen.getByText("Assessment completed")).toBeInTheDocument();
     expect(screen.getByText(/12 of 12 answered/)).toBeInTheDocument();
     expect(screen.getByText("Under review")).toBeInTheDocument();
-    expect(screen.getByText(/within two weeks/)).toBeInTheDocument();
+    expect(screen.getByText(/hear back by email, either way/)).toBeInTheDocument();
+    expect(screen.queryByText(/two weeks/)).toBeNull();
     expect(screen.getByText("Decision")).toBeInTheDocument();
-    expect(screen.getByText(/expected by/)).toBeInTheDocument();
+    // the server's day, read as that calendar day in any time zone
+    expect(screen.getByText("expected by Aug 7")).toBeInTheDocument();
     expect(screen.getByText(/private to you/)).toBeInTheDocument();
     // no score anywhere on a candidate surface
     expect(screen.queryByText(/%|score/i)).toBeNull();
+  });
+
+  it("says the team is running late once the decision date has passed", async () => {
+    mocked.status.mockResolvedValue(makeStatus({ decision_overdue: true }));
+    render(<StatusPage />);
+    expect(
+      await screen.findByText(/planned for Aug 7 - running late, you'll still hear back by email/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/expected by/)).toBeNull();
   });
 
   it("shows timed-out questions separately in the assessment step", async () => {

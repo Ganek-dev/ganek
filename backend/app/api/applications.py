@@ -43,6 +43,7 @@ from app.schemas.applications import (
     BulkStageOut,
     CandidateEmailUpdate,
     CvDownload,
+    DecisionDateIn,
     EmailDeliveryOut,
     EmailKind,
     EmailPreviewOut,
@@ -64,6 +65,7 @@ from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut
 from app.services import (
     access_log,
     activity,
+    decision_dates,
     email_render,
     pipeline_signals,
     scheduled_emails,
@@ -522,6 +524,28 @@ async def update_candidate_email(
             status_code=status.HTTP_409_CONFLICT,
             detail="Another candidate already uses this email",
         ) from None
+
+
+@router.put("/{application_id}/decision-date", response_model=ApplicationOut)
+async def set_decision_date(
+    application_id: uuid.UUID,
+    payload: DecisionDateIn,
+    db: DbSession,
+    company: StaffCompany,
+    user: StaffUser,
+) -> Application:
+    """The decision date this candidate's status page promises. A date
+    replaces the company window for this application; null goes back to
+    applied + the window (Hiring settings)."""
+    application = await _get_or_404(db, company, application_id)
+    value = payload.decision_expected_on
+    if value is not None:
+        problem = decision_dates.override_problem(application, value)
+        if problem is not None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=problem)
+    application.decision_expected_on = value
+    await db.commit()
+    return await _get_or_404(db, company, application_id)
 
 
 @router.post("/{application_id}/remind", response_model=dict[str, bool])
