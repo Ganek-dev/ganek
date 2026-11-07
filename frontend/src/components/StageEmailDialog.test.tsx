@@ -52,7 +52,7 @@ const REJECTION = {
 };
 
 function renderDialog(
-  stage: "interview" | "rejected",
+  stage: "interview" | "rejected" | "reminder",
   handlers = { onConfirm: vi.fn(), onCancel: vi.fn() },
   email = true,
   extra: { defaultPreset?: "now" | "tomorrow" | "in_3_days"; mailOnly?: boolean } = {},
@@ -321,5 +321,23 @@ describe("StageEmailDialog", () => {
     await screen.findByText(/Thank you, Jane/);
     await user.click(screen.getByRole("button", { name: "Send email" }));
     expect(onConfirm).toHaveBeenCalledWith(REJECT_NOW);
+  });
+
+  it("reminder mode previews the assessment reminder, always with an email", async () => {
+    mockedApps.emailPreview.mockResolvedValue({
+      ...REJECTION,
+      kind: "quiz_reminder",
+      subject: "Reminder: your assessment at ACME",
+    });
+    // the panel checkbox is irrelevant: a reminder is the email
+    const { onConfirm } = renderDialog("reminder", undefined, false);
+    expect(screen.getByRole("dialog", { name: "Send reminder to Jane Applicant" })).toBeInTheDocument();
+    expect(await screen.findByText("Reminder: your assessment at ACME")).toBeInTheDocument();
+    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "quiz_reminder", undefined);
+    expect(screen.queryByLabelText(/Reason/)).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByText("No email will be sent.")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Send reminder" }));
+    expect(onConfirm).toHaveBeenCalledWith(NO_FIELDS);
   });
 });

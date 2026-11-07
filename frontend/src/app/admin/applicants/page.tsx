@@ -842,7 +842,7 @@ function DetailPanel({
   answers: QuizAnswerReview[] | null;
   onStage: (stage: ApplicationStage, notify: boolean, fields?: StageFields) => void;
   onDownloadCv: () => void;
-  onRemind: () => Promise<boolean>;
+  onRemind: (fields: StageFields) => Promise<boolean>;
   onExport: () => void;
   onErase: () => Promise<boolean>;
   onUpdateEmail: (email: string) => Promise<string | null>;
@@ -858,8 +858,9 @@ function DetailPanel({
   // Reject always goes through the dialog (the internal reason, PR 2, plus
   // the email preview when the checkbox is on); interview shows the email
   // it sends when the checkbox is on; other stages have no mail
+  // "reminder" (no move) opens the same dialog for the assessment reminder
   const [dialog, setDialog] = useState<{
-    stage: "interview" | "rejected";
+    stage: "interview" | "rejected" | "reminder";
     email: boolean;
     mailOnly?: boolean;
   } | null>(null);
@@ -1049,17 +1050,15 @@ function DetailPanel({
               <Mail aria-hidden className="h-3 w-3" />
               Send a message
             </button>
-            {app.quiz_attempt?.status === "pending" ? (
+            {app.quiz_attempt?.status === "pending" &&
+            app.stage !== "rejected" &&
+            app.stage !== "withdrawn" ? (
               reminded ? (
                 <span className="font-mono text-[11px] text-g500">Reminder sent</span>
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    void onRemind().then((ok) => {
-                      if (ok) setReminded(true);
-                    });
-                  }}
+                  onClick={() => setDialog({ stage: "reminder", email: true })}
                   className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-accent hover:underline"
                 >
                   <BellRing aria-hidden className="h-3 w-3" />
@@ -1168,6 +1167,13 @@ function DetailPanel({
         onConfirm={(fields) => {
           const { stage, email } = dialog ?? { stage: "rejected" as const, email: notify };
           setDialog(null);
+          if (stage === "reminder") {
+            const { templateId, subject, body } = fields;
+            void onRemind({ templateId, subject, body }).then((ok) => {
+              if (ok) setReminded(true);
+            });
+            return;
+          }
           onStage(stage, email, fields);
         }}
         onCancel={() => setDialog(null)}
@@ -1520,10 +1526,10 @@ function ApplicantsContent() {
     });
   }
 
-  async function remindCandidate(id: string): Promise<boolean> {
+  async function remindCandidate(id: string, fields: StageFields): Promise<boolean> {
     setError(null);
     try {
-      await applications.remind(id);
+      await applications.remind(id, fields);
       setTrailTick((tick) => tick + 1);
       return true;
     } catch (err) {
@@ -1848,7 +1854,7 @@ function ApplicantsContent() {
             answers={answersById[selected.id] ?? null}
             onStage={(stage, notify, fields) => changeStage(selected.id, stage, notify, fields)}
             onDownloadCv={() => downloadCv(selected.id)}
-            onRemind={() => remindCandidate(selected.id)}
+            onRemind={(fields) => remindCandidate(selected.id, fields)}
             onExport={() => void downloadDsar(selected)}
             onErase={() => eraseCandidate(selected.id)}
             onUpdateEmail={(email) => updateCandidateEmail(selected.id, email)}
