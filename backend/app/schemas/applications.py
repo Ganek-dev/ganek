@@ -177,13 +177,10 @@ class SendAfterField(BaseModel):
         return value
 
 
-class StageUpdate(RejectionFields, SendAfterField):
-    stage: ApplicationStage
-    # opt-in: emails the candidate for stages with a template (22a/22b);
-    # silently ignored for the rest
-    notify_candidate: bool = False
-    # one-off edit of this send (PR 4): literal text, no placeholder
-    # processing, never saved to a template; both or neither
+class EmailEditFields(BaseModel):
+    """One-off edit of this send (PR 4): literal text, no placeholder
+    processing, never saved to a template; both or neither."""
+
     subject: str | None = Field(default=None, max_length=200)
     body: str | None = Field(default=None, max_length=10000)
 
@@ -193,16 +190,35 @@ class StageUpdate(RejectionFields, SendAfterField):
         return _blank_to_none(value)
 
     @model_validator(mode="after")
-    def _reason_needs_rejected(self) -> "StageUpdate":
-        if self.has_reason and self.stage is not ApplicationStage.REJECTED:
-            raise ValueError("rejection reason needs the rejected stage")
-        if self.send_after is not None and self.stage is not ApplicationStage.REJECTED:
-            raise ValueError("send_after needs the rejected stage")
+    def _edit_pair(self) -> "EmailEditFields":
         if (self.subject is None) != (self.body is None):
             raise ValueError("Subject and body go together")
         if self.subject is not None and ("\n" in self.subject or "\r" in self.subject):
             raise ValueError("Subject must be one line")
         return self
+
+
+class StageUpdate(RejectionFields, SendAfterField, EmailEditFields):
+    stage: ApplicationStage
+    # opt-in: emails the candidate for stages with a template (22a/22b);
+    # silently ignored for the rest
+    notify_candidate: bool = False
+
+    @model_validator(mode="after")
+    def _reason_needs_rejected(self) -> "StageUpdate":
+        if self.has_reason and self.stage is not ApplicationStage.REJECTED:
+            raise ValueError("rejection reason needs the rejected stage")
+        if self.send_after is not None and self.stage is not ApplicationStage.REJECTED:
+            raise ValueError("send_after needs the rejected stage")
+        return self
+
+
+class RemindIn(EmailEditFields):
+    """The manual assessment reminder (17b) as the recruiter confirmed it in
+    the email dialog: the template picked and an optional one-off edit. An
+    empty or missing body sends the kind's default, as before."""
+
+    template_id: uuid.UUID | Literal["builtin"] | None = None
 
 
 class BulkRejectIn(RejectionFields, SendAfterField):

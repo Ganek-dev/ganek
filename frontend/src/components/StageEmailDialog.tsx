@@ -19,20 +19,28 @@ import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons
  * With `email` the rendered subject and text for this candidate, exactly
  * what the sender delivers; the preview failing never blocks the move: the
  * server renders the same email anyway. A rejection also takes the optional
- * internal reason and note (PR 2), which never reach the candidate. The
+ * internal reason and note (PR 2), which never reach the candidate.
+ * "reminder" is no stage move: the manual assessment reminder (17b) through
+ * the same preview, template pick and edit, always with an email. The
  * parent re-keys the dialog per opening so it mounts fresh (no state reset
  * in effects). */
 
-type Stage = "interview" | "rejected";
+type Stage = "interview" | "rejected" | "reminder";
 
-const KIND_FOR: Record<Stage, EmailKind> = { interview: "stage_advance", rejected: "rejection" };
+const KIND_FOR: Record<Stage, EmailKind> = {
+  interview: "stage_advance",
+  rejected: "rejection",
+  reminder: "quiz_reminder",
+};
 const CONFIRM_LABEL: Record<Stage, string> = {
   interview: "Move to Interview and send email",
   rejected: "Reject and send email",
+  reminder: "Send reminder",
 };
 const CONFIRM_LABEL_SILENT: Record<Stage, string> = {
   interview: "Move to Interview",
   rejected: "Reject",
+  reminder: "Send reminder",
 };
 const CONFIRM_LABEL_LATER: Record<Exclude<SendAfterPreset, "now">, string> = {
   tomorrow: "Reject and email tomorrow morning",
@@ -86,7 +94,7 @@ export function StageEmailDialog({
   onConfirm: (fields: StageFields) => void;
   onCancel: () => void;
 }) {
-  const email = emailProp || mailOnly;
+  const email = emailProp || mailOnly || stage === "reminder";
   const [preset, setPreset] = useState<SendAfterPreset>(defaultPreset);
   const showWhen = email && stage === "rejected";
   const [reason, setReason] = useState<RejectionReason | "">("");
@@ -169,9 +177,11 @@ export function StageEmailDialog({
         <DialogTitle>
           {mailOnly
             ? `Send rejection email to ${candidateName}`
-            : email
-              ? `Email to ${candidateName}`
-              : `${CONFIRM_LABEL_SILENT[stage]} ${candidateName}`}
+            : stage === "reminder"
+              ? `Send reminder to ${candidateName}`
+              : email
+                ? `Email to ${candidateName}`
+                : `${CONFIRM_LABEL_SILENT[stage]} ${candidateName}`}
         </DialogTitle>
         <DialogDescription>
           {email ? "This is the email the candidate receives." : "No email will be sent."}

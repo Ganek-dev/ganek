@@ -818,8 +818,13 @@ export const applications = {
     }),
   cvUrl: (id: string) =>
     request<{ download_url: string }>(`/api/v1/applications/${id}/cv-url`),
-  remind: (id: string) =>
-    request<{ sent: boolean }>(`/api/v1/applications/${id}/remind`, { method: "POST" }),
+  /** Manual assessment reminder (17b): the template picked in the email
+   * dialog and an optional one-off edit; no fields sends the default. */
+  remind: (id: string, fields: Pick<StageFields, "templateId" | "subject" | "body"> = {}) =>
+    request<{ sent: boolean }>(`/api/v1/applications/${id}/remind`, {
+      method: "POST",
+      body: JSON.stringify(rejectionBody(fields)),
+    }),
   quizAnswers: (id: string) =>
     request<QuizAnswerReview[]>(`/api/v1/applications/${id}/quiz-answers`),
   /** What happened to this application, newest first (card "Candidate timeline"). */

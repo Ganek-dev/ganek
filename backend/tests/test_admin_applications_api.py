@@ -394,6 +394,77 @@ async def test_remind_409s_without_pending_attempt(
     assert reminders == []
 
 
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_remind_sends_the_template_and_edit_picked_in_the_dialog(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reminder goes through the email dialog: the chosen template and a
+    one-off edit reach the sender like they do for a stage mail."""
+    from app.services import email as email_service
+
+    reminders: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_reminder", lambda **kw: reminders.append(kw))
+
+    await _company_with_applicant(client, with_quiz=True)
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
+    url = f"/api/v1/applications/{app['id']}/remind"
+    created = await client.post(
+        "/api/v1/company/email-templates",
+        json={
+            "kind": "quiz_reminder",
+            "name": "Friendly nudge",
+            "subject": "Still keen, {{candidate_first_name}}?",
+            "body": "Hello {{candidate_first_name}}\n\nYour assessment is waiting.",
+        },
+    )
+    assert created.status_code == 201, created.text
+    template = created.json()
+
+    resp = await client.post(url, json={"template_id": template["id"]})
+    assert resp.status_code == 200, resp.text
+    assert reminders[-1]["template_id"] == template["id"]
+    assert reminders[-1]["template_subject"] == "Still keen, {{candidate_first_name}}?"
+    assert reminders[-1].get("override_subject") is None
+
+    resp = await client.post(url, json={"subject": "A quick nudge", "body": "Hi Jane"})
+    assert resp.status_code == 200, resp.text
+    assert reminders[-1]["override_subject"] == "A quick nudge"
+    assert reminders[-1]["override_body"] == "Hi Jane"
+
+    # the Ganek default by name, and an empty body, both still send
+    assert (await client.post(url, json={"template_id": "builtin"})).status_code == 200
+    assert reminders[-1]["template_id"] is None
+    assert (await client.post(url, json={})).status_code == 200
+    assert len(reminders) == 4
+
+    # a template that is not this workspace's, or half an edit, sends nothing
+    resp = await client.post(url, json={"template_id": str(uuid4())})
+    assert resp.status_code == 404
+    assert (await client.post(url, json={"subject": "Only a subject"})).status_code == 422
+    assert len(reminders) == 4
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket", "multi_mode")
+async def test_remind_409s_on_a_rejected_applicant(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rejected applicant whose assessment is still pending gets no reminder."""
+    from app.services import email as email_service
+
+    reminders: list[dict[str, object]] = []
+    monkeypatch.setattr(email_service, "send_quiz_reminder", lambda **kw: reminders.append(kw))
+
+    await _company_with_applicant(client, with_quiz=True)
+    app = (await client.get("/api/v1/applications")).json()["items"][0]
+    resp = await client.patch(f"/api/v1/applications/{app['id']}/stage", json={"stage": "rejected"})
+    assert resp.status_code == 200, resp.text
+
+    resp = await client.post(f"/api/v1/applications/{app['id']}/remind")
+    assert resp.status_code == 409
+    assert resp.json() == {"detail": "No reminder for a rejected or withdrawn applicant"}
+    assert reminders == []
+
+
 @pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode")
 async def test_list_paginates_and_counts_stages(client: AsyncClient) -> None:
     """M5.7 H4: limit/offset windows plus whole-set stage counts - the old

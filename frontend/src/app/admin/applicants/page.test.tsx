@@ -554,28 +554,96 @@ describe("ApplicantsPage", () => {
     expect(screen.getByText(/in screening for 4d/)).toBeInTheDocument();
   });
 
-  it("Send reminder appears for pending attempts and calls the endpoint", async () => {
-    mockedApps.list.mockResolvedValue(pageOf([
-      makeApp({
-        quiz_attempt: {
-          status: "pending",
-          score: null,
-          per_tag_scores: {},
-          completed_at: null,
-          question_ids: ["q1", "q2"],
-          time_multiplier: 1,
-          integrity: { blur_count: 0, flags: [] },
+  const PENDING_ATTEMPT: ApplicationOut["quiz_attempt"] = {
+    status: "pending",
+    score: null,
+    per_tag_scores: {},
+    completed_at: null,
+    question_ids: ["q1", "q2"],
+    time_multiplier: 1,
+    integrity: { blur_count: 0, flags: [] },
+  };
+
+  it("Send reminder opens the reminder preview and sends with the chosen template", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ quiz_attempt: PENDING_ATTEMPT })]));
+    const kinds = templateKinds();
+    kinds.kinds[1] = {
+      ...kinds.kinds[1],
+      templates: [
+        {
+          id: "t-r",
+          kind: "quiz_reminder",
+          name: "Friendly nudge",
+          subject: "s",
+          body: "b",
+          is_default: false,
+          created_at: "",
+          updated_at: "",
         },
-      }),
-    ]));
+      ],
+    };
+    mockedTemplates.list.mockResolvedValue(kinds);
+    mockedApps.emailPreview.mockResolvedValue({
+      kind: "quiz_reminder",
+      subject: "Reminder: your assessment for Backend Engineer",
+      text: "Hi Jane Applicant, your assessment is waiting",
+      html: "",
+      body: "Hi Jane Applicant, your assessment is waiting",
+    });
     mockedApps.remind.mockResolvedValue({ sent: true });
     render(<ApplicantsPage />);
     await screen.findByRole("heading", { name: "Jane Applicant" });
 
     await userEvent.click(screen.getByRole("button", { name: /send reminder/i }));
-    await waitFor(() => expect(mockedApps.remind).toHaveBeenCalledWith("app-1"));
+    const dialog = await screen.findByRole("dialog", { name: "Send reminder to Jane Applicant" });
+    await within(dialog).findByText("Reminder: your assessment for Backend Engineer");
+    expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "quiz_reminder", "builtin");
+    // nothing goes out before the confirm
+    expect(mockedApps.remind).not.toHaveBeenCalled();
+    await userEvent.selectOptions(
+      within(dialog).getByRole("combobox", { name: "Template" }),
+      "Friendly nudge",
+    );
+    await waitFor(() =>
+      expect(mockedApps.emailPreview).toHaveBeenCalledWith("app-1", "quiz_reminder", "t-r"),
+    );
+    const send = within(dialog).getByRole("button", { name: "Send reminder" });
+    await waitFor(() => expect(send).toBeEnabled());
+    await userEvent.click(send);
+    await waitFor(() =>
+      expect(mockedApps.remind).toHaveBeenCalledWith("app-1", {
+        templateId: "t-r",
+        subject: undefined,
+        body: undefined,
+      }),
+    );
     expect(await screen.findByText(/reminder sent/i)).toBeInTheDocument();
   });
+
+  it("Cancel in the reminder dialog sends nothing", async () => {
+    mockedApps.list.mockResolvedValue(pageOf([makeApp({ quiz_attempt: PENDING_ATTEMPT })]));
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+    await userEvent.click(screen.getByRole("button", { name: /send reminder/i }));
+    const dialog = await screen.findByRole("dialog", { name: "Send reminder to Jane Applicant" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockedApps.remind).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /send reminder/i })).toBeInTheDocument();
+  });
+
+  it.each(["rejected", "withdrawn"] as const)(
+    "Send reminder is absent on a %s applicant with a pending assessment",
+    async (stage) => {
+      mockedApps.list.mockResolvedValue(
+        pageOf([makeApp({ stage, quiz_attempt: PENDING_ATTEMPT })]),
+      );
+      mockedApps.emails.mockResolvedValue([]);
+      render(<ApplicantsPage />);
+      await screen.findByRole("heading", { name: "Jane Applicant" });
+      expect(screen.queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
+    },
+  );
 
   it("Send reminder is absent for completed attempts", async () => {
     render(<ApplicantsPage />);

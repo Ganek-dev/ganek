@@ -54,6 +54,7 @@ from app.schemas.applications import (
     NoteOut,
     QuizAnswerReview,
     QuizResultOut,
+    RemindIn,
     ReviewIntegrityEvent,
     StageUpdate,
     TimelineEventOut,
@@ -528,9 +529,18 @@ async def remind_candidate(
     application_id: uuid.UUID,
     db: DbSession,
     company: StaffCompany,
+    payload: RemindIn | None = None,
 ) -> dict[str, bool]:
-    """Manually resend the assessment link (17b) while the attempt is untouched."""
+    """Manually resend the assessment link (17b) while the attempt is untouched.
+    The body (optional) carries the template picked in the email dialog and a
+    one-off edit; a rejected or withdrawn applicant is never reminded."""
+    payload = payload or RemindIn()
     application = await _get_or_404(db, company, application_id)
+    if application.stage in (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No reminder for a rejected or withdrawn applicant",
+        )
     attempt = application.quiz_attempt
     now = datetime.now(UTC)
     if attempt is None or attempt.status is not AttemptStatus.PENDING or attempt.expires_at <= now:
@@ -538,11 +548,20 @@ async def remind_candidate(
             status_code=status.HTTP_409_CONFLICT,
             detail="No pending assessment to remind about",
         )
+    if isinstance(payload.template_id, uuid.UUID):
+        try:
+            await templates_service.resolve(db, company.id, "quiz_reminder", payload.template_id)
+        except templates_service.NotFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Template not found"
+            ) from None
     await outbox_service.queue_email(
         db,
         kind="quiz_reminder",
         company_id=company.id,
         application_id=application.id,
+        template_id=payload.template_id,
+        **_override_kwargs(payload.subject, payload.body),
         **_reminder_kwargs(company, application, attempt, now),
     )
     return {"sent": True}
