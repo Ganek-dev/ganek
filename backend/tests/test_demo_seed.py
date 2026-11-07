@@ -24,6 +24,7 @@ from app.models import (
     Job,
     JobStatus,
     JobView,
+    Questionnaire,
     QuizAttempt,
     RemotePolicy,
     SalaryPeriod,
@@ -408,3 +409,47 @@ async def test_demo_reports_have_history(db_session: AsyncSession) -> None:
         .all()
     )
     assert all(row.status is EmailStatus.SENT for row in mails)
+
+
+@pytest.mark.usefixtures("migrated_db", "seeded_bank", "bucket")
+async def test_demo_ships_one_questionnaire_used_by_one_job(db_session: AsyncSession) -> None:
+    """Issue #366: the demo shows the curated-set feature instead of an empty state."""
+    company = await _seed_company(db_session)
+    sets = (
+        (
+            await db_session.execute(
+                select(Questionnaire).where(Questionnaire.company_id == company.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [q.name for q in sets] == ["SRE on-call basics"]
+    curated = sets[0]
+    assert curated.question_refs == demo_seed.DEMO_QUESTIONNAIRE["question_refs"]
+    # every ref resolves to an active open-bank question, so the job serves all of them
+    pool = await quiz._resolve_questionnaire_pool(db_session, company, curated)
+    assert [q.id for q in pool] == curated.question_refs
+
+    jobs = (
+        (await db_session.execute(select(Job).where(Job.company_id == company.id))).scalars().all()
+    )
+    using = [j for j in jobs if j.quiz_config.get("questionnaire_id") == str(curated.id)]
+    assert [j.title for j in using] == ["Site Reliability Engineer"]
+    # the other quizzes stay tag-auto
+    assert all(not j.quiz_config.get("questionnaire_id") for j in jobs if j not in using)
+
+    # the SRE applicants were served the curated set, in its order
+    attempts = (
+        (
+            await db_session.execute(
+                select(QuizAttempt)
+                .join(Application, Application.id == QuizAttempt.application_id)
+                .where(Application.job_id == using[0].id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert attempts
+    assert all(a.question_ids == curated.question_refs for a in attempts)

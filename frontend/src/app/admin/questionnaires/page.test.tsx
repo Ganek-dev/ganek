@@ -50,7 +50,11 @@ describe("QuestionnairesIndexPage", () => {
   it("shows an empty-state CTA when there are no questionnaires", async () => {
     mocked.list.mockResolvedValue([]);
     render(<QuestionnairesIndexPage />);
-    expect(await screen.findByText(/No questionnaires yet/)).toBeInTheDocument();
+    const copy = await screen.findByText(/No questionnaires yet/);
+    // the line break is visual only: copied or read aloud it is still two sentences
+    expect(copy.textContent).toBe(
+      "No questionnaires yet. Create one to curate a fixed set of questions for a role.",
+    );
     expect(screen.getByRole("button", { name: "Create the first" })).toBeInTheDocument();
   });
 

@@ -89,7 +89,7 @@ export default function QuestionnairesIndexPage() {
         <div className="card flex flex-col items-center gap-3 p-10 text-center">
           <ClipboardList aria-hidden className="h-6 w-6 text-g400" />
           <p className="text-sm text-g500">
-            No questionnaires yet.
+            No questionnaires yet.{" "}
             <br />
             Create one to curate a fixed set of questions for a role.
           </p>

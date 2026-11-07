@@ -23,7 +23,7 @@ Route the public hostname to the frontend on port 3000. The frontend proxies `/a
 
 ## Demo data
 
-An empty workspace shows little. `scripts/dev_seed.sh` builds **ACME Ganek** inside the running backend container: three users, seven published jobs that read like real postings and carry screening questions, 26 fictional applicants with CVs and 17 completed quizzes driven through the real quiz engine, with realistic answer timings, three hires, a couple of integrity flags, notes, a spread of stages over the last three weeks, a source on every application (LinkedIn, Google, a newsletter link, a referring site) and 30 days of page views per job and source, so the job overview reads like a live careers page. Everything is fictional; candidate addresses end in `@example.com`, so no mail can reach a real inbox.
+An empty workspace shows little. `scripts/dev_seed.sh` builds **ACME Ganek** inside the running backend container: three users, seven published jobs that read like real postings and carry screening questions, one curated questionnaire (the SRE job serves it instead of tag-auto picks), 26 fictional applicants with CVs and 17 completed quizzes driven through the real quiz engine, with realistic answer timings, three hires, a couple of integrity flags, notes, a spread of stages over the last three weeks, a source on every application (LinkedIn, Google, a newsletter link, a referring site) and 30 days of page views per job and source, so the job overview reads like a live careers page. Everything is fictional; candidate addresses end in `@example.com`, so no mail can reach a real inbox.
 
 ```
 scripts/dev_seed.sh            # create if missing
