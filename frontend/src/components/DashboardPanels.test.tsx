@@ -236,6 +236,22 @@ describe("ActivityPanel", () => {
         application_id: null,
         created_at: new Date(Date.now() - 21_600_000).toISOString(),
       },
+      {
+        id: "a7",
+        type: "tenant.suspended",
+        payload: { reason: "Unpaid invoice" },
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 25_200_000).toISOString(),
+      },
+      {
+        id: "a8",
+        type: "tenant.unsuspended",
+        payload: {},
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 28_800_000).toISOString(),
+      },
     ]);
     render(<ActivityPanel />);
     expect(
@@ -252,6 +268,10 @@ describe("ActivityPanel", () => {
     expect(
       screen.getByText("Platform Engineer closed automatically after its closes-on day"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Workspace suspended by the instance operator: Unpaid invoice"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Workspace restored by the instance operator")).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();
   });
