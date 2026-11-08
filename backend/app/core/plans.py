@@ -72,6 +72,11 @@ class PlanPolicy(Protocol):
         """The attribution the company's public pages carry (BM10)."""
         ...
 
+    def custom_domains(self, company: Company) -> bool:
+        """Whether the company may claim a custom careers domain (BM3:
+        hosted Team; self-hosters already serve on their own domain)."""
+        ...
+
 
 class SelfHostedPolicy:
     """Self-hosters are never metered (BUSINESS_MODEL_PLAN)."""
@@ -98,6 +103,10 @@ class SelfHostedPolicy:
     def powered_by(self, company: Company) -> PoweredBy:
         # BM10: self-host never has a required badge; the plain credit stays
         return PoweredBy.CREDIT
+
+    def custom_domains(self, company: Company) -> bool:
+        # the instance already runs on the operator's own domain
+        return False
 
 
 def load_plan_policy(edition: str) -> PlanPolicy:

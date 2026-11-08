@@ -43,6 +43,24 @@ class PlanOut(BaseModel):
     trial_ends_at: datetime | None = None
 
 
+class CustomDomainOut(BaseModel):
+    """GET /company/domain (custom domains, slice 2). ``available`` = the
+    plan allows a custom domain; ``status`` none / pending / verified. While
+    pending, the admin publishes TXT ``txt_name`` = ``txt_value``."""
+
+    available: bool
+    upgrade_url: str | None
+    domain: str | None
+    status: Literal["none", "pending", "verified"]
+    txt_name: str | None
+    txt_value: str | None
+    verified_at: datetime | None
+
+
+class CustomDomainIn(BaseModel):
+    domain: str = Field(min_length=1, max_length=300)
+
+
 class CompanySummary(BaseModel):
     """What any signed-in user may know about their company: enough to build
     the public careers and job URLs (slug + instance mode). The branding

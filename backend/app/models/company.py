@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, Enum, String, Text
+from sqlalchemy import DateTime, Enum, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,6 +47,12 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # 503 and every sign-in, session and API key of the tenant is refused
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suspension_reason: Mapped[str | None] = mapped_column(String(500))
+    # custom careers domain (0053, services/custom_domains.py): routes only
+    # once verified_at is set by the DNS TXT check; unique among verified
+    # domains (partial index), a pending claim locks nothing away
+    custom_domain: Mapped[str | None] = mapped_column(String(253))
+    custom_domain_token: Mapped[str | None] = mapped_column(String(64))
+    custom_domain_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     plan: Mapped[CompanyPlan] = mapped_column(
         Enum(
             CompanyPlan,
@@ -56,6 +62,15 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         default=CompanyPlan.SELF_HOSTED,
         server_default=CompanyPlan.SELF_HOSTED.value,
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_companies_verified_custom_domain",
+            "custom_domain",
+            unique=True,
+            postgresql_where=text("custom_domain_verified_at IS NOT NULL"),
+        ),
     )
 
     users: Mapped[list["User"]] = relationship(back_populates="company")

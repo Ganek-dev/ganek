@@ -8,13 +8,15 @@ from app.schemas.company import (
     CompanyOut,
     CompanySettingsUpdate,
     CompanySummary,
+    CustomDomainIn,
+    CustomDomainOut,
     PlanLimitsOut,
     PlanOut,
     UsageOut,
 )
 from app.services import company as company_service
+from app.services import custom_domains, quotas, storage
 from app.services import email as email_service
-from app.services import quotas, storage
 
 # branding is admin territory (role legend, screen 12)
 router = APIRouter(prefix="/company", tags=["company"])
@@ -96,6 +98,82 @@ async def upload_logo(
 @router.delete("/logo", response_model=CompanyOut)
 async def remove_logo(db: DbSession, company: StaffCompany, _admin: AdminUser) -> Company:
     return await company_service.remove_logo(db, company)
+
+
+def _domain_out(company: Company) -> CustomDomainOut:
+    policy = plans.get_plan_policy()
+    available = policy.custom_domains(company)
+    state = custom_domains.status(company)
+    domain, token = company.custom_domain, company.custom_domain_token
+    show_txt = state == "pending" and domain is not None and token is not None
+    return CustomDomainOut(
+        available=available,
+        upgrade_url=None if available else policy.upgrade_url(company),
+        domain=domain,
+        status=state,
+        txt_name=custom_domains.txt_record_name(domain) if show_txt and domain else None,
+        txt_value=custom_domains.txt_record_value(token) if show_txt and token else None,
+        verified_at=company.custom_domain_verified_at,
+    )
+
+
+def _require_custom_domains(company: Company) -> None:
+    policy = plans.get_plan_policy()
+    if not policy.custom_domains(company):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "plan_feature",
+                "upgrade_url": policy.upgrade_url(company),
+                "message": "Custom domains are not part of your plan.",
+            },
+        )
+
+
+@router.get("/domain", response_model=CustomDomainOut)
+async def get_custom_domain(company: StaffCompany, _admin: AdminUser) -> CustomDomainOut:
+    return _domain_out(company)
+
+
+@router.put("/domain", response_model=CustomDomainOut)
+async def set_custom_domain(
+    payload: CustomDomainIn, db: DbSession, company: StaffCompany, _admin: AdminUser
+) -> CustomDomainOut:
+    """Claim a custom careers domain: a new or changed domain starts pending
+    with a fresh TXT token and never routes until verified."""
+    _require_custom_domains(company)
+    try:
+        company = await custom_domains.set_domain(db, company, payload.domain)
+    except custom_domains.InvalidDomain as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.reason
+        ) from None
+    return _domain_out(company)
+
+
+@router.post("/domain/verify", response_model=CustomDomainOut)
+async def verify_custom_domain(
+    db: DbSession, company: StaffCompany, _admin: AdminUser
+) -> CustomDomainOut:
+    _require_custom_domains(company)
+    try:
+        company = await custom_domains.verify_domain(db, company)
+    except custom_domains.VerificationFailed as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.reason) from None
+    except custom_domains.DomainTaken:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This domain is already connected to another workspace",
+        ) from None
+    return _domain_out(company)
+
+
+@router.delete("/domain", response_model=CustomDomainOut)
+async def remove_custom_domain(
+    db: DbSession, company: StaffCompany, _admin: AdminUser
+) -> CustomDomainOut:
+    """Always allowed, also after a downgrade: removing never needs the plan."""
+    return _domain_out(await custom_domains.remove_domain(db, company))
 
 
 @router.post("/test-email", response_model=dict[str, bool])
