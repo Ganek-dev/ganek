@@ -11,8 +11,9 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Job, User
-from app.services import activity
+from app.models import Candidate, Company, Job, User
+from app.schemas.dsar import DsarBundle
+from app.services import activity, dsar
 
 
 class TenantRow:
@@ -63,3 +64,50 @@ async def unsuspend(db: AsyncSession, company: Company) -> None:
     company.suspension_reason = None
     activity.record(db, company_id=company.id, type=activity.TENANT_UNSUSPENDED)
     await db.commit()
+
+
+class TenantExport:
+    def __init__(self, users: list[User], jobs: list[Job], candidates: list[DsarBundle]) -> None:
+        self.users = users
+        self.jobs = jobs
+        self.candidates = candidates
+
+
+async def export(db: AsyncSession, company: Company) -> TenantExport:
+    """Everything the tenant owns, for an export on request. Candidates go
+    through the DSAR bundle builder, so the export carries exactly what an
+    Article 15 bundle carries (and scrubs what it scrubs). The tenant's own
+    activity feed records the export, without the operator's identity."""
+    users = list(
+        (
+            await db.execute(
+                select(User).where(User.company_id == company.id).order_by(User.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    jobs = list(
+        (await db.execute(select(Job).where(Job.company_id == company.id).order_by(Job.created_at)))
+        .scalars()
+        .all()
+    )
+    candidate_ids = (
+        (
+            await db.execute(
+                select(Candidate.id)
+                .where(Candidate.company_id == company.id)
+                .order_by(Candidate.created_at, Candidate.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    candidates: list[DsarBundle] = []
+    for candidate_id in candidate_ids:
+        bundle = await dsar.export_candidate(db, company, candidate_id)
+        if bundle is not None:
+            candidates.append(bundle)
+    activity.record(db, company_id=company.id, type=activity.TENANT_EXPORTED)
+    await db.commit()
+    return TenantExport(users, jobs, candidates)

@@ -307,6 +307,8 @@ function activityCopy(item: ActivityItem): string {
       );
     case "tenant.unsuspended":
       return "Workspace restored by the instance operator";
+    case "tenant.exported":
+      return "Workspace data exported by the instance operator";
     case "applications.bulk_rejected":
       return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {

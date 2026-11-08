@@ -1,15 +1,22 @@
-"""Operator plane (board card "Operator plane", first slice): tenant list,
-suspend and unsuspend. Every route sits behind core.ops.require_superadmin;
+"""Operator plane (board card "Operator plane"): tenant list, suspend,
+unsuspend and export. Every route sits behind core.ops.require_superadmin;
 anyone not on the allow-list gets a 404, as if the routes did not exist."""
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import DbSession
 from app.core.ops import require_superadmin
 from app.models import Company
-from app.schemas.ops import OpsTenantOut, SuspendRequest
+from app.schemas.ops import (
+    OpsExportJob,
+    OpsExportUser,
+    OpsTenantExport,
+    OpsTenantOut,
+    SuspendRequest,
+)
 from app.services import ops as ops_service
 
 router = APIRouter(prefix="/ops", tags=["ops"], dependencies=[Depends(require_superadmin)])
@@ -55,3 +62,43 @@ async def unsuspend_tenant(company_id: uuid.UUID, db: DbSession) -> OpsTenantOut
     company = await _tenant(db, company_id)
     await ops_service.unsuspend(db, company)
     return _out(await ops_service.counts(db, company))
+
+
+@router.get("/tenants/{company_id}/export", response_model=OpsTenantExport)
+async def export_tenant(company_id: uuid.UUID, db: DbSession) -> OpsTenantExport:
+    """The whole tenant as JSON: users, jobs and one DSAR-shaped bundle per
+    candidate. CV links in the bundles are short-lived presigned URLs."""
+    company = await _tenant(db, company_id)
+    data = await ops_service.export(db, company)
+    return OpsTenantExport(
+        generated_at=datetime.now(UTC),
+        tenant=_out(await ops_service.counts(db, company)),
+        users=[
+            OpsExportUser(
+                email=u.email,
+                display_name=u.display_name,
+                role=u.role.value,
+                is_active=u.is_active,
+                created_at=u.created_at,
+                last_login_at=u.last_login_at,
+            )
+            for u in data.users
+        ],
+        jobs=[
+            OpsExportJob(
+                slug=j.slug,
+                title=j.title,
+                status=j.status.value,
+                department=j.department,
+                location=j.location,
+                remote_policy=j.remote_policy.value,
+                employment_type=j.employment_type.value,
+                description_md=j.description_md,
+                created_at=j.created_at,
+                published_at=j.published_at,
+                closed_at=j.closed_at,
+            )
+            for j in data.jobs
+        ],
+        candidates=data.candidates,
+    )
