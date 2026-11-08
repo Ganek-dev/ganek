@@ -18,6 +18,7 @@ Rules kept here so they cannot drift again (see #144):
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from app.core.config import settings
 
@@ -34,6 +35,13 @@ def _base(company: Company | None = None) -> str:
     """
     del company
     return settings.public_base_url.rstrip("/")
+
+
+def instance_host() -> str:
+    """The bare host the instance answers on (no scheme, port or trailing
+    dot), lowercase; empty when the base URL carries none. Custom domains
+    refuse names under it."""
+    return (urlsplit(_base()).hostname or "").lower().rstrip(".")
 
 
 def careers_url(company: Company) -> str:

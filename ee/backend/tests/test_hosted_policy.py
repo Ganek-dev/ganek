@@ -77,3 +77,16 @@ def test_badge_is_required_on_free_and_removed_on_paid(
     plan: CompanyPlan, powered_by: PoweredBy
 ) -> None:
     assert HostedPolicy().powered_by(_company(plan)) is powered_by
+
+
+@pytest.mark.parametrize(
+    ("plan", "allowed"),
+    [
+        (CompanyPlan.FREE, False),
+        (CompanyPlan.STARTER, False),
+        (CompanyPlan.TEAM, True),
+        (CompanyPlan.SELF_HOSTED, False),
+    ],
+)
+def test_custom_domains_are_a_team_feature(plan: CompanyPlan, allowed: bool) -> None:
+    assert HostedPolicy().custom_domains(_company(plan)) is allowed

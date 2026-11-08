@@ -123,3 +123,9 @@ class HostedPolicy:
         if plan is CompanyPlan.SELF_HOSTED:
             return PoweredBy.CREDIT
         return PoweredBy.NONE
+
+    def custom_domains(self, company: Company) -> bool:
+        """BM3: a custom careers domain is a Team feature; a running Team
+        trial counts. A downgrade keeps the stored domain but the API stops
+        managing it (the routing slice stops serving it)."""
+        return effective_plan(company) is CompanyPlan.TEAM

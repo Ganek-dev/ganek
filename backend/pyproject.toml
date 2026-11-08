@@ -22,6 +22,7 @@ dependencies = [
     "jsonschema>=4.22",
     "cryptography>=43",
     "sentry-sdk[fastapi]>=2.0",
+    "dnspython>=2.6",
 ]
 
 [dependency-groups]
