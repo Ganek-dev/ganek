@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.models import Company, User, UserRole
 from app.services import email as email_service
-from app.services.slugs import slugify, with_random_suffix
+from app.services.slugs import is_reserved_company_slug, slugify, with_random_suffix
 
 
 class RegistrationClosedError(Exception):
@@ -17,6 +17,31 @@ class RegistrationClosedError(Exception):
 
 class EmailTakenError(Exception):
     """A user with this email already exists."""
+
+
+class ReservedCompanyNameError(Exception):
+    """The company name maps to a slug the platform keeps for itself."""
+
+
+RESERVED_COMPANY_NAME_DETAIL = (
+    "This company name is reserved by the platform. Please choose a different "
+    "name, for example by adding a word to it."
+)
+
+
+def check_company_name(company_name: str) -> str:
+    """Slug for a new company, refused when reserved (multi mode only).
+
+    In multi mode the slug is the tenant's public address (``/c/{slug}``
+    today, ``<slug>.ganek.io`` once subdomain routing lands), so platform
+    names (app, api, admin, status, the brand) are refused before anything
+    is written. Single mode serves careers at the root and never shows the
+    slug, so a self-hoster may call the one company whatever they like.
+    """
+    slug = slugify(company_name)
+    if settings.mode == "multi" and is_reserved_company_slug(slug):
+        raise ReservedCompanyNameError
+    return slug
 
 
 class AccountLockedError(Exception):
@@ -60,6 +85,7 @@ async def register_company_admin(
         companies = (await db.execute(select(func.count()).select_from(Company))).scalar_one()
         if companies:
             raise RegistrationClosedError
+    base_slug = check_company_name(company_name)
     email_taken = (
         await db.execute(select(func.count()).select_from(User).where(User.email == email))
     ).scalar_one()
@@ -68,7 +94,7 @@ async def register_company_admin(
 
     pending = verification_required()
     company = Company(
-        slug=await _unique_slug(db, slugify(company_name)),
+        slug=await _unique_slug(db, base_slug),
         name=company_name,
         settings={"pending_verification": True} if pending else {},
         plan=plans.get_plan_policy().signup_plan,
@@ -182,6 +208,7 @@ async def register_company_google(
         companies = (await db.execute(select(func.count()).select_from(Company))).scalar_one()
         if companies:
             raise RegistrationClosedError
+    base_slug = check_company_name(company_name)
     taken = (
         await db.execute(
             select(func.count())
@@ -193,7 +220,7 @@ async def register_company_google(
         raise EmailTakenError
 
     company = Company(
-        slug=await _unique_slug(db, slugify(company_name)),
+        slug=await _unique_slug(db, base_slug),
         name=company_name,
         plan=plans.get_plan_policy().signup_plan,
     )
