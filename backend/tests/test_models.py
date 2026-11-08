@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from alembic import command
 from app.core.config import settings
-from app.models import Company, User, UserRole
+from app.models import BillingAccount, Company, CompanyPlan, User, UserRole
 from tests.db import database_reachable
 
 pytestmark = pytest.mark.skipif(
@@ -89,3 +89,25 @@ async def test_user_google_sub_and_nullable_password(db_session: AsyncSession) -
     await db_session.delete(user)
     await db_session.delete(company)
     await db_session.commit()
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_company_plan_defaults_to_self_hosted_and_billing_row_cascades() -> None:
+    engine = create_async_engine(settings.database_url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        company = Company(slug=f"plan-{uuid4().hex[:8]}", name="Plan Inc")
+        session.add(company)
+        await session.commit()
+        await session.refresh(company)
+        assert company.plan is CompanyPlan.SELF_HOSTED
+
+        account = BillingAccount(company_id=company.id, stripe_customer_id=f"cus_{uuid4().hex}")
+        session.add(account)
+        await session.commit()
+
+        await session.delete(company)
+        await session.commit()
+        left = await session.scalar(select(BillingAccount).where(BillingAccount.id == account.id))
+        assert left is None
+    await engine.dispose()

@@ -65,6 +65,23 @@ jobs:
       - run: uv run mypy app
       - run: uv run pytest
 
+  # The commercial ee/ package against the core. The backend job above runs
+  # WITHOUT it (card B1a: the AGPL core must pass with ee/ absent).
+  ee:
+    name: ee/ package lint + test
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync
+      - run: uv pip install ../ee/backend
+      - run: uv run --no-sync ruff check ../ee/backend
+      - run: uv run --no-sync ruff format --check ../ee/backend
+      - run: uv run --no-sync python -m pytest ../ee/backend/tests
+
   frontend:
     name: Frontend lint + typecheck + test
     runs-on: ubuntu-latest

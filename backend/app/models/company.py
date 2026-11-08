@@ -1,7 +1,8 @@
+import enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Enum, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,6 +11,17 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.job import Job
     from app.models.user import User
+
+
+class CompanyPlan(enum.StrEnum):
+    """Billing plan (0050, BM3). self_hosted = no limits; the other three are
+    only ever set on a hosted instance and are read through the PlanPolicy
+    (app/core/plans.py), never compared ad hoc."""
+
+    FREE = "free"
+    STARTER = "starter"
+    TEAM = "team"
+    SELF_HOSTED = "self_hosted"
 
 
 class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -34,6 +46,16 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # 503 and every sign-in, session and API key of the tenant is refused
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suspension_reason: Mapped[str | None] = mapped_column(String(500))
+    plan: Mapped[CompanyPlan] = mapped_column(
+        Enum(
+            CompanyPlan,
+            values_callable=lambda e: [m.value for m in e],
+            native_enum=False,
+            length=12,
+        ),
+        default=CompanyPlan.SELF_HOSTED,
+        server_default=CompanyPlan.SELF_HOSTED.value,
+    )
 
     users: Mapped[list["User"]] = relationship(back_populates="company")
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")

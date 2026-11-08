@@ -52,6 +52,7 @@ jobs:
         with:
           context: .
           file: backend/Dockerfile
+          target: public  # never the hosted (ee/) stage
           platforms: linux/amd64
           load: true
           cache-from: type=gha,scope=backend
@@ -59,6 +60,10 @@ jobs:
           tags: |
             ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }}
             ghcr.io/ganek-dev/ganek-backend:latest
+      - name: Public backend image carries no ee/ code
+        run: |
+          docker run --rm ghcr.io/ganek-dev/ganek-backend:${{ steps.meta.outputs.version }} \
+            sh -c 'test ! -e /srv/ee && uv run --no-sync python -c "from importlib.metadata import entry_points as e; assert not e(group=\"ganek.plan_policy\"), \"ee plan policy found\""'
       - name: Frontend image (amd64, compose-default build args)
         uses: docker/build-push-action@v7
         with:
@@ -143,6 +148,7 @@ jobs:
         with:
           context: .
           file: backend/Dockerfile
+          target: public  # never the hosted (ee/) stage
           platforms: linux/amd64,linux/arm64
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
           provenance: false
