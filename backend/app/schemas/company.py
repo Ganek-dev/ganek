@@ -16,7 +16,7 @@ from app.core import urls
 from app.core.config import settings as app_settings
 from app.models import Company
 from app.schemas.scorecard_template import ScorecardCriterion, validate_criteria
-from app.services import email_providers
+from app.services import cv_scan, email_providers
 from app.services.screening import ScreeningQuestion, validate_questions
 
 
@@ -132,6 +132,9 @@ class CompanyOut(_CareersDomainMixin):
     # provider, the key name predates GANEK_EMAIL_PROVIDER); the admin
     # banner ("candidates are NOT receiving email") keys off this
     smtp_configured: bool = Field(default_factory=email_providers.configured)
+    # not a column - whether a clamd is configured for CV virus scanning;
+    # the admin shows "scanning not configured" when false
+    cv_scanning_configured: bool = Field(default_factory=cv_scan.configured)
 
 
 class BrandingUpdate(BaseModel):

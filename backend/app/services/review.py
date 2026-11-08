@@ -29,9 +29,9 @@ from app.schemas.review import (
     ReviewQuizSummary,
 )
 from app.schemas.scorecards import ScorecardOut
+from app.services import cv_scan, storage
 from app.services import quiz as quiz_service
 from app.services import scorecards as scorecards_service
-from app.services import storage
 
 
 async def list_applications(db: AsyncSession, user: User) -> list[ReviewApplicationListItem]:
@@ -193,7 +193,9 @@ async def judging_view(
         job_title=application.job.title,
         cv_url=(
             storage.presign_cv_download(application.cv_object_key, application.cv_filename)
-            if application.cv_object_key and application.cv_filename
+            if application.cv_object_key
+            and application.cv_filename
+            and not cv_scan.blocked(application)
             else None
         ),
         screening_answers=[

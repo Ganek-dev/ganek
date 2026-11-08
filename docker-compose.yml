@@ -160,6 +160,23 @@ services:
     # configured - never the MinIO API/console themselves (.env.example §prod)
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
 
+  # Optional CV virus scanning: `docker compose --profile clamav up` and set
+  # GANEK_CLAMAV_HOST=clamav in .env (backend and worker read it). The first
+  # start downloads the signature database (a few minutes) and clamd needs
+  # about 1.5 GB of RAM. Without it uploads work and are not scanned.
+  clamav:
+    logging: *default-logging
+    profiles: [clamav]
+    image: clamav/clamav:1.4.3
+    restart: unless-stopped
+    volumes: [clamavdb:/var/lib/clamav]
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+
 volumes:
   pgdata:
     # Explicit global names: Docker matches volumes by name only, so a
@@ -168,3 +185,5 @@ volumes:
     name: ganek-postgres-data
   miniodata:
     name: ganek-minio-data
+  clamavdb:
+    name: ganek-clamav-db

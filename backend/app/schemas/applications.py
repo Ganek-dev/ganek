@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from app.models import ApplicationStage, AttemptStatus
+from app.models import ApplicationStage, AttemptStatus, CvScanStatus
 from app.services.rejection_reasons import ReasonKey
 
 
@@ -96,6 +96,10 @@ class ApplicationOut(BaseModel):
     # None for an application created without a CV (0046)
     cv_filename: str | None
     cv_size: int | None
+    # virus scan verdict (0055); null = not scanned (no CV, scanning not
+    # configured, or uploaded before scanning existed)
+    cv_scan_status: CvScanStatus | None = None
+    cv_scan_signature: str | None = None
     message: str | None
     stage: ApplicationStage
     source: str | None

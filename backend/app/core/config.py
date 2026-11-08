@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # set true behind HTTPS in production
     questions_dir: str | None = None  # explicit question-bank path (auto-detected otherwise)
     cv_max_size_mb: int = 10
+    # Optional CV virus scanning (services/cv_scan.py): a clamd reachable at
+    # host:port (compose profile "clamav"). Unset = uploads are not scanned
+    # and the admin shows "scanning not configured".
+    clamav_host: str | None = None
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = 60.0
     # Proof-of-work challenge on public forms (core/challenge.py, ALTCHA v1,
     # self-hosted). Off by default; multi mode only even when enabled.
     captcha_enabled: bool = False
