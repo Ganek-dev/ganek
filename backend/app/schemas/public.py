@@ -54,6 +54,14 @@ class PublicJobDetail(PublicJobSummary):
     screening_questions: list[PublicScreeningQuestion] = []
 
 
+class HostResolution(BaseModel):
+    """Which company's careers page a custom domain serves (the frontend
+    middleware rewrites the request to ``/c/{slug}``)."""
+
+    slug: str
+    domain: str
+
+
 class PublicCompanyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

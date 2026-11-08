@@ -88,6 +88,9 @@ NOT_SESSION_GATED: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/v1/public/companies/{slug}/logo"),
         ("GET", "/api/v1/public/companies/{slug}/logo/{digest}"),
         ("GET", "/api/v1/public/company/jobs-feed"),
+        # custom domain Host lookup (frontend middleware) and Caddy TLS ask
+        ("GET", "/api/v1/public/domains/resolve"),
+        ("GET", "/api/v1/public/domains/tls-ask"),
         ("POST", "/api/v1/public/companies/{slug}/jobs/{job_slug}/apply/upload-url"),
         ("POST", "/api/v1/public/companies/{slug}/jobs/{job_slug}/apply"),
         ("POST", "/api/v1/public/company/jobs/{job_slug}/apply/upload-url"),
