@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from app.core import plans
-from app.core.plans import UNLIMITED, SelfHostedPolicy, load_plan_policy
+from app.core.plans import UNLIMITED, PoweredBy, SelfHostedPolicy, load_plan_policy
 from app.models import Company, CompanyPlan
 
 
@@ -44,6 +44,7 @@ def test_self_hosted_policy_has_no_limits() -> None:
     assert policy.can_publish(company, live_jobs=10_000) is True
     assert policy.upgrade_url(company) is None
     assert list(policy.routers()) == []
+    assert policy.powered_by(company) is PoweredBy.CREDIT
 
 
 def test_community_edition_ignores_installed_ee(monkeypatch: pytest.MonkeyPatch) -> None:

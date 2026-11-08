@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from app.core.plans import PlanLimitExceeded, ensure_can_publish
+from app.core.plans import PlanLimitExceeded, PoweredBy, ensure_can_publish
 from app.models.company import Company, CompanyPlan
 from ganek_ee.plans import UPGRADE_URL_ENV, HostedPolicy
 
@@ -62,3 +62,18 @@ def test_the_402_payload_carries_the_upgrade_url(monkeypatch: pytest.MonkeyPatch
         ensure_can_publish(HostedPolicy(), _company(CompanyPlan.STARTER), live_jobs=5)
     assert caught.value.detail()["limit"] == 5
     assert caught.value.detail()["upgrade_url"] == "https://ganek.io/pricing"
+
+
+@pytest.mark.parametrize(
+    ("plan", "powered_by"),
+    [
+        (CompanyPlan.FREE, PoweredBy.BADGE),
+        (CompanyPlan.STARTER, PoweredBy.NONE),
+        (CompanyPlan.TEAM, PoweredBy.NONE),
+        (CompanyPlan.SELF_HOSTED, PoweredBy.CREDIT),
+    ],
+)
+def test_badge_is_required_on_free_and_removed_on_paid(
+    plan: CompanyPlan, powered_by: PoweredBy
+) -> None:
+    assert HostedPolicy().powered_by(_company(plan)) is powered_by

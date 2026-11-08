@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import Harness
 
-from app.core.plans import PlanLimitExceeded, ensure_can_publish
+from app.core.plans import PlanLimitExceeded, PoweredBy, ensure_can_publish
 from app.models import BillingAccount
 from app.models.company import Company, CompanyPlan
 from ganek_ee import plans as hosted_plans
@@ -99,3 +99,11 @@ def test_paid_companies_cannot_start_a_trial(harness: Harness, clock: list[datet
     assert response.status_code == 409
     assert "Free plan" in response.json()["detail"]
     assert harness.client.get("/api/v1/billing").json()["can_start_trial"] is False
+
+
+def test_a_running_trial_drops_the_badge_until_it_ends(clock: list[datetime]) -> None:
+    policy = HostedPolicy()
+    company = _company(CompanyPlan.FREE, T0 + timedelta(days=14))
+    assert policy.powered_by(company) is PoweredBy.NONE
+    clock[0] = T0 + timedelta(days=14, seconds=1)
+    assert policy.powered_by(company) is PoweredBy.BADGE

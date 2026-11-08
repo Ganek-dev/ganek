@@ -50,7 +50,12 @@ export interface PublicCompany {
   website: string | null;
   socials: Record<string, unknown>;
   theme: Record<string, unknown>;
+  /** BM10 attribution from the plan policy: badge on hosted Free, plain
+   * credit on self-host, none on paid plans. Absent = credit. */
+  powered_by?: PoweredByMode;
 }
+
+export type PoweredByMode = "badge" | "credit" | "none";
 
 export interface PublicCompanyPage {
   company: PublicCompany;

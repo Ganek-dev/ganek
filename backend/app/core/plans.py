@@ -6,6 +6,7 @@ explicitly: installing the package alone changes nothing, and the AGPL core
 has no hidden switch (ee/README.md).
 """
 
+import enum
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -32,6 +33,17 @@ class PlanLimits:
 UNLIMITED = PlanLimits(max_live_jobs=None)
 
 
+class PoweredBy(enum.StrEnum):
+    """The Ganek attribution on public careers and job pages (card BM10).
+    badge = the linked "Powered by Ganek" badge, required on hosted Free;
+    credit = the plain unlinked footer line (self-host, optional by BM10);
+    none = nothing (paid hosted plans)."""
+
+    BADGE = "badge"
+    CREDIT = "credit"
+    NONE = "none"
+
+
 class PlanPolicy(Protocol):
     name: str
     billing_enabled: bool
@@ -56,6 +68,10 @@ class PlanPolicy(Protocol):
         billing routes arrive through the same entry point)."""
         ...
 
+    def powered_by(self, company: Company) -> PoweredBy:
+        """The attribution the company's public pages carry (BM10)."""
+        ...
+
 
 class SelfHostedPolicy:
     """Self-hosters are never metered (BUSINESS_MODEL_PLAN)."""
@@ -78,6 +94,10 @@ class SelfHostedPolicy:
 
     def routers(self) -> Sequence[APIRouter]:
         return ()
+
+    def powered_by(self, company: Company) -> PoweredBy:
+        # BM10: self-host never has a required badge; the plain credit stays
+        return PoweredBy.CREDIT
 
 
 def load_plan_policy(edition: str) -> PlanPolicy:

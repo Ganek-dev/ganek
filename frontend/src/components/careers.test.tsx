@@ -4,7 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import type { PublicCompany, PublicJobDetail, PublicJobSummary } from "@/lib/public-api";
 
-import { CompanyHero, formatPostedAgo, formatSalary, jobMetaLine } from "./careers";
+import {
+  CareersFooter,
+  CompanyHero,
+  GANEK_SITE_URL,
+  formatPostedAgo,
+  formatSalary,
+  jobMetaLine,
+} from "./careers";
 import { JobList } from "./careers-list";
 import { EMPTY_CAREERS_FILTERS } from "@/lib/careers-filters";
 import { jobPostingJsonLd } from "@/lib/job-posting";
@@ -245,5 +252,36 @@ describe("job fields on the careers page", () => {
   it("leaves them out when unset", () => {
     const line = jobMetaLine({ ...designJob, department: "", seniority: null });
     expect(line.startsWith("London")).toBe(true);
+  });
+});
+
+describe("CareersFooter attribution (BM10)", () => {
+  it("shows the linked badge on Free, with no tracking parameters", () => {
+    render(<CareersFooter privacyHref="/privacy" poweredBy="badge" />);
+    const badge = screen.getByRole("link", { name: "Powered by Ganek" });
+    expect(badge).toHaveAttribute("href", GANEK_SITE_URL);
+    const url = new URL(badge.getAttribute("href") ?? "");
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
+    expect(badge).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByRole("link", { name: "Privacy" })).toBeInTheDocument();
+  });
+
+  it.each(["none", "credit", undefined] as const)("shows no badge for %s", (mode) => {
+    render(<CareersFooter privacyHref="/privacy" poweredBy={mode} />);
+    expect(screen.queryByRole("link", { name: "Powered by Ganek" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Privacy" })).toBeInTheDocument();
+  });
+
+  it("keeps the plain self-host credit, unlinked", () => {
+    render(<CareersFooter poweredBy="credit" />);
+    expect(screen.getByText("Careers powered by Ganek")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("drops every attribution on paid plans", () => {
+    render(<CareersFooter privacyHref="/privacy" poweredBy="none" />);
+    expect(screen.queryByText(/powered by ganek/i)).toBeNull();
+    expect(screen.queryByText("·")).toBeNull();
   });
 });
