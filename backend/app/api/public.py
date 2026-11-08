@@ -38,6 +38,7 @@ from app.schemas.public import (
     ApplicationStatusOut,
     ApplicationSubmit,
     CvUploadTicket,
+    HostResolution,
     InterviewPublicOut,
     InterviewSlotBody,
     JobsFeed,
@@ -65,6 +66,7 @@ from app.schemas.public import (
 from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import (
     activity,
+    custom_domains,
     decision_dates,
     demo_mode,
     ics,
@@ -167,6 +169,39 @@ async def company_job(
     job = await _published_job_or_404(db, company, job_slug, preview)
     _count_view(request, background, db, job, preview)
     return job
+
+
+# Custom careers domains (board card "Custom domains + subdomain routing",
+# slice 4). Both lookups are called by infrastructure, not by browsers: the
+# frontend middleware for every request on a foreign Host, and Caddy's
+# on-demand TLS before it asks Let's Encrypt for a certificate. They share
+# one source IP, so the per-IP public rate limit would cut routing off; the
+# lookup is one indexed query and answers only verified domains.
+async def _company_for_host_or_404(db: DbSession, host: str) -> Company:
+    company = await custom_domains.company_for_host(db, host) if settings.mode == "multi" else None
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown domain")
+    return company
+
+
+@router.get("/domains/resolve", response_model=HostResolution)
+async def resolve_custom_domain(host: str, db: DbSession) -> HostResolution:
+    """Host header -> company slug, for a verified custom domain only."""
+    company = await _company_for_host_or_404(db, host)
+    # a suspended tenant still resolves: the /c/{slug} page it is rewritten
+    # to answers the unavailable notice itself
+    return HostResolution(slug=company.slug, domain=company.custom_domain or "")
+
+
+@router.get("/domains/tls-ask", status_code=status.HTTP_200_OK)
+async def custom_domain_tls_ask(domain: str, db: DbSession) -> Response:
+    """Caddy ``on_demand_tls { ask }``: 200 lets Caddy issue a certificate
+    for ``domain``, anything else refuses it. Only verified custom domains
+    pass, so nobody can point a random name at us and burn the ACME rate
+    limit. A suspended tenant keeps its certificate (its page shows the
+    unavailable notice over HTTPS)."""
+    await _company_for_host_or_404(db, domain)
+    return Response(status_code=status.HTTP_200_OK)
 
 
 # Single-tenant routes (self-host): the instance's one company at /

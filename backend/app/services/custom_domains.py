@@ -19,7 +19,7 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import urls
+from app.core import plans, urls
 from app.models import Company
 
 # the record an admin publishes: <TXT_PREFIX>.<domain> TXT "<TXT_VALUE_PREFIX><token>"
@@ -104,6 +104,48 @@ def verified_domain(company: Company) -> str | None:
     if company.custom_domain and company.custom_domain_verified_at is not None:
         return company.custom_domain
     return None
+
+
+def normalize_host(raw: str) -> str | None:
+    """The bare name a request's Host header (or Caddy's ``domain`` query)
+    names: lowercase, no port, no trailing dot. None for anything that is
+    not a plain DNS name (IP literals, empty, junk), which never routes."""
+    value = raw.strip().lower()
+    if not value or value.startswith("["):
+        return None
+    if value.count(":") == 1:
+        value, _, port = value.partition(":")
+        if not port.isdigit():
+            return None
+    value = value.rstrip(".")
+    labels = value.split(".")
+    if len(value) > 253 or len(labels) < 2 or not all(_LABEL.match(lb) for lb in labels):
+        return None
+    if labels[-1].isdigit():
+        return None
+    return value
+
+
+async def company_for_host(db: AsyncSession, raw_host: str) -> Company | None:
+    """The company whose careers page a request for ``raw_host`` serves, or
+    None. Only a verified custom domain on a plan that still includes custom
+    domains resolves: a pending claim, a downgraded plan or an unknown name
+    never routes, so tenant A's Host can never reach tenant B (the verified
+    domain is unique across companies, see the partial index)."""
+    host = normalize_host(raw_host)
+    if host is None:
+        return None
+    company = (
+        await db.execute(
+            select(Company).where(
+                Company.custom_domain == host,
+                Company.custom_domain_verified_at.is_not(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if company is None or not plans.get_plan_policy().custom_domains(company):
+        return None
+    return company
 
 
 async def lookup_txt(name: str) -> list[str]:
