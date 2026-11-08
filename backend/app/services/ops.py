@@ -5,15 +5,18 @@ state change the tenant should know about also lands in the tenant's own
 activity feed, with no operator identity (the actor stays empty).
 """
 
+import logging
 import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Candidate, Company, Job, User
+from app.models import BillingAccount, Candidate, Company, CompanyPlan, Job, User
 from app.schemas.dsar import DsarBundle
 from app.services import activity, dsar
+
+logger = logging.getLogger("app.ops")
 
 
 class TenantRow:
@@ -64,6 +67,53 @@ async def unsuspend(db: AsyncSession, company: Company) -> None:
     company.suspension_reason = None
     activity.record(db, company_id=company.id, type=activity.TENANT_UNSUSPENDED)
     await db.commit()
+
+
+async def set_plan_override(
+    db: AsyncSession, company: Company, *, plan: CompanyPlan | None, end_trial: bool
+) -> None:
+    """Set (``plan``) or clear (None) the operator plan override, and with
+    ``end_trial`` end a running trial now. Ending keeps ``trial_ends_at``
+    set, so the trial cannot be started again (card B1d). Only the local
+    plan changes: nothing is written to Stripe, and the webhook never
+    touches the override. A change lands in the tenant's activity feed and
+    the operator log; a call that changes nothing records nothing."""
+    row = await db.scalar(
+        select(BillingAccount).where(BillingAccount.company_id == company.id).with_for_update()
+    )
+    if row is None:
+        if plan is None:
+            return  # no row means no override and no trial to end
+        row = BillingAccount(company_id=company.id)
+        db.add(row)
+    previous = row.plan_override
+    now = datetime.now(UTC)
+    trial_ended = end_trial and row.trial_ends_at is not None and row.trial_ends_at > now
+    if previous == plan and not trial_ended:
+        return  # nothing changes; the request's session ends the transaction
+    row.plan_override = plan
+    if trial_ended:
+        row.trial_ends_at = now
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.TENANT_PLAN_OVERRIDDEN,
+        payload={
+            "plan": plan.value if plan is not None else None,
+            "previous": previous.value if previous is not None else None,
+            "trial_ended": trial_ended,
+        },
+    )
+    await db.commit()
+    logger.info(
+        "ops plan override company=%s plan=%s previous=%s trial_ended=%s",
+        company.id,
+        plan.value if plan is not None else None,
+        previous.value if previous is not None else None,
+        trial_ended,
+    )
+    # the relationship is viewonly and eager: reload it for the response
+    await db.refresh(company, attribute_names=["billing_account"])
 
 
 class TenantExport:

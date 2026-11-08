@@ -1,5 +1,5 @@
 """Operator plane (board card "Operator plane"): tenant list, suspend,
-unsuspend and export. Every route sits behind core.ops.require_superadmin;
+unsuspend, export and the plan override. Every route sits behind core.ops.require_superadmin;
 anyone not on the allow-list gets a 404, as if the routes did not exist."""
 
 import uuid
@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import DbSession
 from app.core.ops import require_superadmin
-from app.models import Company
+from app.models import Company, CompanyPlan
 from app.schemas.ops import (
     OpsExportJob,
     OpsExportUser,
     OpsTenantExport,
     OpsTenantOut,
+    PlanOverrideRequest,
     SuspendRequest,
 )
 from app.services import ops as ops_service
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/ops", tags=["ops"], dependencies=[Depends(require_su
 
 def _out(row: ops_service.TenantRow) -> OpsTenantOut:
     c = row.company
+    account = c.billing_account
     return OpsTenantOut(
         id=c.id,
         slug=c.slug,
@@ -31,6 +33,13 @@ def _out(row: ops_service.TenantRow) -> OpsTenantOut:
         created_at=c.created_at,
         suspended_at=c.suspended_at,
         suspension_reason=c.suspension_reason,
+        plan=c.plan.value,
+        plan_override=(
+            account.plan_override.value
+            if account is not None and account.plan_override is not None
+            else None
+        ),
+        trial_ends_at=account.trial_ends_at if account is not None else None,
         users=row.users,
         jobs=row.jobs,
     )
@@ -61,6 +70,19 @@ async def suspend_tenant(
 async def unsuspend_tenant(company_id: uuid.UUID, db: DbSession) -> OpsTenantOut:
     company = await _tenant(db, company_id)
     await ops_service.unsuspend(db, company)
+    return _out(await ops_service.counts(db, company))
+
+
+@router.put("/tenants/{company_id}/plan", response_model=OpsTenantOut)
+async def set_plan_override(
+    company_id: uuid.UUID, payload: PlanOverrideRequest, db: DbSession
+) -> OpsTenantOut:
+    """Set or clear the plan override (Q21) and optionally end a running
+    trial. Comp accounts, partners and a broken webhook; Stripe is not
+    touched. Publish limits follow on the tenant's next request."""
+    company = await _tenant(db, company_id)
+    plan = CompanyPlan(payload.plan_override) if payload.plan_override is not None else None
+    await ops_service.set_plan_override(db, company, plan=plan, end_trial=payload.end_trial)
     return _out(await ops_service.counts(db, company))
 
 

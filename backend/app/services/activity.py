@@ -46,6 +46,7 @@ JOB_AUTO_CLOSED = "job.auto_closed"
 TENANT_SUSPENDED = "tenant.suspended"  # by the instance operator (api/ops.py)
 TENANT_UNSUSPENDED = "tenant.unsuspended"
 TENANT_EXPORTED = "tenant.exported"
+TENANT_PLAN_OVERRIDDEN = "tenant.plan_overridden"  # operator plan override or trial end
 
 
 def record(
