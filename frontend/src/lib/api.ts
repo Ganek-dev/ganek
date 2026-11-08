@@ -1838,6 +1838,17 @@ export interface PlanOut {
   upgrade_url: string | null;
 }
 
+/** GET /billing (card B1c, hosted with Stripe only): the Stripe-synced
+ * subscription status and whether the customer portal can open. */
+export interface BillingOut {
+  plan: PlanOut["plan"];
+  status: string | null;
+  current_period_end: string | null;
+  can_manage: boolean;
+}
+
+export type BillingInterval = "month" | "year";
+
 /** Per-company API keys (card D4 part A): the secret exists only in the
  * create response; the list carries the prefix. */
 export type ApiKeyScope = "read" | "write";
@@ -2020,6 +2031,19 @@ export const companyApi = {
   /** Sends a real email to the calling admin, surfacing transport errors. */
   testEmail: () =>
     request<{ sent: boolean }>("/api/v1/company/test-email", { method: "POST" }),
+};
+
+/** Hosted billing (card B1c). The routes exist only when the instance has
+ * Stripe configured, which `PlanOut.billing_enabled` reports. Checkout and
+ * the portal answer a Stripe URL to send the browser to. */
+export const billingApi = {
+  get: () => request<BillingOut>("/api/v1/billing"),
+  checkout: (plan: "starter" | "team", interval: BillingInterval) =>
+    request<{ url: string }>("/api/v1/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan, interval }),
+    }),
+  portal: () => request<{ url: string }>("/api/v1/billing/portal", { method: "POST" }),
 };
 
 /** /api/health/deep: per-dependency status plus the arq worker's heartbeat

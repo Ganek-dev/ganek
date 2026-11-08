@@ -7,10 +7,13 @@ has no hidden switch (ee/README.md).
 """
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib.metadata import entry_points
 from typing import Protocol
+
+from fastapi import APIRouter
 
 from app.core.config import settings
 from app.models.company import Company, CompanyPlan
@@ -42,6 +45,11 @@ class PlanPolicy(Protocol):
 
     def upgrade_url(self, company: Company) -> str | None: ...
 
+    def routers(self) -> Sequence[APIRouter]:
+        """Extra API routers the policy mounts under /api/v1 (Q6: the ee/
+        billing routes arrive through the same entry point)."""
+        ...
+
 
 class SelfHostedPolicy:
     """Self-hosters are never metered (BUSINESS_MODEL_PLAN)."""
@@ -58,6 +66,9 @@ class SelfHostedPolicy:
 
     def upgrade_url(self, company: Company) -> str | None:
         return None
+
+    def routers(self) -> Sequence[APIRouter]:
+        return ()
 
 
 def load_plan_policy(edition: str) -> PlanPolicy:

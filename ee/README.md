@@ -8,9 +8,12 @@ directory, not by the repository's AGPL-3.0 license.
 
 The boundary was declared **before** anything closed existed, so you can
 hold us to it. Today `ee/backend/` holds the `ganek-ee` package: the hosted
-plan policy. The core finds it only through the `ganek.plan_policy` entry
-point and only when `GANEK_EDITION=hosted` is set; without it the core runs
-the built-in self-hosted policy, which has no limits. The published images
+plan policy and Stripe billing (Checkout, customer portal, webhook). The
+core finds it only through the `ganek.plan_policy` entry point and only when
+`GANEK_EDITION=hosted` is set; without it the core runs the built-in
+self-hosted policy, which has no limits and no billing routes. Billing turns
+on only when every `STRIPE_*` variable (secret key, webhook secret, four
+Price ids) is set; the repo holds no prices. The published images
 never contain this directory (the Dockerfile's `hosted` target is the only
 one that installs it), and CI runs the full core suite without it.
 

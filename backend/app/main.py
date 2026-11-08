@@ -107,6 +107,9 @@ app.include_router(questions.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
+# the hosted policy's own routes (ee/ billing, card B1c); none in the core
+for policy_router in get_plan_policy().routers():
+    app.include_router(policy_router, prefix="/api/v1")
 
 # added last = outermost, so the id covers every other middleware and the
 # access line uvicorn writes from inside send()

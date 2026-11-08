@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { companyApi } from "@/lib/api";
 
 /** Settings section tabs from handoff screen 10: Branding | Team | Account. */
 const TABS = [
@@ -14,11 +18,32 @@ const TABS = [
   { href: "/admin/developers", label: "Developers" },
 ];
 
+/** Only a hosted instance with Stripe configured has a billing page. */
+const BILLING_TAB = { href: "/admin/billing", label: "Billing" };
+
 export function SettingsTabs() {
   const pathname = usePathname();
+  const [billing, setBilling] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => companyApi.plan())
+      .then((plan) => {
+        if (!cancelled) setBilling(plan.billing_enabled);
+      })
+      .catch(() => {
+        // no plan answer: the tab stays hidden, the other tabs still work
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const tabs = billing || pathname === BILLING_TAB.href ? [...TABS, BILLING_TAB] : TABS;
   return (
     <nav aria-label="Settings sections" className="flex gap-1 border-b border-divider">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const active = pathname === tab.href;
         return (
           <Link
