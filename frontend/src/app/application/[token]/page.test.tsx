@@ -105,6 +105,57 @@ describe("StatusPage", () => {
     expect(screen.queryByText(/8 of 8 answered/)).not.toBeInTheDocument();
   });
 
+  it("lists interview rounds in order with their state", async () => {
+    mocked.status.mockResolvedValue(
+      makeStatus({
+        interviews: [
+          {
+            round_number: 1,
+            status: "booked",
+            completed: true,
+            title: "Hiring manager interview",
+            scheduled_start: "2026-07-28T09:00:00Z",
+            duration_minutes: 30,
+          },
+          {
+            round_number: 2,
+            status: "pending",
+            completed: false,
+            title: "Team interview",
+            scheduled_start: null,
+            duration_minutes: 45,
+          },
+        ],
+      }),
+    );
+    render(<StatusPage />);
+    const first = await screen.findByText("Interview round 1 completed");
+    const second = screen.getByText("Interview round 2");
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Pick a time from the link in your email.")).toBeInTheDocument();
+  });
+
+  it("labels a single interview without a round number", async () => {
+    mocked.status.mockResolvedValue(
+      makeStatus({
+        interviews: [
+          {
+            round_number: 1,
+            status: "booked",
+            completed: false,
+            title: "Hiring manager interview",
+            scheduled_start: "2027-01-05T13:00:00Z",
+            duration_minutes: 30,
+          },
+        ],
+      }),
+    );
+    render(<StatusPage />);
+    expect(await screen.findByText("Interview")).toBeInTheDocument();
+    expect(screen.getByText(/30 min/)).toBeInTheDocument();
+    expect(screen.queryByText(/round/)).toBeNull();
+  });
+
   it("skips the assessment step when the job had no quiz", async () => {
     mocked.status.mockResolvedValue(makeStatus({ quiz: null }));
     render(<StatusPage />);

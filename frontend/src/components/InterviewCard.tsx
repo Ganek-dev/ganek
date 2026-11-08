@@ -19,7 +19,8 @@ import {
 
 Self-contained: fetches its own state per application so the (large)
 applicants page stays lean. States: none -> schedule dialog -> pending ->
-booked -> (cancel) -> back to none. */
+booked -> (cancel) -> back to none. Once a booked round is over it moves to
+the earlier-rounds list and the next round can be scheduled. */
 
 const DURATIONS = [15, 30, 45, 60] as const;
 
@@ -265,8 +266,35 @@ function ScheduleDialogBody({
   );
 }
 
+/** The next round's number: one past the latest finished round. */
+export function nextRound(past: InterviewAdmin[]): number {
+  return past.reduce((highest, row) => Math.max(highest, row.round_number), 0) + 1;
+}
+
+function EarlierRounds({ rounds }: { rounds: InterviewAdmin[] }) {
+  if (rounds.length === 0) return null;
+  return (
+    <ol aria-label="Earlier rounds" className="mt-2 space-y-1 border-t border-edge pt-2">
+      {rounds.map((row) => (
+        <li key={row.id} className="flex flex-wrap items-center gap-2 text-[12px] text-g500">
+          <span className="font-medium text-foreground">Round {row.round_number}</span>
+          <span className="font-mono">
+            {row.scheduled_start ? fmt(row.scheduled_start, row.timezone) : "-"}
+          </span>
+          <span>
+            {row.duration_minutes}m · {row.interviewer_email}
+          </span>
+          <span className="rounded-full border border-edge px-1.5 py-px text-[10.5px]">Done</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function InterviewCard({ applicationId }: { applicationId: string }) {
   const [interview, setInterview] = useState<InterviewAdmin | null>(null);
+  // finished rounds (booked and over), oldest first
+  const [past, setPast] = useState<InterviewAdmin[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -282,7 +310,14 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
+    interviews
+      .list(applicationId)
+      .then((rows) => setPast(rows.filter((row) => row.completed)))
+      .catch(() => setPast([]));
   }, [applicationId]);
+
+  const round = interview?.round_number ?? nextRound(past);
+  const multiRound = round > 1;
 
   useEffect(load, [load]);
 
@@ -306,7 +341,7 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
       <div className="flex items-center justify-between gap-3">
         <p className="flex items-center gap-1.5 text-[13px] font-semibold">
           <CalendarPlus aria-hidden className="h-4 w-4 text-g500" />
-          Interview
+          {multiRound ? `Interview · round ${round}` : "Interview"}
         </p>
         {interview === null ? (
           <Dialog open={scheduling} onOpenChange={setScheduling}>
@@ -315,11 +350,13 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
                 type="button"
                 className="inline-flex h-7 items-center rounded-md bg-inverse px-3 text-[12.5px] font-medium text-inverse-foreground hover:brightness-[0.94]"
               >
-                Schedule interview
+                {multiRound ? `Schedule round ${round}` : "Schedule interview"}
               </button>
             </DialogTrigger>
             <DialogContent>
-              <DialogTitle>Schedule interview</DialogTitle>
+              <DialogTitle>
+                {multiRound ? `Schedule interview round ${round}` : "Schedule interview"}
+              </DialogTitle>
               <DialogDescription>
                 The invite email lets the candidate pick one of your open times. Both of you
                 get a calendar invite when they confirm.
@@ -390,6 +427,8 @@ export function InterviewCard({ applicationId }: { applicationId: string }) {
           {error}
         </p>
       ) : null}
+
+      <EarlierRounds rounds={past} />
     </section>
   );
 }

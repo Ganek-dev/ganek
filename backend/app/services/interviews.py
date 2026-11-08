@@ -1,4 +1,4 @@
-"""Interview scheduling (single-round v1).
+"""Interview scheduling, one active interview per round.
 
 Slots are always computed live from the interviewer's saved availability
 (``effective_availability``) minus Ganek's own booked interviews - never
@@ -16,7 +16,7 @@ from email.utils import parseaddr
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select, text
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -142,7 +142,7 @@ def applicant_url_for_interviewer(
 
 
 class InterviewExistsError(Exception):
-    """The application already has a pending or booked interview."""
+    """The application's latest round is still pending or not yet over."""
 
 
 class AlreadyBookedError(Exception):
@@ -256,19 +256,55 @@ async def live_slots(db: AsyncSession, interview: Interview) -> list[datetime]:
         return []
 
 
+async def list_for_application(
+    db: AsyncSession, company: Company, application_id: uuid.UUID
+) -> list[Interview]:
+    """Every interview of the application, cancelled ones included, in round order."""
+    return list(
+        (
+            await db.execute(
+                select(Interview)
+                .where(
+                    Interview.company_id == company.id,
+                    Interview.application_id == application_id,
+                )
+                .order_by(Interview.round_number, Interview.created_at)
+            )
+        ).scalars()
+    )
+
+
+async def _latest_round(
+    db: AsyncSession, company: Company, application_id: uuid.UUID
+) -> Interview | None:
+    """The non-cancelled interview of the highest round, if any."""
+    return (
+        (
+            await db.execute(
+                select(Interview)
+                .where(
+                    Interview.company_id == company.id,
+                    Interview.application_id == application_id,
+                    Interview.status != InterviewStatus.CANCELLED,
+                )
+                .order_by(Interview.round_number.desc())
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+
 async def get_for_application(
     db: AsyncSession, company: Company, application_id: uuid.UUID
 ) -> Interview | None:
-    """The application's active (non-cancelled) interview, if any."""
-    return (
-        await db.execute(
-            select(Interview).where(
-                Interview.company_id == company.id,
-                Interview.application_id == application_id,
-                Interview.status != InterviewStatus.CANCELLED,
-            )
-        )
-    ).scalar_one_or_none()
+    """The application's active interview: pending, or booked and not yet over.
+    A finished round is history (``list_for_application``), not active."""
+    latest = await _latest_round(db, company, application_id)
+    if latest is None or latest.is_completed():
+        return None
+    return latest
 
 
 async def create_interview(
@@ -284,12 +320,16 @@ async def create_interview(
     location: str = "",
     actor_user_id: uuid.UUID | None = None,
 ) -> Interview:
-    if await get_for_application(db, company, application.id) is not None:
+    latest = await _latest_round(db, company, application.id)
+    if latest is not None and not latest.is_completed():
         raise InterviewExistsError
+    # a cancelled round is reused: only non-cancelled rows hold a round
+    round_number = latest.round_number + 1 if latest is not None else 1
     saved_tz, _ = effective_availability(interviewer)
     interview = Interview(
         company_id=company.id,
         application_id=application.id,
+        round_number=round_number,
         interviewer_user_id=interviewer.id,
         title=title,
         description=description,
@@ -304,9 +344,13 @@ async def create_interview(
         type=activity.INTERVIEW_REQUESTED,
         actor_user_id=actor_user_id,
         application_id=application.id,
-        payload={"interviewer": interviewer.email},
+        payload={"interviewer": interviewer.email, "round": round_number},
     )
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:  # a concurrent request took this round first
+        await db.rollback()
+        raise InterviewExistsError from None
     await db.refresh(interview)
     return interview
 

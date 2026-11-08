@@ -66,13 +66,16 @@ async def list_applications(db: AsyncSession, user: User) -> list[ReviewApplicat
     starts = dict(
         (
             await db.execute(
-                select(Interview.application_id, Interview.scheduled_start).where(
+                select(Interview.application_id, Interview.scheduled_start)
+                .where(
                     Interview.company_id == user.company_id,
                     Interview.interviewer_user_id == user.id,
                     Interview.application_id.in_(granted),
                     Interview.status != InterviewStatus.CANCELLED,
                     Interview.scheduled_start.is_not(None),
                 )
+                # rounds ascending: the dict keeps the latest round's start
+                .order_by(Interview.round_number)
             )
         )
         .tuples()
@@ -144,13 +147,16 @@ async def _own_interview(
 ) -> ReviewInterview | None:
     interview = (
         await db.execute(
-            select(Interview).where(
+            select(Interview)
+            .where(
                 Interview.company_id == application.company_id,
                 Interview.application_id == application.id,
                 Interview.interviewer_user_id == user.id,
                 Interview.status != InterviewStatus.CANCELLED,
                 Interview.scheduled_start.is_not(None),
             )
+            .order_by(Interview.round_number.desc())  # the latest round this reviewer holds
+            .limit(1)
         )
     ).scalar_one_or_none()
     if interview is None:

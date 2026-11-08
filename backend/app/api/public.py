@@ -60,6 +60,7 @@ from app.schemas.public import (
     QuizQuestionOut,
     QuizStateOut,
     ReissueRequest,
+    StatusInterviewOut,
     StatusQuizOut,
     StatusScreeningAnswer,
 )
@@ -872,6 +873,20 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         screening_answers=[
             StatusScreeningAnswer(prompt=answer["prompt"], answer=answer["answer"])
             for answer in application.screening_answers
+        ],
+        interviews=[
+            StatusInterviewOut(
+                round_number=interview.round_number,
+                status="booked" if interview.status is InterviewStatus.BOOKED else "pending",
+                completed=interview.is_completed(),
+                title=interview.title,
+                scheduled_start=interview.scheduled_start,
+                duration_minutes=interview.duration_minutes,
+            )
+            for interview in await interviews_service.list_for_application(
+                db, company, application.id
+            )
+            if interview.status is not InterviewStatus.CANCELLED
         ],
     )
 

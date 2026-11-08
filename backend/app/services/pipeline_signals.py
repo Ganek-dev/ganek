@@ -206,10 +206,13 @@ async def _load_live(db: AsyncSession, company: Company) -> list[LiveRow]:
         interview.application_id: interview
         for interview in (
             await db.execute(
-                select(Interview).where(
+                select(Interview)
+                .where(
                     Interview.application_id.in_(ids),
                     Interview.status != InterviewStatus.CANCELLED,
                 )
+                # rounds ascending: the dict keeps each application's latest round
+                .order_by(Interview.round_number)
             )
         )
         .scalars()
