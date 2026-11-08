@@ -9,6 +9,7 @@ has no hidden switch (ee/README.md).
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from functools import lru_cache
 from importlib.metadata import entry_points
 from typing import Protocol
@@ -45,6 +46,11 @@ class PlanPolicy(Protocol):
 
     def upgrade_url(self, company: Company) -> str | None: ...
 
+    def trial_ends_at(self, company: Company) -> datetime | None:
+        """When the company's running trial ends (card B1d); None = no trial
+        running. ``limits`` and ``can_publish`` already count the trial."""
+        ...
+
     def routers(self) -> Sequence[APIRouter]:
         """Extra API routers the policy mounts under /api/v1 (Q6: the ee/
         billing routes arrive through the same entry point)."""
@@ -65,6 +71,9 @@ class SelfHostedPolicy:
         return True
 
     def upgrade_url(self, company: Company) -> str | None:
+        return None
+
+    def trial_ends_at(self, company: Company) -> datetime | None:
         return None
 
     def routers(self) -> Sequence[APIRouter]:

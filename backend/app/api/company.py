@@ -59,6 +59,7 @@ async def get_plan(db: DbSession, company: StaffCompany) -> PlanOut:
         live_jobs=live,
         over_limit=limits.max_live_jobs is not None and live > limits.max_live_jobs,
         upgrade_url=policy.upgrade_url(company),
+        trial_ends_at=policy.trial_ends_at(company),
     )
 
 

@@ -22,5 +22,8 @@ class BillingAccount(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(64))
     # Stripe subscription status as last synced (active, trialing, past_due, ...)
     status: Mapped[str | None] = mapped_column(String(20))
+    # our own 14-day Team trial without a card (card B1d, Q9), not Stripe's:
+    # set once by the admin's start, never cleared, so a second start is
+    # refused; the trial is over when it lies in the past
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

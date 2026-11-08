@@ -5,15 +5,17 @@ only when Stripe is fully configured.
 - ``POST /billing/checkout``: a Stripe Checkout session for Starter or Team.
 - ``POST /billing/portal``: a Stripe customer portal session (plan changes,
   card, invoices and cancel all live there, not in our UI).
+- ``POST /billing/trial``: the 14-day Team trial without a card (card B1d),
+  once per company, Free companies only. Nothing goes to Stripe.
 - ``POST /billing/webhook``: Stripe's callback, signature-verified, then the
   convergent sync by customer (R1).
 
-Only the company admin reaches the first three (Q14).
+Only the company admin reaches all but the webhook (Q14).
 """
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal
 
 import stripe
@@ -24,10 +26,11 @@ from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import AdminUser, DbSession, StaffCompany
 from app.core import urls
-from app.models.company import CompanyPlan
+from app.models.company import Company, CompanyPlan
+from ganek_ee import plans as hosted_plans
 from ganek_ee.billing.config import Interval, StripeConfig, stripe_config_from_env
 from ganek_ee.billing.gateway import LiveStripeGateway, StripeGateway
-from ganek_ee.billing.store import BillingStore, SqlBillingStore
+from ganek_ee.billing.store import AccountView, BillingStore, SqlBillingStore
 from ganek_ee.billing.sync import LIVE_STATUSES, SyncError, resolve_state
 
 logger = logging.getLogger(__name__)
@@ -46,6 +49,7 @@ ACCEPTED_EVENTS = frozenset(
     }
 )
 SIGNATURE_TOLERANCE_SECONDS = 300
+TRIAL_DAYS = 14  # Q9
 
 
 def get_config() -> StripeConfig:
@@ -76,6 +80,10 @@ class BillingOut(BaseModel):
     current_period_end: datetime | None
     # a Stripe customer exists, so the portal can open
     can_manage: bool
+    # card B1d: the running Team trial's end (null = none running), and
+    # whether the admin may still start one (Free and never trialed)
+    trial_ends_at: datetime | None
+    can_start_trial: bool
 
 
 class CheckoutIn(BaseModel):
@@ -87,15 +95,43 @@ class RedirectOut(BaseModel):
     url: str
 
 
-@router.get("", response_model=BillingOut)
-async def get_billing(company: StaffCompany, _admin: AdminUser, store: Store) -> BillingOut:
-    account = await store.account(company.id)
+def _summary(company: Company, account: AccountView | None) -> BillingOut:
+    trial_end = account.trial_ends_at if account else None
+    running = (
+        company.plan is CompanyPlan.FREE
+        and trial_end is not None
+        and trial_end > hosted_plans.now()
+    )
     return BillingOut(
         plan=company.plan.value,
         status=account.status if account else None,
         current_period_end=account.current_period_end if account else None,
         can_manage=bool(account and account.stripe_customer_id),
+        trial_ends_at=trial_end if running else None,
+        can_start_trial=company.plan is CompanyPlan.FREE and trial_end is None,
     )
+
+
+@router.get("", response_model=BillingOut)
+async def get_billing(company: StaffCompany, _admin: AdminUser, store: Store) -> BillingOut:
+    return _summary(company, await store.account(company.id))
+
+
+@router.post("/trial", response_model=BillingOut)
+async def start_trial(company: StaffCompany, _admin: AdminUser, store: Store) -> BillingOut:
+    """Start the 14-day Team trial (Q9). No card and no Stripe call: on
+    expiry the company is simply Free again and nothing is closed (Q8)."""
+    if company.plan is not CompanyPlan.FREE:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "The trial is for companies on the Free plan."
+        )
+    ends_at = hosted_plans.now() + timedelta(days=TRIAL_DAYS)
+    if not await store.start_trial(company.id, ends_at):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "This company has already used its Team trial."
+        )
+    logger.info("team trial started: company %s until %s", company.id, ends_at.isoformat())
+    return _summary(company, await store.account(company.id))
 
 
 @router.post("/checkout", response_model=RedirectOut)

@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { DemoBanner } from "@/components/DemoBanner";
+import { trialDaysLeft, trialDaysText } from "@/lib/trial";
 import { Wordmark } from "@/components/Wordmark";
 import {
   api,
@@ -59,6 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [smtpMissing, setSmtpMissing] = useState(false);
   const [usageWarnings, setUsageWarnings] = useState<string[]>([]);
   const [overPlan, setOverPlan] = useState<PlanOut | null>(null);
+  const [trialPlan, setTrialPlan] = useState<PlanOut | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [demo, setDemo] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -102,8 +104,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => setUsageWarnings([])); // soft banner only
     companyApi
       .plan()
-      .then((plan) => setOverPlan(plan.over_limit ? plan : null))
-      .catch(() => setOverPlan(null)); // soft banner only
+      .then((plan) => {
+        setOverPlan(plan.over_limit ? plan : null);
+        setTrialPlan(plan.trial_ends_at ? plan : null);
+      })
+      .catch(() => {
+        setOverPlan(null); // soft banners only
+        setTrialPlan(null);
+      });
   }, [user]);
   useEffect(() => {
     if (!role || role === "reviewer") return;
@@ -321,6 +329,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <a href={overPlan.upgrade_url} className="font-medium underline">
                   Upgrade plan
                 </a>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        {trialPlan?.trial_ends_at && trialDaysLeft(trialPlan.trial_ends_at) > 0 ? (
+          <div
+            role="status"
+            data-testid="plan-trial"
+            className="mb-5 rounded-md border border-edge bg-surface px-4 py-2.5 text-[13px] text-g700"
+          >
+            Team trial: {trialDaysText(trialDaysLeft(trialPlan.trial_ends_at))} (ends{" "}
+            {new Date(trialPlan.trial_ends_at).toLocaleDateString()}). After it you are on
+            Free again; no job is closed.
+            {role === "admin" && trialPlan.billing_enabled ? (
+              <>
+                {" "}
+                <Link href="/admin/billing" className="font-medium underline">
+                  Choose a plan
+                </Link>
               </>
             ) : null}
           </div>

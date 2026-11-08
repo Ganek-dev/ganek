@@ -207,6 +207,43 @@ describe("AdminLayout", () => {
     );
   });
 
+  it("shows the Team trial banner with the days left and the plan link for admins", async () => {
+    const ends = new Date(Date.now() + 5 * 86_400_000 - 60_000).toISOString();
+    mockedCompany.plan.mockResolvedValue({
+      plan: "free",
+      billing_enabled: true,
+      limits: { max_live_jobs: null },
+      live_jobs: 3,
+      over_limit: false,
+      upgrade_url: "https://billing.example/upgrade",
+      trial_ends_at: ends,
+    });
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    const banner = await screen.findByTestId("plan-trial");
+    expect(banner).toHaveTextContent("Team trial: 5 days left");
+    expect(banner).toHaveTextContent("no job is closed");
+    expect(screen.getByRole("link", { name: "Choose a plan" })).toHaveAttribute(
+      "href",
+      "/admin/billing",
+    );
+    expect(screen.queryByTestId("plan-over-limit")).not.toBeInTheDocument();
+  });
+
+  it("shows no trial banner without a running trial", async () => {
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("page content");
+    await waitFor(() => expect(mockedCompany.plan).toHaveBeenCalled());
+    expect(screen.queryByTestId("plan-trial")).not.toBeInTheDocument();
+  });
+
   it("shows no banner when SMTP is configured or for members", async () => {
     const admin = render(
       <AdminLayout>

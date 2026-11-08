@@ -106,6 +106,19 @@ async def test_company_plan_defaults_to_self_hosted_and_billing_row_cascades() -
         session.add(account)
         await session.commit()
 
+    # card B1d: the billing row loads with the company (the sync hosted
+    # policy reads the trial end off it, never lazy-loading)
+    async with factory() as session:
+        loaded = await session.get(Company, company.id)
+        assert loaded is not None
+        assert loaded.billing_account is not None
+        assert loaded.billing_account.id == account.id
+        listed = await session.scalar(select(Company).where(Company.id == company.id))
+        assert listed is loaded
+
+    async with factory() as session:
+        company = await session.get(Company, company.id)
+        assert company is not None
         await session.delete(company)
         await session.commit()
         left = await session.scalar(select(BillingAccount).where(BillingAccount.id == account.id))

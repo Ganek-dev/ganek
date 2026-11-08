@@ -99,6 +99,9 @@ class _OneJob:
     def upgrade_url(self, company: Company) -> str | None:
         return "https://example.test/upgrade"
 
+    def trial_ends_at(self, company: Company) -> None:
+        return None
+
     def routers(self) -> tuple[()]:
         return ()
 

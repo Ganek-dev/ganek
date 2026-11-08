@@ -41,6 +41,9 @@ class _LimitedPolicy:
     def upgrade_url(self, company: Company) -> str | None:
         return UPGRADE
 
+    def trial_ends_at(self, company: Company) -> None:
+        return None
+
 
 @pytest.fixture(autouse=True)
 def _multi_mode(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -163,6 +166,7 @@ async def test_self_hosted_publishes_without_limit(client: AsyncClient) -> None:
         "live_jobs": 3,
         "over_limit": False,
         "upgrade_url": None,
+        "trial_ends_at": None,
     }
 
 
