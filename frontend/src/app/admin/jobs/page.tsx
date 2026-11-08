@@ -8,7 +8,9 @@ import { Plus, Search } from "lucide-react";
 
 import { api, stats, type JobOut, type JobStatus } from "@/lib/api";
 import { VIEWS_TOOLTIP, formatCount } from "@/lib/job-metrics";
+import { type PlanLimit, planLimitOf } from "@/lib/plan-limit";
 import { AssessmentChip, STATUS_PILL } from "@/components/JobStatus";
+import { PlanLimitNotice } from "@/components/PlanLimitNotice";
 import { Menu, MenuContent, MenuDotsTrigger, MenuItem } from "@/components/ui/menu";
 
 /** Admin jobs table, screen 07: search + status pills, role with tag chips,
@@ -104,6 +106,7 @@ function JobsPageInner() {
   const filter: JobFilter = chosen ?? "all";
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [planLimit, setPlanLimit] = useState<PlanLimit | null>(null);
 
   const reload = useCallback(() => {
     api.jobs
@@ -136,11 +139,14 @@ function JobsPageInner() {
 
   async function act(action: () => Promise<unknown>) {
     setError(null);
+    setPlanLimit(null);
     try {
       await action();
       reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Action failed");
+      const limit = planLimitOf(err);
+      if (limit) setPlanLimit(limit);
+      else setError(err instanceof Error ? err.message : "Action failed");
     }
   }
 
@@ -226,6 +232,7 @@ function JobsPageInner() {
           {error}
         </p>
       ) : null}
+      {planLimit ? <PlanLimitNotice limit={planLimit} /> : null}
 
       {visible === null ? (
         <div aria-busy="true" className="space-y-2">

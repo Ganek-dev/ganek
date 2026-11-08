@@ -19,7 +19,15 @@ import { useEffect, useRef, useState } from "react";
 
 import { DemoBanner } from "@/components/DemoBanner";
 import { Wordmark } from "@/components/Wordmark";
-import { api, ApiError, companyApi, stats, type StatsOverview, type UserOut } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  companyApi,
+  stats,
+  type PlanOut,
+  type StatsOverview,
+  type UserOut,
+} from "@/lib/api";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutGrid, exact: true },
@@ -50,6 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [smtpMissing, setSmtpMissing] = useState(false);
   const [usageWarnings, setUsageWarnings] = useState<string[]>([]);
+  const [overPlan, setOverPlan] = useState<PlanOut | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [demo, setDemo] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -91,6 +100,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .usage()
       .then((usage) => setUsageWarnings(usage.warnings))
       .catch(() => setUsageWarnings([])); // soft banner only
+    companyApi
+      .plan()
+      .then((plan) => setOverPlan(plan.over_limit ? plan : null))
+      .catch(() => setOverPlan(null)); // soft banner only
   }, [user]);
   useEffect(() => {
     if (!role || role === "reviewer") return;
@@ -291,6 +304,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               Privacy page under Settings
             </Link>
             .
+          </div>
+        ) : null}
+        {overPlan && overPlan.limits.max_live_jobs !== null ? (
+          <div
+            role="status"
+            data-testid="plan-over-limit"
+            className="mb-5 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+          >
+            {overPlan.live_jobs} jobs are live and your plan allows{" "}
+            {overPlan.limits.max_live_jobs}. Nothing was closed, but publishing and reopening
+            jobs wait until fewer than {overPlan.limits.max_live_jobs} are live.
+            {overPlan.upgrade_url ? (
+              <>
+                {" "}
+                <a href={overPlan.upgrade_url} className="font-medium underline">
+                  Upgrade plan
+                </a>
+              </>
+            ) : null}
           </div>
         ) : null}
         {usageWarnings.length > 0 ? (

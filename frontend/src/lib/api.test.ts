@@ -49,6 +49,19 @@ describe("request error mapping", () => {
     );
   });
 
+  it("surfaces the message of a structured detail (the 402 plan limit)", async () => {
+    const detail = {
+      code: "plan_limit",
+      limit: 1,
+      upgrade_url: null,
+      message: "Your plan allows 1 live job.",
+    };
+    mockFetch(402, { detail }, "Payment Required");
+    await expect(api.me()).rejects.toThrowError(
+      new ApiError(402, "Your plan allows 1 live job.", detail),
+    );
+  });
+
   it("keeps the status text for unrecognized error bodies", async () => {
     mockFetch(422, { detail: { odd: "shape" } });
     await expect(api.me()).rejects.toThrowError(

@@ -21,6 +21,24 @@ class UsageOut(BaseModel):
     warnings: list[str]
 
 
+class PlanLimitsOut(BaseModel):
+    max_live_jobs: int | None  # None = unlimited
+
+
+class PlanOut(BaseModel):
+    """GET /company/plan (card B1b). ``over_limit`` = more jobs are live than
+    the plan allows (after a downgrade): nothing is closed, publishing and
+    reopening are blocked until the company is under the limit again (Q8).
+    ``billing_enabled`` is false on every self-hosted instance."""
+
+    plan: str
+    billing_enabled: bool
+    limits: PlanLimitsOut
+    live_jobs: int
+    over_limit: bool
+    upgrade_url: str | None
+
+
 class CompanySummary(BaseModel):
     """What any signed-in user may know about their company: enough to build
     the public careers and job URLs (slug + instance mode). The branding
