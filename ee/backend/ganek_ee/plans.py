@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from sqlalchemy import inspect
 
 from app.core import urls
-from app.core.plans import UNLIMITED, PlanLimits
+from app.core.plans import UNLIMITED, PlanLimits, PoweredBy
 from app.models.company import Company, CompanyPlan
 from ganek_ee.billing.config import stripe_config_from_env
 
@@ -95,3 +95,13 @@ class HostedPolicy:
         from ganek_ee.billing.api import router  # the API layer, only when used
 
         return (router,)
+
+    def powered_by(self, company: Company) -> PoweredBy:
+        """BM10: the badge is required on Free and removed on paid plans.
+        A running Team trial counts as Team, so it carries no badge."""
+        plan = effective_plan(company)
+        if plan is CompanyPlan.FREE:
+            return PoweredBy.BADGE
+        if plan is CompanyPlan.SELF_HOSTED:
+            return PoweredBy.CREDIT
+        return PoweredBy.NONE

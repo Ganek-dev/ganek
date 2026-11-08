@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import plans
 from app.core.config import settings
-from app.core.plans import UNLIMITED, PlanLimits
+from app.core.plans import UNLIMITED, PlanLimits, PoweredBy
 from app.models import Company, CompanyPlan
 from tests.db import database_reachable
 
@@ -43,6 +43,9 @@ class _LimitedPolicy:
 
     def trial_ends_at(self, company: Company) -> None:
         return None
+
+    def powered_by(self, company: Company) -> PoweredBy:
+        return PoweredBy.BADGE if company.plan is CompanyPlan.FREE else PoweredBy.NONE
 
 
 @pytest.fixture(autouse=True)
@@ -173,3 +176,28 @@ async def test_self_hosted_publishes_without_limit(client: AsyncClient) -> None:
 @pytest.mark.usefixtures("migrated_db")
 async def test_plan_needs_a_session(client: AsyncClient) -> None:
     assert (await client.get("/api/v1/company/plan")).status_code == 401
+
+
+async def _company_slug(client: AsyncClient) -> str:
+    return (await client.get("/api/v1/company")).json()["slug"]
+
+
+@pytest.mark.usefixtures("migrated_db", "hosted")
+async def test_public_page_carries_the_badge_on_free_only(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    company_id = await _register(client)
+    slug = await _company_slug(client)
+    page = (await client.get(f"/api/v1/public/companies/{slug}")).json()
+    assert page["company"]["powered_by"] == "badge"
+    await _set_plan(db_session, company_id, CompanyPlan.TEAM)
+    page = (await client.get(f"/api/v1/public/companies/{slug}")).json()
+    assert page["company"]["powered_by"] == "none"
+
+
+@pytest.mark.usefixtures("migrated_db")
+async def test_self_hosted_public_page_keeps_the_plain_credit(client: AsyncClient) -> None:
+    await _register(client)
+    slug = await _company_slug(client)
+    page = (await client.get(f"/api/v1/public/companies/{slug}")).json()
+    assert page["company"]["powered_by"] == "credit"

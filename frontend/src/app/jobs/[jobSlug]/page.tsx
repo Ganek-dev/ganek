@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { ApplyForm } from "@/components/ApplyForm";
-import { HowWeHire, JobGone, JobHero, JobPosting } from "@/components/JobPosting";
+import { ApplyNote, HowWeHire, JobGone, JobHero, JobPosting } from "@/components/JobPosting";
 import { themeStyle } from "@/components/careers";
 import { DemoBanner } from "@/components/DemoBanner";
 import { PreviewBar } from "@/components/PreviewBar";
@@ -103,9 +103,7 @@ export default async function SingleModeJobPage({ params, searchParams }: Props)
             >
               Apply for this position
             </a>
-            <p className="mt-3 text-center font-mono text-[11px] text-g400">
-              No account needed · Careers powered by Ganek
-            </p>
+            <ApplyNote poweredBy={page.company.powered_by} />
             <section id="apply" className="mt-12 scroll-mt-8">
               <ApplyForm
                 apiBasePath={`/api/v1/public/company/jobs/${job.slug}`}

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
 import { brandStyle } from "@/lib/brand";
-import type { PublicCompany, PublicJobSummary } from "@/lib/public-api";
+import type { PoweredByMode, PublicCompany, PublicJobSummary } from "@/lib/public-api";
 
 export const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: "Full-time",
@@ -155,17 +155,54 @@ export function CompanyHero({
 }
 
 /** Quiet centered footer line closing the careers page (screen 01). */
-export function CareersFooter({ privacyHref }: { privacyHref?: string }) {
+/** Where the Free badge points. Plain URL on purpose: no utm or ref
+ * parameters, nothing that tracks the candidate (BM10, no trackers). */
+export const GANEK_SITE_URL = "https://ganek.io";
+
+/** The Ganek attribution on candidate pages (BM10). "badge" is the linked
+ * badge required on hosted Free, themed through the company's CSS vars;
+ * "credit" is the plain self-host line; "none" (paid plans) renders nothing.
+ * Server-rendered like the rest of the page. */
+export function PoweredBy({ mode }: { mode?: PoweredByMode }) {
+  if (mode === "none") return null;
+  if (mode === "badge") {
+    return (
+      <a
+        href={GANEK_SITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-surface px-2.5 py-1 font-mono text-[10.5px] text-g600 hover:border-brand hover:text-foreground sm:text-[11px]"
+      >
+        <span aria-hidden className="size-1.5 rounded-full bg-brand" />
+        Powered by Ganek
+      </a>
+    );
+  }
   return (
-    <div className="mt-7 flex justify-center gap-2 sm:mt-12">
-      <span className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
-        Careers powered by Ganek
-      </span>
+    <span className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
+      Careers powered by Ganek
+    </span>
+  );
+}
+
+export function CareersFooter({
+  privacyHref,
+  poweredBy,
+}: {
+  privacyHref?: string;
+  poweredBy?: PoweredByMode;
+}) {
+  const attribution = poweredBy !== "none";
+  return (
+    <div className="mt-7 flex items-center justify-center gap-2 sm:mt-12">
+      <PoweredBy mode={poweredBy} />
       {privacyHref ? (
         <>
-          <span aria-hidden className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
-            ·
-          </span>
+          {attribution ? (
+            <span aria-hidden className="font-mono text-[10.5px] text-g400 sm:text-[11px]">
+              ·
+            </span>
+          ) : null}
           <Link
             href={privacyHref}
             className="font-mono text-[10.5px] text-g400 underline hover:text-g700 sm:text-[11px]"

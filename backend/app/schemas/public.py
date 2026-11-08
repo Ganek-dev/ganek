@@ -10,6 +10,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
 from app.core import challenge
+from app.core.plans import PoweredBy
 from app.models import EmploymentType, RemotePolicy, SalaryPeriod, Seniority
 from app.services.screening import MAX_QUESTIONS, ScreeningAnswerIn, ScreeningQuestionType
 
@@ -63,6 +64,8 @@ class PublicCompanyOut(BaseModel):
     website: str | None
     socials: dict[str, Any]
     theme: dict[str, Any]
+    # BM10 attribution, from the plan policy (badge / credit / none)
+    powered_by: PoweredBy = PoweredBy.CREDIT
 
 
 class ReissueRequest(BaseModel):

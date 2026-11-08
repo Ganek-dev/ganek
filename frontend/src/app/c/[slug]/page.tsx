@@ -51,7 +51,7 @@ export default async function CompanyCareersPage({ params, searchParams }: Props
           hrefSuffix={sourceSuffix(source)}
           initialFilters={parseCareersFilters(query)}
         />
-        <CareersFooter privacyHref={`/c/${slug}/privacy`} />
+        <CareersFooter privacyHref={`/c/${slug}/privacy`} poweredBy={page.company.powered_by} />
       </section>
     </main>
   );

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PublicCompany, PublicJobDetail } from "@/lib/public-api";
 
-import { HowWeHire, JobGone, JobHero, JobPosting } from "./JobPosting";
+import { ApplyNote, HowWeHire, JobGone, JobHero, JobPosting } from "./JobPosting";
 
 const company: PublicCompany = {
   slug: "acme",
@@ -145,5 +145,36 @@ describe("JobPosting", () => {
     expect(JSON.parse(script!.innerHTML)).toMatchObject({
       hiringOrganization: { name: "Acme </script><script>alert(1)" },
     });
+  });
+});
+
+describe("Ganek attribution on job pages (BM10)", () => {
+  it("shows the badge under the apply button on Free", () => {
+    render(<ApplyNote poweredBy="badge" />);
+    expect(screen.getByText("No account needed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Powered by Ganek" })).toHaveAttribute(
+      "href",
+      "https://ganek.io",
+    );
+  });
+
+  it("keeps the inline credit on self-host and drops it on paid plans", () => {
+    const { unmount } = render(<ApplyNote poweredBy="credit" />);
+    expect(screen.getByText("No account needed · Careers powered by Ganek")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    unmount();
+    render(<ApplyNote poweredBy="none" />);
+    expect(screen.getByText("No account needed")).toBeInTheDocument();
+    expect(screen.queryByText(/powered by ganek/i)).toBeNull();
+  });
+
+  it("carries the badge on the job-gone page of a Free company only", () => {
+    const { unmount } = render(
+      <JobGone company={{ ...company, powered_by: "badge" }} jobsHref="/" jobCount={0} />,
+    );
+    expect(screen.getByRole("link", { name: "Powered by Ganek" })).toBeInTheDocument();
+    unmount();
+    render(<JobGone company={{ ...company, powered_by: "none" }} jobsHref="/" jobCount={0} />);
+    expect(screen.queryByText(/powered by ganek/i)).toBeNull();
   });
 });

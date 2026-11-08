@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.api.auth import _set_session_cookie
 from app.api.deps import DbSession, PublicCompany, SingleCompany
-from app.core import challenge, urls
+from app.core import challenge, plans, urls
 from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
@@ -100,8 +100,10 @@ _practice_rng = random.SystemRandom()
 
 async def _company_page(db: DbSession, company: Company) -> PublicCompanyPage:
     jobs = await jobs_service.list_published_jobs(db, company)
+    out = PublicCompanyOut.model_validate(company)
+    out.powered_by = plans.get_plan_policy().powered_by(company)
     return PublicCompanyPage(
-        company=PublicCompanyOut.model_validate(company),
+        company=out,
         jobs=[PublicJobSummary.model_validate(j) for j in jobs],
     )
 

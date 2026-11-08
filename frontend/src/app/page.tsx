@@ -56,7 +56,7 @@ export default async function Home({ searchParams }: Props) {
           hrefSuffix={sourceSuffix(source)}
           initialFilters={parseCareersFilters(query)}
         />
-        <CareersFooter privacyHref="/privacy" />
+        <CareersFooter privacyHref="/privacy" poweredBy={page.company.powered_by} />
       </section>
     </main>
   );

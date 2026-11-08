@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import {
   EMPLOYMENT_LABELS,
+  PoweredBy,
   REMOTE_LABELS,
   jobFieldChips,
   formatPostedAgo,
@@ -11,7 +12,30 @@ import {
 } from "@/components/careers";
 import { applyEffort } from "@/lib/apply-duration";
 import { jobPostingJsonLd } from "@/lib/job-posting";
-import type { PublicCompany, PublicJobDetail, PublicScreeningQuestion } from "@/lib/public-api";
+import type {
+  PoweredByMode,
+  PublicCompany,
+  PublicJobDetail,
+  PublicScreeningQuestion,
+} from "@/lib/public-api";
+
+/** The line under the apply button. The plain credit stays inline as before;
+ * the Free badge (BM10) sits on its own row; paid plans show neither. */
+export function ApplyNote({ poweredBy }: { poweredBy?: PoweredByMode }) {
+  const credit = poweredBy === undefined || poweredBy === "credit";
+  return (
+    <>
+      <p className="mt-3 text-center font-mono text-[11px] text-g400">
+        {credit ? "No account needed · Careers powered by Ganek" : "No account needed"}
+      </p>
+      {poweredBy === "badge" ? (
+        <div className="mt-3 flex justify-center">
+          <PoweredBy mode="badge" />
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 /** Compact brand band for the job detail page (screen 02): logo chip + name,
  * back link, job title, meta chips on the brand color. */
@@ -171,7 +195,7 @@ export function JobGone({
         </div>
       </div>
       <div className="flex h-11 shrink-0 items-center justify-center">
-        <span className="font-mono text-[10.5px] text-g400">Careers powered by Ganek</span>
+        <PoweredBy mode={company.powered_by} />
       </div>
     </div>
   );
