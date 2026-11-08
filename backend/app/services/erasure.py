@@ -25,10 +25,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import CursorResult, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Application, Candidate, Company, Interview, InterviewStatus, Job, Task
+from app.models import (
+    Application,
+    Candidate,
+    Company,
+    Interview,
+    InterviewStatus,
+    Job,
+    Task,
+    User,
+)
 from app.models.webhook import WebhookDelivery
 from app.services import activity, ics, storage, tombstones
 from app.services import outbox as outbox_service
@@ -213,6 +222,77 @@ async def erase_application(db: AsyncSession, application: Application) -> list[
     )
     await db.execute(delete(Application).where(Application.id == application.id))
     return notices
+
+
+class TenantStorageError(RuntimeError):
+    """Some of a tenant's stored objects could not be deleted; nothing in
+    the database was touched, so the delete can simply be retried."""
+
+
+@dataclass
+class TenantPurgeSummary:
+    users: int
+    jobs: int
+    candidates: int
+    applications: int
+    storage_objects: int
+
+
+async def purge_tenant(db: AsyncSession, company_id: uuid.UUID) -> TenantPurgeSummary:
+    """Delete a whole tenant: the operator's tenant delete and the tombstone
+    replay of a restored one. No commit - the caller owns the transaction.
+
+    Same order as the per-application erase: stored objects first,
+    fail-closed (every CV under the company's prefix, linked or orphaned,
+    plus the logo), then blind tombstones for every application, candidate
+    and the company itself (they outlive the company row, migration 0052),
+    then one Core ``DELETE`` of the company so the Postgres cascades take
+    every tenant-owned row. No interviewer cancel notices: the interviewers
+    are the tenant's own users, deleted with it.
+    """
+    applications = (
+        await db.execute(
+            select(Application.id, Application.cv_object_key).where(
+                Application.company_id == company_id
+            )
+        )
+    ).all()
+    candidate_ids = list(
+        (await db.execute(select(Candidate.id).where(Candidate.company_id == company_id)))
+        .scalars()
+        .all()
+    )
+    users = await db.scalar(select(func.count(User.id)).where(User.company_id == company_id))
+    jobs = await db.scalar(select(func.count(Job.id)).where(Job.company_id == company_id))
+
+    keys = set(await storage.list_company_cv_keys(company_id))
+    keys.update(row.cv_object_key for row in applications if row.cv_object_key)
+    if keys:
+        deleted = await storage.delete_objects(sorted(keys))
+        if deleted < len(keys):
+            raise TenantStorageError(f"{len(keys) - deleted} of {len(keys)} CV objects remain")
+    await storage.delete_object(storage.build_logo_key(company_id))
+
+    await tombstones.record_many(
+        db,
+        company_id=company_id,
+        kind=tombstones.APPLICATION,
+        subject_ids=[row.id for row in applications],
+    )
+    await tombstones.record_many(
+        db, company_id=company_id, kind=tombstones.CANDIDATE, subject_ids=candidate_ids
+    )
+    await tombstones.record(
+        db, company_id=company_id, kind=tombstones.COMPANY, subject_id=company_id
+    )
+    await db.execute(delete(Company).where(Company.id == company_id))
+    return TenantPurgeSummary(
+        users=int(users or 0),
+        jobs=int(jobs or 0),
+        candidates=len(candidate_ids),
+        applications=len(applications),
+        storage_objects=len(keys),
+    )
 
 
 async def erase_candidate(

@@ -54,6 +54,7 @@ def _ops_calls(company_id: str) -> list[tuple[str, str, dict[str, Any] | None]]:
         ("POST", f"/api/v1/ops/tenants/{company_id}/unsuspend", None),
         ("GET", f"/api/v1/ops/tenants/{company_id}/export", None),
         ("PUT", f"/api/v1/ops/tenants/{company_id}/plan", {"plan_override": "team"}),
+        ("DELETE", f"/api/v1/ops/tenants/{company_id}", {"confirm_slug": "x"}),
     ]
 
 

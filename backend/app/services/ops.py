@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BillingAccount, Candidate, Company, CompanyPlan, Job, User
 from app.schemas.dsar import DsarBundle
-from app.services import activity, dsar
+from app.services import activity, dsar, erasure
 
 logger = logging.getLogger("app.ops")
 
@@ -161,3 +161,27 @@ async def export(db: AsyncSession, company: Company) -> TenantExport:
     activity.record(db, company_id=company.id, type=activity.TENANT_EXPORTED)
     await db.commit()
     return TenantExport(users, jobs, candidates)
+
+
+async def delete_tenant(db: AsyncSession, company: Company) -> erasure.TenantPurgeSummary:
+    """Delete the tenant and everything it owns (erasure cascade, CVs and
+    logo first, fail-closed), leaving blind tombstones so a restored backup
+    deletes it again. The router has already checked the guards (suspended
+    first, slug typed back, not the operator's own tenant). Nothing lands
+    in an activity feed (there is none left); the operator log keeps a
+    count-only line."""
+    company_id, slug = company.id, company.slug
+    summary = await erasure.purge_tenant(db, company_id)
+    await db.commit()
+    logger.info(
+        "ops tenant deleted company=%s slug=%s users=%s jobs=%s candidates=%s "
+        "applications=%s storage_objects=%s",
+        company_id,
+        slug,
+        summary.users,
+        summary.jobs,
+        summary.candidates,
+        summary.applications,
+        summary.storage_objects,
+    )
+    return summary

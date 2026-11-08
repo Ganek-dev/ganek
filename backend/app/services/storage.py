@@ -87,7 +87,7 @@ def probe_bucket() -> None:
 
 
 def build_cv_key(company_id: UUID) -> str:
-    return f"cvs/{company_id}/{uuid4().hex}.pdf"
+    return f"{cv_prefix(company_id)}{uuid4().hex}.pdf"
 
 
 def cv_max_bytes() -> int:
@@ -174,13 +174,29 @@ async def delete_object(object_key: str) -> None:
     await anyio.to_thread.run_sync(_delete_object, object_key)
 
 
-def _list_cv_objects() -> list[tuple[str, datetime]]:
+def _list_objects(prefix: str) -> list[tuple[str, datetime]]:
     paginator = _internal_client().get_paginator("list_objects_v2")
     found: list[tuple[str, datetime]] = []
-    for page in paginator.paginate(Bucket=settings.s3_bucket, Prefix="cvs/"):
+    for page in paginator.paginate(Bucket=settings.s3_bucket, Prefix=prefix):
         for item in page.get("Contents", []):
             found.append((item["Key"], item["LastModified"]))
     return found
+
+
+def _list_cv_objects() -> list[tuple[str, datetime]]:
+    return _list_objects("cvs/")
+
+
+def cv_prefix(company_id: UUID) -> str:
+    """Every CV key of a company starts with this (see build_cv_key)."""
+    return f"cvs/{company_id}/"
+
+
+async def list_company_cv_keys(company_id: UUID) -> list[str]:
+    """Every stored CV of one company, linked to an application or not
+    (an upload that never became an application is still theirs)."""
+    found = await anyio.to_thread.run_sync(_list_objects, cv_prefix(company_id))
+    return [key for key, _ in found]
 
 
 async def list_cv_objects() -> list[tuple[str, datetime]]:
