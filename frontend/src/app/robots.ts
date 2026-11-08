@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { ROBOTS_DISALLOW } from "@/lib/crawl";
 import { fetchInstanceInfo } from "@/lib/public-api";
 import { publicBaseUrl } from "@/lib/site";
 
@@ -13,20 +14,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     rules: [
       {
         userAgent: "*",
-        // Admin plus every tokened candidate surface - those URLs are
-        // capability links and must never end up in a search index.
-        disallow: [
-          "/admin",
-          "/application/",
-          "/interview/",
-          "/invite/",
-          "/login",
-          "/review",
-          "/quiz/",
-          "/reset",
-          "/setup",
-          "/verify",
-        ],
+        disallow: ROBOTS_DISALLOW,
       },
     ],
     sitemap: `${publicBaseUrl()}/sitemap.xml`,
