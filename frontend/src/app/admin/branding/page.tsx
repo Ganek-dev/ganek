@@ -265,11 +265,11 @@ export default function BrandingPage() {
             <div className="min-w-0 flex-1">
               <p className={labelCls}>Careers page</p>
               <p className="mt-1 font-mono text-[13px] text-g700">
-                {careersDisplay(company.mode, company.slug)}
+                {careersDisplay(company.mode, company.slug, company.careers_domain)}
               </p>
             </div>
             <CopyButton
-              text={careersUrl(company.mode, company.slug)}
+              text={careersUrl(company.mode, company.slug, company.careers_domain)}
               label="Copy careers URL"
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill"
               onError={() => setError("Couldn't copy to clipboard")}

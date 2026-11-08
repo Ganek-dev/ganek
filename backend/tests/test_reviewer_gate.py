@@ -476,6 +476,7 @@ async def test_company_summary_hides_recruiter_defaults_from_a_reviewer(
         "slug": staff["slug"],
         "name": staff["name"],
         "mode": staff["mode"],
+        "careers_domain": None,
         "screening_questions": [],
         "scorecard_template": [],
     }

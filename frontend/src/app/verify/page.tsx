@@ -73,10 +73,10 @@ function VerifyInner() {
         {company ? (
           <div className="flex items-center gap-2 rounded-md border border-edge bg-muted-fill/40 px-3 py-2">
             <p className="min-w-0 flex-1 truncate font-mono text-[12px] text-g600">
-              {careersDisplay(company.mode, company.slug)}
+              {careersDisplay(company.mode, company.slug, company.careers_domain)}
             </p>
             <CopyButton
-              text={careersUrl(company.mode, company.slug)}
+              text={careersUrl(company.mode, company.slug, company.careers_domain)}
               label="Copy careers URL"
             />
           </div>

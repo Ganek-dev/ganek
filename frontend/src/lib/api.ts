@@ -1775,6 +1775,8 @@ export interface CompanyAdmin {
   name: string;
   description: string;
   mode: "single" | "multi";
+  /** Verified custom careers domain (multi mode, plan includes it), else null. */
+  careers_domain?: string | null;
   smtp_configured: boolean;
   logo_url: string | null;
   website: string | null;
@@ -1996,6 +1998,8 @@ export interface CompanySummary {
   slug: string;
   name: string;
   mode: "single" | "multi";
+  /** Verified custom careers domain (multi mode, plan includes it), else null. */
+  careers_domain?: string | null;
   /** The default screening questions new jobs start with (every role reads it). */
   screening_questions: ScreeningQuestion[];
   /** The default scorecard criteria new jobs start with. */

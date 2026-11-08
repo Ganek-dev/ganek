@@ -262,3 +262,31 @@ async def test_members_cannot_manage_the_domain(client: AsyncClient) -> None:
     assert (await client.get("/api/v1/company/domain")).status_code == 403
     resp = await client.put("/api/v1/company/domain", json={"domain": _domain()})
     assert resp.status_code == 403
+
+
+@db_only
+@pytest.mark.usefixtures("migrated_db", "multi", "team")
+async def test_company_payloads_carry_the_careers_domain(
+    client: AsyncClient, dns: dict[str, list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Admin share and copy surfaces read ``careers_domain`` from GET
+    /company and /company/summary: None until verified, the domain after,
+    None again once the plan stops including custom domains."""
+    await _register(client)
+    assert (await client.get("/api/v1/company")).json()["careers_domain"] is None
+    assert (await client.get("/api/v1/company/summary")).json()["careers_domain"] is None
+
+    domain = _domain()
+    claimed = (await client.put("/api/v1/company/domain", json={"domain": domain})).json()
+    # a pending claim never shows as the careers address
+    assert (await client.get("/api/v1/company")).json()["careers_domain"] is None
+
+    dns[claimed["txt_name"]] = [claimed["txt_value"]]
+    assert (await client.post("/api/v1/company/domain/verify")).json()["status"] == "verified"
+    assert (await client.get("/api/v1/company")).json()["careers_domain"] == domain
+    assert (await client.get("/api/v1/company/summary")).json()["careers_domain"] == domain
+
+    # a downgrade falls back to the slug URL, like the routing does
+    monkeypatch.setattr(plans, "get_plan_policy", lambda: _NoDomainsPolicy())
+    assert (await client.get("/api/v1/company")).json()["careers_domain"] is None
+    assert (await client.get("/api/v1/company/summary")).json()["careers_domain"] is None

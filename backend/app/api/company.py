@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession, StaffCompany
-from app.core import plans
+from app.core import plans, urls
 from app.models import Company, UserRole
 from app.schemas.company import (
     BrandingUpdate,
@@ -36,7 +36,11 @@ async def get_company_summary(
     job editors; preferred screening answers are recruiter criteria, and a
     reviewer judges the same candidates, so a reviewer gets them empty."""
     if user.role is UserRole.REVIEWER:
-        return CompanySummary(slug=company.slug, name=company.name)
+        return CompanySummary(
+            slug=company.slug,
+            name=company.name,
+            careers_domain=urls.custom_careers_domain(company),
+        )
     return company
 
 
