@@ -31,6 +31,7 @@ from app.api import (
 from app.core.config import settings
 from app.core.logcfg import configure_logging
 from app.core.observability import init_sentry
+from app.core.plans import get_plan_policy
 from app.core.requestid import RequestIdMiddleware
 from app.services.storage import ensure_bucket_async
 
@@ -53,6 +54,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             # a hosted (multi-tenant) instance must never boot forgeable
             raise RuntimeError(message)
         logger.critical(message)
+    get_plan_policy()  # resolve at boot so a missing ee/ package warns now
     try:
         await ensure_bucket_async()
     except Exception:  # noqa: BLE001 - S3 is optional at boot (e.g. DB-less tests)

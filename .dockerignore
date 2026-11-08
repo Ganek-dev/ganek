@@ -7,6 +7,10 @@
 !backend/alembic
 !backend/app
 !questions
+# hosted target only (backend/Dockerfile); the public stage never COPYs it
+!ee/LICENSE
+!ee/backend
+ee/backend/tests
 **/__pycache__
 **/.env*
 questions/validate.py

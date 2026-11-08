@@ -4,8 +4,9 @@ from app.models.api_key import ApiKey, ApiKeyScope
 from app.models.application import Application, ApplicationStage
 from app.models.application_note import ApplicationNote
 from app.models.base import Base
+from app.models.billing_account import BillingAccount
 from app.models.candidate import Candidate
-from app.models.company import Company
+from app.models.company import Company, CompanyPlan
 from app.models.email_outbox import EmailOutbox, EmailStatus
 from app.models.email_suppression import EmailSuppression
 from app.models.email_template import EmailTemplate
@@ -47,8 +48,10 @@ __all__ = [
     "AttemptAnswer",
     "AttemptStatus",
     "Base",
+    "BillingAccount",
     "Candidate",
     "Company",
+    "CompanyPlan",
     "DeliveryStatus",
     "EmailOutbox",
     "EmailStatus",

@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     version: str = "0.6.0"  # the Sentry release tag; keep in step with the FastAPI title
     mode: Literal["single", "multi"] = "single"
+    # "hosted" lets the ee/ package's plan policy load (app/core/plans.py).
+    # Without the package installed it changes nothing; self-hosters keep
+    # "community" and are never metered.
+    edition: Literal["community", "hosted"] = "community"
     secret_key: str = "change-me"  # noqa: S105 - default triggers a critical startup warning
     # Separate key for encrypting stored secrets (TOTP secrets, webhook signing
     # secrets; core/crypto.py). Unset -> derived from secret_key, so rotating
