@@ -894,7 +894,7 @@ async def create_interview(
     except interviews_service.InterviewExistsError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This application already has an interview in progress",
+            detail="This application already has an interview in progress for its current round",
         ) from None
     booking_url = urls.interview_url(company, create_interview_token(interview.id))
     await outbox_service.queue_email(
@@ -918,8 +918,18 @@ async def create_interview(
 
 @router.get("/{application_id}/interview", response_model=InterviewOut | None)
 async def get_interview(application_id: uuid.UUID, db: DbSession, company: StaffCompany) -> object:
+    """The active round's interview; null once it is over or cancelled."""
     await _get_or_404(db, company, application_id)
     return await interviews_service.get_for_application(db, company, application_id)
+
+
+@router.get("/{application_id}/interviews", response_model=list[InterviewOut])
+async def list_interviews(
+    application_id: uuid.UUID, db: DbSession, company: StaffCompany
+) -> object:
+    """Every round, cancelled requests included, oldest round first."""
+    await _get_or_404(db, company, application_id)
+    return await interviews_service.list_for_application(db, company, application_id)
 
 
 @router.post("/{application_id}/interview/cancel", response_model=InterviewOut)

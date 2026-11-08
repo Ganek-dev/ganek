@@ -30,7 +30,10 @@ class InterviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    round_number: int
     status: InterviewStatus
+    # booked and its end has passed: the next round may be requested
+    completed: bool
     interviewer_user_id: uuid.UUID
     interviewer_email: str
     title: str

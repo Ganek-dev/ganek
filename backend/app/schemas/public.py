@@ -221,6 +221,17 @@ class StatusScreeningAnswer(BaseModel):
     answer: str | bool | None
 
 
+class StatusInterviewOut(BaseModel):
+    """One interview round on the candidate status page (no interviewer data)."""
+
+    round_number: int
+    status: Literal["pending", "booked"]
+    completed: bool
+    title: str
+    scheduled_start: datetime | None
+    duration_minutes: int
+
+
 class ApplicationStatusOut(BaseModel):
     company_name: str
     brand_primary: str | None
@@ -240,6 +251,8 @@ class ApplicationStatusOut(BaseModel):
     retention_months: int
     privacy_url: str
     screening_answers: list[StatusScreeningAnswer] = []
+    # non-cancelled interview rounds, oldest first
+    interviews: list[StatusInterviewOut] = []
 
 
 class PrivacyRequestReceipt(BaseModel):

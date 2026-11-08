@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, interviews, team, type InterviewAdmin } from "@/lib/api";
 
-import { InterviewCard } from "./InterviewCard";
+import { InterviewCard, nextRound } from "./InterviewCard";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    interviews: { preview: vi.fn(), create: vi.fn(), get: vi.fn(), cancel: vi.fn() },
+    interviews: { preview: vi.fn(), create: vi.fn(), get: vi.fn(), list: vi.fn(), cancel: vi.fn() },
     team: { ...original.team, list: vi.fn() },
   };
 });
@@ -23,7 +23,9 @@ const SLOT_B = "2027-01-05T13:00:00+00:00";
 function interview(overrides: Partial<InterviewAdmin> = {}): InterviewAdmin {
   return {
     id: "iv1",
+    round_number: 1,
     status: "pending",
+    completed: false,
     interviewer_user_id: "u1",
     interviewer_email: "dana@acme.dev",
     title: "Hiring manager interview",
@@ -47,6 +49,7 @@ describe("InterviewCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedInterviews.get.mockResolvedValue(null);
+    mockedInterviews.list.mockResolvedValue([]);
     mockedTeam.list.mockResolvedValue([
       {
         id: "u1",
@@ -196,5 +199,51 @@ describe("InterviewCard", () => {
     render(<InterviewCard applicationId="app1" />);
     expect(await screen.findByText("Room 2, 3rd floor")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Room 2/ })).not.toBeInTheDocument();
+  });
+
+  it("offers the next round once the previous one is over", async () => {
+    mockedInterviews.list.mockResolvedValue([
+      interview({
+        id: "iv0",
+        status: "booked",
+        completed: true,
+        scheduled_start: "2026-08-10T08:00:00Z",
+      }),
+    ]);
+    render(<InterviewCard applicationId="app1" />);
+    expect(await screen.findByRole("button", { name: "Schedule round 2" })).toBeInTheDocument();
+    expect(screen.getByText("Interview · round 2")).toBeInTheDocument();
+    const earlier = screen.getByRole("list", { name: "Earlier rounds" });
+    expect(earlier).toHaveTextContent("Round 1");
+    expect(earlier).toHaveTextContent("Done");
+  });
+
+  it("shows the active round number next to earlier rounds", async () => {
+    mockedInterviews.get.mockResolvedValue(interview({ id: "iv2", round_number: 2 }));
+    mockedInterviews.list.mockResolvedValue([
+      interview({ id: "iv0", status: "booked", completed: true, scheduled_start: SLOT_B }),
+      interview({ id: "iv1", round_number: 2, status: "cancelled" }),
+      interview({ id: "iv2", round_number: 2 }),
+    ]);
+    render(<InterviewCard applicationId="app1" />);
+    expect(await screen.findByText("Interview · round 2")).toBeInTheDocument();
+    expect(screen.getByText(/Awaiting candidate/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Schedule/ })).toBeNull();
+    // only finished rounds are history; the cancelled request is not
+    await waitFor(() =>
+      expect(screen.getByRole("list", { name: "Earlier rounds" }).children).toHaveLength(1),
+    );
+  });
+
+  it("keeps the first round labelled plainly when the history fails to load", async () => {
+    mockedInterviews.list.mockRejectedValue(new ApiError(500, "boom"));
+    render(<InterviewCard applicationId="app1" />);
+    expect(await screen.findByRole("button", { name: "Schedule interview" })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Earlier rounds" })).toBeNull();
+  });
+
+  it("numbers the next round past the highest finished one", () => {
+    expect(nextRound([])).toBe(1);
+    expect(nextRound([interview({ round_number: 1 }), interview({ round_number: 3 })])).toBe(4);
   });
 });

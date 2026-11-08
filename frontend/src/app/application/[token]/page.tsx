@@ -206,6 +206,40 @@ export default function StatusPage() {
           },
     );
   }
+  const rounds = status.interviews ?? [];
+  for (const round of rounds) {
+    const label = rounds.length > 1 || round.round_number > 1
+      ? `Interview round ${round.round_number}`
+      : "Interview";
+    steps.push(
+      round.completed
+        ? {
+            key: `interview-${round.round_number}`,
+            state: "done",
+            title: `${label} completed`,
+            detail: round.scheduled_start ? (
+              <span className="font-mono text-[11.5px] text-g500">
+                {formatDateTime(round.scheduled_start)}
+              </span>
+            ) : null,
+          }
+        : {
+            key: `interview-${round.round_number}`,
+            state: withdrawn ? "muted" : "current",
+            title: label,
+            detail:
+              round.status === "booked" && round.scheduled_start ? (
+                <span className="font-mono text-[11.5px] text-g500">
+                  {formatDateTime(round.scheduled_start)} · {round.duration_minutes} min
+                </span>
+              ) : (
+                <span className="text-[13.5px] leading-5 text-g600">
+                  Pick a time from the link in your email.
+                </span>
+              ),
+          },
+    );
+  }
   if (withdrawn) {
     steps.push({
       key: "withdrawn",

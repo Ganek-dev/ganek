@@ -1203,6 +1203,18 @@ export interface ApplicationStatus {
   retention_months: number;
   /** Absolute link to the company's privacy notice. */
   privacy_url: string;
+  /** Non-cancelled interview rounds, oldest first. */
+  interviews?: StatusInterview[];
+}
+
+export interface StatusInterview {
+  round_number: number;
+  status: "pending" | "booked";
+  /** Booked and its end has passed. */
+  completed: boolean;
+  title: string;
+  scheduled_start: string | null;
+  duration_minutes: number;
 }
 
 export interface InterviewPublic {
@@ -1243,7 +1255,11 @@ export const publicInterviews = {
 
 export interface InterviewAdmin {
   id: string;
+  /** 1-based interview round within the application. */
+  round_number: number;
   status: "pending" | "booked" | "cancelled";
+  /** Booked and its end has passed: the next round may be requested. */
+  completed: boolean;
   interviewer_user_id: string;
   interviewer_email: string;
   title: string;
@@ -1288,8 +1304,12 @@ export const interviews = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  /** The active round's interview; null once it is over or cancelled. */
   get: (applicationId: string) =>
     request<InterviewAdmin | null>(`/api/v1/applications/${applicationId}/interview`),
+  /** Every round, cancelled requests included, oldest round first. */
+  list: (applicationId: string) =>
+    request<InterviewAdmin[]>(`/api/v1/applications/${applicationId}/interviews`),
   cancel: (applicationId: string) =>
     request<InterviewAdmin>(`/api/v1/applications/${applicationId}/interview/cancel`, {
       method: "POST",

@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, SmallInteger, String, Text, text
@@ -20,20 +20,23 @@ class InterviewStatus(enum.StrEnum):
 
 
 class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """One interview request per application (single-round v1).
+    """One interview request per application and round.
 
     Slots are never frozen on the row - both the candidate's picker and the
     booking re-check compute them live from the interviewer's saved
     availability minus Ganek's own bookings (``services.interviews.live_slots``).
-    Cancelled rows stay as history; the partial unique index allows a fresh
-    request after a cancellation.
+    Cancelled rows stay as history; the partial unique index allows one
+    non-cancelled row per (application, round), so a cancellation frees its
+    round and the next round opens once the latest one is over
+    (``services.interviews.create_interview``).
     """
 
     __tablename__ = "interviews"
     __table_args__ = (
         Index(
-            "ix_interviews_application_active",
+            "ix_interviews_application_round_active",
             "application_id",
+            "round_number",
             unique=True,
             postgresql_where=text("status != 'cancelled'"),
         ),
@@ -46,6 +49,8 @@ class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("applications.id", ondelete="CASCADE"), index=True
     )
     interviewer_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    # 1-based interview round within the application (0054)
+    round_number: Mapped[int] = mapped_column(SmallInteger, default=1, server_default="1")
     title: Mapped[str] = mapped_column(String(200), default="Hiring manager interview")
     description: Mapped[str] = mapped_column(Text, default="")
     duration_minutes: Mapped[int] = mapped_column(SmallInteger)
@@ -75,3 +80,14 @@ class Interview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     @property
     def interviewer_email(self) -> str:
         return self.interviewer.email
+
+    def is_completed(self, now: datetime | None = None) -> bool:
+        """Booked and its end has passed: the round is over and the next may open."""
+        if self.status is not InterviewStatus.BOOKED or self.scheduled_start is None:
+            return False
+        end = self.scheduled_start + timedelta(minutes=self.duration_minutes)
+        return end <= (now or datetime.now(UTC))
+
+    @property
+    def completed(self) -> bool:
+        return self.is_completed()
