@@ -13,7 +13,7 @@ from importlib.metadata import entry_points
 from typing import Protocol
 
 from app.core.config import settings
-from app.models.company import Company
+from app.models.company import Company, CompanyPlan
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ UNLIMITED = PlanLimits(max_live_jobs=None)
 class PlanPolicy(Protocol):
     name: str
     billing_enabled: bool
+    # the plan a new signup starts on (Q15: hosted = free, self-hosted stays)
+    signup_plan: CompanyPlan
 
     def limits(self, company: Company) -> PlanLimits: ...
 
@@ -46,6 +48,7 @@ class SelfHostedPolicy:
 
     name = "self_hosted"
     billing_enabled = False
+    signup_plan = CompanyPlan.SELF_HOSTED
 
     def limits(self, company: Company) -> PlanLimits:
         return UNLIMITED
@@ -74,6 +77,38 @@ def load_plan_policy(edition: str) -> PlanPolicy:
     policy: PlanPolicy = found[0].load()()
     logger.info("plan policy: %s", policy.name)
     return policy
+
+
+class PlanLimitExceeded(Exception):
+    """Publishing would take the company past its plan's live job limit
+    (card B1b). The API answers 402 with ``upgrade_url``; it is checked
+    before the A4 abuse quota, which keeps its own 409."""
+
+    def __init__(self, limit: int, upgrade_url: str | None) -> None:
+        super().__init__(f"plan allows {limit} live jobs")
+        self.limit = limit
+        self.upgrade_url = upgrade_url
+
+    def detail(self) -> dict[str, object]:
+        jobs = "job" if self.limit == 1 else "jobs"
+        return {
+            "code": "plan_limit",
+            "limit": self.limit,
+            "upgrade_url": self.upgrade_url,
+            "message": (
+                f"Your plan allows {self.limit} live {jobs}. "
+                "Close a job or upgrade the plan to publish another."
+            ),
+        }
+
+
+def ensure_can_publish(policy: PlanPolicy, company: Company, live_jobs: int) -> None:
+    """``live_jobs`` = published jobs before this publish. Also covers
+    reopening a closed job, which is the same publish transition."""
+    if policy.can_publish(company, live_jobs):
+        return
+    limit = policy.limits(company).max_live_jobs
+    raise PlanLimitExceeded(limit if limit is not None else live_jobs, policy.upgrade_url(company))
 
 
 @lru_cache(maxsize=1)

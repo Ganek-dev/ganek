@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import AdminUser, DbSession, StaffCompany, StaffUser
-from app.core import urls
+from app.core import plans, urls
 from app.core.config import settings
 from app.core.security import PREVIEW_TOKEN_MAX_AGE_SECONDS, create_preview_token
 from app.models import Job, JobStatus
@@ -183,9 +183,18 @@ async def import_candidates(
 @router.post("/{job_id}/publish", response_model=JobOut)
 async def publish_job(job_id: uuid.UUID, db: DbSession, company: StaffCompany) -> Job:
     job = await _get_or_404(db, company, job_id)
-    limit = settings.quota_active_jobs
-    if limit > 0 and job.status is not JobStatus.PUBLISHED:
-        if await quotas.active_jobs(db, company) >= limit:
+    if job.status is not JobStatus.PUBLISHED:
+        live = await quotas.active_jobs(db, company)
+        # plan limit first (B1b, Q7): 402 with the upgrade link; reopening a
+        # closed job is the same transition, so it is covered too
+        try:
+            plans.ensure_can_publish(plans.get_plan_policy(), company, live)
+        except plans.PlanLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=exc.detail()
+            ) from None
+        limit = settings.quota_active_jobs
+        if limit > 0 and live >= limit:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(

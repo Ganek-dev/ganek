@@ -18,7 +18,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     api: { ...original.api, me: vi.fn(), logout: vi.fn(), providers: vi.fn() },
-    companyApi: { ...original.companyApi, get: vi.fn(), usage: vi.fn() },
+    companyApi: { ...original.companyApi, get: vi.fn(), usage: vi.fn(), plan: vi.fn() },
     stats: { overview: vi.fn() },
   };
 });
@@ -48,6 +48,14 @@ describe("AdminLayout", () => {
       active_jobs: 1,
       active_jobs_limit: 50,
       warnings: [],
+    });
+    mockedCompany.plan.mockResolvedValue({
+      plan: "self_hosted",
+      billing_enabled: false,
+      limits: { max_live_jobs: null },
+      live_jobs: 1,
+      over_limit: false,
+      upgrade_url: null,
     });
     mockedCompany.get.mockResolvedValue({
       slug: "acme",
@@ -174,6 +182,29 @@ describe("AdminLayout", () => {
     const banner = await screen.findByRole("status");
     expect(banner).toHaveTextContent("420 of 500 emails today");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("tells an admin over the plan limit that nothing was closed, with the upgrade link", async () => {
+    mockedCompany.plan.mockResolvedValue({
+      plan: "free",
+      billing_enabled: true,
+      limits: { max_live_jobs: 1 },
+      live_jobs: 3,
+      over_limit: true,
+      upgrade_url: "https://billing.example/upgrade",
+    });
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    const banner = await screen.findByTestId("plan-over-limit");
+    expect(banner).toHaveTextContent("3 jobs are live and your plan allows 1.");
+    expect(banner).toHaveTextContent("Nothing was closed");
+    expect(screen.getByRole("link", { name: "Upgrade plan" })).toHaveAttribute(
+      "href",
+      "https://billing.example/upgrade",
+    );
   });
 
   it("shows no banner when SMTP is configured or for members", async () => {

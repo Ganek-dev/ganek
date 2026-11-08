@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import lockout
+from app.core import lockout, plans
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.models import Company, User, UserRole
@@ -71,6 +71,7 @@ async def register_company_admin(
         slug=await _unique_slug(db, slugify(company_name)),
         name=company_name,
         settings={"pending_verification": True} if pending else {},
+        plan=plans.get_plan_policy().signup_plan,
     )
     db.add(company)
     await db.flush()
@@ -191,7 +192,11 @@ async def register_company_google(
     if taken:
         raise EmailTakenError
 
-    company = Company(slug=await _unique_slug(db, slugify(company_name)), name=company_name)
+    company = Company(
+        slug=await _unique_slug(db, slugify(company_name)),
+        name=company_name,
+        plan=plans.get_plan_policy().signup_plan,
+    )
     db.add(company)
     await db.flush()
     user = User(

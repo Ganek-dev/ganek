@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from app.api.deps import AdminUser, CurrentCompany, CurrentUser, DbSession, StaffCompany
+from app.core import plans
 from app.models import Company, UserRole
 from app.schemas.company import (
     BrandingUpdate,
     CompanyOut,
     CompanySettingsUpdate,
     CompanySummary,
+    PlanLimitsOut,
+    PlanOut,
     UsageOut,
 )
 from app.services import company as company_service
@@ -39,6 +42,24 @@ async def get_company_summary(
 async def get_usage(db: DbSession, company: StaffCompany, _admin: AdminUser) -> UsageOut:
     """Abuse-guard counters for the admin banner (STRATEGY §8)."""
     return UsageOut(**await quotas.usage(db, company))
+
+
+@router.get("/plan", response_model=PlanOut)
+async def get_plan(db: DbSession, company: StaffCompany) -> PlanOut:
+    """The company's plan, its limits and the live job count (card B1b).
+    Admins and recruiters both publish, so both may read it; the frontend
+    shows the upgrade link to admins only (Q14)."""
+    policy = plans.get_plan_policy()
+    limits = policy.limits(company)
+    live = await quotas.active_jobs(db, company)
+    return PlanOut(
+        plan=company.plan.value,
+        billing_enabled=policy.billing_enabled,
+        limits=PlanLimitsOut(max_live_jobs=limits.max_live_jobs),
+        live_jobs=live,
+        over_limit=limits.max_live_jobs is not None and live > limits.max_live_jobs,
+        upgrade_url=policy.upgrade_url(company),
+    )
 
 
 @router.patch("/branding", response_model=CompanyOut)

@@ -4,7 +4,9 @@ import { ExternalLink } from "lucide-react";
 
 import { CopyButton } from "@/components/CopyButton";
 import { StatusPill } from "@/components/JobStatus";
+import { PlanLimitNotice } from "@/components/PlanLimitNotice";
 import { api, type JobOut } from "@/lib/api";
+import { type PlanLimit, planLimitOf } from "@/lib/plan-limit";
 
 /** Status card (screen 08 rail): current status, Publish / Close, live
  * since, and the candidate view: a plain link on a live job (when the
@@ -28,6 +30,7 @@ export function JobStatusCard({
 }) {
   const live = job.status === "published";
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [planLimit, setPlanLimit] = useState<PlanLimit | null>(null);
 
   useEffect(() => {
     // a live job never shows the preview actions, so a stale URL is unused
@@ -47,11 +50,14 @@ export function JobStatusCard({
   }, [job.id, live]);
 
   async function act(action: () => Promise<unknown>) {
+    setPlanLimit(null);
     try {
       await action();
       onChanged();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Action failed");
+      const limit = planLimitOf(err);
+      if (limit) setPlanLimit(limit);
+      else onError(err instanceof Error ? err.message : "Action failed");
     }
   }
 
@@ -78,6 +84,11 @@ export function JobStatusCard({
           </button>
         )}
       </div>
+      {planLimit ? (
+        <div className="mt-3">
+          <PlanLimitNotice limit={planLimit} />
+        </div>
+      ) : null}
       {job.published_at ? (
         <p className="mt-2.5 font-mono text-[11px] text-g500">
           Live since{" "}

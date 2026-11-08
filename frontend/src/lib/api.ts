@@ -245,6 +245,13 @@ async function send<T>(path: string, init?: RequestInit): Promise<T> {
         // first message instead of the bare "Unprocessable Content"
         const first = body.detail[0] as { msg?: unknown } | undefined;
         if (typeof first?.msg === "string") detail = first.msg;
+      } else if (
+        typeof body.detail === "object" &&
+        body.detail !== null &&
+        typeof (body.detail as { message?: unknown }).message === "string"
+      ) {
+        // structured errors (the 402 plan limit) carry a readable message
+        detail = (body.detail as { message: string }).message;
       }
     } catch {
       // non-JSON error body; keep statusText
@@ -1818,6 +1825,19 @@ export interface UsageOut {
   warnings: string[];
 }
 
+/** GET /company/plan (card B1b): the plan, its live job limit (null =
+ * unlimited) and how many jobs are live. `over_limit` = more are live than
+ * the plan allows after a downgrade; nothing was closed, publishing and
+ * reopening wait until the company is under the limit. */
+export interface PlanOut {
+  plan: "free" | "starter" | "team" | "self_hosted";
+  billing_enabled: boolean;
+  limits: { max_live_jobs: number | null };
+  live_jobs: number;
+  over_limit: boolean;
+  upgrade_url: string | null;
+}
+
 /** Per-company API keys (card D4 part A): the secret exists only in the
  * create response; the list carries the prefix. */
 export type ApiKeyScope = "read" | "write";
@@ -1980,6 +2000,7 @@ export const companyApi = {
   get: () => sharedGet<CompanyAdmin>("/api/v1/company"),
   summary: () => sharedGet<CompanySummary>("/api/v1/company/summary"),
   usage: () => sharedGet<UsageOut>("/api/v1/company/usage"),
+  plan: () => sharedGet<PlanOut>("/api/v1/company/plan"),
   updateBranding: (patch: BrandingUpdate) =>
     request<CompanyAdmin>("/api/v1/company/branding", {
       method: "PATCH",

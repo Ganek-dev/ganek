@@ -78,3 +78,39 @@ def test_hosted_refuses_two_policies(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_default_edition_is_community() -> None:
     assert plans.settings.edition == "community"
     assert isinstance(plans.get_plan_policy(), SelfHostedPolicy)
+
+
+def test_self_hosted_signups_stay_self_hosted() -> None:
+    assert SelfHostedPolicy().signup_plan is CompanyPlan.SELF_HOSTED
+
+
+class _OneJob:
+    name = "one_job"
+    billing_enabled = True
+    signup_plan = CompanyPlan.FREE
+
+    def limits(self, company: Company) -> plans.PlanLimits:
+        return plans.PlanLimits(max_live_jobs=1)
+
+    def can_publish(self, company: Company, live_jobs: int) -> bool:
+        return live_jobs < 1
+
+    def upgrade_url(self, company: Company) -> str | None:
+        return "https://example.test/upgrade"
+
+
+def test_ensure_can_publish_allows_under_the_limit() -> None:
+    plans.ensure_can_publish(_OneJob(), _company(), live_jobs=0)
+    plans.ensure_can_publish(SelfHostedPolicy(), _company(), live_jobs=10_000)
+
+
+def test_ensure_can_publish_raises_with_the_402_payload() -> None:
+    with pytest.raises(plans.PlanLimitExceeded) as caught:
+        plans.ensure_can_publish(_OneJob(), _company(), live_jobs=1)
+    detail = caught.value.detail()
+    assert detail["code"] == "plan_limit"
+    assert detail["limit"] == 1
+    assert detail["upgrade_url"] == "https://example.test/upgrade"
+    assert detail["message"] == (
+        "Your plan allows 1 live job. Close a job or upgrade the plan to publish another."
+    )
