@@ -2019,6 +2019,19 @@ export const publicPages = {
     ),
 };
 
+/** GET /company/domain (custom domains, slice 2). `available` = the plan
+ * allows a custom domain. While `status` is pending, the admin publishes
+ * the TXT record `txt_name` = `txt_value`; only a verified domain routes. */
+export interface CustomDomainOut {
+  available: boolean;
+  upgrade_url: string | null;
+  domain: string | null;
+  status: "none" | "pending" | "verified";
+  txt_name: string | null;
+  txt_value: string | null;
+  verified_at: string | null;
+}
+
 export const companyApi = {
   get: () => sharedGet<CompanyAdmin>("/api/v1/company"),
   summary: () => sharedGet<CompanySummary>("/api/v1/company/summary"),
@@ -2043,6 +2056,17 @@ export const companyApi = {
   /** Sends a real email to the calling admin, surfacing transport errors. */
   testEmail: () =>
     request<{ sent: boolean }>("/api/v1/company/test-email", { method: "POST" }),
+  domain: () => request<CustomDomainOut>("/api/v1/company/domain"),
+  /** 402 plan_feature when the plan has no custom domains, 422 on a bad name. */
+  setDomain: (domain: string) =>
+    request<CustomDomainOut>("/api/v1/company/domain", {
+      method: "PUT",
+      body: JSON.stringify({ domain }),
+    }),
+  /** 409 with an actionable message while the TXT record is not visible yet. */
+  verifyDomain: () =>
+    request<CustomDomainOut>("/api/v1/company/domain/verify", { method: "POST" }),
+  removeDomain: () => request<CustomDomainOut>("/api/v1/company/domain", { method: "DELETE" }),
 };
 
 /** Hosted billing (card B1c). The routes exist only when the instance has

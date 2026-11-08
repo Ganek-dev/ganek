@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 
 import { CopyButton } from "@/components/CopyButton";
+import { CustomDomainCard } from "@/components/CustomDomainCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, type CompanyAdmin } from "@/lib/api";
 import { careersDisplay, careersUrl } from "@/lib/careers";
@@ -274,6 +275,8 @@ export default function BrandingPage() {
               onError={() => setError("Couldn't copy to clipboard")}
             />
           </div>
+
+          <CustomDomainCard />
 
           <button
             type="button"
