@@ -12,7 +12,12 @@ Rules kept here so they cannot drift again (see #144):
   ``/c/{slug}``; candidate pages, the feed and the privacy notice follow
   that prefix, while capability-token pages (quiz, status, interview,
   invite, verify, reset) are mode-independent;
-- the base never carries a trailing slash, whatever the operator typed.
+- the base never carries a trailing slash, whatever the operator typed;
+- a company serving a verified custom domain (multi mode, plan still
+  includes custom domains) gets its careers tree - landing, jobs, one job,
+  privacy notice - on ``https://<domain>`` at the root, the same rule the
+  frontend middleware's Host rewrite serves; everything else (token pages,
+  admin, API, logo) stays on the instance origin.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
+from app.core import plans
 from app.core.config import settings
 
 if TYPE_CHECKING:
@@ -44,8 +50,27 @@ def instance_host() -> str:
     return (urlsplit(_base()).hostname or "").lower().rstrip(".")
 
 
+def custom_careers_domain(company: Company) -> str | None:
+    """The verified custom domain the company's careers tree is served on,
+    or None. Mirrors ``services.custom_domains.company_for_host`` (verified
+    and the plan still includes custom domains) plus the resolve endpoint's
+    multi-mode-only rule, so a link never points at a host that would not
+    route: a pending claim or a downgraded plan falls back to the slug URL."""
+    if settings.mode != "multi":
+        return None
+    if not company.custom_domain or company.custom_domain_verified_at is None:
+        return None
+    if not plans.get_plan_policy().custom_domains(company):
+        return None
+    return company.custom_domain
+
+
 def careers_url(company: Company) -> str:
-    """Careers landing page: the root in single mode, ``/c/{slug}`` in multi."""
+    """Careers landing page: the root in single mode, ``/c/{slug}`` in multi,
+    the root of the verified custom domain when the company has one."""
+    domain = custom_careers_domain(company)
+    if domain is not None:
+        return f"https://{domain}"
     base = _base(company)
     return base if settings.mode == "single" else f"{base}/c/{company.slug}"
 
