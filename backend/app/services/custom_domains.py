@@ -50,13 +50,17 @@ class VerificationFailed(Exception):
 
 def _platform_hosts() -> set[str]:
     """The instance's own host and, when that host is a subdomain
-    (app.ganek.io), its parent (ganek.io): tenant subdomains live there, so
-    no tenant may claim any name under either."""
+    (app.ganek.io), its parent (ganek.io), plus the tenant subdomain parent
+    when set: tenant subdomains live there, so no tenant may claim any name
+    under any of them."""
     host = urls.instance_host()
     hosts = {host} if host else set()
     labels = host.split(".")
     if len(labels) >= 3:
         hosts.add(".".join(labels[1:]))
+    parent = urls.tenant_domain()
+    if parent:
+        hosts.add(parent)
     return hosts
 
 
@@ -126,15 +130,35 @@ def normalize_host(raw: str) -> str | None:
     return value
 
 
+async def _company_for_subdomain(db: AsyncSession, host: str) -> Company | None:
+    """``<slug>.<tenant_domain>`` -> that company. Exactly one label under
+    the parent (``x.acme.ganek.io`` is nobody), never a reserved or invalid
+    label, and the label must equal the slug exactly, so tenant A's
+    subdomain can never reach tenant B. No plan gate: every hosted tenant
+    gets its subdomain (decision 2026-10-24)."""
+    parent = urls.tenant_domain()
+    if parent is None or not host.endswith("." + parent):
+        return None
+    label = host[: -len(parent) - 1]
+    if "." in label or not urls.tenant_subdomain_label_ok(label):
+        return None
+    return (await db.execute(select(Company).where(Company.slug == label))).scalar_one_or_none()
+
+
 async def company_for_host(db: AsyncSession, raw_host: str) -> Company | None:
     """The company whose careers page a request for ``raw_host`` serves, or
-    None. Only a verified custom domain on a plan that still includes custom
-    domains resolves: a pending claim, a downgraded plan or an unknown name
-    never routes, so tenant A's Host can never reach tenant B (the verified
-    domain is unique across companies, see the partial index)."""
+    None. A tenant subdomain (``<slug>.<tenant_domain>``, when configured)
+    resolves to its company; otherwise only a verified custom domain on a
+    plan that still includes custom domains resolves: a pending claim, a
+    downgraded plan or an unknown name never routes, so tenant A's Host can
+    never reach tenant B (the verified domain is unique across companies,
+    see the partial index)."""
     host = normalize_host(raw_host)
     if host is None:
         return None
+    parent = urls.tenant_domain()
+    if parent is not None and host.endswith("." + parent):
+        return await _company_for_subdomain(db, host)
     company = (
         await db.execute(
             select(Company).where(

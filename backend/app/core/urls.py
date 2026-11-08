@@ -17,21 +17,28 @@ Rules kept here so they cannot drift again (see #144):
   includes custom domains) gets its careers tree - landing, jobs, one job,
   privacy notice - on ``https://<domain>`` at the root, the same rule the
   frontend middleware's Host rewrite serves; everything else (token pages,
-  admin, API, logo) stays on the instance origin.
+  admin, API, logo) stays on the instance origin;
+- without one, a multi-mode instance with ``tenant_domain`` set serves the
+  careers tree on the tenant subdomain ``https://<slug>.<tenant_domain>``
+  (decision 2026-10-24), unless the slug is reserved or not a DNS label.
 """
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from app.core import plans
 from app.core.config import settings
+from app.services.slugs import is_reserved_company_slug
 
 if TYPE_CHECKING:
     from app.models import Company
 
 API_PREFIX = "/api/v1"
+
+_DNS_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 
 def _base(company: Company | None = None) -> str:
@@ -65,10 +72,46 @@ def custom_careers_domain(company: Company) -> str | None:
     return company.custom_domain
 
 
+def tenant_domain() -> str | None:
+    """The parent domain of the tenant careers subdomains (``ganek.io``),
+    lowercase without a scheme, port or trailing dot; None in single mode
+    or when unset."""
+    if settings.mode != "multi" or not settings.tenant_domain:
+        return None
+    raw = settings.tenant_domain.strip().lower()
+    host = (urlsplit(raw).hostname if "//" in raw else raw.partition(":")[0]) or ""
+    return host.rstrip(".") or None
+
+
+def tenant_subdomain_label_ok(label: str) -> bool:
+    """A company slug may be a tenant subdomain when it is one valid DNS
+    label and not a platform name (``app``, ``api``, brand words...)."""
+    return bool(_DNS_LABEL.match(label)) and not is_reserved_company_slug(label)
+
+
+def tenant_subdomain(company: Company) -> str | None:
+    """``<slug>.<tenant_domain>`` when subdomains are on and the slug can be
+    one; None otherwise (the slug URL stays)."""
+    parent = tenant_domain()
+    if parent is None or not tenant_subdomain_label_ok(company.slug):
+        return None
+    return f"{company.slug}.{parent}"
+
+
+def careers_host(company: Company) -> str | None:
+    """The host the company's careers tree is served on at its root: the
+    verified custom domain, else the tenant subdomain, else None (served
+    under ``/c/{slug}`` on the instance origin, or at the root in single
+    mode). Admin share links, the canonical 301 and every careers link use
+    this one rule."""
+    return custom_careers_domain(company) or tenant_subdomain(company)
+
+
 def careers_url(company: Company) -> str:
     """Careers landing page: the root in single mode, ``/c/{slug}`` in multi,
-    the root of the verified custom domain when the company has one."""
-    domain = custom_careers_domain(company)
+    the root of the verified custom domain or the tenant subdomain when the
+    company has one."""
+    domain = careers_host(company)
     if domain is not None:
         return f"https://{domain}"
     base = _base(company)

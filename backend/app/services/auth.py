@@ -33,7 +33,7 @@ def check_company_name(company_name: str) -> str:
     """Slug for a new company, refused when reserved (multi mode only).
 
     In multi mode the slug is the tenant's public address (``/c/{slug}``
-    today, ``<slug>.ganek.io`` once subdomain routing lands), so platform
+    or ``<slug>.<tenant_domain>`` with subdomains on), so platform
     names (app, api, admin, status, the brand) are refused before anything
     is written. Single mode serves careers at the root and never shows the
     slug, so a self-hoster may call the one company whatever they like.
