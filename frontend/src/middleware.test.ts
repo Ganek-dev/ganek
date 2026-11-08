@@ -8,6 +8,7 @@ import {
   jobLookupPath,
   middleware,
   normalizeHost,
+  slugCanonicalPath,
 } from "./middleware";
 
 function req(path: string, cookie?: string): NextRequest {
@@ -63,12 +64,21 @@ describe("admin middleware", () => {
   it("leaves the careers pages and login alone on the instance host", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    for (const path of ["/", "/c/acme", "/c/acme/privacy", "/login", "/privacy"]) {
+    for (const path of ["/", "/login", "/privacy"]) {
       const res = await middleware(req(path));
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toBeNull();
     }
     expect(fetchMock).not.toHaveBeenCalled();
+    // slug pages only ask whether the tenant has a verified domain
+    const noDomain = vi.fn().mockResolvedValue(new Response("{}", { status: 404 }));
+    vi.stubGlobal("fetch", noDomain);
+    for (const path of ["/c/acme", "/c/acme/privacy"]) {
+      const res = await middleware(req(path));
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    }
+    expect(noDomain).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -88,7 +98,8 @@ describe("public job pages: real 404", () => {
     const res = await middleware(req("/c/acme/jobs/nope"));
     expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // the first call asks for the tenant's custom domain (slug URL 301)
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(url).toMatch(/\/api\/v1\/public\/companies\/acme\/jobs\/nope$/);
     expect(Object.keys(init.headers as Record<string, string>)).toEqual(["Accept"]);
   });
@@ -246,5 +257,93 @@ describe("custom domains: routing", () => {
     vi.stubGlobal("fetch", fetchMock);
     const later = await middleware(hostReq("careers.acme.com", "/"));
     expect(later.headers.get("x-middleware-rewrite")).toBe("https://careers.acme.com/c/acme");
+  });
+});
+
+function domainFor(domain: string | null, jobStatus = 200) {
+  return vi.fn(async (url: string) => {
+    if (url.includes("/public/domains/by-slug/")) {
+      return domain === null
+        ? new Response("{}", { status: 404 })
+        : Response.json({ slug: "acme", domain });
+    }
+    if (url.includes("/public/domains/resolve")) return new Response("{}", { status: 404 });
+    return new Response("{}", { status: jobStatus });
+  });
+}
+
+describe("custom domains: slug URL 301", () => {
+  it("maps slug URLs to their path on the domain and nothing else", () => {
+    expect(slugCanonicalPath("/c/acme")).toEqual({ slug: "acme", path: "/" });
+    expect(slugCanonicalPath("/c/acme/")).toEqual({ slug: "acme", path: "/" });
+    expect(slugCanonicalPath("/c/acme/privacy")).toEqual({ slug: "acme", path: "/privacy" });
+    expect(slugCanonicalPath("/c/acme/jobs/dev")).toEqual({ slug: "acme", path: "/jobs/dev" });
+    expect(slugCanonicalPath("/c/acme/jobs")).toBeNull();
+    expect(slugCanonicalPath("/c/acme/jobs/dev/apply")).toBeNull();
+    expect(slugCanonicalPath("/jobs/dev")).toBeNull();
+    expect(slugCanonicalPath("/")).toBeNull();
+  });
+
+  it("301s the careers page, a job and the privacy notice to the verified domain, query kept", async () => {
+    const fetchMock = domainFor("careers.acme.com");
+    vi.stubGlobal("fetch", fetchMock);
+    const cases: [string, string][] = [
+      ["/c/acme?src=linkedin", "https://careers.acme.com/?src=linkedin"],
+      ["/c/acme/jobs/dev", "https://careers.acme.com/jobs/dev"],
+      ["/c/acme/privacy/", "https://careers.acme.com/privacy"],
+    ];
+    for (const [path, location] of cases) {
+      const res = await middleware(req(path));
+      expect(res.status).toBe(301);
+      expect(res.headers.get("location")).toBe(location);
+    }
+    // one lookup per slug a minute, and the job's own 404 lookup is skipped
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toMatch(/\/api\/v1\/public\/domains\/by-slug\/acme$/);
+  });
+
+  it("keeps the slug URL when the tenant has no verified domain", async () => {
+    vi.stubGlobal("fetch", domainFor(null, 404));
+    const res = await middleware(req("/c/acme/jobs/nope"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("leaves previews, client-side navigations and prefetches on the instance host", async () => {
+    const fetchMock = domainFor("careers.acme.com");
+    vi.stubGlobal("fetch", fetchMock);
+    const preview = await middleware(req("/c/acme/jobs/draft?preview=tok"));
+    expect(preview.headers.get("location")).toBeNull();
+    for (const header of ["rsc", "next-router-prefetch"]) {
+      const res = await middleware(
+        new NextRequest("http://ganek.test/c/acme", { headers: { [header]: "1" } }),
+      );
+      expect(res.headers.get("location")).toBeNull();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fails open, uncached, when the lookup errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+    expect((await middleware(req("/c/acme"))).headers.get("location")).toBeNull();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 500 })));
+    expect((await middleware(req("/c/acme"))).headers.get("location")).toBeNull();
+    vi.stubGlobal("fetch", domainFor("careers.acme.com"));
+    expect((await middleware(req("/c/acme"))).status).toBe(301);
+  });
+
+  it("never redirects a slug URL to the host it is already on", async () => {
+    // the domain's own resolve failed (fail open), so the request is served
+    // like the instance host; the by-slug answer is that same host
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/public/domains/resolve")) throw new Error("ECONNREFUSED");
+        return Response.json({ slug: "acme", domain: "careers.acme.com" });
+      }),
+    );
+    const res = await middleware(hostReq("careers.acme.com", "/c/acme"));
+    expect(res.headers.get("location")).toBeNull();
   });
 });
