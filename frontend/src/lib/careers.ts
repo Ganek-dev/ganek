@@ -22,17 +22,20 @@ export function canonicalMetadata(
 }
 
 /** The careers-page URL this deployment actually serves - single mode at the
- * instance root, multi mode under /c/{slug}. Never a ganek.dev domain: those
- * don't exist for self-hosted instances. Origin resolves in the browser; the
- * callers are client components that render after data fetches. */
-export function careersUrl(mode: InstanceMode, slug: string): string {
+ * instance root, multi mode under /c/{slug}, the root of the verified custom
+ * domain when the server sends ``domain`` (``careers_domain``). Never a
+ * ganek.dev domain: those don't exist for self-hosted instances. Origin
+ * resolves in the browser; the callers are client components that render
+ * after data fetches. */
+export function careersUrl(mode: InstanceMode, slug: string, domain?: string | null): string {
+  if (domain) return `https://${domain}`;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   return mode === "single" ? origin : `${origin}/c/${slug}`;
 }
 
 /** Protocol-less form for mono labels next to a Copy button. */
-export function careersDisplay(mode: InstanceMode, slug: string): string {
-  return careersUrl(mode, slug).replace(/^https?:\/\//, "");
+export function careersDisplay(mode: InstanceMode, slug: string, domain?: string | null): string {
+  return careersUrl(mode, slug, domain).replace(/^https?:\/\//, "");
 }
 
 /** Slug-bearing preview for the setup form, before a company exists. The

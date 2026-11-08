@@ -196,9 +196,9 @@ export default function JobOverviewPage() {
   }
 
   const live = job.status === "published";
-  const jobUrl = company ? `${careersUrl(company.mode, company.slug)}/jobs/${job.slug}` : null;
+  const jobUrl = company ? `${careersUrl(company.mode, company.slug, company.careers_domain)}/jobs/${job.slug}` : null;
   const jobDisplay = company
-    ? `${careersDisplay(company.mode, company.slug)}/jobs/${job.slug}`
+    ? `${careersDisplay(company.mode, company.slug, company.careers_domain)}/jobs/${job.slug}`
     : null;
   const draft = job.status === "draft";
   const total = stats?.applications.total ?? 0;

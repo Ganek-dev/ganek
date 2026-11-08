@@ -156,9 +156,9 @@ export function OnboardingChecklist() {
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-divider pt-3">
         <p className="font-mono text-[12px] text-g600">
-          {careersDisplay(company.mode, company.slug)}
+          {careersDisplay(company.mode, company.slug, company.careers_domain)}
         </p>
-        <CopyButton text={careersUrl(company.mode, company.slug)} label="Copy careers URL" />
+        <CopyButton text={careersUrl(company.mode, company.slug, company.careers_domain)} label="Copy careers URL" />
         <a
           href="/"
           target="_blank"

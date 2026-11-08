@@ -1,9 +1,20 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    HttpUrl,
+    ModelWrapValidatorHandler,
+    field_validator,
+    model_validator,
+)
 
+from app.core import urls
 from app.core.config import settings as app_settings
+from app.models import Company
 from app.schemas.scorecard_template import ScorecardCriterion, validate_criteria
 from app.services import email_providers
 from app.services.screening import ScreeningQuestion, validate_questions
@@ -61,7 +72,26 @@ class CustomDomainIn(BaseModel):
     domain: str = Field(min_length=1, max_length=300)
 
 
-class CompanySummary(BaseModel):
+class _CareersDomainMixin(BaseModel):
+    """``careers_domain`` is not a column: the verified custom domain the
+    careers tree is served on (``urls.custom_careers_domain``: multi mode,
+    verified, plan still includes it), else None. Admin share and copy
+    surfaces show https://<domain> instead of the /c/{slug} URL."""
+
+    careers_domain: str | None = None
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _fill_careers_domain(
+        cls, data: Any, handler: ModelWrapValidatorHandler["_CareersDomainMixin"]
+    ) -> "_CareersDomainMixin":
+        out = handler(data)
+        if isinstance(data, Company):
+            out.careers_domain = urls.custom_careers_domain(data)
+        return out
+
+
+class CompanySummary(_CareersDomainMixin):
     """What any signed-in user may know about their company: enough to build
     the public careers and job URLs (slug + instance mode). The branding
     and settings payload stays admin-only in ``CompanyOut``."""
@@ -79,7 +109,7 @@ class CompanySummary(BaseModel):
     scorecard_template: list[ScorecardCriterion] = []
 
 
-class CompanyOut(BaseModel):
+class CompanyOut(_CareersDomainMixin):
     """Admin view of the company (branding settings, screen 10)."""
 
     model_config = ConfigDict(from_attributes=True)

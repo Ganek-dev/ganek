@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalCareersUrl, canonicalMetadata } from "./careers";
+import { canonicalCareersUrl, canonicalMetadata, careersDisplay, careersUrl } from "./careers";
 
 describe("canonicalCareersUrl", () => {
   it("uses the server's careers URL, the custom domain once verified", () => {
@@ -26,5 +26,22 @@ describe("canonicalCareersUrl", () => {
     expect(canonicalMetadata({ careers_url: "https://careers.acme.com" }, "qa")).toEqual({
       alternates: { canonical: "https://careers.acme.com/jobs/qa" },
     });
+  });
+});
+
+describe("careersUrl", () => {
+  it("serves multi mode under /c/{slug} and single mode at the root", () => {
+    expect(careersUrl("multi", "acme")).toBe(`${window.location.origin}/c/acme`);
+    expect(careersUrl("single", "acme")).toBe(window.location.origin);
+  });
+
+  it("uses the verified custom domain when the server sends one", () => {
+    expect(careersUrl("multi", "acme", "careers.acme.com")).toBe("https://careers.acme.com");
+    expect(careersDisplay("multi", "acme", "careers.acme.com")).toBe("careers.acme.com");
+  });
+
+  it("falls back to the slug URL without a domain", () => {
+    expect(careersUrl("multi", "acme", null)).toBe(`${window.location.origin}/c/acme`);
+    expect(careersDisplay("multi", "acme", "")).toBe(`${window.location.host}/c/acme`);
   });
 });
