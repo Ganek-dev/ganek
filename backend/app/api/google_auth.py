@@ -208,6 +208,11 @@ async def google_signup(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists",
         ) from None
+    except auth_service.ReservedCompanyNameError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=auth_service.RESERVED_COMPANY_NAME_DETAIL,
+        ) from None
     response.delete_cookie(GOOGLE_SIGNUP_COOKIE_NAME, path=_FLOW_COOKIE_PATH)
     _set_session_cookie(response, user)
     return user

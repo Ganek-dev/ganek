@@ -82,6 +82,11 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists",
         ) from None
+    except auth_service.ReservedCompanyNameError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=auth_service.RESERVED_COMPANY_NAME_DETAIL,
+        ) from None
     if not user.is_active:
         # multi-mode signup awaiting verification: no session until the
         # inbox click - the company is inert and sweepable meanwhile
