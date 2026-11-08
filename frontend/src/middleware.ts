@@ -193,7 +193,8 @@ const ADMIN_PATH = /^\/(admin|review|login|setup)(\/|$)/;
 
 /** Where a path on company `slug`'s custom domain is served from:
  * - `{rewrite}`: the careers route behind it (`/` -> `/c/{slug}`,
- *   `/jobs/<job>` -> `/c/{slug}/jobs/<job>`, `/privacy` -> `/c/{slug}/privacy`);
+ *   `/jobs/<job>` -> `/c/{slug}/jobs/<job>`, `/privacy` -> `/c/{slug}/privacy`,
+ *   `/sitemap.xml` and `/robots.txt` -> the tenant's own crawler files);
  * - `{notFound}`: another tenant's `/c/<other>` pages, which a tenant's own
  *   domain must never show;
  * - `{admin}`: a signed-in surface, sent to the instance host;
@@ -209,6 +210,8 @@ export function customDomainRoute(pathname: string, slug: string): CustomDomainR
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path === "/") return { rewrite: `/c/${slug}` };
   if (path === "/privacy") return { rewrite: `/c/${slug}/privacy` };
+  if (path === "/sitemap.xml") return { rewrite: `/c/${slug}/sitemap` };
+  if (path === "/robots.txt") return { rewrite: `/c/${slug}/robots` };
   const job = /^\/jobs\/([^/]+)$/.exec(path);
   if (job) return { rewrite: `/c/${slug}/jobs/${job[1]}` };
   const tenant = /^\/c\/([^/]+)(\/|$)/.exec(path);
@@ -290,6 +293,8 @@ export const config = {
   matcher: [
     "/",
     "/privacy",
+    "/sitemap.xml",
+    "/robots.txt",
     "/login",
     "/setup",
     "/admin/:path*",

@@ -53,6 +53,8 @@ describe("admin middleware", () => {
     expect(config.matcher).toEqual([
       "/",
       "/privacy",
+      "/sitemap.xml",
+      "/robots.txt",
       "/login",
       "/setup",
       "/admin/:path*",
@@ -187,10 +189,37 @@ describe("custom domains: host helpers", () => {
     expect(customDomainRoute("/admin/jobs", "acme")).toEqual({ admin: true });
     expect(customDomainRoute("/login", "acme")).toEqual({ admin: true });
     expect(customDomainRoute("/quiz/tok", "acme")).toEqual({ pass: true });
+    expect(customDomainRoute("/sitemap.xml", "acme")).toEqual({
+      rewrite: "/c/acme/sitemap",
+    });
+    expect(customDomainRoute("/robots.txt", "acme")).toEqual({ rewrite: "/c/acme/robots" });
   });
 });
 
 describe("custom domains: routing", () => {
+  it("serves the tenant's own sitemap and robots.txt on its domain", async () => {
+    vi.stubGlobal("fetch", resolveTo("acme"));
+    const map = await middleware(hostReq("careers.acme.com", "/sitemap.xml"));
+    expect(map.headers.get("x-middleware-rewrite")).toBe(
+      "https://careers.acme.com/c/acme/sitemap",
+    );
+    const robots = await middleware(hostReq("careers.acme.com", "/robots.txt"));
+    expect(robots.headers.get("x-middleware-rewrite")).toBe(
+      "https://careers.acme.com/c/acme/robots",
+    );
+  });
+
+  it("leaves the instance sitemap and robots.txt alone on the instance host", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    for (const path of ["/sitemap.xml", "/robots.txt"]) {
+      const res = await middleware(req(path));
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("serves the tenant's careers page at the domain root, query kept", async () => {
     const fetchMock = resolveTo("acme");
     vi.stubGlobal("fetch", fetchMock);
