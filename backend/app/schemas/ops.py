@@ -35,6 +35,24 @@ class SuspendRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
+class DeleteTenantRequest(BaseModel):
+    # the tenant's slug, typed back: a wrong or stale id cannot delete
+    # the wrong workspace
+    confirm_slug: str = Field(min_length=1, max_length=200)
+
+
+class OpsTenantDeleted(BaseModel):
+    """Count-only receipt of a tenant delete."""
+
+    id: uuid.UUID
+    slug: str
+    users: int
+    jobs: int
+    candidates: int
+    applications: int
+    storage_objects: int
+
+
 class OpsExportUser(BaseModel):
     # account metadata only: password hashes, TOTP secrets, recovery codes
     # and token versions never leave the database

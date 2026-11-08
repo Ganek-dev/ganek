@@ -23,12 +23,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.models import Application, Candidate, ErasureTombstone
+from app.models import Application, Candidate, Company, ErasureTombstone
 
 logger = logging.getLogger(__name__)
 
 APPLICATION = "application"
 CANDIDATE = "candidate"
+COMPANY = "company"  # a whole tenant deleted by the operator (/ops)
 
 
 def subject_hash(subject_id: uuid.UUID) -> str:
@@ -46,12 +47,31 @@ async def record(
     )
 
 
+async def record_many(
+    db: AsyncSession, *, company_id: uuid.UUID, kind: str, subject_ids: list[uuid.UUID]
+) -> None:
+    """``record`` for many rows in one statement (no commit)."""
+    if not subject_ids:
+        return
+    await db.execute(
+        insert(ErasureTombstone)
+        .values(
+            [
+                {"subject_hash": subject_hash(subject_id), "kind": kind, "company_id": company_id}
+                for subject_id in subject_ids
+            ]
+        )
+        .on_conflict_do_nothing(index_elements=["subject_hash"])
+    )
+
+
 @dataclass
 class ReplaySummary:
     tombstones: int
     applications_erased: int
     candidates_erased: int
     storage_failures: int
+    companies_erased: int = 0
 
 
 async def replay(db: AsyncSession) -> ReplaySummary:
@@ -89,6 +109,18 @@ async def replay(db: AsyncSession) -> ReplaySummary:
             continue
         await db.execute(delete(Candidate).where(Candidate.id == candidate.id))
         summary.candidates_erased += 1
+
+    companies = (await db.execute(select(Company.id))).scalars().all()
+    for company_id in companies:
+        if wanted.get(subject_hash(company_id)) != COMPANY:
+            continue
+        try:
+            await erasure.purge_tenant(db, company_id)
+        except Exception:  # noqa: BLE001 - storage down: keep the tenant, retry later
+            logger.warning("tombstone replay: storage cleanup failed for tenant %s", company_id)
+            summary.storage_failures += 1
+            continue
+        summary.companies_erased += 1
 
     await db.commit()
     logger.info("tombstone replay: %s", summary)

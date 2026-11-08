@@ -1,6 +1,7 @@
 """Operator plane (board card "Operator plane"): tenant list, suspend,
-unsuspend, export and the plan override. Every route sits behind core.ops.require_superadmin;
-anyone not on the allow-list gets a 404, as if the routes did not exist."""
+unsuspend, export, delete and the plan override. Every route sits behind
+core.ops.require_superadmin; anyone not on the allow-list gets a 404, as if
+the routes did not exist."""
 
 import uuid
 from datetime import UTC, datetime
@@ -8,17 +9,20 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import DbSession
-from app.core.ops import require_superadmin
+from app.core.ops import Superadmin, require_superadmin
 from app.models import Company, CompanyPlan
 from app.schemas.ops import (
+    DeleteTenantRequest,
     OpsExportJob,
     OpsExportUser,
+    OpsTenantDeleted,
     OpsTenantExport,
     OpsTenantOut,
     PlanOverrideRequest,
     SuspendRequest,
 )
 from app.services import ops as ops_service
+from app.services.erasure import TenantStorageError
 
 router = APIRouter(prefix="/ops", tags=["ops"], dependencies=[Depends(require_superadmin)])
 
@@ -84,6 +88,50 @@ async def set_plan_override(
     plan = CompanyPlan(payload.plan_override) if payload.plan_override is not None else None
     await ops_service.set_plan_override(db, company, plan=plan, end_trial=payload.end_trial)
     return _out(await ops_service.counts(db, company))
+
+
+@router.delete("/tenants/{company_id}", response_model=OpsTenantDeleted)
+async def delete_tenant(
+    company_id: uuid.UUID, payload: DeleteTenantRequest, db: DbSession, operator: Superadmin
+) -> OpsTenantDeleted:
+    """Delete a tenant and everything it owns. Irreversible, so three guards:
+    the tenant must be suspended first (its users are already locked out
+    and had the reason), the caller types its slug back, and an operator
+    cannot delete the workspace their own account lives in. CVs and the
+    logo go first; a storage failure leaves the tenant untouched (503)."""
+    company = await _tenant(db, company_id)
+    if company.suspended_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Suspend the tenant before deleting it",
+        )
+    if payload.confirm_slug.strip() != company.slug:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="confirm_slug does not match the tenant's slug",
+        )
+    if operator.company_id == company.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You cannot delete the workspace your own account belongs to",
+        )
+    slug = company.slug
+    try:
+        summary = await ops_service.delete_tenant(db, company)
+    except TenantStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Object storage cleanup failed; nothing was deleted, try again",
+        ) from exc
+    return OpsTenantDeleted(
+        id=company_id,
+        slug=slug,
+        users=summary.users,
+        jobs=summary.jobs,
+        candidates=summary.candidates,
+        applications=summary.applications,
+        storage_objects=summary.storage_objects,
+    )
 
 
 @router.get("/tenants/{company_id}/export", response_model=OpsTenantExport)
