@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { relativeTime } from "./time";
+import { relativeTime, shortTime } from "./time";
 
 describe("relativeTime", () => {
   const now = new Date("2026-08-17T12:00:00Z");
@@ -22,5 +22,13 @@ describe("formatDay", () => {
   it("formats day, short month and year", async () => {
     const { formatDay } = await import("./time");
     expect(formatDay(new Date(2026, 9, 31, 12, 0).toISOString())).toBe("31 Oct 2026");
+  });
+});
+
+describe("shortTime", () => {
+  it("formats a time of day and is empty for anything unusable", () => {
+    expect(shortTime("2026-11-08T17:13:00Z")).toMatch(/^\d{2}:\d{2}$/);
+    expect(shortTime("not a date")).toBe("");
+    expect(shortTime(undefined)).toBe("");
   });
 });

@@ -21,6 +21,9 @@ export interface UserOut {
   /** Login response only: the password passed, a code is needed next. */
   mfa_required?: boolean;
   mfa_token?: string | null;
+  /** GET /auth/me only: the instance operator is viewing this account
+   * (read-only) until this time; the admin shell shows a banner. */
+  impersonation_expires_at?: string | null;
 }
 
 /** Per-tenant guards this instance enforces (GANEK_QUOTA_*); 0 = off. */
@@ -310,6 +313,8 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
+  /** Operator plane: leave a read-only impersonation, back to the operator's own account. */
+  endImpersonation: () => request<void>("/api/v1/ops/impersonation", { method: "DELETE" }),
   /** Login step two: the authenticator code or a recovery code. */
   mfaVerify: (payload: { mfa_token: string; code: string }) =>
     request<UserOut>("/api/v1/auth/mfa", { method: "POST", body: JSON.stringify(payload) }),

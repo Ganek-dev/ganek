@@ -25,7 +25,7 @@ import {
   type TaskItem,
   type TodayPanelData,
 } from "@/lib/api";
-import { relativeTime } from "@/lib/time";
+import { relativeTime, shortTime } from "@/lib/time";
 
 /** Dashboard 06 right-rail trio: Today (this user's booked interviews),
  * Your queue (derived + manual tasks), Activity feed. Each panel fetches
@@ -317,6 +317,15 @@ function activityCopy(item: ActivityItem): string {
       if (p.trial_ended) parts.push(parts.length ? "trial ended" : "Trial ended");
       return `${parts.join(", ") || "Plan updated"} by the instance operator`;
     }
+    case "tenant.impersonation_started": {
+      const until = shortTime(p.expires_at);
+      return (
+        `The instance operator viewed the workspace as ${String(p.user ?? "a user")}` +
+        ` (read-only${until ? `, until ${until}` : ""})`
+      );
+    }
+    case "tenant.impersonation_ended":
+      return `The instance operator stopped viewing the workspace as ${String(p.user ?? "a user")}`;
     case "applications.bulk_rejected":
       return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {

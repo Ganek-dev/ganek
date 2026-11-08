@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.ratelimit import rate_limit
 from app.core.security import (
     EMAIL_VERIFY_MAX_AGE_SECONDS,
+    IMPERSONATION_COOKIE_NAME,
     PASSWORD_RESET_MAX_AGE_SECONDS,
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
@@ -21,7 +22,7 @@ from app.core.security import (
     read_password_reset_token,
     verify_password,
 )
-from app.core.tenancy import reject_suspended
+from app.core.tenancy import impersonation_of, reject_suspended
 from app.models import Company, User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -272,11 +273,17 @@ async def providers() -> dict[str, bool | str | dict[str, int] | dict[str, str]]
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE_NAME)
+    response.delete_cookie(IMPERSONATION_COOKIE_NAME)
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: CurrentUser) -> User:
-    return user
+async def me(user: CurrentUser, request: Request) -> UserOut:
+    out = UserOut.model_validate(user)
+    claim = impersonation_of(request)
+    if claim is not None:
+        # the admin shell shows the operator banner until this time
+        out.impersonation_expires_at = claim.expires_at
+    return out
 
 
 @router.post(

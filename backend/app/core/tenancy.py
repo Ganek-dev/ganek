@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import SESSION_COOKIE_NAME, read_session_token
+from app.core.security import (
+    IMPERSONATION_COOKIE_NAME,
+    SESSION_COOKIE_NAME,
+    ImpersonationClaim,
+    read_impersonation_token,
+    read_session_token,
+)
 from app.models import ApiKey, Company, User, UserRole
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -59,8 +65,54 @@ async def get_current_user(request: Request, db: DbSession) -> User:
         # unknown, deactivated, or a session predating a password change /
         # forced logout - all rejected as unauthenticated
         raise _UNAUTHENTICATED
+    impersonated = await _impersonated_user(request, db, user)
+    if impersonated is not None:
+        user = impersonated
     reject_suspended(await db.get(Company, user.company_id))
     return user
+
+
+# what an impersonating operator may send: reads only, so nothing the
+# tenant sees afterwards was done in a tenant user's name
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+IMPERSONATION_READ_ONLY_DETAIL = (
+    "Read-only while impersonating. End the impersonation to make changes."
+)
+
+
+def impersonation_of(request: Request) -> ImpersonationClaim | None:
+    """The impersonation get_current_user honoured on this request, if any."""
+    claim = getattr(request.state, "impersonation", None)
+    return claim if isinstance(claim, ImpersonationClaim) else None
+
+
+async def _impersonated_user(request: Request, db: AsyncSession, session_user: User) -> User | None:
+    """Operator plane: a superadmin's session plus a valid impersonation
+    cookie reads as the tenant user named in it, for one hour and for reads
+    only. A cookie that is expired, forged, minted for another operator or
+    for an older token version is ignored, so the operator is simply back
+    in their own account."""
+    token = request.cookies.get(IMPERSONATION_COOKIE_NAME)
+    claim = read_impersonation_token(token) if token else None
+    if claim is None:
+        return None
+    from app.core.ops import superadmin_ids  # local: core.ops imports this module
+
+    if (
+        claim.operator_id != session_user.id
+        or claim.operator_version != session_user.token_version
+        or session_user.id not in superadmin_ids()
+    ):
+        return None
+    target = await db.get(User, claim.user_id)
+    if target is None or not target.is_active or target.token_version != claim.user_version:
+        return None
+    if request.method not in _READ_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=IMPERSONATION_READ_ONLY_DETAIL
+        )
+    request.state.impersonation = claim
+    return target
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

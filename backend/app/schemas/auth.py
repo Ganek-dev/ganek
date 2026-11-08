@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -66,6 +67,9 @@ class UserOut(BaseModel):
     # mfa_token proves that to POST /auth/mfa. No session cookie yet.
     mfa_required: bool = False
     mfa_token: str | None = None
+    # GET /auth/me only: set while the instance operator is viewing this
+    # account through an impersonation (read-only, ends at this time)
+    impersonation_expires_at: datetime | None = None
 
 
 class MfaVerifyRequest(BaseModel):

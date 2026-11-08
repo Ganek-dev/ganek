@@ -55,6 +55,8 @@ def _ops_calls(company_id: str) -> list[tuple[str, str, dict[str, Any] | None]]:
         ("GET", f"/api/v1/ops/tenants/{company_id}/export", None),
         ("PUT", f"/api/v1/ops/tenants/{company_id}/plan", {"plan_override": "team"}),
         ("DELETE", f"/api/v1/ops/tenants/{company_id}", {"confirm_slug": "x"}),
+        ("POST", f"/api/v1/ops/tenants/{company_id}/impersonate", {}),
+        ("DELETE", "/api/v1/ops/impersonation", None),
     ]
 
 
@@ -338,3 +340,143 @@ async def test_plan_override_lifts_limits_and_tells_the_tenant(
         {"plan": "team", "previous": None, "trial_ended": False},
     ]
     assert all(e["actor_email"] is None for e in events)
+
+
+def _jar(client: AsyncClient) -> dict[str, str]:
+    return {name: value for name, value in client.cookies.items()}
+
+
+@db_required
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_impersonation_reads_as_the_tenant_admin_and_tells_the_tenant(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.security import IMPERSONATION_COOKIE_NAME
+    from app.core.tenancy import IMPERSONATION_READ_ONLY_DETAIL
+
+    tenant = await _register(client)
+    company_id = (await client.get("/api/v1/auth/me")).json()["company_id"]
+    tenant_cookies = _jar(client)
+    operator = await _register(client)
+    monkeypatch.setattr(settings, "superadmin_user_ids", operator["id"])
+
+    assert (
+        await client.post(f"/api/v1/ops/tenants/{uuid4()}/impersonate", json={})
+    ).status_code == 404
+    unknown_user = await client.post(
+        f"/api/v1/ops/tenants/{company_id}/impersonate", json={"user_id": str(uuid4())}
+    )
+    assert unknown_user.status_code == 404
+    # a user of another tenant (the operator's own) cannot be picked through this tenant
+    other = await client.post(
+        f"/api/v1/ops/tenants/{company_id}/impersonate", json={"user_id": operator["id"]}
+    )
+    assert other.status_code == 404
+    assert IMPERSONATION_COOKIE_NAME not in _jar(client)
+
+    started = await client.post(f"/api/v1/ops/tenants/{company_id}/impersonate", json={})
+    assert started.status_code == 200, started.text
+    body = started.json()
+    assert body["user_id"] == tenant["id"] and body["email"] == tenant["email"]
+    expires_at = datetime.fromisoformat(body["expires_at"])
+    remaining = expires_at - datetime.now(UTC)
+    assert timedelta(minutes=59) < remaining <= timedelta(hours=1)
+    assert IMPERSONATION_COOKIE_NAME in _jar(client)
+
+    # the admin app now reads as the tenant admin, with the banner's end time
+    me = await client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json()["id"] == tenant["id"] and me.json()["company_id"] == company_id
+    assert datetime.fromisoformat(me.json()["impersonation_expires_at"]) == expires_at
+    assert (await client.get("/api/v1/company")).json()["slug"] == tenant["slug"]
+
+    # reads only: a write in the tenant's name is refused and changes nothing
+    job = await client.post("/api/v1/jobs", json={"title": "Sneaky", "description_md": "x"})
+    assert job.status_code == 403 and job.json()["detail"] == IMPERSONATION_READ_ONLY_DETAIL
+    jobs = await client.get("/api/v1/jobs")
+    assert jobs.status_code == 200 and "Sneaky" not in jobs.text
+    # the operator plane itself still answers to the operator's own session
+    assert (await client.get("/api/v1/ops/tenants")).status_code == 200
+
+    # ending it puts the operator back in their own account
+    ended = await client.delete("/api/v1/ops/impersonation")
+    assert ended.status_code == 204
+    assert IMPERSONATION_COOKIE_NAME not in _jar(client)
+    me = await client.get("/api/v1/auth/me")
+    assert me.json()["id"] == operator["id"] and me.json()["impersonation_expires_at"] is None
+    # ending twice is a no-op
+    assert (await client.delete("/api/v1/ops/impersonation")).status_code == 204
+
+    # the tenant sees both entries, as whom and until when, never the operator
+    client.cookies.clear()
+    client.cookies.update(tenant_cookies)
+    feed = (await client.get("/api/v1/activity")).json()
+    events = [e for e in feed if e["type"].startswith("tenant.impersonation")]
+    assert [e["type"] for e in events] == [
+        "tenant.impersonation_ended",
+        "tenant.impersonation_started",
+    ]
+    assert all(e["actor_email"] is None for e in events)
+    assert events[1]["payload"]["user"] == tenant["email"]
+    assert datetime.fromisoformat(events[1]["payload"]["expires_at"]) == expires_at
+    assert operator["email"] not in str(events)
+
+
+@db_required
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_impersonation_cookie_is_useless_expired_or_off_the_allow_list(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import itsdangerous.timed
+
+    from app.core.security import IMPERSONATION_COOKIE_NAME, create_impersonation_token
+
+    tenant = await _register(client)
+    company_id = (await client.get("/api/v1/auth/me")).json()["company_id"]
+    tenant_cookies = _jar(client)
+    operator = await _register(client)
+    monkeypatch.setattr(settings, "superadmin_user_ids", operator["id"])
+    started = await client.post(f"/api/v1/ops/tenants/{company_id}/impersonate", json={})
+    assert started.status_code == 200, started.text
+    cookie = _jar(client)[IMPERSONATION_COOKIE_NAME]
+
+    # the operator dropped from the allow-list: the cookie stops working at once
+    monkeypatch.setattr(settings, "superadmin_user_ids", "")
+    assert (await client.get("/api/v1/auth/me")).json()["id"] == operator["id"]
+    monkeypatch.setattr(settings, "superadmin_user_ids", operator["id"])
+    assert (await client.get("/api/v1/auth/me")).json()["id"] == tenant["id"]
+
+    # the cookie on someone else's session (the tenant's own) does nothing
+    client.cookies.clear()
+    client.cookies.update(tenant_cookies)
+    client.cookies.set(IMPERSONATION_COOKIE_NAME, cookie)
+    assert (await client.get("/api/v1/auth/me")).json()["id"] == tenant["id"]
+    job = await client.post("/api/v1/jobs", json={"title": "Own work", "description_md": "x"})
+    assert job.status_code == 201, job.text  # not read-only: no impersonation applies
+
+    # past one hour the signature expires and the operator is themselves again
+    await _login(client, operator["email"])
+    real_time = itsdangerous.timed.time.time
+    monkeypatch.setattr(itsdangerous.timed.time, "time", lambda: real_time() - 3601)
+    stale = create_impersonation_token(UUID(operator["id"]), 0, UUID(tenant["id"]), 0)
+    monkeypatch.setattr(itsdangerous.timed.time, "time", real_time)
+    client.cookies.set(IMPERSONATION_COOKIE_NAME, stale)
+    me = (await client.get("/api/v1/auth/me")).json()
+    assert me["id"] == operator["id"] and me["impersonation_expires_at"] is None
+
+    # a suspended tenant cannot be impersonated
+    assert (
+        await client.post(f"/api/v1/ops/tenants/{company_id}/suspend", json={"reason": "x"})
+    ).status_code == 200
+    blocked = await client.post(f"/api/v1/ops/tenants/{company_id}/impersonate", json={})
+    assert blocked.status_code == 409
+
+    # signing out clears the impersonation cookie too
+    await client.post(f"/api/v1/ops/tenants/{company_id}/unsuspend")
+    client.cookies.clear()  # drop the hand-set cookies, keep only server-set ones
+    await _login(client, operator["email"])
+    assert (
+        await client.post(f"/api/v1/ops/tenants/{company_id}/impersonate", json={})
+    ).status_code == 200
+    await client.post("/api/v1/auth/logout")
+    assert IMPERSONATION_COOKIE_NAME not in _jar(client)

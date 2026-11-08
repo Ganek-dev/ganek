@@ -125,6 +125,8 @@ OPS_ONLY: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/v1/ops/tenants/{company_id}/export"),
         ("PUT", "/api/v1/ops/tenants/{company_id}/plan"),
         ("DELETE", "/api/v1/ops/tenants/{company_id}"),
+        ("POST", "/api/v1/ops/tenants/{company_id}/impersonate"),
+        ("DELETE", "/api/v1/ops/impersonation"),
     }
 )
 

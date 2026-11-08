@@ -37,3 +37,11 @@ export function formatDateTime(iso: string, timeZone?: string): string {
     return date.toLocaleString("en-GB", opts);
   }
 }
+
+/** "18:13", local time of the viewer; "" for a missing or unparseable value. */
+export function shortTime(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}

@@ -1,20 +1,29 @@
 """Operator plane (board card "Operator plane"): tenant list, suspend,
-unsuspend, export, delete and the plan override. Every route sits behind
+unsuspend, export, delete, the plan override and read-only impersonation. Every route sits behind
 core.ops.require_superadmin; anyone not on the allow-list gets a 404, as if
 the routes did not exist."""
 
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import DbSession
+from app.core.config import settings
 from app.core.ops import Superadmin, require_superadmin
-from app.models import Company, CompanyPlan
+from app.core.security import (
+    IMPERSONATION_COOKIE_NAME,
+    IMPERSONATION_MAX_AGE_SECONDS,
+    create_impersonation_token,
+    read_impersonation_token,
+)
+from app.models import Company, CompanyPlan, User
 from app.schemas.ops import (
     DeleteTenantRequest,
+    ImpersonateRequest,
     OpsExportJob,
     OpsExportUser,
+    OpsImpersonationOut,
     OpsTenantDeleted,
     OpsTenantExport,
     OpsTenantOut,
@@ -172,3 +181,60 @@ async def export_tenant(company_id: uuid.UUID, db: DbSession) -> OpsTenantExport
         ],
         candidates=data.candidates,
     )
+
+
+@router.post("/tenants/{company_id}/impersonate", response_model=OpsImpersonationOut)
+async def impersonate(
+    company_id: uuid.UUID,
+    payload: ImpersonateRequest,
+    response: Response,
+    db: DbSession,
+    operator: Superadmin,
+) -> OpsImpersonationOut:
+    """See the admin app as a tenant user, without their password: a second
+    cookie, bound to this operator's session, that lasts one hour and only
+    allows reads. The tenant's activity feed records it (as whom, until
+    when) and the admin shell shows a banner the whole time."""
+    company = await _tenant(db, company_id)
+    if company.suspended_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unsuspend the tenant first: its users cannot use the admin app",
+        )
+    try:
+        user = await ops_service.impersonation_target(db, company, payload.user_id)
+    except ops_service.ImpersonationTargetError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
+    token = create_impersonation_token(
+        operator.id, operator.token_version, user.id, user.token_version
+    )
+    claim = read_impersonation_token(token)
+    assert claim is not None  # just signed
+    response.set_cookie(
+        IMPERSONATION_COOKIE_NAME,
+        token,
+        max_age=IMPERSONATION_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+    )
+    await ops_service.start_impersonation(db, company, user, expires_at=claim.expires_at)
+    return OpsImpersonationOut(
+        user_id=user.id, email=user.email, role=user.role.value, expires_at=claim.expires_at
+    )
+
+
+@router.delete("/impersonation", status_code=status.HTTP_204_NO_CONTENT)
+async def end_impersonation(
+    request: Request, response: Response, db: DbSession, operator: Superadmin
+) -> None:
+    """End the impersonation early. Idempotent: with no live cookie it only
+    clears whatever is left of it; an expired one already ended on its own."""
+    token = request.cookies.get(IMPERSONATION_COOKIE_NAME)
+    claim = read_impersonation_token(token) if token else None
+    response.delete_cookie(IMPERSONATION_COOKIE_NAME)
+    if claim is None or claim.operator_id != operator.id:
+        return
+    user = await db.get(User, claim.user_id)
+    if user is not None:
+        await ops_service.end_impersonation(db, user)
