@@ -260,6 +260,22 @@ describe("ActivityPanel", () => {
         application_id: null,
         created_at: new Date(Date.now() - 32_400_000).toISOString(),
       },
+      {
+        id: "a10",
+        type: "tenant.plan_overridden",
+        payload: { plan: "team", previous: null, trial_ended: true },
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 36_000_000).toISOString(),
+      },
+      {
+        id: "a11",
+        type: "tenant.plan_overridden",
+        payload: { plan: null, previous: "team", trial_ended: false },
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 39_600_000).toISOString(),
+      },
     ]);
     render(<ActivityPanel />);
     expect(
@@ -282,6 +298,12 @@ describe("ActivityPanel", () => {
     expect(screen.getByText("Workspace restored by the instance operator")).toBeInTheDocument();
     expect(
       screen.getByText("Workspace data exported by the instance operator"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Plan set to team, trial ended by the instance operator"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Plan override removed by the instance operator"),
     ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();

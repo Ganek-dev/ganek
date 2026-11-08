@@ -7,6 +7,8 @@ config); then the 402 links to the in-app billing page and the billing
 routes mount. B1d adds the 14-day Team trial without a card: it lives in
 ``billing_accounts.trial_ends_at`` (Q9), a Free company counts as Team
 while it runs and is Free again after it (B1b over-limit rule, Q8).
+The operator plan override (``billing_accounts.plan_override``, Q21) wins
+over both: set by a superadmin, never by the webhook.
 """
 
 import os
@@ -18,6 +20,7 @@ from sqlalchemy import inspect
 
 from app.core import urls
 from app.core.plans import UNLIMITED, PlanLimits, PoweredBy
+from app.models import BillingAccount
 from app.models.company import Company, CompanyPlan
 from ganek_ee.billing.config import stripe_config_from_env
 
@@ -42,19 +45,33 @@ def now() -> datetime:
     return datetime.now(UTC)
 
 
-def trial_end(company: Company) -> datetime | None:
-    """The stored trial end, running or not. Read only when the billing
-    row came with the company (the relationship is eager): an async session
-    must never lazy-load inside the sync policy."""
+def _account(company: Company) -> BillingAccount | None:
+    """The billing row, only when it came with the company (the relationship
+    is eager): an async session must never lazy-load inside the sync policy."""
     if "billing_account" in inspect(company).unloaded:
         return None
-    account = company.billing_account
+    return company.billing_account
+
+
+def trial_end(company: Company) -> datetime | None:
+    """The stored trial end, running or not."""
+    account = _account(company)
     return account.trial_ends_at if account is not None else None
 
 
+def plan_override(company: Company) -> CompanyPlan | None:
+    """The operator override (Q21), None = the Stripe-synced plan decides."""
+    account = _account(company)
+    return account.plan_override if account is not None else None
+
+
 def effective_plan(company: Company) -> CompanyPlan:
-    """A Free company on a running trial counts as Team. A paid plan wins
-    over a trial (it is already paid for)."""
+    """The operator override wins over everything. Otherwise a Free company
+    on a running trial counts as Team; a paid plan wins over a trial (it is
+    already paid for)."""
+    override = plan_override(company)
+    if override is not None:
+        return override
     if company.plan is CompanyPlan.FREE:
         end = trial_end(company)
         if end is not None and end > now():
@@ -84,7 +101,8 @@ class HostedPolicy:
         return os.environ.get(UPGRADE_URL_ENV) or None
 
     def trial_ends_at(self, company: Company) -> datetime | None:
-        if company.plan is not CompanyPlan.FREE:
+        # an override decides the plan on its own: no trial is running then
+        if company.plan is not CompanyPlan.FREE or plan_override(company) is not None:
             return None
         end = trial_end(company)
         return end if end is not None and end > now() else None

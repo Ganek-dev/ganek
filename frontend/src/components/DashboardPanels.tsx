@@ -309,6 +309,14 @@ function activityCopy(item: ActivityItem): string {
       return "Workspace restored by the instance operator";
     case "tenant.exported":
       return "Workspace data exported by the instance operator";
+    case "tenant.plan_overridden": {
+      const parts: string[] = [];
+      if (p.plan !== p.previous) {
+        parts.push(p.plan ? `Plan set to ${String(p.plan)}` : "Plan override removed");
+      }
+      if (p.trial_ended) parts.push(parts.length ? "trial ended" : "Trial ended");
+      return `${parts.join(", ") || "Plan updated"} by the instance operator`;
+    }
     case "applications.bulk_rejected":
       return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {

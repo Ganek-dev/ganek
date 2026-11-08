@@ -63,7 +63,8 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # read side of the ee/ billing row (card B1d): the hosted policy needs
     # the DB-held trial end to work out the effective plan synchronously, so
     # it is loaded with the company (one indexed SELECT, nothing when absent).
-    # viewonly: only ee/ writes billing_accounts, through its own store.
+    # viewonly: ee/ writes billing_accounts through its own store, the
+    # operator plane writes plan_override (services/ops.py).
     billing_account: Mapped["BillingAccount | None"] = relationship(
         lazy="selectin", viewonly=True, uselist=False
     )

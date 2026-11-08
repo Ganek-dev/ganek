@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,8 +14,20 @@ class OpsTenantOut(BaseModel):
     created_at: datetime
     suspended_at: datetime | None
     suspension_reason: str | None
+    # billing: the Stripe-synced plan, the operator override over it (Q21)
+    # and the stored trial end (running when in the future)
+    plan: str
+    plan_override: str | None
+    trial_ends_at: datetime | None
     users: int
     jobs: int
+
+
+class PlanOverrideRequest(BaseModel):
+    # null clears the override; self_hosted is not a hosted plan
+    plan_override: Literal["free", "starter", "team"] | None
+    # end a running trial now (it cannot be started again afterwards)
+    end_trial: bool = False
 
 
 class SuspendRequest(BaseModel):

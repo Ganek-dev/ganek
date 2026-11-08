@@ -2,15 +2,20 @@
 is a 404 for everyone off the allow-list, and a suspended tenant loses its
 public pages, sign-in, sessions and API keys until it is unsuspended."""
 
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
+from app.core import plans
 from app.core.config import settings
 from app.core.ops import superadmin_ids
+from app.core.plans import UNLIMITED, PlanLimits, PoweredBy
 from app.core.tenancy import PUBLIC_UNAVAILABLE_DETAIL
+from app.models import CompanyPlan
 from tests.db import database_reachable
 
 PASSWORD = "a-long-secure-password"
@@ -48,6 +53,7 @@ def _ops_calls(company_id: str) -> list[tuple[str, str, dict[str, Any] | None]]:
         ("POST", f"/api/v1/ops/tenants/{company_id}/suspend", {}),
         ("POST", f"/api/v1/ops/tenants/{company_id}/unsuspend", None),
         ("GET", f"/api/v1/ops/tenants/{company_id}/export", None),
+        ("PUT", f"/api/v1/ops/tenants/{company_id}/plan", {"plan_override": "team"}),
     ]
 
 
@@ -220,3 +226,114 @@ async def test_export_returns_the_whole_tenant_and_tells_the_tenant(
     feed = (await client.get("/api/v1/activity")).json()
     exported = [e for e in feed if e["type"] == "tenant.exported"]
     assert len(exported) == 1 and exported[0]["actor_email"] is None
+
+
+class _OverridePolicy:
+    """Stand-in for the hosted policy (the core suite runs without ee/):
+    Free allows 1 live job unless the billing row the company carries has
+    an override. The real precedence is covered by ee/backend/tests; this
+    proves the override reaches the policy on the tenant's next request."""
+
+    name = "test_override"
+    billing_enabled = False
+    signup_plan = CompanyPlan.FREE
+
+    def _plan(self, company: Any) -> CompanyPlan:
+        account = company.billing_account
+        if account is not None and account.plan_override is not None:
+            return cast(CompanyPlan, account.plan_override)
+        return cast(CompanyPlan, company.plan)
+
+    def limits(self, company: Any) -> PlanLimits:
+        return PlanLimits(max_live_jobs=1) if self._plan(company) is CompanyPlan.FREE else UNLIMITED
+
+    def can_publish(self, company: Any, live_jobs: int) -> bool:
+        limit = self.limits(company).max_live_jobs
+        return limit is None or live_jobs < limit
+
+    def upgrade_url(self, company: Any) -> None:
+        return None
+
+    def trial_ends_at(self, company: Any) -> None:
+        return None
+
+    def powered_by(self, company: Any) -> PoweredBy:
+        return PoweredBy.NONE
+
+
+async def _publish(client: AsyncClient, title: str) -> int:
+    job = await client.post("/api/v1/jobs", json={"title": title})
+    assert job.status_code == 201, job.text
+    return (await client.post(f"/api/v1/jobs/{job.json()['id']}/publish")).status_code
+
+
+@db_required
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_plan_override_lifts_limits_and_tells_the_tenant(
+    client: AsyncClient, db_session: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.models import BillingAccount
+
+    monkeypatch.setattr(settings, "quota_active_jobs", 0)
+    monkeypatch.setattr(plans, "get_plan_policy", lambda: _OverridePolicy())
+    await _register(client)
+    company_id = (await client.get("/api/v1/auth/me")).json()["company_id"]
+    assert await _publish(client, "First Role") == 200
+    assert await _publish(client, "Second Role") == 402
+    tenant_cookies = dict(client.cookies)
+
+    operator = await _register(client)
+    monkeypatch.setattr(settings, "superadmin_user_ids", operator["id"])
+    url = f"/api/v1/ops/tenants/{company_id}/plan"
+    assert (await client.put(url, json={"plan_override": "self_hosted"})).status_code == 422
+    assert (
+        await client.put(f"/api/v1/ops/tenants/{uuid4()}/plan", json={"plan_override": "team"})
+    ).status_code == 404
+
+    # clearing with no billing row is a no-op that writes nothing
+    cleared = await client.put(url, json={"plan_override": None})
+    assert cleared.status_code == 200 and cleared.json()["plan_override"] is None
+
+    set_team = await client.put(url, json={"plan_override": "team"})
+    assert set_team.status_code == 200, set_team.text
+    assert set_team.json()["plan"] == "free" and set_team.json()["plan_override"] == "team"
+    # the operator list shows the override column
+    listed = (await client.get("/api/v1/ops/tenants")).json()
+    row = next(t for t in listed if t["id"] == company_id)
+    assert row["plan"] == "free" and row["plan_override"] == "team"
+    assert row["trial_ends_at"] is None
+    # setting the same value again records nothing
+    assert (await client.put(url, json={"plan_override": "team"})).status_code == 200
+
+    # the tenant's next publish follows the override at once
+    operator_cookies = dict(client.cookies)
+    client.cookies.clear()
+    client.cookies.update(tenant_cookies)
+    assert await _publish(client, "Third Role") == 200
+    # the tenant cannot reach the route (the /ops gate answers 404)
+    assert (await client.put(url, json={"plan_override": None})).status_code == 404
+
+    # a running trial: the operator ends it and clears the override in one call
+    account = await db_session.scalar(
+        select(BillingAccount).where(BillingAccount.company_id == UUID(company_id))
+    )
+    account.trial_ends_at = datetime.now(UTC) + timedelta(days=10)
+    await db_session.commit()
+    client.cookies.clear()
+    client.cookies.update(operator_cookies)
+    ended = await client.put(url, json={"plan_override": None, "end_trial": True})
+    assert ended.status_code == 200, ended.text
+    assert ended.json()["plan_override"] is None
+    trial_end = datetime.fromisoformat(ended.json()["trial_ends_at"])
+    assert trial_end <= datetime.now(UTC)
+
+    client.cookies.clear()
+    client.cookies.update(tenant_cookies)
+    assert await _publish(client, "Fourth Role") == 402
+    feed = (await client.get("/api/v1/activity")).json()
+    events = [e for e in feed if e["type"] == "tenant.plan_overridden"]
+    assert [e["payload"] for e in events] == [
+        {"plan": None, "previous": "team", "trial_ended": True},
+        {"plan": "team", "previous": None, "trial_ended": False},
+    ]
+    assert all(e["actor_email"] is None for e in events)
