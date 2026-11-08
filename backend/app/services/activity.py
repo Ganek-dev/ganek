@@ -43,6 +43,8 @@ SCORECARD_SUBMITTED = "scorecard.submitted"
 SCORECARD_DECLINED = "scorecard.declined"
 SCORECARD_DISMISSED = "scorecard.dismissed"
 JOB_AUTO_CLOSED = "job.auto_closed"
+TENANT_SUSPENDED = "tenant.suspended"  # by the instance operator (api/ops.py)
+TENANT_UNSUSPENDED = "tenant.unsuspended"
 
 
 def record(

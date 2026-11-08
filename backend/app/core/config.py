@@ -108,5 +108,9 @@ class Settings(BaseSettings):
     # account (password, 2FA, invites, user admin, Google) answer 403.
     demo_mode: bool = False
 
+    # Operator plane (api/ops.py): comma-separated user ids allowed on
+    # /api/v1/ops. Empty = the ops routes do not exist (every caller gets 404).
+    superadmin_user_ids: str = ""
+
 
 settings = Settings()

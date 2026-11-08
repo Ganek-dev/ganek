@@ -21,7 +21,8 @@ from app.core.security import (
     read_password_reset_token,
     verify_password,
 )
-from app.models import User
+from app.core.tenancy import reject_suspended
+from app.models import Company, User
 from app.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -132,6 +133,8 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Use
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
+    # right password, suspended tenant: say why instead of a bare failure
+    reject_suspended(await db.get(Company, user.company_id))
     if mfa_service.enabled(user):
         # first factor passed; no cookie until the code is right
         return _mfa_challenge(user)
@@ -159,6 +162,7 @@ async def mfa_verify(payload: MfaVerifyRequest, response: Response, db: DbSessio
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in again to continue"
         )
+    reject_suspended(await db.get(Company, user.company_id))
     try:
         await mfa_service.verify(db, user, payload.code)
     except mfa_service.MfaLockedError:

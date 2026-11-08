@@ -21,6 +21,32 @@ _UNAUTHENTICATED = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
 )
 
+# what a candidate sees on a suspended tenant's careers page: nothing about why
+PUBLIC_UNAVAILABLE_DETAIL = "This careers page is temporarily unavailable"
+
+
+def suspended_detail(company: Company) -> str:
+    reason = (company.suspension_reason or "").strip()
+    return (
+        "This workspace is suspended"
+        + (f": {reason}" if reason else "")
+        + ". Contact the instance operator to restore access."
+    )
+
+
+def reject_suspended(company: Company | None) -> None:
+    """Sign-in, sessions and API keys of a suspended tenant (operator plane)
+    answer 403 with the operator's reason, so the admin login can show it."""
+    if company is not None and company.suspended_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=suspended_detail(company))
+
+
+def _reject_suspended_public(company: Company) -> None:
+    if company.suspended_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=PUBLIC_UNAVAILABLE_DETAIL
+        )
+
 
 async def get_current_user(request: Request, db: DbSession) -> User:
     token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -33,6 +59,7 @@ async def get_current_user(request: Request, db: DbSession) -> User:
         # unknown, deactivated, or a session predating a password change /
         # forced logout - all rejected as unauthenticated
         raise _UNAUTHENTICATED
+    reject_suspended(await db.get(Company, user.company_id))
     return user
 
 
@@ -102,13 +129,15 @@ async def _key_and_company(db: AsyncSession, token: str, *, write: bool) -> tupl
     from app.services import api_keys  # local: services import tenancy types
 
     try:
-        return await api_keys.authenticate_key(db, token, write=write)
+        key, company = await api_keys.authenticate_key(db, token, write=write)
     except api_keys.KeyRejected:
         raise _UNAUTHENTICATED from None
     except api_keys.ScopeTooLow:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="This API key is read-only"
         ) from None
+    reject_suspended(company)
+    return key, company
 
 
 async def _staff_session_user(request: Request, db: DbSession) -> User:
@@ -182,6 +211,7 @@ async def get_company_by_slug(slug: str, db: DbSession) -> Company:
     company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one_or_none()
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    _reject_suspended_public(company)
     return company
 
 
@@ -203,6 +233,7 @@ async def get_single_company(db: DbSession) -> Company:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Instance is not set up yet"
         )
+    _reject_suspended_public(company)
     return company
 
 

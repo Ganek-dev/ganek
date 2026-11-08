@@ -114,6 +114,17 @@ NOT_SESSION_GATED: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
+# Operator plane (api/ops.py): its own gate, require_superadmin, answers 404
+# to everyone off GANEK_SUPERADMIN_USER_IDS - reviewers included (asserted
+# below; the full matrix lives in test_ops.py).
+OPS_ONLY: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("GET", "/api/v1/ops/tenants"),
+        ("POST", "/api/v1/ops/tenants/{company_id}/suspend"),
+        ("POST", "/api/v1/ops/tenants/{company_id}/unsuspend"),
+    }
+)
+
 _SESSION_DEPENDENCIES = {
     get_current_user,
     get_api_company,
@@ -267,8 +278,11 @@ async def test_reviewer_allowed_routes(
 def test_route_lists_are_honest() -> None:
     routes = _walk_routes()
     assert not REVIEWER_ALLOWED & NOT_SESSION_GATED
+    assert not OPS_ONLY & (REVIEWER_ALLOWED | NOT_SESSION_GATED)
     # a renamed route must not leave a stale entry that hides its replacement
-    assert not (REVIEWER_ALLOWED | NOT_SESSION_GATED) - routes.keys()
+    assert not (REVIEWER_ALLOWED | NOT_SESSION_GATED | OPS_ONLY) - routes.keys()
+    # every /ops route is in OPS_ONLY, so a new one cannot skip the 404 check
+    assert {key for key in routes if key[1].startswith("/api/v1/ops")} == OPS_ONLY
     # the exclusion list holds only routes that really ignore the session
     assert not [key for key in NOT_SESSION_GATED if _uses_session(routes[key])]
     assert not [key for key in REVIEWER_ALLOWED if not _uses_session(routes[key])]
@@ -321,13 +335,17 @@ async def test_reviewer_gets_403_on_every_other_route(
     run before body and path validation, so 403 must win over 422."""
     await _env(client, db_session)
     routes = _walk_routes()
-    gated = sorted(routes.keys() - REVIEWER_ALLOWED - NOT_SESSION_GATED)
+    gated = sorted(routes.keys() - REVIEWER_ALLOWED - NOT_SESSION_GATED - OPS_ONLY)
     assert len(gated) > 50
     holes: list[str] = []
     for method, path in gated:
         resp = await client.request(method, _fill(path), json={})
         detail = resp.json().get("detail") if resp.status_code == 403 else None
         if resp.status_code != 403 or detail not in {RECRUITER_ONLY, ADMIN_ONLY}:
+            holes.append(f"{method} {path} -> {resp.status_code} {resp.text[:120]}")
+    for method, path in sorted(OPS_ONLY):
+        resp = await client.request(method, _fill(path), json={})
+        if resp.status_code != 404:
             holes.append(f"{method} {path} -> {resp.status_code} {resp.text[:120]}")
     assert not holes, "\n".join(holes)
 

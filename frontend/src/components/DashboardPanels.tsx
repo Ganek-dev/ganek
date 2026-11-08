@@ -300,6 +300,13 @@ function activityCopy(item: ActivityItem): string {
     }
     case "job.auto_closed":
       return `${String(p.job ?? "A job")} closed automatically after its closes-on day`;
+    case "tenant.suspended":
+      return `Workspace suspended by the instance operator: ${String(p.reason ?? "")}`.replace(
+        /: $/,
+        "",
+      );
+    case "tenant.unsuspended":
+      return "Workspace restored by the instance operator";
     case "applications.bulk_rejected":
       return `${item.actor_email ?? "Someone"} rejected ${candidates(p.count)}`;
     case "quiz.finished": {

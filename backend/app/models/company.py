@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import String, Text
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +30,10 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     screening_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     # default scorecard criteria copied into every new job (0042)
     scorecard_template: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    # operator suspension (0049, services/ops.py): set = public pages answer
+    # 503 and every sign-in, session and API key of the tenant is refused
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suspension_reason: Mapped[str | None] = mapped_column(String(500))
 
     users: Mapped[list["User"]] = relationship(back_populates="company")
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")

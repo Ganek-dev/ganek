@@ -117,3 +117,9 @@ Per-tenant abuse guards (`0` turns one off). Admins see the counters on the usag
 | `GANEK_QUOTA_EMAILS_PER_DAY` | `500` | Emails queued per day. |
 | `GANEK_QUOTA_APPLICATIONS_PER_HOUR` | `100` | Application attempts per hour; the public apply endpoint answers 429 past it. |
 | `GANEK_QUOTA_ACTIVE_JOBS` | `50` | Jobs published at once; publishing past it answers 409. |
+
+## Operator plane (hosted instances)
+
+| Variable | Default | What it does |
+|---|---|---|
+| `GANEK_SUPERADMIN_USER_IDS` | empty | Comma-separated user ids allowed on `/api/v1/ops`: list tenants, suspend one with a reason, unsuspend it. Every call is logged. Empty, or a caller not on the list, gets a 404. A suspended tenant's careers pages answer 503 without saying why; its users see the reason when they sign in, and its sessions and API keys are refused until it is unsuspended. The tenant's activity feed records both events, without naming the operator. |
