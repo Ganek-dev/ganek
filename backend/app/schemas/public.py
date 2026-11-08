@@ -74,6 +74,10 @@ class PublicCompanyOut(BaseModel):
     theme: dict[str, Any]
     # BM10 attribution, from the plan policy (badge / credit / none)
     powered_by: PoweredBy = PoweredBy.CREDIT
+    # absolute canonical careers URL (urls.careers_url): the verified custom
+    # domain when the company has one, else the slug URL or the single-mode
+    # root. The frontend builds rel=canonical and the JSON-LD url from it.
+    careers_url: str | None = None
 
 
 class ReissueRequest(BaseModel):

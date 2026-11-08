@@ -104,6 +104,7 @@ async def _company_page(db: DbSession, company: Company) -> PublicCompanyPage:
     jobs = await jobs_service.list_published_jobs(db, company)
     out = PublicCompanyOut.model_validate(company)
     out.powered_by = plans.get_plan_policy().powered_by(company)
+    out.careers_url = urls.careers_url(company)
     return PublicCompanyPage(
         company=out,
         jobs=[PublicJobSummary.model_validate(j) for j in jobs],

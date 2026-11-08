@@ -246,3 +246,30 @@ async def test_by_slug_never_answers_in_single_mode(
     slug, _domain = await _tenant(client, dns)
     monkeypatch.setattr(settings, "mode", "single")
     assert (await _by_slug(client, slug))[0] == 404
+
+
+# --- canonical careers URL on the public page payload (slice 8) -------------
+
+
+async def _careers_url(client: AsyncClient, slug: str) -> str | None:
+    resp = await client.get(f"/api/v1/public/companies/{slug}")
+    assert resp.status_code == 200, resp.text
+    url: str | None = resp.json()["company"]["careers_url"]
+    return url
+
+
+@db_only
+@pytest.mark.usefixtures("migrated_db", "multi", "team")
+async def test_public_page_names_the_verified_domain_as_canonical(
+    client: AsyncClient, dns: dict[str, list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = settings.public_base_url.rstrip("/")
+    slug, domain = await _tenant(client, dns)
+    slug_p, _pending = await _tenant(client, dns, verify=False)
+    client.cookies.clear()
+    assert await _careers_url(client, slug) == f"https://{domain}"
+    # a pending claim keeps the slug URL as canonical
+    assert await _careers_url(client, slug_p) == f"{base}/c/{slug_p}"
+    # a downgrade falls back to the slug URL
+    monkeypatch.setattr(plans, "get_plan_policy", lambda: SelfHostedPolicy())
+    assert await _careers_url(client, slug) == f"{base}/c/{slug}"

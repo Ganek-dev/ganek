@@ -53,6 +53,10 @@ export interface PublicCompany {
   /** BM10 attribution from the plan policy: badge on hosted Free, plain
    * credit on self-host, none on paid plans. Absent = credit. */
   powered_by?: PoweredByMode;
+  /** absolute canonical careers URL: the verified custom domain when the
+   * company has one, else the slug URL (multi) or the root (single).
+   * Absent on older backends: no canonical is emitted then. */
+  careers_url?: string | null;
 }
 
 export type PoweredByMode = "badge" | "credit" | "none";

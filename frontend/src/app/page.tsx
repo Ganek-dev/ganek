@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { CareersFooter, CompanyHero, themeStyle } from "@/components/careers";
 import { JobList } from "@/components/careers-list";
 import { DemoBanner } from "@/components/DemoBanner";
+import { canonicalMetadata } from "@/lib/careers";
 import { parseCareersFilters } from "@/lib/careers-filters";
 import { demoRobots, fetchInstanceInfo, publicApi } from "@/lib/public-api";
 import { resolveSource, sourceSuffix, websiteHostOf } from "@/lib/source";
@@ -23,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${page.company.name} - Careers`,
     description: page.company.description || `Open positions at ${page.company.name}`,
+    ...canonicalMetadata(page.company),
     ...demoRobots(demo),
   };
 }
