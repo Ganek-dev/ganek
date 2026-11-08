@@ -43,6 +43,7 @@ def test_self_hosted_policy_has_no_limits() -> None:
     assert policy.limits(company) == UNLIMITED
     assert policy.can_publish(company, live_jobs=10_000) is True
     assert policy.upgrade_url(company) is None
+    assert list(policy.routers()) == []
 
 
 def test_community_edition_ignores_installed_ee(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -97,6 +98,9 @@ class _OneJob:
 
     def upgrade_url(self, company: Company) -> str | None:
         return "https://example.test/upgrade"
+
+    def routers(self) -> tuple[()]:
+        return ()
 
 
 def test_ensure_can_publish_allows_under_the_limit() -> None:

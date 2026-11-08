@@ -69,6 +69,12 @@ def interview_url(company: Company, interview_token: str) -> str:
     return f"{_base(company)}/interview/{interview_token}"
 
 
+def admin_billing_url(company: Company) -> str:
+    """Billing settings page (hosted only, card B1c): the 402 upgrade link
+    and the Stripe Checkout and portal return address."""
+    return f"{_base(company)}/admin/billing"
+
+
 def admin_applicant_url(company: Company, application_id: object) -> str:
     """The applicant open in the admin list (interviewer mails and invites)."""
     return f"{_base(company)}/admin/applicants?selected={application_id}"
