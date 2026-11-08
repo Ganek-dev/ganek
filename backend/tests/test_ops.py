@@ -47,6 +47,7 @@ def _ops_calls(company_id: str) -> list[tuple[str, str, dict[str, Any] | None]]:
         ("POST", f"/api/v1/ops/tenants/{company_id}/suspend", {"reason": "x"}),
         ("POST", f"/api/v1/ops/tenants/{company_id}/suspend", {}),
         ("POST", f"/api/v1/ops/tenants/{company_id}/unsuspend", None),
+        ("GET", f"/api/v1/ops/tenants/{company_id}/export", None),
     ]
 
 
@@ -169,3 +170,53 @@ async def test_suspend_blocks_the_tenant_and_unsuspend_restores_it(
     assert [e["type"] for e in events] == ["tenant.unsuspended", "tenant.suspended"]
     assert all(e["actor_email"] is None for e in events)
     assert events[1]["payload"] == {"reason": "Unpaid invoice"}
+
+
+@db_required
+@pytest.mark.usefixtures("migrated_db", "multi_mode")
+async def test_export_returns_the_whole_tenant_and_tells_the_tenant(
+    client: AsyncClient, db_session: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.models import Candidate
+
+    tenant = await _register(client)
+    company_id = (await client.get("/api/v1/auth/me")).json()["company_id"]
+    job = await client.post(
+        "/api/v1/jobs", json={"title": "Export Engineer", "description_md": "Ship it."}
+    )
+    assert job.status_code == 201, job.text
+    candidate_email = f"cand-{uuid4().hex[:8]}@ganek-ci.dev"
+    db_session.add(
+        Candidate(company_id=UUID(company_id), email=candidate_email, name="Cara Export", links={})
+    )
+    await db_session.commit()
+    tenant_cookies = dict(client.cookies)
+
+    operator = await _register(client)
+    monkeypatch.setattr(settings, "superadmin_user_ids", operator["id"])
+    assert (await client.get(f"/api/v1/ops/tenants/{uuid4()}/export")).status_code == 404
+
+    resp = await client.get(f"/api/v1/ops/tenants/{company_id}/export")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["tenant"]["id"] == company_id and body["tenant"]["slug"] == tenant["slug"]
+    assert [u["email"] for u in body["users"]] == [tenant["email"]]
+    assert body["users"][0]["role"] == "admin"
+    assert [j["title"] for j in body["jobs"]] == ["Export Engineer"]
+    assert body["jobs"][0]["description_md"] == "Ship it."
+    # candidates in the DSAR bundle shape
+    assert [c["candidate"]["email"] for c in body["candidates"]] == [candidate_email]
+    assert body["candidates"][0]["candidate"]["name"] == "Cara Export"
+    assert body["candidates"][0]["applications"] == []
+    # no secrets and nothing from the operator's own workspace
+    raw = resp.text
+    for secret in ("password_hash", "totp_secret", "recovery_codes", "token_version"):
+        assert secret not in raw
+    assert operator["email"] not in raw
+
+    # the tenant sees the export in its own feed, without the operator
+    client.cookies.clear()
+    client.cookies.update(tenant_cookies)
+    feed = (await client.get("/api/v1/activity")).json()
+    exported = [e for e in feed if e["type"] == "tenant.exported"]
+    assert len(exported) == 1 and exported[0]["actor_email"] is None

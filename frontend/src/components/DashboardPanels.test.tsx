@@ -252,6 +252,14 @@ describe("ActivityPanel", () => {
         application_id: null,
         created_at: new Date(Date.now() - 28_800_000).toISOString(),
       },
+      {
+        id: "a9",
+        type: "tenant.exported",
+        payload: {},
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 32_400_000).toISOString(),
+      },
     ]);
     render(<ActivityPanel />);
     expect(
@@ -272,6 +280,9 @@ describe("ActivityPanel", () => {
       screen.getByText("Workspace suspended by the instance operator: Unpaid invoice"),
     ).toBeInTheDocument();
     expect(screen.getByText("Workspace restored by the instance operator")).toBeInTheDocument();
+    expect(
+      screen.getByText("Workspace data exported by the instance operator"),
+    ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();
   });
