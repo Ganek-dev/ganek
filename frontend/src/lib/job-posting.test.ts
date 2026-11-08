@@ -116,3 +116,14 @@ describe("jobPostingChecks", () => {
     expect(byField.datePosted.ok).toBe(false);
   });
 });
+
+describe("jobPostingJsonLd url", () => {
+  it("points at the job on the verified custom domain", () => {
+    const ld = jobPostingJsonLd({ ...company, careers_url: "https://careers.acme.com" }, job);
+    expect(ld.url).toBe("https://careers.acme.com/jobs/senior-frontend-engineer");
+  });
+
+  it("is left out when the backend sends no careers URL", () => {
+    expect(jobPostingJsonLd(company, job)).not.toHaveProperty("url");
+  });
+});

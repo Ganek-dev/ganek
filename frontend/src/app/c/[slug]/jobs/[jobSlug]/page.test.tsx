@@ -56,6 +56,34 @@ describe("company job page metadata", () => {
     );
   });
 
+  it("names the custom domain as the canonical URL once verified", async () => {
+    companyPage.mockResolvedValue({
+      company: { slug: "acme", name: "ACME Ganek", careers_url: "https://careers.acme.com" },
+      jobs: [],
+    });
+    const meta = await generateMetadata({
+      params: Promise.resolve({ slug: "acme", jobSlug: "backend-engineer-python" }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(meta.alternates?.canonical).toBe(
+      "https://careers.acme.com/jobs/backend-engineer-python",
+    );
+  });
+
+  it("gives a preview no canonical URL", async () => {
+    companyPage.mockResolvedValue({
+      company: { slug: "acme", name: "ACME Ganek", careers_url: "https://careers.acme.com" },
+      jobs: [],
+    });
+    resolveJobView.mockResolvedValue({ job, previewing: true });
+    const meta = await generateMetadata({
+      params: Promise.resolve({ slug: "acme", jobSlug: "backend-engineer-python" }),
+      searchParams: Promise.resolve({ preview: "tok" }),
+    });
+    expect(meta.alternates).toBeUndefined();
+    expect(meta.robots).toEqual({ index: false, follow: false });
+  });
+
   it("returns nothing for an unknown job", async () => {
     resolveJobView.mockResolvedValue({ job: null, previewing: false });
     const meta = await generateMetadata({

@@ -7,6 +7,7 @@ import { ApplyNote, HowWeHire, JobGone, JobHero, JobPosting } from "@/components
 import { themeStyle } from "@/components/careers";
 import { DemoBanner } from "@/components/DemoBanner";
 import { PreviewBar } from "@/components/PreviewBar";
+import { canonicalMetadata } from "@/lib/careers";
 import { jobMetaDescription } from "@/lib/job-meta";
 import { demoRobots, fetchInstanceInfo, publicApi, resolveJobView } from "@/lib/public-api";
 import { resolveSource, websiteHostOf } from "@/lib/source";
@@ -35,7 +36,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     title: `${job.title} - ${page.company.name}`,
     // share cards and search snippets describe the role, not the platform
     description: jobMetaDescription(job, page.company),
-    ...(previewing ? NOINDEX : demoRobots(demo)),
+    // a preview is noindex and has no public URL yet
+    ...(previewing ? NOINDEX : { ...canonicalMetadata(page.company, job.slug), ...demoRobots(demo) }),
   };
 }
 

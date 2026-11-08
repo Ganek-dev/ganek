@@ -1,3 +1,4 @@
+import { canonicalCareersUrl } from "@/lib/careers";
 import { mdToHtml } from "@/lib/md-html";
 import type { PublicCompany, PublicJobDetail } from "@/lib/public-api";
 
@@ -24,10 +25,13 @@ const SALARY_UNIT_SCHEMA: Record<string, string> = {
 };
 
 export function jobPostingJsonLd(company: PublicCompany, job: PublicJobDetail): JobPostingJsonLd {
+  // the canonical job URL: on the verified custom domain once there is one
+  const url = canonicalCareersUrl(company, job.slug);
   return {
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: job.title,
+    ...(url ? { url } : {}),
     // Google wants an HTML description, not raw markdown
     description: mdToHtml(job.description_md),
     datePosted: job.published_at,

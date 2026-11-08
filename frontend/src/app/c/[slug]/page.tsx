@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { CareersFooter, CompanyHero, themeStyle } from "@/components/careers";
 import { JobList } from "@/components/careers-list";
 import { DemoBanner } from "@/components/DemoBanner";
+import { canonicalMetadata } from "@/lib/careers";
 import { parseCareersFilters } from "@/lib/careers-filters";
 import { demoRobots, fetchInstanceInfo, publicApi } from "@/lib/public-api";
 import { resolveSource, sourceSuffix, websiteHostOf } from "@/lib/source";
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `Careers at ${page.company.name}`,
     description: page.company.description || undefined,
+    ...canonicalMetadata(page.company),
     ...demoRobots(demo),
   };
 }
