@@ -47,6 +47,8 @@ TENANT_SUSPENDED = "tenant.suspended"  # by the instance operator (api/ops.py)
 TENANT_UNSUSPENDED = "tenant.unsuspended"
 TENANT_EXPORTED = "tenant.exported"
 TENANT_PLAN_OVERRIDDEN = "tenant.plan_overridden"  # operator plan override or trial end
+TENANT_IMPERSONATION_STARTED = "tenant.impersonation_started"  # operator views as a user
+TENANT_IMPERSONATION_ENDED = "tenant.impersonation_ended"
 
 
 def record(

@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { DemoBanner } from "@/components/DemoBanner";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { trialDaysLeft, trialDaysText } from "@/lib/trial";
 import { Wordmark } from "@/components/Wordmark";
 import {
@@ -299,6 +300,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
       <div className="min-w-0 flex-1 p-4 md:ml-56 md:p-7">
+        {user.impersonation_expires_at ? (
+          <ImpersonationBanner email={user.email} expiresAt={user.impersonation_expires_at} />
+        ) : null}
         {demo ? <DemoBanner /> : null}
         {smtpMissing && !demo ? (
           <div

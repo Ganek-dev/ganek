@@ -87,3 +87,15 @@ class OpsTenantExport(BaseModel):
     users: list[OpsExportUser]
     jobs: list[OpsExportJob]
     candidates: list[DsarBundle]
+
+
+class ImpersonateRequest(BaseModel):
+    # a specific admin or member of the tenant; omitted = its oldest active admin
+    user_id: uuid.UUID | None = None
+
+
+class OpsImpersonationOut(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    role: str
+    expires_at: datetime

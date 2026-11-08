@@ -108,6 +108,34 @@ describe("AdminLayout", () => {
     expect(screen.getByText("grumpy@acme.dev")).toBeInTheDocument();
   });
 
+  it("shows the operator banner only while the session is impersonated", async () => {
+    const { unmount } = render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("page content");
+    expect(screen.queryByTestId("impersonation-banner")).not.toBeInTheDocument();
+    unmount();
+
+    mockedApi.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy@acme.dev",
+      has_password: true,
+      role: "admin",
+      impersonation_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    expect(await screen.findByTestId("impersonation-banner")).toHaveTextContent(
+      "Viewing as grumpy@acme.dev.",
+    );
+  });
+
   it("lists Reports directly after Applicants", async () => {
     render(
       <AdminLayout>

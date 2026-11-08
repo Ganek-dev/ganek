@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import BillingAccount, Candidate, Company, CompanyPlan, Job, User
+from app.models import BillingAccount, Candidate, Company, CompanyPlan, Job, User, UserRole
 from app.schemas.dsar import DsarBundle
 from app.services import activity, dsar, erasure
 
@@ -114,6 +114,66 @@ async def set_plan_override(
     )
     # the relationship is viewonly and eager: reload it for the response
     await db.refresh(company, attribute_names=["billing_account"])
+
+
+class ImpersonationTargetError(Exception):
+    """No admin or member of the tenant can be viewed as (the message says why)."""
+
+
+async def impersonation_target(
+    db: AsyncSession, company: Company, user_id: uuid.UUID | None
+) -> User:
+    """The tenant user an operator views as: the one asked for, or the
+    oldest active admin. Reviewers are left out: their shell is a narrow
+    slice of the admin one and has no operator banner."""
+    query = select(User).where(
+        User.company_id == company.id,
+        User.is_active.is_(True),
+        User.role != UserRole.REVIEWER,
+    )
+    if user_id is not None:
+        user = await db.scalar(query.where(User.id == user_id))
+        if user is None:
+            raise ImpersonationTargetError("No active admin or member with that id in this tenant")
+        return user
+    user = await db.scalar(
+        query.where(User.role == UserRole.ADMIN).order_by(User.created_at, User.id).limit(1)
+    )
+    if user is None:
+        raise ImpersonationTargetError("This tenant has no active admin to view as")
+    return user
+
+
+async def start_impersonation(
+    db: AsyncSession, company: Company, user: User, *, expires_at: datetime
+) -> None:
+    """The tenant sees that the operator looked, as whom and until when; the
+    operator's identity stays out of the tenant's feed, as for every other
+    operator action. Nothing about the tenant itself changes."""
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.TENANT_IMPERSONATION_STARTED,
+        payload={"user": user.email, "expires_at": expires_at.isoformat()},
+    )
+    await db.commit()
+    logger.info(
+        "ops impersonation started company=%s user=%s expires_at=%s",
+        company.id,
+        user.id,
+        expires_at.isoformat(),
+    )
+
+
+async def end_impersonation(db: AsyncSession, user: User) -> None:
+    activity.record(
+        db,
+        company_id=user.company_id,
+        type=activity.TENANT_IMPERSONATION_ENDED,
+        payload={"user": user.email},
+    )
+    await db.commit()
+    logger.info("ops impersonation ended company=%s user=%s", user.company_id, user.id)
 
 
 class TenantExport:

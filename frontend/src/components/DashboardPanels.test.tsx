@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { dashboard, type StatsOverview } from "@/lib/api";
+import { shortTime } from "@/lib/time";
 
 import { ACTIVITY_TIMEOUT_MS, ActivityPanel, QueuePanel, TodayPanel } from "./DashboardPanels";
 
@@ -276,6 +277,22 @@ describe("ActivityPanel", () => {
         application_id: null,
         created_at: new Date(Date.now() - 39_600_000).toISOString(),
       },
+      {
+        id: "a12",
+        type: "tenant.impersonation_started",
+        payload: { user: "grumpy@acme.dev", expires_at: "2026-11-08T17:13:00Z" },
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 43_200_000).toISOString(),
+      },
+      {
+        id: "a13",
+        type: "tenant.impersonation_ended",
+        payload: { user: "grumpy@acme.dev" },
+        actor_email: null,
+        application_id: null,
+        created_at: new Date(Date.now() - 46_800_000).toISOString(),
+      },
     ]);
     render(<ActivityPanel />);
     expect(
@@ -304,6 +321,14 @@ describe("ActivityPanel", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("Plan override removed by the instance operator"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `The instance operator viewed the workspace as grumpy@acme.dev (read-only, until ${shortTime("2026-11-08T17:13:00Z")})`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The instance operator stopped viewing the workspace as grumpy@acme.dev"),
     ).toBeInTheDocument();
     expect(screen.getByText("just now")).toBeInTheDocument();
     expect(screen.getByText("2h ago")).toBeInTheDocument();

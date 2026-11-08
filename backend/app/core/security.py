@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -225,5 +226,63 @@ def read_google_signup_token(token: str) -> tuple[str, str] | None:
     try:
         raw = _google_signup_serializer.loads(token, max_age=GOOGLE_SIGNUP_MAX_AGE_SECONDS)
         return str(raw["sub"]), str(raw["email"])
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+        return None
+
+
+_impersonation_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-impersonation")
+# operator plane (card "Operator plane"): an impersonation lasts one hour,
+# then the operator's own session is what the cookie jar falls back to
+IMPERSONATION_COOKIE_NAME = "ganek_impersonation"
+IMPERSONATION_MAX_AGE_SECONDS = 60 * 60
+
+
+class ImpersonationClaim:
+    """Who is looking (the operator, by session) as whom (the tenant user),
+    and when the signature was made (the one-hour clock starts there)."""
+
+    def __init__(
+        self,
+        operator_id: uuid.UUID,
+        operator_version: int,
+        user_id: uuid.UUID,
+        user_version: int,
+        issued_at: datetime,
+    ) -> None:
+        self.operator_id = operator_id
+        self.operator_version = operator_version
+        self.user_id = user_id
+        self.user_version = user_version
+        self.issued_at = issued_at
+
+    @property
+    def expires_at(self) -> datetime:
+        return self.issued_at + timedelta(seconds=IMPERSONATION_MAX_AGE_SECONDS)
+
+
+def create_impersonation_token(
+    operator_id: uuid.UUID, operator_version: int, user_id: uuid.UUID, user_version: int
+) -> str:
+    """Both token versions ride along: the operator signing out everywhere,
+    or the tenant user changing their password, ends the impersonation."""
+    return _impersonation_serializer.dumps(
+        {"op": str(operator_id), "ov": operator_version, "uid": str(user_id), "v": user_version}
+    )
+
+
+def read_impersonation_token(token: str) -> ImpersonationClaim | None:
+    try:
+        raw, issued = _impersonation_serializer.loads(
+            token, max_age=IMPERSONATION_MAX_AGE_SECONDS, return_timestamp=True
+        )
+        if not isinstance(raw, dict):
+            return None
+        return ImpersonationClaim(
+            uuid.UUID(str(raw["op"])),
+            int(raw["ov"]),
+            uuid.UUID(str(raw["uid"])),
+            int(raw["v"]),
+            issued if issued.tzinfo else issued.replace(tzinfo=UTC),
+        )
     except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
         return None
