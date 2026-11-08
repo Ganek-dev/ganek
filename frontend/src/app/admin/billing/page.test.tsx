@@ -18,7 +18,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...original,
     companyApi: { ...original.companyApi, plan: vi.fn() },
-    billingApi: { get: vi.fn(), checkout: vi.fn(), portal: vi.fn() },
+    billingApi: { get: vi.fn(), checkout: vi.fn(), portal: vi.fn(), startTrial: vi.fn() },
   };
 });
 
@@ -38,7 +38,15 @@ function makePlan(over: Partial<PlanOut> = {}): PlanOut {
 }
 
 function makeBilling(over: Partial<BillingOut> = {}): BillingOut {
-  return { plan: "free", status: null, current_period_end: null, can_manage: false, ...over };
+  return {
+    plan: "free",
+    status: null,
+    current_period_end: null,
+    can_manage: false,
+    trial_ends_at: null,
+    can_start_trial: false,
+    ...over,
+  };
 }
 
 const assign = vi.fn();
@@ -72,6 +80,53 @@ describe("BillingSettingsPage", () => {
     expect(mockedBilling.checkout).toHaveBeenCalledWith("team", "year");
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://checkout.stripe.test/s"));
     expect(screen.queryByRole("button", { name: "Manage billing" })).toBeNull();
+  });
+
+  it("starts the Team trial once and then shows the days left", async () => {
+    const ends = new Date(Date.now() + 14 * 86_400_000 - 60_000).toISOString();
+    mockedCompany.plan
+      .mockResolvedValueOnce(makePlan())
+      .mockResolvedValue(makePlan({ limits: { max_live_jobs: null }, trial_ends_at: ends }));
+    mockedBilling.get
+      .mockResolvedValueOnce(makeBilling({ can_start_trial: true }))
+      .mockResolvedValue(makeBilling({ trial_ends_at: ends, can_start_trial: false }));
+    mockedBilling.startTrial.mockResolvedValue(
+      makeBilling({ trial_ends_at: ends, can_start_trial: false }),
+    );
+    const user = userEvent.setup();
+    render(<BillingSettingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Start 14-day Team trial" }));
+
+    expect(mockedBilling.startTrial).toHaveBeenCalledTimes(1);
+    expect(await screen.findByTestId("billing-trial")).toHaveTextContent("14 days left");
+    expect(screen.getByTestId("billing-plan")).toHaveTextContent("Team trial");
+    expect(screen.queryByRole("button", { name: "Start 14-day Team trial" })).toBeNull();
+    // the trial is no card: upgrading stays a separate choice
+    expect(screen.getByRole("button", { name: "Choose Team" })).toBeInTheDocument();
+  });
+
+  it("hides the trial button once the trial was used", async () => {
+    mockedCompany.plan.mockResolvedValue(makePlan());
+    mockedBilling.get.mockResolvedValue(makeBilling({ can_start_trial: false }));
+    render(<BillingSettingsPage />);
+
+    expect(await screen.findByTestId("billing-plan")).toHaveTextContent("Free");
+    expect(screen.queryByRole("button", { name: "Start 14-day Team trial" })).toBeNull();
+    expect(screen.queryByTestId("billing-trial")).toBeNull();
+  });
+
+  it("shows the refusal when the server says the trial was used", async () => {
+    mockedCompany.plan.mockResolvedValue(makePlan());
+    mockedBilling.get.mockResolvedValue(makeBilling({ can_start_trial: true }));
+    mockedBilling.startTrial.mockRejectedValue(
+      new Error("This company has already used its Team trial."),
+    );
+    const user = userEvent.setup();
+    render(<BillingSettingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Start 14-day Team trial" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("already used its Team trial");
   });
 
   it("sends a paying company to the Stripe portal", async () => {

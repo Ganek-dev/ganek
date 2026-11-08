@@ -70,6 +70,8 @@ def test_billing_summary(harness: Harness) -> None:
         "status": None,
         "current_period_end": None,
         "can_manage": False,
+        "trial_ends_at": None,
+        "can_start_trial": True,
     }
     harness.store.accounts[harness.company.id] = AccountView(
         harness.company.id, "cus_acme", "sub_1", "active", None

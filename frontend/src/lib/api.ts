@@ -1836,15 +1836,22 @@ export interface PlanOut {
   live_jobs: number;
   over_limit: boolean;
   upgrade_url: string | null;
+  /** Card B1d: the running 14-day Team trial's end (ISO); `limits` already
+   * count it. Null or absent = no trial running. */
+  trial_ends_at?: string | null;
 }
 
 /** GET /billing (card B1c, hosted with Stripe only): the Stripe-synced
- * subscription status and whether the customer portal can open. */
+ * subscription status and whether the customer portal can open. B1d adds
+ * the running trial's end and whether the admin may still start one (Free,
+ * never trialed: once per company). */
 export interface BillingOut {
   plan: PlanOut["plan"];
   status: string | null;
   current_period_end: string | null;
   can_manage: boolean;
+  trial_ends_at: string | null;
+  can_start_trial: boolean;
 }
 
 export type BillingInterval = "month" | "year";
@@ -2044,6 +2051,8 @@ export const billingApi = {
       body: JSON.stringify({ plan, interval }),
     }),
   portal: () => request<{ url: string }>("/api/v1/billing/portal", { method: "POST" }),
+  /** Card B1d: start the 14-day Team trial, no card. 409 when already used. */
+  startTrial: () => request<BillingOut>("/api/v1/billing/trial", { method: "POST" }),
 };
 
 /** /api/health/deep: per-dependency status plus the arq worker's heartbeat

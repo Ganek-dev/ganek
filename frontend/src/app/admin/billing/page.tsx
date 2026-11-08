@@ -13,6 +13,7 @@ import {
   type BillingOut,
   type PlanOut,
 } from "@/lib/api";
+import { trialDaysLeft, trialDaysText } from "@/lib/trial";
 
 /** Billing settings (card B1c). Exists only on a hosted instance with Stripe
  * configured (`billing_enabled`). Stripe holds the truth: choosing a plan
@@ -117,6 +118,19 @@ function BillingSettings() {
     };
   }, [returnedFromCheckout, show]);
 
+  async function startTrial() {
+    setError(null);
+    setBusy(true);
+    try {
+      await billingApi.startTrial();
+      show(await loadBilling()); // the plan's limits now count the trial
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start the trial");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function go(open: () => Promise<{ url: string }>) {
     setError(null);
     setBusy(true);
@@ -151,6 +165,7 @@ function BillingSettings() {
   }
 
   const paid = plan.plan === "starter" || plan.plan === "team";
+  const trialEnd = billing?.trial_ends_at ?? null;
   const status = billing?.status ? (STATUS_LABEL[billing.status] ?? billing.status) : null;
 
   return (
@@ -185,9 +200,16 @@ function BillingSettings() {
           <div className="card space-y-2 p-4">
             <p className={labelCls}>Current plan</p>
             <p data-testid="billing-plan" className="text-[15px] font-semibold">
-              {PLAN_LABEL[plan.plan]}
+              {trialEnd ? "Team trial" : PLAN_LABEL[plan.plan]}
             </p>
             <p className={hintCls}>{limitText(plan)}</p>
+            {trialEnd ? (
+              <p data-testid="billing-trial" className={hintCls}>
+                {trialDaysText(trialDaysLeft(trialEnd))}, ends{" "}
+                {new Date(trialEnd).toLocaleDateString()}. After it the company is on Free
+                again: no job is closed, new publishes wait until 1 job is live.
+              </p>
+            ) : null}
             {status ? (
               <p data-testid="billing-status" className={hintCls}>
                 Subscription: {status}
@@ -215,6 +237,26 @@ function BillingSettings() {
               </button>
             </div>
           ) : (
+            <>
+            {billing?.can_start_trial ? (
+              <div className="card space-y-3 p-4">
+                <div>
+                  <p className={labelCls}>Try Team free</p>
+                  <p className={hintCls}>
+                    14 days of Team (no live job limit), no card needed. Once per company;
+                    afterwards you are on Free again and nothing is closed.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={secondaryCls}
+                  disabled={busy}
+                  onClick={startTrial}
+                >
+                  Start 14-day Team trial
+                </button>
+              </div>
+            ) : null}
             <div className="card space-y-3 p-4">
               <div>
                 <p className={labelCls}>Upgrade</p>
@@ -267,6 +309,7 @@ function BillingSettings() {
                 </button>
               ) : null}
             </div>
+            </>
           )}
         </>
       )}

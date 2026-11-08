@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.billing_account import BillingAccount
     from app.models.job import Job
     from app.models.user import User
 
@@ -59,3 +60,10 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     users: Mapped[list["User"]] = relationship(back_populates="company")
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")
+    # read side of the ee/ billing row (card B1d): the hosted policy needs
+    # the DB-held trial end to work out the effective plan synchronously, so
+    # it is loaded with the company (one indexed SELECT, nothing when absent).
+    # viewonly: only ee/ writes billing_accounts, through its own store.
+    billing_account: Mapped["BillingAccount | None"] = relationship(
+        lazy="selectin", viewonly=True, uselist=False
+    )

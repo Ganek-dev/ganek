@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
@@ -37,6 +38,9 @@ class PlanOut(BaseModel):
     live_jobs: int
     over_limit: bool
     upgrade_url: str | None
+    # a running Team trial (card B1d): ``limits`` already count it; null =
+    # no trial running (never started, or over: back on the plan above)
+    trial_ends_at: datetime | None = None
 
 
 class CompanySummary(BaseModel):

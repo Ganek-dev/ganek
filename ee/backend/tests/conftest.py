@@ -113,6 +113,15 @@ class MemoryStore:
         account.current_period_end = state.current_period_end
         self.plans[company_id] = state.plan
 
+    async def start_trial(self, company_id: uuid.UUID, ends_at: datetime) -> bool:
+        current = self.accounts.setdefault(
+            company_id, AccountView(company_id, None, None, None, None)
+        )
+        if current.trial_ends_at is not None:
+            return False
+        current.trial_ends_at = ends_at
+        return True
+
     def snapshot(self, company_id: uuid.UUID) -> tuple[Any, ...]:
         account = self.accounts[company_id]
         return (
