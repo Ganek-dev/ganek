@@ -114,6 +114,11 @@ async def _resolve(client: AsyncClient, host: str) -> tuple[int, dict[str, str]]
     return resp.status_code, resp.json()
 
 
+async def _by_slug(client: AsyncClient, slug: str) -> tuple[int, dict[str, str]]:
+    resp = await client.get(f"/api/v1/public/domains/by-slug/{slug}")
+    return resp.status_code, resp.json()
+
+
 async def _ask(client: AsyncClient, domain: str) -> int:
     resp = await client.get("/api/v1/public/domains/tls-ask", params={"domain": domain})
     return resp.status_code
@@ -197,3 +202,47 @@ async def test_single_mode_never_resolves(
     monkeypatch.setattr(settings, "mode", "single")
     assert (await _resolve(client, "careers.acme-ci.com"))[0] == 404
     assert await _ask(client, "careers.acme-ci.com") == 404
+
+
+# --- slug -> domain, for the canonical 301 (slice 7) -------------------------
+
+
+@db_only
+@pytest.mark.usefixtures("migrated_db", "multi", "team")
+async def test_by_slug_answers_only_the_tenants_verified_domain(
+    client: AsyncClient, dns: dict[str, list[str]]
+) -> None:
+    slug_a, domain_a = await _tenant(client, dns)
+    slug_b, domain_b = await _tenant(client, dns)
+    slug_p, _pending = await _tenant(client, dns, verify=False)
+    client.cookies.clear()
+    assert await _by_slug(client, slug_a) == (200, {"slug": slug_a, "domain": domain_a})
+    assert await _by_slug(client, slug_b) == (200, {"slug": slug_b, "domain": domain_b})
+    # a pending claim keeps the slug URL; an unknown slug is a plain 404
+    assert (await _by_slug(client, slug_p))[0] == 404
+    assert (await _by_slug(client, f"nope-{uuid4().hex[:6]}"))[0] == 404
+
+
+@db_only
+@pytest.mark.usefixtures("migrated_db", "multi", "team")
+async def test_by_slug_stops_after_removal_or_downgrade(
+    client: AsyncClient, dns: dict[str, list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _domain = await _tenant(client, dns)
+    assert (await _by_slug(client, slug))[0] == 200
+    monkeypatch.setattr(plans, "get_plan_policy", lambda: SelfHostedPolicy())
+    assert (await _by_slug(client, slug))[0] == 404
+    monkeypatch.setattr(plans, "get_plan_policy", lambda: _DomainsPolicy())
+    assert (await client.delete("/api/v1/company/domain")).status_code == 200
+    assert (await _by_slug(client, slug))[0] == 404
+
+
+@db_only
+@pytest.mark.usefixtures("migrated_db", "team")
+async def test_by_slug_never_answers_in_single_mode(
+    client: AsyncClient, dns: dict[str, list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "mode", "multi")
+    slug, _domain = await _tenant(client, dns)
+    monkeypatch.setattr(settings, "mode", "single")
+    assert (await _by_slug(client, slug))[0] == 404

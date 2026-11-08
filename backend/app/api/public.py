@@ -193,6 +193,21 @@ async def resolve_custom_domain(host: str, db: DbSession) -> HostResolution:
     return HostResolution(slug=company.slug, domain=company.custom_domain or "")
 
 
+@router.get("/domains/by-slug/{slug}", response_model=HostResolution)
+async def custom_domain_for_slug(slug: str, db: DbSession) -> HostResolution:
+    """Company slug -> its verified custom domain, for the frontend
+    middleware's canonical 301 from ``/c/{slug}`` to the domain (slice 7).
+    Same rule as the careers links (``urls.custom_careers_domain``): multi
+    mode, verified, plan still includes custom domains; 404 otherwise, so a
+    pending claim or a downgraded plan keeps the slug URL. Infrastructure
+    caller, no per-IP rate limit (see above)."""
+    company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one_or_none()
+    domain = urls.custom_careers_domain(company) if company is not None else None
+    if company is None or domain is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No custom domain")
+    return HostResolution(slug=company.slug, domain=domain)
+
+
 @router.get("/domains/tls-ask", status_code=status.HTTP_200_OK)
 async def custom_domain_tls_ask(domain: str, db: DbSession) -> Response:
     """Caddy ``on_demand_tls { ask }``: 200 lets Caddy issue a certificate

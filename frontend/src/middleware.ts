@@ -83,9 +83,12 @@ const RESOLVE_TTL_MS = 60_000;
 const RESOLVE_CACHE_MAX = 1000;
 const resolveCache = new Map<string, { slug: string | null; expires: number }>();
 
-/** Test hook: forget every cached Host resolution. */
+const slugCache = new Map<string, { domain: string | null; expires: number }>();
+
+/** Test hook: forget every cached Host and slug resolution. */
 export function clearDomainCache(): void {
   resolveCache.clear();
+  slugCache.clear();
 }
 
 /** The company slug a verified custom domain belongs to, or null. Answers
@@ -117,6 +120,63 @@ async function customDomainSlug(host: string): Promise<string | null> {
   if (resolveCache.size >= RESOLVE_CACHE_MAX) resolveCache.clear();
   resolveCache.set(host, { slug, expires: now + RESOLVE_TTL_MS });
   return slug;
+}
+
+/** The verified custom domain company `slug` serves its careers site on,
+ * or null (no domain, pending, plan without custom domains, single mode).
+ * Cached per slug for a minute like the Host lookup; backend errors are not
+ * cached and fail open (no redirect). */
+async function slugCustomDomain(slug: string): Promise<string | null> {
+  const now = Date.now();
+  const hit = slugCache.get(slug);
+  if (hit && hit.expires > now) return hit.domain;
+  let domain: string | null;
+  try {
+    const resp = await fetch(
+      `${BACKEND_URL}/api/v1/public/domains/by-slug/${encodeURIComponent(slug)}`,
+      { cache: "no-store", headers: { Accept: "application/json" } },
+    );
+    if (resp.status === 404) {
+      domain = null;
+    } else if (resp.ok) {
+      const body = (await resp.json()) as { domain?: unknown };
+      domain = typeof body.domain === "string" && body.domain ? body.domain : null;
+    } else {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  if (slugCache.size >= RESOLVE_CACHE_MAX) slugCache.clear();
+  slugCache.set(slug, { domain, expires: now + RESOLVE_TTL_MS });
+  return domain;
+}
+
+/** The careers path a slug URL (`/c/{slug}`, `/c/{slug}/jobs/<job>`,
+ * `/c/{slug}/privacy`) has on the tenant's custom domain, with the slug it
+ * belongs to; null for any other path. The inverse of customDomainRoute. */
+export function slugCanonicalPath(pathname: string): { slug: string; path: string } | null {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const m = /^\/c\/([^/]+)(\/privacy|\/jobs\/[^/]+)?$/.exec(path);
+  if (!m) return null;
+  return { slug: m[1], path: m[2] ?? "/" };
+}
+
+/** Once a tenant's custom domain is verified, its slug URLs on the
+ * instance host answer a 301 to the same page on the domain (one canonical
+ * URL for search engines and shared links), query kept. Only document
+ * loads: previews stay on the instance host (the admin's preview token
+ * page), and client-side navigations or prefetches are left alone (a
+ * cross-origin redirect would break the RSC fetch). Null when the request
+ * is served as is. */
+async function slugRedirect(request: NextRequest, host: string): Promise<NextResponse | null> {
+  const canonical = slugCanonicalPath(request.nextUrl.pathname);
+  if (canonical === null) return null;
+  if (request.nextUrl.searchParams.has("preview")) return null;
+  if (request.headers.has("rsc") || request.headers.has("next-router-prefetch")) return null;
+  const domain = await slugCustomDomain(canonical.slug);
+  if (domain === null || domain === host) return null;
+  return NextResponse.redirect(`https://${domain}${canonical.path}${request.nextUrl.search}`, 301);
 }
 
 /** Signed-in surfaces stay on the instance host: a custom domain only
@@ -172,8 +232,8 @@ async function customDomain(request: NextRequest, slug: string): Promise<NextRes
 }
 
 /** 1. A verified custom domain (card C1) serves its tenant's careers site
- * at the domain root. 2. Public job pages get a real 404 status.
- * 3. Admin and reviewer shell guard (M5.7 H4): no session cookie ->
+ * at the domain root, and its slug URLs elsewhere 301 to the domain.
+ * 2. Public job pages get a real 404 status. 3. Admin and reviewer shell guard (M5.7 H4): no session cookie ->
  * straight to /login, before any admin JS ships. Presence-only - the
  * signature and token_version are verified by the backend on every API
  * call; this just spares logged-out visitors the skeleton-then-redirect
@@ -184,6 +244,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const slug = await customDomainSlug(host);
     if (slug !== null) return customDomain(request, slug);
   }
+  const moved = await slugRedirect(request, host);
+  if (moved !== null) return moved;
   const { pathname } = request.nextUrl;
   const lookup = jobLookupPath(pathname);
   if (lookup !== null) return jobStatus(request, lookup);
