@@ -73,10 +73,11 @@ class CustomDomainIn(BaseModel):
 
 
 class _CareersDomainMixin(BaseModel):
-    """``careers_domain`` is not a column: the verified custom domain the
-    careers tree is served on (``urls.custom_careers_domain``: multi mode,
-    verified, plan still includes it), else None. Admin share and copy
-    surfaces show https://<domain> instead of the /c/{slug} URL."""
+    """``careers_domain`` is not a column: the host the careers tree is
+    served on (``urls.careers_host``: the verified custom domain in multi
+    mode on a plan that includes it, else the tenant subdomain when
+    configured), else None. Admin share and copy surfaces show
+    https://<domain> instead of the /c/{slug} URL."""
 
     careers_domain: str | None = None
 
@@ -87,7 +88,7 @@ class _CareersDomainMixin(BaseModel):
     ) -> "_CareersDomainMixin":
         out = handler(data)
         if isinstance(data, Company):
-            out.careers_domain = urls.custom_careers_domain(data)
+            out.careers_domain = urls.careers_host(data)
         return out
 
 

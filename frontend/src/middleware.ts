@@ -81,7 +81,11 @@ export function isInstanceHost(host: string): boolean {
 
 const RESOLVE_TTL_MS = 60_000;
 const RESOLVE_CACHE_MAX = 1000;
-const resolveCache = new Map<string, { slug: string | null; expires: number }>();
+/** A routed Host: the tenant it serves and that tenant's canonical careers
+ * host (the verified custom domain, else the tenant subdomain). */
+export type HostTenant = { slug: string; domain: string | null };
+
+const resolveCache = new Map<string, { tenant: HostTenant | null; expires: number }>();
 
 const slugCache = new Map<string, { domain: string | null; expires: number }>();
 
@@ -91,26 +95,29 @@ export function clearDomainCache(): void {
   slugCache.clear();
 }
 
-/** The company slug a verified custom domain belongs to, or null. Answers
- * (hit and miss) are cached per host for a minute so a busy careers page
- * costs one backend lookup a minute, not one per request; a domain removed
- * or downgraded stops routing within that minute. Backend errors are not
- * cached and fail open (the request is served as on the instance host). */
-async function customDomainSlug(host: string): Promise<string | null> {
+/** The tenant a verified custom domain or a tenant subdomain belongs to,
+ * or null. Answers (hit and miss) are cached per host for a minute so a
+ * busy careers page costs one backend lookup a minute, not one per request;
+ * a domain removed or downgraded stops routing within that minute. Backend
+ * errors are not cached and fail open (the request is served as on the
+ * instance host). */
+async function hostTenant(host: string): Promise<HostTenant | null> {
   const now = Date.now();
   const hit = resolveCache.get(host);
-  if (hit && hit.expires > now) return hit.slug;
-  let slug: string | null;
+  if (hit && hit.expires > now) return hit.tenant;
+  let tenant: HostTenant | null;
   try {
     const resp = await fetch(
       `${BACKEND_URL}/api/v1/public/domains/resolve?host=${encodeURIComponent(host)}`,
       { cache: "no-store", headers: { Accept: "application/json" } },
     );
     if (resp.status === 404) {
-      slug = null;
+      tenant = null;
     } else if (resp.ok) {
-      const body = (await resp.json()) as { slug?: unknown };
-      slug = typeof body.slug === "string" && body.slug ? body.slug : null;
+      const body = (await resp.json()) as { slug?: unknown; domain?: unknown };
+      const slug = typeof body.slug === "string" && body.slug ? body.slug : null;
+      const domain = typeof body.domain === "string" && body.domain ? body.domain : null;
+      tenant = slug === null ? null : { slug, domain };
     } else {
       return null;
     }
@@ -118,12 +125,13 @@ async function customDomainSlug(host: string): Promise<string | null> {
     return null;
   }
   if (resolveCache.size >= RESOLVE_CACHE_MAX) resolveCache.clear();
-  resolveCache.set(host, { slug, expires: now + RESOLVE_TTL_MS });
-  return slug;
+  resolveCache.set(host, { tenant, expires: now + RESOLVE_TTL_MS });
+  return tenant;
 }
 
-/** The verified custom domain company `slug` serves its careers site on,
- * or null (no domain, pending, plan without custom domains, single mode).
+/** The canonical host company `slug` serves its careers site on (verified
+ * custom domain, else tenant subdomain), or null (none configured, pending,
+ * plan without custom domains, single mode).
  * Cached per slug for a minute like the Host lookup; backend errors are not
  * cached and fail open (no redirect). */
 async function slugCustomDomain(slug: string): Promise<string | null> {
@@ -209,6 +217,24 @@ export function customDomainRoute(pathname: string, slug: string): CustomDomainR
   return { pass: true };
 }
 
+/** A tenant subdomain whose company has a verified custom domain 301s its
+ * careers pages (`/`, `/jobs/<job>`, `/privacy`) to the same page on that
+ * domain, query kept, so there is one canonical address. Document loads
+ * only, like the slug URL 301; previews stay. Null when served as is. */
+export function canonicalHostRedirectUrl(
+  request: NextRequest,
+  host: string,
+  tenant: HostTenant,
+): string | null {
+  if (tenant.domain === null || tenant.domain === host) return null;
+  const route = customDomainRoute(request.nextUrl.pathname, tenant.slug);
+  if (!("rewrite" in route)) return null;
+  if (request.nextUrl.searchParams.has("preview")) return null;
+  if (request.headers.has("rsc") || request.headers.has("next-router-prefetch")) return null;
+  const path = route.rewrite.slice(`/c/${tenant.slug}`.length) || "/";
+  return `https://${tenant.domain}${path}${request.nextUrl.search}`;
+}
+
 async function customDomain(request: NextRequest, slug: string): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   const route = customDomainRoute(pathname, slug);
@@ -231,8 +257,9 @@ async function customDomain(request: NextRequest, slug: string): Promise<NextRes
   return lookup !== null ? jobStatus(request, lookup, target) : NextResponse.rewrite(target);
 }
 
-/** 1. A verified custom domain (card C1) serves its tenant's careers site
- * at the domain root, and its slug URLs elsewhere 301 to the domain.
+/** 1. A verified custom domain or a tenant subdomain (card C1) serves its
+ * tenant's careers site at the root, and its slug URLs elsewhere (and a
+ * subdomain whose tenant has a custom domain) 301 to the canonical host.
  * 2. Public job pages get a real 404 status. 3. Admin and reviewer shell guard (M5.7 H4): no session cookie ->
  * straight to /login, before any admin JS ships. Presence-only - the
  * signature and token_version are verified by the backend on every API
@@ -241,8 +268,12 @@ async function customDomain(request: NextRequest, slug: string): Promise<NextRes
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const host = normalizeHost(request.headers.get("host"));
   if (!isInstanceHost(host)) {
-    const slug = await customDomainSlug(host);
-    if (slug !== null) return customDomain(request, slug);
+    const tenant = await hostTenant(host);
+    if (tenant !== null) {
+      const canonical = canonicalHostRedirectUrl(request, host, tenant);
+      if (canonical !== null) return NextResponse.redirect(canonical, 301);
+      return customDomain(request, tenant.slug);
+    }
   }
   const moved = await slugRedirect(request, host);
   if (moved !== null) return moved;

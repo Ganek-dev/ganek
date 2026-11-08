@@ -39,7 +39,7 @@ async def get_company_summary(
         return CompanySummary(
             slug=company.slug,
             name=company.name,
-            careers_domain=urls.custom_careers_domain(company),
+            careers_domain=urls.careers_host(company),
         )
     return company
 

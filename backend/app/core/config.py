@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # against this base).
     public_base_url: str = "http://localhost:3000"
 
+    # Multi mode only: parent domain of the tenant careers subdomains
+    # (``ganek.io`` serves company ``acme`` on ``acme.ganek.io``). Unset = no
+    # subdomains, careers pages stay on ``/c/{slug}``. A bare domain; the edge
+    # must route ``*.<tenant_domain>`` to the frontend with a wildcard cert.
+    tenant_domain: str | None = None
+
     # Google sign-in (feature is off while unset). Redirect override for
     # setups where the admin origin differs from public_base_url.
     google_client_id: str | None = None

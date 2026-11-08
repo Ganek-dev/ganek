@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  canonicalHostRedirectUrl,
   clearDomainCache,
   customDomainRoute,
   isInstanceHost,
@@ -345,5 +346,56 @@ describe("custom domains: slug URL 301", () => {
     );
     const res = await middleware(hostReq("careers.acme.com", "/c/acme"));
     expect(res.headers.get("location")).toBeNull();
+  });
+});
+
+function resolveHost(slug: string, domain: string | null) {
+  return vi.fn(async (url: string) => {
+    if (url.includes("/public/domains/resolve")) return Response.json({ slug, domain });
+    return new Response("{}", { status: 200 });
+  });
+}
+
+describe("tenant subdomains", () => {
+  it("serves the tenant's careers page on its subdomain", async () => {
+    vi.stubGlobal("fetch", resolveHost("acme", "acme.ganek.io"));
+    const res = await middleware(hostReq("acme.ganek.io", "/jobs/dev"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-rewrite")).toBe("https://acme.ganek.io/c/acme/jobs/dev");
+  });
+
+  it("301s the subdomain's careers pages to the verified custom domain, query kept", async () => {
+    vi.stubGlobal("fetch", resolveHost("acme", "careers.acme.com"));
+    const cases: [string, string][] = [
+      ["/?src=x", "https://careers.acme.com/?src=x"],
+      ["/jobs/dev", "https://careers.acme.com/jobs/dev"],
+      ["/privacy/", "https://careers.acme.com/privacy"],
+    ];
+    for (const [path, location] of cases) {
+      const res = await middleware(hostReq("acme.ganek.io", path));
+      expect(res.status).toBe(301);
+      expect(res.headers.get("location")).toBe(location);
+    }
+  });
+
+  it("keeps token pages, previews and client-side navigations on the subdomain", () => {
+    const tenant = { slug: "acme", domain: "careers.acme.com" };
+    const at = (path: string, headers: Record<string, string> = {}) =>
+      canonicalHostRedirectUrl(hostReq("acme.ganek.io", path, headers), "acme.ganek.io", tenant);
+    expect(at("/quiz/tok")).toBeNull();
+    expect(at("/c/acme")).toBeNull();
+    expect(at("/jobs/draft?preview=tok")).toBeNull();
+    expect(at("/", { rsc: "1" })).toBeNull();
+    expect(at("/", { "next-router-prefetch": "1" })).toBeNull();
+    // already on the canonical host, or no canonical host known
+    expect(
+      canonicalHostRedirectUrl(hostReq("careers.acme.com", "/"), "careers.acme.com", tenant),
+    ).toBeNull();
+    expect(
+      canonicalHostRedirectUrl(hostReq("acme.ganek.io", "/"), "acme.ganek.io", {
+        slug: "acme",
+        domain: null,
+      }),
+    ).toBeNull();
   });
 });

@@ -187,23 +187,29 @@ async def _company_for_host_or_404(db: DbSession, host: str) -> Company:
 
 @router.get("/domains/resolve", response_model=HostResolution)
 async def resolve_custom_domain(host: str, db: DbSession) -> HostResolution:
-    """Host header -> company slug, for a verified custom domain only."""
+    """Host header -> company slug, for a verified custom domain or a tenant
+    subdomain. ``domain`` is the company's canonical careers host
+    (``urls.careers_host``): when it differs from the requested host (a
+    tenant subdomain of a company with a verified custom domain) the
+    frontend middleware 301s there."""
     company = await _company_for_host_or_404(db, host)
     # a suspended tenant still resolves: the /c/{slug} page it is rewritten
     # to answers the unavailable notice itself
-    return HostResolution(slug=company.slug, domain=company.custom_domain or "")
+    canonical = urls.careers_host(company) or custom_domains.normalize_host(host) or ""
+    return HostResolution(slug=company.slug, domain=canonical)
 
 
 @router.get("/domains/by-slug/{slug}", response_model=HostResolution)
 async def custom_domain_for_slug(slug: str, db: DbSession) -> HostResolution:
-    """Company slug -> its verified custom domain, for the frontend
-    middleware's canonical 301 from ``/c/{slug}`` to the domain (slice 7).
-    Same rule as the careers links (``urls.custom_careers_domain``): multi
-    mode, verified, plan still includes custom domains; 404 otherwise, so a
-    pending claim or a downgraded plan keeps the slug URL. Infrastructure
+    """Company slug -> its careers host, for the frontend middleware's
+    canonical 301 from ``/c/{slug}`` to that host (slice 7). Same rule as
+    the careers links (``urls.careers_host``): the verified custom domain
+    (multi mode, plan still includes it), else the tenant subdomain when
+    ``tenant_domain`` is set; 404 otherwise, so a pending claim or a
+    downgraded plan without subdomains keeps the slug URL. Infrastructure
     caller, no per-IP rate limit (see above)."""
     company = (await db.execute(select(Company).where(Company.slug == slug))).scalar_one_or_none()
-    domain = urls.custom_careers_domain(company) if company is not None else None
+    domain = urls.careers_host(company) if company is not None else None
     if company is None or domain is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No custom domain")
     return HostResolution(slug=company.slug, domain=domain)
@@ -213,8 +219,8 @@ async def custom_domain_for_slug(slug: str, db: DbSession) -> HostResolution:
 async def custom_domain_tls_ask(domain: str, db: DbSession) -> Response:
     """Caddy ``on_demand_tls { ask }``: 200 lets Caddy issue a certificate
     for ``domain``, anything else refuses it. Only verified custom domains
-    pass, so nobody can point a random name at us and burn the ACME rate
-    limit. A suspended tenant keeps its certificate (its page shows the
+    and existing tenant subdomains pass, so nobody can point a random name
+    at us and burn the ACME rate limit. A suspended tenant keeps its certificate (its page shows the
     unavailable notice over HTTPS)."""
     await _company_for_host_or_404(db, domain)
     return Response(status_code=status.HTTP_200_OK)
