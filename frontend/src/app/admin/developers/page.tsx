@@ -9,6 +9,8 @@ import { CopyButton } from "@/components/CopyButton";
 import { WebhooksCard } from "@/components/WebhooksCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 /** Developers page, handoff screen 25: the public jobs API (no auth, CORS,
  * cached 60s) and the embed widget snippet with a live preview. Careers
@@ -16,6 +18,12 @@ import { companyApi, publicJobsFeed, type JobsFeed } from "@/lib/api";
  * for the company's own marketing site. */
 
 type WidgetTheme = "auto" | "light" | "dark";
+
+const THEME_LABEL: Record<WidgetTheme, MessageKey> = {
+  auto: "developers.themeAuto",
+  light: "developers.themeLight",
+  dark: "developers.themeDark",
+};
 
 function sampleJson(slug: string, origin: string): string {
   return JSON.stringify(
@@ -41,6 +49,7 @@ function sampleJson(slug: string, origin: string): string {
 }
 
 export default function DevelopersPage() {
+  const { t } = useLocale();
   const [slug, setSlug] = useState<string | null>(null);
   const [feed, setFeed] = useState<JobsFeed | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,17 +71,19 @@ export default function DevelopersPage() {
           .catch(() => setFeed(null));
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load company"),
+        setError(err instanceof Error ? err.message : ""),
       );
   }, []);
 
   if (slug === null) {
     return (
       <section className="max-w-[880px] space-y-4">
-        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
-        {error ? (
+        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">
+          {t("nav.settings")}
+        </h1>
+        {error !== null ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {error}
+            {error || t("developers.loadFailed")}
           </p>
         ) : (
           <div aria-busy="true" className="space-y-2">
@@ -94,26 +105,28 @@ export default function DevelopersPage() {
 
   return (
     <section className="max-w-[880px] space-y-4">
-      <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
+      <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">
+        {t("nav.settings")}
+      </h1>
       <SettingsTabs />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center justify-between">
-              <p className="text-[13.5px] font-semibold">Jobs API</p>
+              <p className="text-[13.5px] font-semibold">{t("developers.apiTitle")}</p>
               <a
                 href={feedUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 text-[12px] font-medium text-accent hover:underline"
               >
-                Open feed
+                {t("developers.openFeed")}
                 <ArrowUpRight aria-hidden className="h-3 w-3" />
               </a>
             </div>
             <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
-              Public, no auth, CORS enabled, cached 60s. Your published jobs as JSON.
+              {t("developers.apiDescription")}
             </p>
             <div className="mt-3 flex items-center gap-2">
               <span className="inline-flex h-6 items-center rounded-md bg-emerald-100 px-2 font-mono text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
@@ -122,7 +135,7 @@ export default function DevelopersPage() {
               <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-g700">
                 {feedUrl}
               </code>
-              <CopyButton text={feedUrl} label="Copy feed URL" />
+              <CopyButton text={feedUrl} label={t("developers.copyFeed")} />
             </div>
             <pre className="mt-3 overflow-x-auto rounded-md border border-edge bg-muted-fill/50 p-3 font-mono text-[11.5px] leading-[17px] text-g700">
               {sampleJson(slug, origin)}
@@ -130,21 +143,20 @@ export default function DevelopersPage() {
           </div>
 
           <div className="card p-4">
-            <p className="text-[13.5px] font-semibold">Embed widget</p>
+            <p className="text-[13.5px] font-semibold">{t("developers.widgetTitle")}</p>
             <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
-              Drop your open roles into your own site. Inherits your brand color; ~4 KB, no
-              framework.
+              {t("developers.widgetDescription")}
             </p>
             <div className="mt-3 flex items-center gap-2">
               <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-edge bg-muted-fill/50 p-2.5 font-mono text-[11.5px] whitespace-nowrap text-g700">
                 {snippet}
               </code>
-              <CopyButton text={snippet} label="Copy embed snippet" />
+              <CopyButton text={snippet} label={t("developers.copySnippet")} />
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-4">
               <div
                 role="radiogroup"
-                aria-label="Widget theme"
+                aria-label={t("developers.themeLabel")}
                 className="inline-flex rounded-md border border-edge p-0.5"
               >
                 {(["auto", "light", "dark"] as const).map((option) => (
@@ -160,7 +172,7 @@ export default function DevelopersPage() {
                         : "text-g500 hover:text-g700"
                     }`}
                   >
-                    {option}
+                    {t(THEME_LABEL[option])}
                   </button>
                 ))}
               </div>
@@ -171,12 +183,11 @@ export default function DevelopersPage() {
                   onChange={(event) => setShowTags(event.target.checked)}
                   className="h-4 w-4 accent-current"
                 />
-                Show tags
+                {t("developers.showTags")}
               </label>
             </div>
             <p className="mt-3 text-[12px] leading-[18px] text-g400">
-              Careers pages on Ganek stay SSR with Google Jobs structured data - the widget is
-              for your marketing site.
+              {t("developers.widgetNote")}
             </p>
           </div>
 
@@ -184,13 +195,17 @@ export default function DevelopersPage() {
           <WebhooksCard />
         </div>
 
-        <aside aria-label="Widget preview" className="space-y-2">
-          <p className="font-mono text-[11px] text-g400">Widget preview - your live roles</p>
+        <aside aria-label={t("developers.previewLabel")} className="space-y-2">
+          <p className="font-mono text-[11px] text-g400">{t("developers.previewCaption")}</p>
           <div className="card overflow-hidden" data-testid="widget-preview">
             <div className="flex items-baseline justify-between border-b border-divider px-4 py-3">
-              <span className="text-[14px] font-semibold">Open positions</span>
+              <span className="text-[14px] font-semibold">{t("developers.previewHeading")}</span>
               <span className="text-[12px] text-g500">
-                {feed === null ? "…" : `${feed.jobs.length} role${feed.jobs.length === 1 ? "" : "s"}`}
+                {feed === null
+                  ? "…"
+                  : t(feed.jobs.length === 1 ? "developers.previewRole" : "developers.previewRoles", {
+                      count: feed.jobs.length,
+                    })}
               </span>
             </div>
             {feed === null ? (
@@ -200,7 +215,7 @@ export default function DevelopersPage() {
                 ))}
               </div>
             ) : feed.jobs.length === 0 ? (
-              <p className="px-4 py-4 text-[13px] text-g500">No open positions right now.</p>
+              <p className="px-4 py-4 text-[13px] text-g500">{t("developers.previewEmpty")}</p>
             ) : (
               feed.jobs.map((job) => (
                 <div key={job.slug} className="border-t border-divider px-4 py-3 first:border-t-0">
