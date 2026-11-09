@@ -68,7 +68,14 @@ async def get_current_user(request: Request, db: DbSession) -> User:
     impersonated = await _impersonated_user(request, db, user)
     if impersonated is not None:
         user = impersonated
-    reject_suspended(await db.get(Company, user.company_id))
+    from app.services import memberships  # local: services import tenancy types
+
+    # the active company counts only while a membership row backs it: a
+    # seat that was taken away ends every session bound to that company
+    company = await memberships.active_company(db, user)
+    if company is None:
+        raise _UNAUTHENTICATED
+    reject_suspended(company)
     return user
 
 
@@ -131,7 +138,8 @@ AdminUser = Annotated[User, Depends(require_admin)]
 
 
 async def get_current_company(user: CurrentUser, db: DbSession) -> Company:
-    """Admin context: the company of the authenticated user."""
+    """Admin context: the active company of the authenticated user (one of
+    their memberships, checked in get_current_user)."""
     company = await db.get(Company, user.company_id)
     if company is None:
         # FK guarantees existence; treat a stale session as unauthenticated.

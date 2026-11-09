@@ -15,12 +15,13 @@ class CompanyMembership(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One person's seat in one company, with the role they hold there
     (0056, card "SSO + multi-company user membership").
 
-    Slice 1 of the card: the table exists and mirrors ``users.company_id`` /
-    ``users.role`` exactly, one row per user, kept in sync by the mapper
-    listeners below on every insert and every role or company change. Nothing
-    reads it yet; the tenancy dependency still resolves the company from
-    ``users.company_id``. The follow-up slices move tenancy onto this table
-    (active company from the session), add the company switcher and lift the
+    ``users.company_id`` / ``users.role`` are the user's ACTIVE seat: they
+    always equal one of the user's rows here, kept in sync by the mapper
+    listeners below on every insert and every role or company change.
+    Slice 2: tenancy refuses a session whose active company has no row
+    (``services.memberships.active_company``) and ``POST
+    /auth/switch-company`` moves the active seat to another row. Later
+    slices add the admin switcher, team lists over this table and lift the
     one-company-per-email limit.
     """
 
