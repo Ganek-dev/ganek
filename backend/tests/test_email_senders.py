@@ -278,3 +278,28 @@ def test_interview_reminder_interviewer_mentions_candidate_and_link(
     assert "Where: Room 2" in message.text
     assert "https://jobs.acme.example/admin/applicants?selected=app-1" in message.text
     assert message.calendar is None
+
+
+def test_cv_reupload_request_links_the_status_page(
+    sent: list[providers.OutboundMessage],
+) -> None:
+    email_service.send_cv_reupload_request(
+        to="jane@example.com",
+        ref="app-1",
+        candidate_name="Jane <Applicant>",
+        job_title="Backend Engineer",
+        company_name="Acme",
+        status_url="https://jobs.acme.example/application/tok",
+        privacy_url="https://jobs.acme.example/privacy",
+    )
+    assert len(sent) == 1
+    message = sent[0]
+    assert message.to == "jane@example.com"
+    assert message.subject == "Please upload your CV again - Backend Engineer at Acme"
+    assert "https://jobs.acme.example/application/tok" in message.text
+    assert "still open" in message.text
+    assert "https://jobs.acme.example/privacy" in message.text
+    assert message.html is not None
+    assert 'href="https://jobs.acme.example/application/tok"' in message.html
+    assert "Jane &lt;Applicant&gt;" in message.html
+    assert "virus" in message.text and "FOUND" not in message.text

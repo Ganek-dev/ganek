@@ -21,8 +21,9 @@ from sqlalchemy.pool import NullPool
 from app import worker
 from app.core import queue
 from app.core.config import settings
-from app.models import ActivityLog, Application, ApplicationStage, CvScanStatus
+from app.models import ActivityLog, Application, ApplicationStage, CvScanStatus, EmailOutbox
 from app.services import cv_scan, storage
+from app.services import email as email_service
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 from tests.test_applications_api import _submission
@@ -435,3 +436,113 @@ async def test_replacement_must_be_a_new_upload_of_this_company(
     assert missing.status_code == 422, missing.text
     not_pdf = await client.post(url, json={"cv_object_key": ctx["old_key"], "cv_filename": "a.exe"})
     assert not_pdf.status_code == 422, not_pdf.text
+
+
+# --- candidate re-upload email ------------------------------------------------
+
+
+@pytest.fixture
+def reupload_mails(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        email_service, "send_cv_reupload_request", lambda **kwargs: sent.append(kwargs)
+    )
+    return sent
+
+
+async def _outbox_kinds(app_id: str) -> list[str]:
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine)() as db:
+            rows = await db.execute(
+                select(EmailOutbox.kind).where(EmailOutbox.application_id == UUID(app_id))
+            )
+            return list(rows.scalars())
+    finally:
+        await engine.dispose()
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_a_flagged_cv_emails_the_candidate_a_link_to_upload_again(
+    client: AsyncClient,
+    enqueued: list[tuple[str, tuple[str, ...]]],
+    reupload_mails: list[dict[str, Any]],
+) -> None:
+    ctx = await _apply_for_reupload(client, EICAR)
+    await _run_worker_scan(ctx["app_id"])
+    assert len(reupload_mails) == 1
+    mail = reupload_mails[0]
+    assert mail["to"].startswith("jane-")
+    assert mail["candidate_name"] == "Jane Applicant"
+    assert mail["job_title"] == "Backend Engineer"
+    assert "/application/" in mail["status_url"]
+    # the link opens this application's status page, which asks for the file
+    token = mail["status_url"].rsplit("/", 1)[1]
+    page = (await client.get(f"/api/v1/public/applications/{token}")).json()
+    assert page["cv_reupload_requested"] is True
+    assert "Eicar" not in str(mail)  # the signature is for the team only
+    assert (await _outbox_kinds(ctx["app_id"])).count("cv_reupload") == 1
+
+    # a duplicate scan job does not mail twice
+    await _run_worker_scan(ctx["app_id"])
+    assert len(reupload_mails) == 1
+
+    # a replacement that is flagged again asks again
+    code, _ = await _reupload(client, ctx["token"], EICAR)
+    assert code == 200
+    await _run_worker_scan(ctx["app_id"])
+    assert len(reupload_mails) == 2
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_a_clean_cv_sends_no_reupload_email(
+    client: AsyncClient,
+    enqueued: list[tuple[str, tuple[str, ...]]],
+    reupload_mails: list[dict[str, Any]],
+) -> None:
+    ctx = await _apply_for_reupload(client, CLEAN_PDF)
+    await _run_worker_scan(ctx["app_id"])
+    assert reupload_mails == []
+    assert "cv_reupload" not in await _outbox_kinds(ctx["app_id"])
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_no_reupload_email_once_the_application_is_closed(
+    client: AsyncClient,
+    enqueued: list[tuple[str, tuple[str, ...]]],
+    reupload_mails: list[dict[str, Any]],
+) -> None:
+    ctx = await _apply_for_reupload(client, EICAR)
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine)() as db:
+            await db.execute(
+                update(Application)
+                .where(Application.id == UUID(ctx["app_id"]))
+                .values(stage=ApplicationStage.REJECTED)
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
+    await _run_worker_scan(ctx["app_id"])
+    assert await _status(client, ctx["app_id"]) == "infected"
+    assert reupload_mails == []
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_a_failing_reupload_email_keeps_the_verdict(
+    client: AsyncClient,
+    enqueued: list[tuple[str, tuple[str, ...]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _boom(*_: Any, **__: Any) -> bool:
+        raise RuntimeError("outbox down")
+
+    monkeypatch.setattr(cv_scan, "notify_candidate", _boom)
+    ctx = await _apply_for_reupload(client, EICAR)
+    await _run_worker_scan(ctx["app_id"])  # no Retry: the scan itself succeeded
+    assert await _status(client, ctx["app_id"]) == "infected"

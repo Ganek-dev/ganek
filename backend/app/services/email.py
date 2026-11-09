@@ -1220,3 +1220,68 @@ def send_scorecard_reminder(
         url=url,
         brand_primary=brand_primary,
     )
+
+
+def send_cv_reupload_request(
+    *,
+    to: str,
+    ref: str | None = None,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    status_url: str,
+    brand_primary: str | None = None,
+    controller_name: str | None = None,
+    privacy_url: str | None = None,
+) -> None:
+    """The virus scanner flagged the candidate's CV (card "CV virus scanning
+    (ClamAV container)"): ask for a new file on the status page. Never names
+    the signature, which is for the team, and keeps the wording neutral, since
+    most flagged CVs are an infected machine or a false positive, not intent."""
+    brand = brand_primary or DEFAULT_BRAND_PRIMARY
+    brand_fg = _brand_foreground(brand)
+    safe_candidate = escape(candidate_name)
+    safe_job = escape(job_title)
+    safe_company = escape(company_name)
+    subject = f"Please upload your CV again - {job_title} at {company_name}"
+    body = (
+        f"Hi {candidate_name},\n"
+        f"\n"
+        f"Thanks for applying for the {job_title} position at {company_name}.\n"
+        f"Our automatic virus check could not clear the CV you uploaded, so the\n"
+        f"team cannot open it. Your application is still open.\n"
+        f"\n"
+        f"Please upload your CV again as a PDF: {status_url}\n"
+        f"\n"
+        f"Exporting the PDF again from your editor, or from another device,\n"
+        f"usually fixes this.\n"
+        f"\n"
+        f"- {company_name} (via Ganek)\n" + _privacy_text(privacy_url)
+    )
+    content = (
+        '<h1 style="margin: 22px 0 0; font-size: 22px; line-height: 1.25; font-weight: 600;">'
+        "Please upload your CV again</h1>"
+        + _paragraph(
+            f"Hi {safe_candidate} - thanks for applying for the "
+            f'<b style="font-weight: 600;">{safe_job}</b> position at {safe_company}. '
+            "Our automatic virus check could not clear the CV you uploaded, so the team "
+            "cannot open it. Your application is still open."
+        )
+        + f'<a href="{escape(status_url)}" style="margin-top: 22px; display: block; '
+        f"text-align: center; height: 46px; line-height: 46px; background: {brand}; "
+        f"color: {brand_fg}; border-radius: 10px; font-size: 15px; font-weight: 600; "
+        f'text-decoration: none;">Upload a new CV</a>'
+        + _paragraph(
+            "Exporting the PDF again from your editor, or from another device, usually fixes this."
+        )
+    )
+    html = _card_html(
+        bar_color=brand,
+        brand=brand,
+        brand_fg=brand_fg,
+        safe_company=safe_company,
+        content=content,
+        safe_controller=escape(controller_name) if controller_name else None,
+        privacy_url=privacy_url,
+    )
+    send_email(to=to, subject=subject, body=body, html=html, ref=ref)

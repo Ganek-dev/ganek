@@ -60,6 +60,7 @@ SENDER_NAMES: dict[str, str] = {
     "email_verification": "send_email_verification",
     "scorecard_request": "send_scorecard_request",
     "scorecard_reminder": "send_scorecard_reminder",
+    "cv_reupload": "send_cv_reupload_request",
 }
 
 
