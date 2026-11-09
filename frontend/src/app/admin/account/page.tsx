@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 
 import { AvailabilityCard } from "@/components/AvailabilityCard";
+import { CompaniesCard } from "@/components/CompaniesCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { api, type UserOut } from "@/lib/api";
@@ -223,6 +224,8 @@ function AccountContent() {
       {user ? <TwoFactorCard user={user} onUserChange={setUser} locked={demo} /> : null}
 
       <AvailabilityCard />
+
+      {user ? <CompaniesCard impersonating={Boolean(user.impersonation_expires_at)} /> : null}
 
       <p className="text-[12.5px] text-g500">
         Email notification preferences and account deletion are planned for a later

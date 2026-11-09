@@ -39,6 +39,8 @@ REVIEWER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
         # another: listing and switching seats is the user's own business
         ("GET", "/api/v1/auth/companies"),
         ("POST", "/api/v1/auth/switch-company"),
+        # leaving one of their own companies too
+        ("DELETE", "/api/v1/auth/companies/{company_id}"),
         # joining another company by invite is the invited person's own call
         ("POST", "/api/v1/auth/join-invite"),
         ("POST", "/api/v1/auth/mfa/enrol"),

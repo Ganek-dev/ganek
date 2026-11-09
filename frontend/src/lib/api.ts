@@ -376,6 +376,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ company_id: companyId }),
     }),
+  /** Give up your own seat in a company; the user comes back with the
+   * active company and role after leaving (another seat when it was this). */
+  leaveCompany: (companyId: string) =>
+    request<UserOut>(`/api/v1/auth/companies/${encodeURIComponent(companyId)}`, {
+      method: "DELETE",
+    }),
   availability: {
     get: () => request<Availability>("/api/v1/users/me/availability"),
     set: (payload: AvailabilityIn) =>

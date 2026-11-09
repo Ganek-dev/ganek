@@ -383,6 +383,7 @@ describe("ActivityPanel", () => {
       { id: "p4b", type: "cv.replaced", payload: {}, ...base, actor_email: null },
       { id: "p5", type: "user.anonymized", payload: {}, ...base },
       { id: "p5b", type: "user.removed", payload: {}, ...base },
+      { id: "p5c", type: "user.left", payload: {}, ...base },
       {
         id: "p6",
         type: "retention.purged",
@@ -413,6 +414,7 @@ describe("ActivityPanel", () => {
     expect(
       screen.getByText("grumpy@acme.dev removed a teammate from the company"),
     ).toBeInTheDocument();
+    expect(screen.getByText("grumpy@acme.dev left the company")).toBeInTheDocument();
     expect(
       screen.getByText("Retention purge removed 3 application(s)"),
     ).toBeInTheDocument();
