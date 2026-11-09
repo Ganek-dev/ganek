@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { companyApi, type CompanyAdmin } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import BrandingPage from "./page";
 
@@ -178,5 +179,65 @@ describe("BrandingPage", () => {
     await waitFor(() => expect(mocked.removeLogo).toHaveBeenCalled());
     expect(await screen.findByRole("status")).toHaveTextContent("Logo removed");
     expect(screen.queryByAltText("Company logo")).not.toBeInTheDocument();
+  });
+});
+
+describe("BrandingPage in German", () => {
+  const renderGerman = () =>
+    render(
+      <LocaleProvider>
+        <BrandingPage />
+      </LocaleProvider>,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mocked.get.mockResolvedValue(makeCompany());
+    mocked.updateBranding.mockResolvedValue(makeCompany());
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the cards in German and keeps the candidate preview copy", async () => {
+    renderGerman();
+    expect(await screen.findByLabelText("Markenfarbe als Hex-Wert")).toHaveValue("#18181b");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Einstellungen");
+    expect(screen.getByText("Hochladen")).toBeInTheDocument();
+    expect(screen.getByText(/^PNG, JPG oder SVG/)).toBeInTheDocument();
+    expect(screen.getByText("AA-Kontrast ok")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Eckenradius" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Standard" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "eckig" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "rund" })).toBeInTheDocument();
+    expect(screen.getByText("Karriereseite")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "URL der Karriereseite kopieren" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Live-Vorschau" })).toBeInTheDocument();
+    expect(screen.getByText("Live-Vorschau - so sehen es Bewerberinnen und Bewerber")).toBeInTheDocument();
+    // the preview shows the (not yet translated) candidate page
+    expect(screen.getByText("Work at ACME Ganek")).toBeInTheDocument();
+  });
+
+  it("flags an invalid hex and saves with a German confirmation", async () => {
+    const user = userEvent.setup();
+    renderGerman();
+    const hex = await screen.findByLabelText("Markenfarbe als Hex-Wert");
+    await user.clear(hex);
+    await user.type(hex, "#12");
+    expect(screen.getByText("#rrggbb eingeben")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Branding speichern" })).toBeDisabled();
+    await user.clear(hex);
+    await user.type(hex, "#E4572E");
+    await user.click(screen.getByRole("button", { name: "Branding speichern" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Branding gespeichert");
+  });
+
+  it("rejects an oversized logo in German", async () => {
+    renderGerman();
+    const input = (await screen.findByText("Hochladen")).querySelector("input")!;
+    const big = new File([new Uint8Array(2 * 1024 * 1024 + 1)], "big.png", { type: "image/png" });
+    await userEvent.upload(input, big);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Das Logo darf höchstens 2 MB groß sein",
+    );
   });
 });
