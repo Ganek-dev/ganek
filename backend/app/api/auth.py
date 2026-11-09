@@ -43,7 +43,7 @@ from app.schemas.auth import (
 )
 from app.schemas.users import InviteJoinRequest
 from app.services import auth as auth_service
-from app.services import demo_mode
+from app.services import demo_mode, oauth_oidc
 from app.services import invites as invites_service
 from app.services import memberships as memberships_service
 from app.services import mfa as mfa_service
@@ -268,6 +268,7 @@ async def providers() -> dict[str, bool | str | dict[str, int] | dict[str, str]]
     leak through the 429/409 responses on apply and publish."""
     out: dict[str, bool | str | dict[str, int] | dict[str, str]] = {
         "google": bool(settings.google_client_id and settings.google_client_secret),
+        "oidc": oauth_oidc.configured(),
         "mode": settings.mode,
         "demo": settings.demo_mode,
         "limits": {
@@ -276,6 +277,8 @@ async def providers() -> dict[str, bool | str | dict[str, int] | dict[str, str]]
             "emails_per_day": settings.quota_emails_per_day,
         },
     }
+    if oauth_oidc.configured():
+        out["oidc_name"] = settings.oidc_display_name
     if settings.demo_mode:
         # the shared demo login is public by design; the login page offers it
         out["demo_login"] = demo_mode.demo_login()

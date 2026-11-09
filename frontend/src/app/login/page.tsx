@@ -7,12 +7,13 @@ import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
+import { SsoButton } from "@/components/SsoButton";
 import { api } from "@/lib/api";
 import { homePath, safeNext } from "@/lib/home";
 
-/** Login, handoff screen 13a. Google sign-in appears when the instance has
- * OAuth configured (providers flag); the backend redirects back here with
- * ?error=<code> when a Google flow can't complete. */
+/** Login, handoff screen 13a. Google and single sign-on (OpenID Connect)
+ * appear when the instance has them configured (providers flags); the
+ * backend redirects back here with ?error=<code> when a flow can't complete. */
 
 const inputCls =
   "h-10 w-full rounded-md border-[1.5px] border-edge bg-surface px-3.5 text-sm outline-none focus:border-accent";
@@ -22,6 +23,9 @@ const OAUTH_ERRORS: Record<string, string> = {
     "An account with this email already exists - log in with your password below.",
   "account-disabled": "Your account is deactivated. Contact your workspace admin.",
   "google-failed": "Google sign-in didn't complete. Please try again.",
+  "oidc-failed": "Single sign-on didn't complete. Please try again.",
+  "oidc-no-account":
+    "No account here matches that single sign-on. Log in with your email, or ask your admin for an invite.",
 };
 
 function LoginForm() {
@@ -30,6 +34,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [google, setGoogle] = useState(false);
+  const [ssoName, setSsoName] = useState<string | null>(null);
   const [demoLogin, setDemoLogin] = useState<{ email: string; password: string } | null>(null);
   // card A6: the password (or Google) passed; a code is needed. Google
   // sign-ins with 2FA land here as /login?mfa=<token>.
@@ -45,6 +50,7 @@ function LoginForm() {
       .then((p) => {
         if (cancelled) return;
         setGoogle(p.google);
+        setSsoName(p.oidc ? p.oidc_name || "SSO" : null);
         setDemoLogin(p.demo && p.demo_login ? p.demo_login : null);
       })
       .catch(() => {
@@ -183,15 +189,27 @@ function LoginForm() {
         </div>
       ) : null}
 
-      {google ? (
+      {google || ssoName ? (
         <>
-          <GoogleButton
-            href={
-              next
-                ? `/api/v1/auth/google/start?next=${encodeURIComponent(next)}`
-                : "/api/v1/auth/google/start"
-            }
-          />
+          {ssoName ? (
+            <SsoButton
+              name={ssoName}
+              href={
+                next
+                  ? `/api/v1/auth/oidc/start?next=${encodeURIComponent(next)}`
+                  : "/api/v1/auth/oidc/start"
+              }
+            />
+          ) : null}
+          {google ? (
+            <GoogleButton
+              href={
+                next
+                  ? `/api/v1/auth/google/start?next=${encodeURIComponent(next)}`
+                  : "/api/v1/auth/google/start"
+              }
+            />
+          ) : null}
           <div className="flex items-center gap-3 pt-2">
             <span aria-hidden className="h-px flex-1 bg-edge" />
             <span className="font-mono text-[10.5px] tracking-wide text-g400 uppercase">

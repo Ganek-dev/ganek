@@ -39,6 +39,10 @@ Ganek reads its settings from environment variables, in the compose stack via th
 | `GANEK_PUBLIC_BASE_URL` | `http://localhost:3000` | The candidate-facing origin, for example `https://jobs.example.com`. Quiz, status and interview links in emails use it; the frontend builds the sitemap and Open Graph URLs from it. Set it as soon as the instance has a hostname. |
 | `GANEK_GOOGLE_CLIENT_ID`, `GANEK_GOOGLE_CLIENT_SECRET` | unset | Google sign-in. Create an OAuth web client in Google Cloud Console; only the `openid email` scope is requested. |
 | `GANEK_GOOGLE_REDIRECT_URL` | `${GANEK_PUBLIC_BASE_URL}/api/v1/auth/google/callback` | Override the redirect URI registered with Google. |
+| `GANEK_OIDC_ISSUER`, `GANEK_OIDC_CLIENT_ID`, `GANEK_OIDC_CLIENT_SECRET` | unset | Generic OpenID Connect sign-in (Keycloak, Authentik, Okta, Entra ID and others). The issuer must serve `/.well-known/openid-configuration`; only the `openid email` scope is requested. Signs in existing accounts only. |
+| `GANEK_OIDC_REDIRECT_URL` | `${GANEK_PUBLIC_BASE_URL}/api/v1/auth/oidc/callback` | Override the redirect URI registered with the identity provider. |
+| `GANEK_OIDC_DISPLAY_NAME` | `SSO` | Button label on the login page: "Continue with <name>". |
+| `GANEK_OIDC_EMAIL_DOMAINS` | empty | Comma-separated domains the identity provider is trusted for. A first OIDC sign-in links to the account with the same email only when the IdP marks the email verified and its domain is listed here; otherwise the person is asked to sign in with their password. |
 
 ## Email
 

@@ -100,6 +100,10 @@ GOOGLE_SIGNUP_MAX_AGE_SECONDS = 60 * 15
 # the signup token carries sub+email (PII) - it rides an httponly cookie,
 # never a URL (browser history / proxy logs), per GDPR G4
 GOOGLE_SIGNUP_COOKIE_NAME = "ganek_google_signup"
+_oidc_flow_serializer = URLSafeTimedSerializer(settings.secret_key, salt="ganek-oidc")
+# same lifetime as Google's: state/PKCE/nonce only cross one IdP round trip
+OIDC_FLOW_MAX_AGE_SECONDS = 60 * 10
+OIDC_FLOW_COOKIE_NAME = "ganek_oidc_flow"
 
 
 def hash_password(password: str) -> str:
@@ -235,6 +239,30 @@ def read_google_flow_token(
             safe_next_path(str(next_path)) if next_path is not None else None,
         )
     except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+        return None
+
+
+def create_oidc_flow_token(
+    state: str, code_verifier: str, nonce: str, next_path: str | None = None
+) -> str:
+    payload: dict[str, str] = {"s": state, "cv": code_verifier, "n": nonce}
+    if next_path is not None:
+        payload["x"] = next_path  # where to land after sign-in (safe_next_path checked)
+    return _oidc_flow_serializer.dumps(payload)
+
+
+def read_oidc_flow_token(token: str) -> tuple[str, str, str, str | None] | None:
+    """(state, code_verifier, nonce, next_path); next is re-checked on read."""
+    try:
+        raw = _oidc_flow_serializer.loads(token, max_age=OIDC_FLOW_MAX_AGE_SECONDS)
+        next_path = raw.get("x")
+        return (
+            str(raw["s"]),
+            str(raw["cv"]),
+            str(raw["n"]),
+            safe_next_path(str(next_path)) if next_path is not None else None,
+        )
+    except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError, AttributeError):
         return None
 
 

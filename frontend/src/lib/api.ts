@@ -47,6 +47,9 @@ export interface InstanceLimits {
  * limits the signup page lists under "what you get" (card B3). */
 export interface Providers {
   google: boolean;
+  /** generic OpenID Connect sign-in (GANEK_OIDC_*) and its button label */
+  oidc?: boolean;
+  oidc_name?: string;
   mode: "single" | "multi";
   limits?: InstanceLimits;
   /** public demo instance (GANEK_DEMO_MODE): banner, locked account actions */
