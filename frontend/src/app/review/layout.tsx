@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { Wordmark } from "@/components/Wordmark";
 import { api, ApiError, companyApi, type UserOut } from "@/lib/api";
 
@@ -82,11 +83,17 @@ export default function ReviewLayout({ children }: { children: React.ReactNode }
       <header className="border-b border-divider bg-surface">
         <div className="mx-auto flex h-14 max-w-[960px] items-center gap-4 px-5">
           <Wordmark className="text-lg" />
-          {company ? (
-            <span className="truncate text-[13.5px] font-medium text-g600">{company}</span>
-          ) : (
-            <span aria-hidden className="h-4 w-24 animate-pulse rounded bg-muted-fill" />
-          )}
+          <CompanySwitcher
+            tone="light"
+            impersonating={Boolean(user.impersonation_expires_at)}
+            fallback={
+              company ? (
+                <span className="truncate text-[13.5px] font-medium text-g600">{company}</span>
+              ) : (
+                <span aria-hidden className="h-4 w-24 animate-pulse rounded bg-muted-fill" />
+              )
+            }
+          />
           <Link
             href="/review"
             className="ml-2 text-[13.5px] font-semibold hover:text-accent"

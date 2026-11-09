@@ -26,6 +26,16 @@ export interface UserOut {
   impersonation_expires_at?: string | null;
 }
 
+/** GET /auth/companies: one company the signed-in user holds a seat in,
+ * with the role they have there. The active seat comes first. */
+export interface CompanySeat {
+  company_id: string;
+  name: string;
+  slug: string;
+  role: UserOut["role"];
+  active: boolean;
+}
+
 /** Per-tenant guards this instance enforces (GANEK_QUOTA_*); 0 = off. */
 export interface InstanceLimits {
   active_jobs: number;
@@ -358,6 +368,14 @@ export const api = {
     }),
   me: () => sharedGet<UserOut>("/api/v1/auth/me"),
   providers: () => sharedGet<Providers>("/api/v1/auth/providers"),
+  /** The user's company seats (feeds the company switcher). */
+  companies: () => request<CompanySeat[]>("/api/v1/auth/companies"),
+  /** Make another seat the active company; its role comes with it. */
+  switchCompany: (companyId: string) =>
+    request<UserOut>("/api/v1/auth/switch-company", {
+      method: "POST",
+      body: JSON.stringify({ company_id: companyId }),
+    }),
   availability: {
     get: () => request<Availability>("/api/v1/users/me/availability"),
     set: (payload: AvailabilityIn) =>
