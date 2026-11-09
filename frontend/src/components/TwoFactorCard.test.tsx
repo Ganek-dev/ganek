@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api, type UserOut } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { TwoFactorCard } from "./TwoFactorCard";
 
@@ -114,5 +115,62 @@ describe("TwoFactorCard", () => {
     await waitFor(() => expect(mocked.signOutEverywhere).toHaveBeenCalled());
     expect(await screen.findByText(/this one stays/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out everywhere" })).toBeDisabled();
+  });
+});
+
+describe("TwoFactorCard in German", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mocked.mfa.enrol.mockResolvedValue({
+      secret: "ABCDEFGHIJKLMNOP",
+      otpauth_uri: "otpauth://totp/Ganek:a?secret=ABCDEFGHIJKLMNOP",
+    });
+    mocked.mfa.confirm.mockResolvedValue({ recovery_codes: ["aaaa-bbbb", "cccc-dddd"] });
+    mocked.signOutEverywhere.mockResolvedValue(undefined);
+  });
+  afterEach(() => window.localStorage.clear());
+
+  function renderDe(props: Partial<React.ComponentProps<typeof TwoFactorCard>> = {}) {
+    return render(
+      <LocaleProvider>
+        <TwoFactorCard user={user()} onUserChange={vi.fn()} {...props} />
+      </LocaleProvider>,
+    );
+  }
+
+  it("walks through enrolment in German", async () => {
+    renderDe();
+    expect(screen.getByText("Zwei-Faktor-Authentifizierung")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Einrichten" }));
+    await userEvent.type(await screen.findByLabelText("Code aus der App"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Aktivieren" }));
+    expect(await screen.findByText("Zwei-Faktor-Authentifizierung ist aktiv.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ich habe sie gespeichert" })).toBeInTheDocument();
+  });
+
+  it("counts recovery codes and asks for the password in German", async () => {
+    renderDe({ user: user({ mfa_enabled: true, recovery_codes_left: 2 }) });
+    expect(screen.getByText(/noch 2 Wiederherstellungscodes/)).toBeInTheDocument();
+    expect(screen.getByText(/Nur noch wenige Wiederherstellungscodes/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Deaktivieren" }));
+    expect(screen.getByLabelText("Mit Ihrem Passwort bestätigen")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zwei-Faktor deaktivieren" })).toBeInTheDocument();
+  });
+
+  it("signs out everywhere in German and explains the demo lock", async () => {
+    renderDe();
+    expect(screen.getByText("Sitzungen")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Überall abmelden" }));
+    expect(await screen.findByText(/dieser bleibt angemeldet/)).toBeInTheDocument();
+  });
+
+  it("titles the locked buttons in German", () => {
+    renderDe({ locked: true });
+    expect(screen.getByRole("button", { name: "Einrichten" })).toHaveAttribute(
+      "title",
+      "Im Demo-Workspace deaktiviert",
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(/Zwei-Faktor und Sitzungen/);
   });
 });

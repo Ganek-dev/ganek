@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { api, type UserOut } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
 
 /** Account page card for the second factor and "sign out everywhere"
  * (board card A6). Enrolment is two steps: the backend hands out a secret,
@@ -23,8 +24,6 @@ type Props = {
   locked?: boolean;
 };
 
-const LOCKED_TITLE = "Off on the demo workspace";
-
 type Phase =
   | { kind: "idle" }
   | { kind: "enrolling"; secret: string; uri: string }
@@ -32,6 +31,8 @@ type Phase =
   | { kind: "disabling" };
 
 export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
+  const { t } = useLocale();
+  const lockedTitle = locked ? t("mfa.lockedTitle") : undefined;
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,7 +44,7 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : t("common.failed"));
     } finally {
       setBusy(false);
     }
@@ -87,11 +88,9 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
     <div className="card p-5">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-semibold">Two-factor authentication</p>
+          <p className="text-sm font-semibold">{t("mfa.title")}</p>
           <p className="mt-0.5 text-[12.5px] text-g500">
-            {enabled
-              ? `On. Every login asks for a code from your authenticator app; ${user.recovery_codes_left ?? 0} recovery codes left.`
-              : "Add a code from an authenticator app (any TOTP app) to every login."}
+            {enabled ? t("mfa.on", { count: user.recovery_codes_left ?? 0 }) : t("mfa.off")}
           </p>
         </div>
         {phase.kind === "idle" ? (
@@ -100,50 +99,47 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
               type="button"
               onClick={() => setPhase({ kind: "disabling" })}
               disabled={locked}
-              title={locked ? LOCKED_TITLE : undefined}
+              title={lockedTitle}
               className={secondaryBtn}
             >
-              Turn off
+              {t("mfa.turnOff")}
             </button>
           ) : (
             <button
               type="button"
               onClick={start}
               disabled={busy || locked}
-              title={locked ? LOCKED_TITLE : undefined}
+              title={lockedTitle}
               className={primaryBtn}
             >
-              {busy ? "…" : "Set up"}
+              {busy ? "…" : t("mfa.setUp")}
             </button>
           )
         ) : null}
       </div>
       {locked ? (
         <p role="note" className="mt-3 text-[12.5px] text-g500">
-          Two-factor and session changes are off on the demo workspace: the login is shared
-          with every visitor.
+          {t("mfa.locked")}
         </p>
       ) : null}
 
       {enabled && (user.recovery_codes_left ?? 0) < 3 && phase.kind === "idle" ? (
         <p className="mt-3 rounded-md border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400">
-          Few recovery codes left. Turn two-factor off and on again to get a fresh set.
+          {t("mfa.fewCodes")}
         </p>
       ) : null}
 
       {phase.kind === "enrolling" ? (
         <form onSubmit={confirm} className="mt-4 space-y-3">
-          <p className="text-[13px]">
-            Add this key to your authenticator app, then enter the code it shows.
-          </p>
+          <p className="text-[13px]">{t("mfa.addKey")}</p>
           <p className="rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 font-mono text-[12.5px] break-all select-all">
             {phase.secret}
           </p>
           <a href={phase.uri} className="text-[12.5px] text-accent hover:underline">
-            Open in an authenticator app on this device
+            {t("mfa.openApp")}
           </a>
           <label className="flex max-w-[240px] flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Code from the app</span>
+            <span className="text-[13px] font-medium">{t("mfa.code")}</span>
             <input
               name="code"
               inputMode="numeric"
@@ -155,14 +151,14 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
           </label>
           <div className="flex gap-2">
             <button type="submit" disabled={busy} className={primaryBtn}>
-              {busy ? "…" : "Turn on"}
+              {busy ? "…" : t("mfa.turnOn")}
             </button>
             <button
               type="button"
               onClick={() => setPhase({ kind: "idle" })}
               className={secondaryBtn}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </form>
@@ -170,11 +166,8 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
 
       {phase.kind === "codes" ? (
         <div className="mt-4 space-y-3">
-          <p className="text-[13px] font-medium">Two-factor authentication is on.</p>
-          <p className="text-[12.5px] text-g500">
-            Save these recovery codes somewhere safe. Each one logs you in once if you lose
-            the app. They are shown only now.
-          </p>
+          <p className="text-[13px] font-medium">{t("mfa.enabled")}</p>
+          <p className="text-[12.5px] text-g500">{t("mfa.saveCodes")}</p>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 font-mono text-[12.5px] select-all sm:grid-cols-5">
             {phase.codes.map((code) => (
               <li key={code}>{code}</li>
@@ -185,7 +178,7 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
             onClick={() => setPhase({ kind: "idle" })}
             className={secondaryBtn}
           >
-            I saved them
+            {t("mfa.savedCodes")}
           </button>
         </div>
       ) : null}
@@ -194,7 +187,7 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
         <form onSubmit={disable} className="mt-4 space-y-3">
           <label className="flex max-w-[280px] flex-col gap-1.5">
             <span className="text-[13px] font-medium">
-              {user.has_password ? "Confirm with your password" : "Confirm with a current code"}
+              {user.has_password ? t("mfa.confirmPassword") : t("mfa.confirmCode")}
             </span>
             <input
               name="reauth"
@@ -206,14 +199,14 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
           </label>
           <div className="flex gap-2">
             <button type="submit" disabled={busy} className={primaryBtn}>
-              {busy ? "…" : "Turn off two-factor"}
+              {busy ? "…" : t("mfa.turnOffSubmit")}
             </button>
             <button
               type="button"
               onClick={() => setPhase({ kind: "idle" })}
               className={secondaryBtn}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </form>
@@ -227,21 +220,19 @@ export function TwoFactorCard({ user, onUserChange, locked = false }: Props) {
 
       <div className="mt-5 flex items-center justify-between gap-4 border-t border-divider pt-4">
         <div className="min-w-0">
-          <p className="text-sm font-semibold">Sessions</p>
+          <p className="text-sm font-semibold">{t("sessions.title")}</p>
           <p className="mt-0.5 text-[12.5px] text-g500">
-            {signedOut
-              ? "Done. Every other browser and device is signed out; this one stays."
-              : "Lost a laptop or shared a login? Sign out everywhere except here."}
+            {signedOut ? t("sessions.done") : t("sessions.hint")}
           </p>
         </div>
         <button
           type="button"
           onClick={signOutEverywhere}
           disabled={busy || signedOut || locked}
-          title={locked ? LOCKED_TITLE : undefined}
+          title={lockedTitle}
           className={secondaryBtn}
         >
-          Sign out everywhere
+          {t("sessions.signOutEverywhere")}
         </button>
       </div>
     </div>
