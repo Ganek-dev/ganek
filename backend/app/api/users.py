@@ -65,12 +65,23 @@ async def set_availability(
     )
 
 
+_SHARED_ACCOUNT_DETAIL = (
+    "This person also belongs to another company, so their account cannot be"
+    " deactivated or removed from here"
+)
+
+
+def _team_user_out(mate: users_service.Teammate) -> TeamUserOut:
+    # the role shown is the seat's in this company, not the user's active one
+    return TeamUserOut.model_validate(mate.user).model_copy(update={"role": mate.role})
+
+
 @router.get("", response_model=list[TeamUserOut] | list[TeamMemberOut])
 async def list_users(db: DbSession, company: CurrentCompany, user: CurrentUser) -> list[Any]:
-    users = await users_service.list_users(db, company)
+    mates = await users_service.list_users(db, company)
     if user.role == UserRole.ADMIN:
-        return [TeamUserOut.model_validate(u) for u in users]
-    return [TeamMemberOut.model_validate(u) for u in users]
+        return [_team_user_out(m) for m in mates]
+    return [TeamMemberOut.model_validate(m.user).model_copy(update={"role": m.role}) for m in mates]
 
 
 @router.post(
@@ -188,16 +199,20 @@ async def update_user(
     db: DbSession,
     company: CurrentCompany,
     _admin: AdminUser,
-) -> User:
-    user = await users_service.get_user(db, company, user_id)
-    if user is None:
+) -> TeamUserOut:
+    mate = await users_service.get_user(db, company, user_id)
+    if mate is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     try:
-        return await users_service.update_user(db, company, user, payload)
+        return _team_user_out(await users_service.update_user(db, company, mate, payload))
     except users_service.LastAdminError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot remove the company's last active admin",
+        ) from None
+    except users_service.SharedAccountError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_SHARED_ACCOUNT_DETAIL
         ) from None
 
 
@@ -212,15 +227,19 @@ async def anonymize_user(
 ) -> None:
     """GDPR removal for a teammate: tombstone in place (hard delete is
     FK-blocked by their interviews). Cannot be undone."""
-    user = await users_service.get_user(db, company, user_id)
-    if user is None:
+    mate = await users_service.get_user(db, company, user_id)
+    if mate is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     try:
-        await users_service.anonymize_user(db, company, user, actor_user_id=admin.id)
+        await users_service.anonymize_user(db, company, mate.user, actor_user_id=admin.id)
     except users_service.LastAdminError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot remove the company's last active admin",
+        ) from None
+    except users_service.SharedAccountError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_SHARED_ACCOUNT_DETAIL
         ) from None
     except users_service.HasUpcomingInterviewsError:
         raise HTTPException(
