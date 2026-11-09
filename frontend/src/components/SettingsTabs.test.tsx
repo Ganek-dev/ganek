@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { companyApi, type PlanOut } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { SettingsTabs } from "./SettingsTabs";
 
@@ -57,5 +58,26 @@ describe("SettingsTabs", () => {
     render(<SettingsTabs />);
     expect(await screen.findByRole("link", { name: "Developers" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
+  });
+
+  it("labels the tabs in the admin language", async () => {
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    pathname = "/admin/account";
+    mocked.plan.mockResolvedValue(plan(true));
+    try {
+      render(
+        <LocaleProvider>
+          <SettingsTabs />
+        </LocaleProvider>,
+      );
+      expect(await screen.findByRole("link", { name: "Abrechnung" })).toHaveAttribute(
+        "href",
+        "/admin/billing",
+      );
+      expect(screen.getByRole("link", { name: "Konto" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("navigation", { name: "Einstellungsbereiche" })).toBeInTheDocument();
+    } finally {
+      window.localStorage.clear();
+    }
   });
 });

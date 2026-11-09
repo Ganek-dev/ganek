@@ -5,8 +5,8 @@
  * or an unknown key; messages.test.ts also checks placeholders.
  * Placeholders are `{name}`, filled by `translate`.
  *
- * Coverage grows by surface: the admin shell and the Account language card
- * first. Candidate pages are out of scope (separate card). */
+ * Coverage grows by surface: the admin shell, the settings tabs and the
+ * Account page's own cards so far. Candidate pages are out of scope (separate card). */
 
 export const LOCALES = ["en", "de"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -38,7 +38,49 @@ const en = {
   "language.title": "Language",
   "language.description": "Language of the admin app in this browser. Candidate pages are not affected.",
   "language.label": "Interface language",
-  "language.partial": "German covers the navigation so far. Other screens stay in English until they are translated.",
+  "language.partial":
+    "German covers the navigation, the settings tabs and the profile and password cards so far. Other screens stay in English until they are translated.",
+  "settings.label": "Settings sections",
+  "settings.branding": "Branding",
+  "settings.hiring": "Hiring",
+  "settings.privacy": "Privacy",
+  "settings.emails": "Emails",
+  "settings.team": "Team",
+  "settings.account": "Account",
+  "settings.developers": "Developers",
+  "settings.billing": "Billing",
+  "role.admin": "admin",
+  "role.member": "member",
+  "role.reviewer": "reviewer",
+  "account.title": "Account",
+  "account.profileTitle": "Profile",
+  "account.profileDescription": "Shown to teammates on notes and activity.",
+  "account.displayName": "Display name",
+  "account.saveName": "Save name",
+  "account.saved": "Saved",
+  "account.email": "Email",
+  "account.role": "Role",
+  "account.roleAssigned": "{role} · assigned by workspace admin",
+  "account.passwordTitle": "Password",
+  "account.passwordAccess": "How you access this workspace.",
+  "account.passwordSessions":
+    "Changing your password signs out every other session; so does the button under Sessions below.",
+  "account.passwordless":
+    "You sign in with {via} - this account has no password. To add one, use Forgot password on the sign-in page.",
+  "account.viaGoogle": "Google",
+  "account.viaGoogleOr": "Google or {sso}",
+  "account.viaSso": "single sign-on",
+  "account.demoPassword":
+    "Password changes are off on the demo workspace: the login is shared with every visitor.",
+  "account.currentPassword": "Current password",
+  "account.newPassword": "New password (min 10)",
+  "account.confirmPassword": "Confirm new password",
+  "account.passwordMismatch": "New passwords do not match.",
+  "account.passwordFailed": "Failed to change password",
+  "account.passwordChanged": "Password changed.",
+  "account.updatePassword": "Update password",
+  "account.later":
+    "Email notification preferences and account deletion are planned for a later milestone.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -69,7 +111,48 @@ const de: Messages = {
     "Sprache der Admin-App in diesem Browser. Seiten für Bewerberinnen und Bewerber sind nicht betroffen.",
   "language.label": "Sprache der Oberfläche",
   "language.partial":
-    "Auf Deutsch ist bisher die Navigation übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
+    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs sowie Profil und Passwort übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
+  "settings.label": "Einstellungsbereiche",
+  "settings.branding": "Branding",
+  "settings.hiring": "Recruiting",
+  "settings.privacy": "Datenschutz",
+  "settings.emails": "E-Mails",
+  "settings.team": "Team",
+  "settings.account": "Konto",
+  "settings.developers": "Entwickler",
+  "settings.billing": "Abrechnung",
+  "role.admin": "Admin",
+  "role.member": "Mitglied",
+  "role.reviewer": "Prüfer",
+  "account.title": "Konto",
+  "account.profileTitle": "Profil",
+  "account.profileDescription": "Wird Teammitgliedern bei Notizen und Aktivitäten angezeigt.",
+  "account.displayName": "Anzeigename",
+  "account.saveName": "Namen speichern",
+  "account.saved": "Gespeichert",
+  "account.email": "E-Mail",
+  "account.role": "Rolle",
+  "account.roleAssigned": "{role} · vom Workspace-Admin vergeben",
+  "account.passwordTitle": "Passwort",
+  "account.passwordAccess": "So melden Sie sich in diesem Workspace an.",
+  "account.passwordSessions":
+    "Eine Passwortänderung meldet alle anderen Sitzungen ab, ebenso die Schaltfläche im Bereich Sessions weiter unten.",
+  "account.passwordless":
+    "Sie melden sich mit {via} an. Dieses Konto hat kein Passwort. Um eines festzulegen, nutzen Sie auf der Anmeldeseite \"Forgot password\".",
+  "account.viaGoogle": "Google",
+  "account.viaGoogleOr": "Google oder {sso}",
+  "account.viaSso": "Single Sign-on",
+  "account.demoPassword":
+    "Im Demo-Workspace sind Passwortänderungen deaktiviert: Die Anmeldung teilen sich alle Besucherinnen und Besucher.",
+  "account.currentPassword": "Aktuelles Passwort",
+  "account.newPassword": "Neues Passwort (mind. 10 Zeichen)",
+  "account.confirmPassword": "Neues Passwort bestätigen",
+  "account.passwordMismatch": "Die neuen Passwörter stimmen nicht überein.",
+  "account.passwordFailed": "Passwort konnte nicht geändert werden",
+  "account.passwordChanged": "Passwort geändert.",
+  "account.updatePassword": "Passwort ändern",
+  "account.later":
+    "Einstellungen für E-Mail-Benachrichtigungen und das Löschen des Kontos sind für einen späteren Meilenstein geplant.",
 };
 
 export const MESSAGES: Record<Locale, Messages> = { en, de };

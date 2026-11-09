@@ -6,23 +6,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { companyApi } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 /** Settings section tabs from handoff screen 10: Branding | Team | Account. */
-const TABS = [
-  { href: "/admin/branding", label: "Branding" },
-  { href: "/admin/hiring", label: "Hiring" },
-  { href: "/admin/privacy", label: "Privacy" },
-  { href: "/admin/emails", label: "Emails" },
-  { href: "/admin/team", label: "Team" },
-  { href: "/admin/account", label: "Account" },
-  { href: "/admin/developers", label: "Developers" },
+const TABS: { href: string; label: MessageKey }[] = [
+  { href: "/admin/branding", label: "settings.branding" },
+  { href: "/admin/hiring", label: "settings.hiring" },
+  { href: "/admin/privacy", label: "settings.privacy" },
+  { href: "/admin/emails", label: "settings.emails" },
+  { href: "/admin/team", label: "settings.team" },
+  { href: "/admin/account", label: "settings.account" },
+  { href: "/admin/developers", label: "settings.developers" },
 ];
 
 /** Only a hosted instance with Stripe configured has a billing page. */
-const BILLING_TAB = { href: "/admin/billing", label: "Billing" };
+const BILLING_TAB: { href: string; label: MessageKey } = {
+  href: "/admin/billing",
+  label: "settings.billing",
+};
 
 export function SettingsTabs() {
   const pathname = usePathname();
+  const { t } = useLocale();
   const [billing, setBilling] = useState(false);
 
   useEffect(() => {
@@ -42,7 +48,7 @@ export function SettingsTabs() {
 
   const tabs = billing || pathname === BILLING_TAB.href ? [...TABS, BILLING_TAB] : TABS;
   return (
-    <nav aria-label="Settings sections" className="flex gap-1 border-b border-divider">
+    <nav aria-label={t("settings.label")} className="flex gap-1 border-b border-divider">
       {tabs.map((tab) => {
         const active = pathname === tab.href;
         return (
@@ -56,7 +62,7 @@ export function SettingsTabs() {
                 : "border-transparent text-g500 hover:text-g700"
             }`}
           >
-            {tab.label}
+            {t(tab.label)}
           </Link>
         );
       })}
