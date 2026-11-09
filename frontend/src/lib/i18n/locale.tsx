@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  Fragment,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { DEFAULT_LOCALE, isLocale, translate, type Locale, type MessageKey } from "./messages";
 
@@ -68,4 +76,15 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
 export function useLocale(): LocaleContextValue {
   return useContext(LocaleContext);
+}
+
+/** Render a translated template whose `{name}` placeholders are React
+ * nodes (a styled code word inside a sentence). Unknown placeholders stay
+ * visible as text. */
+export function richText(template: string, nodes: Record<string, React.ReactNode>): React.ReactNode[] {
+  return template.split(/(\{\w+\})/).map((part, index) => {
+    const match = /^\{(\w+)\}$/.exec(part);
+    if (match && match[1] in nodes) return <Fragment key={index}>{nodes[match[1]]}</Fragment>;
+    return part;
+  });
 }

@@ -8,7 +8,7 @@
  * Coverage grows by surface: the admin shell, the settings tabs, the
  * Account page's own cards and its sign-in methods, two-factor/sessions,
  * interview availability and companies cards, the copy button and the
- * Developers page (jobs API, embed widget, preview) so far. Candidate pages are out of scope (separate card). */
+ * Developers page (jobs API, embed widget, preview, API keys, webhooks) so far. Candidate pages are out of scope (separate card). */
 
 export const LOCALES = ["en", "de"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -16,6 +16,9 @@ export const DEFAULT_LOCALE: Locale = "en";
 
 /** Each language named in itself, for the picker. */
 export const LOCALE_NAMES: Record<Locale, string> = { en: "English", de: "Deutsch" };
+
+/** BCP 47 tag for `Intl` date and number formatting in each locale. */
+export const INTL_LOCALES: Record<Locale, string> = { en: "en-US", de: "de-DE" };
 
 const en = {
   "nav.label": "Admin navigation",
@@ -41,7 +44,7 @@ const en = {
   "language.description": "Language of the admin app in this browser. Candidate pages are not affected.",
   "language.label": "Interface language",
   "language.partial":
-    "German covers the navigation, the settings tabs and the Account page (profile, password, sign-in methods, two-factor, sessions, interview availability, companies) and the Developers page (jobs API, embed widget) so far. Other screens stay in English until they are translated.",
+    "German covers the navigation, the settings tabs and the Account page (profile, password, sign-in methods, two-factor, sessions, interview availability, companies) and the Developers page (jobs API, embed widget, API keys, webhooks) so far. Other screens stay in English until they are translated.",
   "settings.label": "Settings sections",
   "settings.branding": "Branding",
   "settings.hiring": "Hiring",
@@ -187,6 +190,51 @@ const en = {
   "developers.previewRole": "{count} role",
   "developers.previewRoles": "{count} roles",
   "developers.previewEmpty": "No open positions right now.",
+  "apiKeys.title": "API keys",
+  "apiKeys.description":
+    "Bearer tokens for your own tools: {read} lists applicants, exports and fetches CVs, {write} can also move stages. The secret is shown once.",
+  "apiKeys.created": "{name} is ready. Copy it now, it won't be shown again.",
+  "apiKeys.copyKey": "Copy API key",
+  "apiKeys.name": "Key name",
+  "apiKeys.scope": "Scope",
+  "apiKeys.create": "Create key",
+  "apiKeys.empty": "No keys yet.",
+  "apiKeys.never": "never",
+  "apiKeys.revokedOn": "revoked {date}",
+  "apiKeys.lastUsed": "last used {date}",
+  "apiKeys.revokeConfirm": "Revoke key",
+  "apiKeys.keep": "Keep",
+  "apiKeys.revoke": "Revoke",
+  "apiKeys.revokeName": "Revoke {name}",
+  "apiKeys.loadFailed": "Failed to load",
+  "apiKeys.createFailed": "Could not create the key",
+  "apiKeys.revokeFailed": "Could not revoke the key",
+  "webhooks.title": "Webhooks",
+  "webhooks.description":
+    "POST a signed JSON event to your own HTTPS endpoint when an application arrives, a stage changes or a quiz completes. Verify the {header} header with the secret shown once.",
+  "webhooks.created": "{name} is registered. Copy the signing secret now, it won't be shown again.",
+  "webhooks.copySecret": "Copy signing secret",
+  "webhooks.name": "Webhook name",
+  "webhooks.url": "Endpoint URL",
+  "webhooks.events": "Events",
+  "webhooks.add": "Add webhook",
+  "webhooks.empty": "No webhooks yet.",
+  "webhooks.noDeliveries": "no deliveries yet",
+  "webhooks.statusQueued": "queued",
+  "webhooks.statusDelivered": "delivered",
+  "webhooks.statusFailed": "failed",
+  "webhooks.sendTest": "Send test",
+  "webhooks.sendTestTo": "Send test to {name}",
+  "webhooks.removeConfirm": "Remove webhook",
+  "webhooks.keep": "Keep",
+  "webhooks.remove": "Remove",
+  "webhooks.removeName": "Remove {name}",
+  "webhooks.testQueued": "Test delivery queued; the worker posts it within seconds.",
+  "webhooks.sampleQueued": "Sample {event} delivery queued; the worker posts it within seconds.",
+  "webhooks.loadFailed": "Failed to load",
+  "webhooks.addFailed": "Could not add the webhook",
+  "webhooks.testFailed": "Could not queue the test",
+  "webhooks.removeFailed": "Could not remove the webhook",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -217,7 +265,7 @@ const de: Messages = {
     "Sprache der Admin-App in diesem Browser. Seiten für Bewerberinnen und Bewerber sind nicht betroffen.",
   "language.label": "Sprache der Oberfläche",
   "language.partial":
-    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs und die Kontoseite (Profil, Passwort, Anmeldemethoden, Zwei-Faktor, Sitzungen, Verfügbarkeit für Interviews, Unternehmen) sowie die Entwicklerseite (Jobs-API, Einbettungs-Widget) übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
+    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs und die Kontoseite (Profil, Passwort, Anmeldemethoden, Zwei-Faktor, Sitzungen, Verfügbarkeit für Interviews, Unternehmen) sowie die Entwicklerseite (Jobs-API, Einbettungs-Widget, API-Schlüssel, Webhooks) übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
   "settings.label": "Einstellungsbereiche",
   "settings.branding": "Branding",
   "settings.hiring": "Recruiting",
@@ -369,6 +417,51 @@ const de: Messages = {
   "developers.previewRole": "{count} Stelle",
   "developers.previewRoles": "{count} Stellen",
   "developers.previewEmpty": "Derzeit keine offenen Stellen.",
+  "apiKeys.title": "API-Schlüssel",
+  "apiKeys.description":
+    "Bearer-Token für Ihre eigenen Tools: {read} listet Bewerbungen auf, exportiert sie und lädt Lebensläufe, {write} kann zusätzlich Phasen ändern. Der geheime Schlüssel wird nur einmal angezeigt.",
+  "apiKeys.created": "{name} ist bereit. Kopieren Sie den Schlüssel jetzt, er wird nicht noch einmal angezeigt.",
+  "apiKeys.copyKey": "API-Schlüssel kopieren",
+  "apiKeys.name": "Name des Schlüssels",
+  "apiKeys.scope": "Berechtigung",
+  "apiKeys.create": "Schlüssel erstellen",
+  "apiKeys.empty": "Noch keine Schlüssel.",
+  "apiKeys.never": "nie",
+  "apiKeys.revokedOn": "widerrufen am {date}",
+  "apiKeys.lastUsed": "zuletzt verwendet: {date}",
+  "apiKeys.revokeConfirm": "Schlüssel widerrufen",
+  "apiKeys.keep": "Behalten",
+  "apiKeys.revoke": "Widerrufen",
+  "apiKeys.revokeName": "{name} widerrufen",
+  "apiKeys.loadFailed": "Laden fehlgeschlagen",
+  "apiKeys.createFailed": "Der Schlüssel konnte nicht erstellt werden",
+  "apiKeys.revokeFailed": "Der Schlüssel konnte nicht widerrufen werden",
+  "webhooks.title": "Webhooks",
+  "webhooks.description":
+    "Sendet ein signiertes JSON-Ereignis per POST an Ihren eigenen HTTPS-Endpunkt, wenn eine Bewerbung eingeht, sich eine Phase ändert oder ein Quiz abgeschlossen wird. Prüfen Sie den Header {header} mit dem geheimen Schlüssel, der nur einmal angezeigt wird.",
+  "webhooks.created": "{name} ist registriert. Kopieren Sie den Signaturschlüssel jetzt, er wird nicht noch einmal angezeigt.",
+  "webhooks.copySecret": "Signaturschlüssel kopieren",
+  "webhooks.name": "Name des Webhooks",
+  "webhooks.url": "Endpunkt-URL",
+  "webhooks.events": "Ereignisse",
+  "webhooks.add": "Webhook hinzufügen",
+  "webhooks.empty": "Noch keine Webhooks.",
+  "webhooks.noDeliveries": "noch keine Zustellungen",
+  "webhooks.statusQueued": "in der Warteschlange",
+  "webhooks.statusDelivered": "zugestellt",
+  "webhooks.statusFailed": "fehlgeschlagen",
+  "webhooks.sendTest": "Test senden",
+  "webhooks.sendTestTo": "Test an {name} senden",
+  "webhooks.removeConfirm": "Webhook entfernen",
+  "webhooks.keep": "Behalten",
+  "webhooks.remove": "Entfernen",
+  "webhooks.removeName": "{name} entfernen",
+  "webhooks.testQueued": "Testzustellung eingereiht; der Worker sendet sie in wenigen Sekunden.",
+  "webhooks.sampleQueued": "Beispielzustellung für {event} eingereiht; der Worker sendet sie in wenigen Sekunden.",
+  "webhooks.loadFailed": "Laden fehlgeschlagen",
+  "webhooks.addFailed": "Der Webhook konnte nicht hinzugefügt werden",
+  "webhooks.testFailed": "Der Test konnte nicht eingereiht werden",
+  "webhooks.removeFailed": "Der Webhook konnte nicht entfernt werden",
 };
 
 export const MESSAGES: Record<Locale, Messages> = { en, de };
