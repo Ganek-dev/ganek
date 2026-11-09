@@ -36,6 +36,7 @@ const EMAIL_LABELS: Record<string, string> = {
   message: "Message",
   scorecard_request: "Scorecard request",
   scorecard_reminder: "Scorecard reminder",
+  cv_reupload: "CV re-upload request",
 };
 
 type Tone = "stage" | "quiz" | "note" | "sent" | "waiting" | "failed" | "neutral";

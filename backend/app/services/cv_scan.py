@@ -12,8 +12,9 @@ in the worker. The flow:
 - an infected CV is never handed out: the download routes answer 409, the
   review link and the DSAR bundle leave the URL out;
 - the candidate's status page asks for a new file while the application is
-  open; the replacement starts over as ``pending`` and the flagged object is
-  deleted (services.applications.replace_infected_cv).
+  open, and the worker emails them a link to it (``notify_candidate``); the
+  replacement starts over as ``pending`` and the flagged object is deleted
+  (services.applications.replace_infected_cv).
 
 Unconfigured, nothing changes: rows keep ``cv_scan_status`` NULL ("not
 scanned") and the admin says scanning is not configured. A scanner that
@@ -182,3 +183,44 @@ async def stuck_scans(db: AsyncSession, *, older_than: datetime) -> list[uuid.UU
         )
     )
     return list(rows.scalars())
+
+
+async def notify_candidate(db: AsyncSession, application_id: str | uuid.UUID) -> bool:
+    """Email the candidate a link to their status page, where they upload a
+    new CV. Queued through the outbox (retries, suppression, timeline) once
+    per verdict: the worker calls it right after a scan flags the file, so a
+    replacement that is flagged again asks again. True when a mail was queued;
+    False when no re-upload is requested any more (decided, withdrawn or
+    already replaced) or the instance is a demo."""
+    # imported here: outbox pulls in the email stack, which the scanner's
+    # protocol code and its callers on the request path do not need
+    from app.core import urls
+    from app.core.security import create_status_token
+    from app.models import Candidate, Company, Job
+    from app.services import company as company_service
+    from app.services import outbox as outbox_service
+
+    application = await db.get(Application, uuid.UUID(str(application_id)))
+    if application is None or not reupload_requested(application):
+        return False
+    company = await db.get(Company, application.company_id)
+    candidate = await db.get(Candidate, application.candidate_id)
+    job = await db.get(Job, application.job_id)
+    if company is None or candidate is None or job is None:
+        return False
+    row = await outbox_service.queue_email(
+        db,
+        kind="cv_reupload",
+        company_id=company.id,
+        application_id=application.id,
+        to=candidate.email,
+        ref=str(application.id),
+        candidate_name=candidate.name,
+        job_title=job.title,
+        company_name=company.name,
+        status_url=urls.status_url(company, create_status_token(application.id)),
+        brand_primary=(company.theme or {}).get("primary_color"),
+        controller_name=company_service.controller_name(company),
+        privacy_url=urls.privacy_notice_url(company),
+    )
+    return row is not None

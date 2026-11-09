@@ -31,6 +31,7 @@ from app.models import (
     ApplicationStage,
     Candidate,
     Company,
+    CvScanStatus,
     EmailOutbox,
     EmailStatus,
     Interview,
@@ -466,12 +467,20 @@ async def scan_cv(ctx: dict[str, Any], application_id: str) -> None:
     async with ctx["session_factory"]() as db:
         try:
             final = job_try >= cv_scan.MAX_ATTEMPTS
-            await cv_scan.scan_application(db, application_id, final=final)
+            verdict = await cv_scan.scan_application(db, application_id, final=final)
         except cv_scan.ScanError as exc:
             delay = cv_scan.RETRY_DELAYS_SECONDS[
                 min(job_try - 1, len(cv_scan.RETRY_DELAYS_SECONDS) - 1)
             ]
             raise Retry(defer=delay) from exc
+        if verdict is CvScanStatus.INFECTED:
+            # the verdict is committed; the ask is best-effort and must not
+            # re-run the scan (a stale retry would no-op and never mail)
+            try:
+                await cv_scan.notify_candidate(db, application_id)
+            except Exception:  # noqa: BLE001 - the status page asks either way
+                logger.warning("cv re-upload mail failed for %s", application_id, exc_info=True)
+                await db.rollback()
 
 
 async def sweep_cv_scans(ctx: dict[str, Any]) -> None:
