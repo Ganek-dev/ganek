@@ -35,6 +35,10 @@ ADMIN_ONLY = "This action requires an admin account"
 REVIEWER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
     {
         ("GET", "/api/v1/auth/me"),
+        # a reviewer seat in one company may sit next to a recruiter seat in
+        # another: listing and switching seats is the user's own business
+        ("GET", "/api/v1/auth/companies"),
+        ("POST", "/api/v1/auth/switch-company"),
         ("POST", "/api/v1/auth/mfa/enrol"),
         ("POST", "/api/v1/auth/mfa/confirm"),
         ("POST", "/api/v1/auth/mfa/disable"),

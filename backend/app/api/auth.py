@@ -22,10 +22,11 @@ from app.core.security import (
     read_password_reset_token,
     verify_password,
 )
-from app.core.tenancy import impersonation_of, reject_suspended
+from app.core.tenancy import impersonation_of, reject_suspended, suspended_detail
 from app.models import Company, User
 from app.schemas.auth import (
     ChangePasswordRequest,
+    CompanySeatOut,
     ForgotPasswordRequest,
     LoginRequest,
     MfaCodeRequest,
@@ -35,11 +36,13 @@ from app.schemas.auth import (
     MfaVerifyRequest,
     RegisterRequest,
     ResetPasswordRequest,
+    SwitchCompanyRequest,
     UserOut,
     VerifyEmailRequest,
 )
 from app.services import auth as auth_service
 from app.services import demo_mode
+from app.services import memberships as memberships_service
 from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
 
@@ -289,6 +292,40 @@ async def me(user: CurrentUser, request: Request) -> UserOut:
         # the admin shell shows the operator banner until this time
         out.impersonation_expires_at = claim.expires_at
     return out
+
+
+@router.get("/companies", response_model=list[CompanySeatOut])
+async def my_companies(user: CurrentUser, db: DbSession) -> list[CompanySeatOut]:
+    """The companies the signed-in user belongs to, the active one first,
+    each with the role they hold there (feeds the company switcher)."""
+    seats = await memberships_service.list_seats(db, user)
+    return [
+        CompanySeatOut(
+            company_id=s.company.id,
+            name=s.company.name,
+            slug=s.company.slug,
+            role=s.role,
+            active=s.active,
+        )
+        for s in seats
+    ]
+
+
+@router.post("/switch-company", response_model=UserOut)
+async def switch_company(payload: SwitchCompanyRequest, user: CurrentUser, db: DbSession) -> User:
+    """Make another company the user holds a seat in the active one; the
+    seat's role comes with it. Read-only while impersonating (the tenancy
+    dependency refuses the POST)."""
+    try:
+        return await memberships_service.switch_company(db, user, payload.company_id)
+    except memberships_service.NotAMemberError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Company not found"
+        ) from None
+    except memberships_service.CompanySuspendedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=suspended_detail(exc.company)
+        ) from None
 
 
 @router.post(

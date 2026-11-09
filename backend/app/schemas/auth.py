@@ -46,6 +46,20 @@ class GoogleSignupPending(BaseModel):
     email: str
 
 
+class CompanySeatOut(BaseModel):
+    """One company the signed-in user belongs to (GET /auth/companies)."""
+
+    company_id: uuid.UUID
+    name: str
+    slug: str
+    role: UserRole
+    active: bool
+
+
+class SwitchCompanyRequest(BaseModel):
+    company_id: uuid.UUID
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
