@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { AvailabilityCard } from "@/components/AvailabilityCard";
 import { CompaniesCard } from "@/components/CompaniesCard";
+import { LanguageCard } from "@/components/LanguageCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SignInMethodsCard } from "@/components/SignInMethodsCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
@@ -234,6 +235,8 @@ function AccountContent() {
         </form>
         )}
       </div>
+
+      <LanguageCard />
 
       {user ? (
         <SignInMethodsCard

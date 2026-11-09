@@ -20,6 +20,8 @@ import { useEffect, useRef, useState } from "react";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { DemoBanner } from "@/components/DemoBanner";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { LocaleProvider, useLocale } from "@/lib/i18n/locale";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { trialDaysLeft, trialDaysText } from "@/lib/trial";
 import { Wordmark } from "@/components/Wordmark";
 import {
@@ -32,29 +34,45 @@ import {
   type UserOut,
 } from "@/lib/api";
 
-const NAV = [
-  { href: "/admin", label: "Dashboard", icon: LayoutGrid, exact: true },
-  { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/admin/applicants", label: "Applicants", icon: Inbox },
-  { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin/questions", label: "Questions", icon: ListChecks },
-  { href: "/admin/questionnaires", label: "Questionnaires", icon: ClipboardList },
-  { href: "/admin/team", label: "Team", icon: Users, adminOnly: true },
-  { href: "/admin/branding", label: "Settings", icon: Settings, adminOnly: true },
-] as const;
+const NAV: readonly {
+  href: string;
+  label: MessageKey;
+  icon: typeof LayoutGrid;
+  exact?: boolean;
+  adminOnly?: boolean;
+}[] = [
+  { href: "/admin", label: "nav.dashboard", icon: LayoutGrid, exact: true },
+  { href: "/admin/jobs", label: "nav.jobs", icon: Briefcase },
+  { href: "/admin/applicants", label: "nav.applicants", icon: Inbox },
+  { href: "/admin/reports", label: "nav.reports", icon: BarChart3 },
+  { href: "/admin/questions", label: "nav.questions", icon: ListChecks },
+  { href: "/admin/questionnaires", label: "nav.questionnaires", icon: ClipboardList },
+  { href: "/admin/team", label: "nav.team", icon: Users, adminOnly: true },
+  { href: "/admin/branding", label: "nav.settings", icon: Settings, adminOnly: true },
+];
 
-function counterFor(label: string, overview: StatsOverview | null): number | null {
+function counterFor(label: MessageKey, overview: StatsOverview | null): number | null {
   if (!overview) return null;
-  if (label === "Jobs") return overview.jobs.published + overview.jobs.draft || null;
-  if (label === "Applicants") return overview.applications.new || null;
+  if (label === "nav.jobs") return overview.jobs.published + overview.jobs.draft || null;
+  if (label === "nav.applicants") return overview.applications.new || null;
   return null;
 }
 
 /** Dark 224px sidebar shell from the design handoff (screen 06). Constant-dark
  *  in both color modes; active item = accent tint over the sidebar color.
  *  Below md the sidebar becomes a drawer opened from a 52px top bar in the
- *  sidebar colour (design round 3, screens R3 03 and R3 09). */
+ *  sidebar colour (design round 3, screens R3 03 and R3 09). The shell copy
+ *  follows the admin language picked on the Account page. */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <LocaleProvider>
+      <AdminShell>{children}</AdminShell>
+    </LocaleProvider>
+  );
+}
+
+function AdminShell({ children }: { children: React.ReactNode }) {
+  const { locale, t } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<UserOut | null>(null);
@@ -151,17 +169,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-6">
         <div className="max-w-[380px] text-center">
-          <h1 className="font-heading text-[20px] font-semibold">Can&apos;t reach the backend</h1>
-          <p className="mt-2 text-[14px] leading-[21px] text-g600">
-            The admin app couldn&apos;t load your session. The API may be restarting -
-            check the backend container if this persists.
-          </p>
+          <h1 className="font-heading text-[20px] font-semibold">{t("shell.backendDownTitle")}</h1>
+          <p className="mt-2 text-[14px] leading-[21px] text-g600">{t("shell.backendDownBody")}</p>
           <button
             type="button"
             onClick={() => setLoadFailed(false)}
             className="mt-5 inline-flex h-9 items-center rounded-md border-[1.5px] border-edge px-4 text-[13.5px] font-semibold hover:border-accent hover:text-accent"
           >
-            Retry
+            {t("shell.retry")}
           </button>
         </div>
       </main>
@@ -178,7 +193,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (user.role === "reviewer") return null; // redirecting; render no staff chrome
 
   const initials = user.email.slice(0, 2).toUpperCase();
-  const visibleNav = NAV.filter((n) => !("adminOnly" in n) || user.role === "admin");
+  const visibleNav = NAV.filter((n) => !n.adminOnly || user.role === "admin");
 
   const avatarStyle = { background: "color-mix(in oklab, var(--accent) 55%, var(--sidebar))" };
 
@@ -188,7 +203,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <button
           ref={menuButton}
           type="button"
-          aria-label="Open navigation"
+          aria-label={t("nav.open")}
           aria-expanded={navOpen}
           aria-controls="admin-nav"
           onClick={() => setNavOpen(true)}
@@ -216,7 +231,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside
         id="admin-nav"
         ref={drawer}
-        aria-label="Admin navigation"
+        aria-label={t("nav.label")}
         className={`fixed inset-y-0 left-0 z-40 flex w-56 flex-col bg-sidebar text-sidebar-foreground transition-transform md:z-auto md:translate-x-0 ${
           navOpen ? "translate-x-0" : "-translate-x-full max-md:invisible"
         }`}
@@ -225,7 +240,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Wordmark className="text-xl" accentClassName="text-accent-soft" />
           <button
             type="button"
-            aria-label="Close navigation"
+            aria-label={t("nav.close")}
             onClick={() => {
               setNavOpen(false);
               menuButton.current?.focus();
@@ -237,9 +252,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         <CompanySwitcher tone="dark" impersonating={Boolean(user.impersonation_expires_at)} />
         <nav className="flex-1 space-y-0.5 px-3">
-          {visibleNav.map(({ href, label, icon: Icon, ...item }) => {
-            const active =
-              "exact" in item && item.exact ? pathname === href : pathname.startsWith(href);
+          {visibleNav.map(({ href, label, icon: Icon, exact }) => {
+            const active = exact ? pathname === href : pathname.startsWith(href);
+            const isApplicants = label === "nav.applicants";
             const counter = counterFor(label, overview);
             return (
               <Link
@@ -248,8 +263,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onClick={() => setNavOpen(false)}
                 aria-current={active ? "page" : undefined}
                 aria-label={
-                  label === "Applicants" && counter !== null
-                    ? `Applicants, ${counter} new applicants`
+                  isApplicants && counter !== null
+                    ? t("nav.applicantsAria", { count: counter })
                     : undefined
                 }
                 className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ${
@@ -264,15 +279,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }
               >
                 <Icon size={16} strokeWidth={1.75} aria-hidden />
-                <span className="flex-1">{label}</span>
+                <span className="flex-1">{t(label)}</span>
                 {counter !== null ? (
                   <span
-                    title={label === "Applicants" ? `${counter} new applicants` : undefined}
+                    title={isApplicants ? t("nav.applicantsNewTitle", { count: counter }) : undefined}
                     className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] ${
                       active ? "bg-white/15 text-white" : "bg-white/10 text-zinc-300"
                     }`}
                   >
-                    {label === "Applicants" ? `${counter} new` : counter}
+                    {isApplicants ? t("nav.applicantsNew", { count: counter }) : counter}
                   </span>
                 ) : null}
               </Link>
@@ -290,8 +305,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="min-w-0 flex-1 truncate text-xs text-zinc-400">{user.email}</span>
           <button
             type="button"
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={t("shell.signOut")}
+            title={t("shell.signOut")}
             className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
             onClick={() => {
               void api.logout().then(() => router.replace("/login"));
@@ -346,7 +361,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className="mb-5 rounded-md border border-edge bg-surface px-4 py-2.5 text-[13px] text-g700"
           >
             Team trial: {trialDaysText(trialDaysLeft(trialPlan.trial_ends_at))} (ends{" "}
-            {new Date(trialPlan.trial_ends_at).toLocaleDateString()}). After it you are on
+            {new Date(trialPlan.trial_ends_at).toLocaleDateString(locale)}). After it you are on
             Free again; no job is closed.
             {role === "admin" && trialPlan.billing_enabled ? (
               <>

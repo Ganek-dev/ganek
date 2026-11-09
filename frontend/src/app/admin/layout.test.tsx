@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api, companyApi, stats, type CompanyAdmin } from "@/lib/api";
 
@@ -490,5 +490,55 @@ describe("AdminLayout", () => {
       );
       expect(open).toHaveAttribute("aria-expanded", "false");
     });
+  });
+});
+
+describe("AdminLayout in German", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pathname = "/admin/jobs";
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mockedApi.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy@acme.dev",
+      has_password: true,
+      role: "admin",
+    });
+    mockedApi.providers.mockResolvedValue({ google: false, mode: "single" });
+    mockedApi.companies.mockResolvedValue([]);
+    mockedCompany.get.mockRejectedValue(new Error("skip"));
+    mockedCompany.usage.mockRejectedValue(new Error("skip"));
+    mockedCompany.plan.mockRejectedValue(new Error("skip"));
+    mockedStats.overview.mockResolvedValue({
+      jobs: { draft: 0, published: 2, closed: 0 },
+      applications: { total: 3, new: 3, last_7_days: 1 },
+    } as Awaited<ReturnType<typeof stats.overview>>);
+  });
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("renders the shell from the stored admin language", async () => {
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("page content");
+    const nav = screen.getByRole("complementary", { name: "Admin-Navigation" });
+    expect(within(nav).getByRole("link", { name: /Stellen/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(nav).getByRole("link", { name: /Einstellungen/ })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(nav).getByRole("link", { name: "Bewerbungen, 3 neue Bewerbungen" }),
+      ).toHaveTextContent("3 neu"),
+    );
+    expect(screen.getByRole("button", { name: "Abmelden" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Navigation öffnen" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("de");
   });
 });
