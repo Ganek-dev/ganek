@@ -380,6 +380,7 @@ describe("ActivityPanel", () => {
       { id: "p2", type: "candidate.email_updated", payload: {}, ...base },
       { id: "p3", type: "candidate.data_requested", payload: {}, ...base, actor_email: null },
       { id: "p4", type: "candidate.deletion_requested", payload: {}, ...base, actor_email: null },
+      { id: "p4b", type: "cv.replaced", payload: {}, ...base, actor_email: null },
       { id: "p5", type: "user.anonymized", payload: {}, ...base },
       {
         id: "p6",
@@ -401,6 +402,9 @@ describe("ActivityPanel", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("A candidate asked for their data to be deleted"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("A candidate replaced a CV the virus scanner flagged"),
     ).toBeInTheDocument();
     expect(
       screen.getByText("grumpy@acme.dev removed a teammate's account"),

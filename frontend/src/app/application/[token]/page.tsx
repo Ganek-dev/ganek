@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Check } from "lucide-react";
 
+import { CvReuploadCard } from "@/components/CvReuploadCard";
 import { ApiError, publicApplications, type ApplicationStatus } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
 import { answeredSummary } from "@/lib/quiz-progress";
@@ -76,6 +77,7 @@ export default function StatusPage() {
   const [busy, setBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestNotice, setRequestNotice] = useState<string | null>(null);
+  const [cvReplaced, setCvReplaced] = useState(false);
 
   const load = useCallback(() => {
     publicApplications
@@ -323,6 +325,21 @@ export default function StatusPage() {
             </>
           ) : null}
         </div>
+
+        {status.cv_reupload_requested ? (
+          <CvReuploadCard
+            token={token}
+            companyName={status.company_name}
+            onReplaced={() => {
+              setCvReplaced(true);
+              load();
+            }}
+          />
+        ) : cvReplaced ? (
+          <p role="status" className="mt-7 text-[13.5px] font-medium text-g700">
+            Thanks - we received your new CV and are checking it now.
+          </p>
+        ) : null}
 
         <div className="mt-9 flex flex-col">
           {steps.map((step, index) => (

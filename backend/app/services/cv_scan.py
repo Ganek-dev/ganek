@@ -10,7 +10,10 @@ in the worker. The flow:
 - the worker streams the object to clamd (INSTREAM) and stores ``clean`` or
   ``infected`` plus the signature name;
 - an infected CV is never handed out: the download routes answer 409, the
-  review link and the DSAR bundle leave the URL out.
+  review link and the DSAR bundle leave the URL out;
+- the candidate's status page asks for a new file while the application is
+  open; the replacement starts over as ``pending`` and the flagged object is
+  deleted (services.applications.replace_infected_cv).
 
 Unconfigured, nothing changes: rows keep ``cv_scan_status`` NULL ("not
 scanned") and the admin says scanning is not configured. A scanner that
@@ -30,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import queue
 from app.core.config import settings
 from app.models import Application, CvScanStatus
+from app.models.application import CLOSED_STAGES
 from app.services import storage
 
 logger = logging.getLogger(__name__)
@@ -65,6 +69,13 @@ def initial_status(cv_object_key: str | None) -> CvScanStatus | None:
 def blocked(application: Application) -> bool:
     """True when the CV must not be handed out."""
     return application.cv_scan_status is CvScanStatus.INFECTED
+
+
+def reupload_requested(application: Application) -> bool:
+    """True when the candidate's status page asks for a new CV: the scanner
+    flagged the file and the application is still open (a decided or
+    withdrawn application has no use for a new file)."""
+    return blocked(application) and application.stage not in CLOSED_STAGES
 
 
 async def enqueue(application: Application) -> None:

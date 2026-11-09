@@ -14,15 +14,15 @@ from uuid import UUID, uuid4
 import pytest
 from arq import Retry
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app import worker
 from app.core import queue
 from app.core.config import settings
-from app.models import Application, CvScanStatus
-from app.services import cv_scan
+from app.models import ActivityLog, Application, ApplicationStage, CvScanStatus
+from app.services import cv_scan, storage
 from tests.db import database_reachable, s3_reachable
 from tests.helpers import upload_pdf
 from tests.test_applications_api import _submission
@@ -268,3 +268,170 @@ async def test_sweep_re_enqueues_old_pending_scans(
             assert row is not None and row.cv_scan_status is CvScanStatus.PENDING
     finally:
         await engine.dispose()
+
+
+# --- candidate re-upload (status page) ------------------------------------
+
+
+async def _apply_for_reupload(client: AsyncClient, data: bytes) -> dict[str, Any]:
+    """Apply with ``data`` as the CV, staying logged in as the admin."""
+    email = f"reupload-{uuid4().hex[:8]}@ganek-ci.dev"
+    password = "a-long-secure-password"
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"company_name": f"Reup Co {uuid4().hex[:6]}", "email": email, "password": password},
+    )
+    assert resp.status_code == 201, resp.text
+    job = (await client.post("/api/v1/jobs", json={"title": "Backend Engineer"})).json()
+    assert (await client.post(f"/api/v1/jobs/{job['id']}/publish")).status_code == 200
+    slug = (await client.get("/api/v1/company")).json()["slug"]
+    base = f"/api/v1/public/companies/{slug}/jobs/{job['slug']}/apply"
+    ticket = (await client.post(f"{base}/upload-url")).json()
+    assert (await upload_pdf(ticket, data)).is_success
+    resp = await client.post(base, json=_submission(ticket["object_key"]))
+    assert resp.status_code == 201, resp.text
+    token = resp.json()["status_token"]
+    app_id = str((await client.get("/api/v1/applications")).json()["items"][0]["id"])
+    return {"token": token, "app_id": app_id, "old_key": ticket["object_key"]}
+
+
+async def _reupload(client: AsyncClient, token: str, data: bytes) -> tuple[int, str]:
+    resp = await client.post(f"/api/v1/public/applications/{token}/cv/upload-url")
+    assert resp.status_code == 200, resp.text
+    ticket = resp.json()
+    assert (await upload_pdf(ticket, data)).is_success
+    resp = await client.post(
+        f"/api/v1/public/applications/{token}/cv",
+        json={"cv_object_key": ticket["object_key"], "cv_filename": "new-cv.pdf"},
+    )
+    return resp.status_code, ticket["object_key"]
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_flagged_cv_is_replaced_from_the_status_page_and_scanned_again(
+    client: AsyncClient, enqueued: list[tuple[str, tuple[str, ...]]]
+) -> None:
+    ctx = await _apply_for_reupload(client, EICAR)
+    token, app_id = ctx["token"], ctx["app_id"]
+    page = f"/api/v1/public/applications/{token}"
+    assert (await client.get(page)).json()["cv_reupload_requested"] is False  # still pending
+
+    await _run_worker_scan(app_id)
+    status_page = (await client.get(page)).json()
+    assert status_page["cv_reupload_requested"] is True
+    assert "Eicar" not in str(status_page)  # the signature is for the team only
+
+    code, new_key = await _reupload(client, token, CLEAN_PDF)
+    assert code == 200
+    assert ("scan_cv", (app_id,)) in enqueued[1:]
+    detail = (await client.get(f"/api/v1/applications/{app_id}")).json()
+    assert detail["cv_filename"] == "new-cv.pdf"
+    assert detail["cv_scan_status"] == "pending"
+    assert detail["cv_scan_signature"] is None
+    assert (await client.get(page)).json()["cv_reupload_requested"] is False
+    # the flagged object is gone, the new one is in place
+    assert await storage.stat_object(ctx["old_key"]) is None
+    assert await storage.stat_object(new_key) is not None
+
+    await _run_worker_scan(app_id)
+    assert (await client.get(f"/api/v1/applications/{app_id}")).json()["cv_scan_status"] == "clean"
+    assert (await client.get(f"/api/v1/applications/{app_id}/cv-url")).status_code == 200
+
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine)() as db:
+            rows = (
+                (
+                    await db.execute(
+                        select(ActivityLog).where(
+                            ActivityLog.application_id == UUID(app_id),
+                            ActivityLog.type == "cv.replaced",
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert len(rows) == 1
+            assert rows[0].actor_user_id is None
+            assert rows[0].payload == {"previous_signature": "Eicar-Test-Signature"}
+    finally:
+        await engine.dispose()
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_a_replacement_that_is_infected_again_is_flagged_again(
+    client: AsyncClient, enqueued: list[tuple[str, tuple[str, ...]]]
+) -> None:
+    ctx = await _apply_for_reupload(client, EICAR)
+    await _run_worker_scan(ctx["app_id"])
+    code, _ = await _reupload(client, ctx["token"], EICAR)
+    assert code == 200
+    await _run_worker_scan(ctx["app_id"])
+    status_page = (await client.get(f"/api/v1/public/applications/{ctx['token']}")).json()
+    assert status_page["cv_reupload_requested"] is True
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_a_clean_cv_cannot_be_swapped_through_the_status_link(
+    client: AsyncClient, enqueued: list[tuple[str, tuple[str, ...]]]
+) -> None:
+    ctx = await _apply_for_reupload(client, CLEAN_PDF)
+    for _ in range(2):  # pending, then clean
+        resp = await client.post(f"/api/v1/public/applications/{ctx['token']}/cv/upload-url")
+        assert resp.status_code == 409, resp.text
+        resp = await client.post(
+            f"/api/v1/public/applications/{ctx['token']}/cv",
+            json={"cv_object_key": ctx["old_key"], "cv_filename": "x.pdf"},
+        )
+        assert resp.status_code == 409, resp.text
+        await _run_worker_scan(ctx["app_id"])
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_no_reupload_once_the_application_is_closed(
+    client: AsyncClient, enqueued: list[tuple[str, tuple[str, ...]]]
+) -> None:
+    ctx = await _apply_for_reupload(client, EICAR)
+    await _run_worker_scan(ctx["app_id"])
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine)() as db:
+            await db.execute(
+                update(Application)
+                .where(Application.id == UUID(ctx["app_id"]))
+                .values(stage=ApplicationStage.WITHDRAWN)
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
+    page = f"/api/v1/public/applications/{ctx['token']}"
+    assert (await client.get(page)).json()["cv_reupload_requested"] is False
+    assert (await client.post(f"{page}/cv/upload-url")).status_code == 409
+
+
+@needs_stack
+@pytest.mark.usefixtures("migrated_db", "bucket", "multi_mode", "clamd")
+async def test_replacement_must_be_a_new_upload_of_this_company(
+    client: AsyncClient, enqueued: list[tuple[str, tuple[str, ...]]]
+) -> None:
+    ctx = await _apply_for_reupload(client, EICAR)
+    await _run_worker_scan(ctx["app_id"])
+    url = f"/api/v1/public/applications/{ctx['token']}/cv"
+    same = await client.post(url, json={"cv_object_key": ctx["old_key"], "cv_filename": "a.pdf"})
+    assert same.status_code == 422, same.text
+    foreign = await client.post(
+        url, json={"cv_object_key": f"cvs/{uuid4()}/x.pdf", "cv_filename": "a.pdf"}
+    )
+    assert foreign.status_code == 422, foreign.text
+    not_uploaded_key = ctx["old_key"].rsplit("/", 1)[0] + f"/{uuid4().hex}.pdf"
+    missing = await client.post(
+        url, json={"cv_object_key": not_uploaded_key, "cv_filename": "a.pdf"}
+    )
+    assert missing.status_code == 422, missing.text
+    not_pdf = await client.post(url, json={"cv_object_key": ctx["old_key"], "cv_filename": "a.exe"})
+    assert not_pdf.status_code == 422, not_pdf.text

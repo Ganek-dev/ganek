@@ -192,6 +192,14 @@ class ApplicationSubmit(BaseModel):
         }
 
 
+class CvReplace(BaseModel):
+    """A new CV for an application whose file the virus scanner flagged
+    (status page). Upload it first with the ticket from ``cv/upload-url``."""
+
+    cv_object_key: str = Field(min_length=1, max_length=500)
+    cv_filename: str = Field(min_length=1, max_length=255, pattern=r"(?i)\.pdf$")
+
+
 class ApplicationReceived(BaseModel):
     status: str = "received"
     quiz_token: str | None = None
@@ -238,6 +246,9 @@ class ApplicationStatusOut(BaseModel):
     job_title: str
     candidate_name: str
     cv_filename: str | None
+    # the virus scanner flagged the CV and the application is open: the page
+    # asks for a new file (never the signature: that is for the team)
+    cv_reupload_requested: bool = False
     applied_at: datetime
     stage: str
     quiz: StatusQuizOut | None

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { publicApplications, type ApplicationStatus } from "@/lib/api";
+import { publicApplications, publicApply, type ApplicationStatus } from "@/lib/api";
 
 import StatusPage from "./page";
 
@@ -19,6 +19,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
       withdraw: vi.fn(),
       requestData: vi.fn(),
       requestDeletion: vi.fn(),
+      cvUploadTicket: vi.fn(),
+      replaceCv: vi.fn(),
     },
   };
 });
@@ -257,5 +259,81 @@ describe("StatusPage privacy actions", () => {
     await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
     await userEvent.click(screen.getByRole("button", { name: "Request a copy of my data" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Too many requests");
+  });
+
+  describe("CV flagged by the virus scanner", () => {
+    const ticket = {
+      upload_url: "https://s3.example/bucket",
+      upload_fields: { key: "cvs/co/new.pdf" },
+      object_key: "cvs/co/new.pdf",
+      content_type: "application/pdf",
+      max_size_mb: 10,
+    };
+
+    beforeEach(() => {
+      mocked.status.mockResolvedValue(makeStatus({ cv_reupload_requested: true }));
+      mocked.cvUploadTicket.mockResolvedValue(ticket);
+      mocked.replaceCv.mockResolvedValue({ replaced: true });
+    });
+
+    it("asks for a new CV, uploads it and confirms", async () => {
+      const upload = vi.spyOn(publicApply, "uploadCv").mockResolvedValue(undefined);
+      render(<StatusPage />);
+      expect(
+        await screen.findByRole("heading", { name: "Please upload your CV again" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/virus scanner flagged the file you sent/)).toBeInTheDocument();
+      // the signature is for the team; the page never names it
+      expect(screen.queryByText(/eicar/i)).toBeNull();
+
+      mocked.status.mockResolvedValue(makeStatus({ cv_filename: "fresh.pdf" }));
+      const file = new File(["%PDF-1.4"], "fresh.pdf", { type: "application/pdf" });
+      await userEvent.upload(screen.getByLabelText("Upload a new CV (PDF)"), file);
+
+      await waitFor(() =>
+        expect(mocked.replaceCv).toHaveBeenCalledWith("status-tok", {
+          cv_object_key: "cvs/co/new.pdf",
+          cv_filename: "fresh.pdf",
+        }),
+      );
+      expect(mocked.cvUploadTicket).toHaveBeenCalledWith("status-tok");
+      expect(upload).toHaveBeenCalledWith(ticket, file, expect.any(Function));
+      expect(await screen.findByRole("status")).toHaveTextContent(
+        "we received your new CV and are checking it now",
+      );
+      expect(screen.queryByRole("heading", { name: "Please upload your CV again" })).toBeNull();
+      expect(await screen.findByText("fresh.pdf")).toBeInTheDocument();
+      upload.mockRestore();
+    });
+
+    it("refuses a non-PDF before asking for a ticket", async () => {
+      render(<StatusPage />);
+      await screen.findByRole("heading", { name: "Please upload your CV again" });
+      const file = new File(["x"], "cv.docx", { type: "application/msword" });
+      await userEvent.upload(screen.getByLabelText("Upload a new CV (PDF)"), file, {
+        applyAccept: false,
+      });
+      expect(await screen.findByRole("alert")).toHaveTextContent("Your CV must be a PDF file.");
+      expect(mocked.cvUploadTicket).not.toHaveBeenCalled();
+    });
+
+    it("shows a failed replacement in the card", async () => {
+      const upload = vi.spyOn(publicApply, "uploadCv").mockResolvedValue(undefined);
+      mocked.replaceCv.mockRejectedValue(new Error("CV must be a PDF"));
+      render(<StatusPage />);
+      await screen.findByRole("heading", { name: "Please upload your CV again" });
+      const file = new File(["%PDF-1.4"], "fresh.pdf", { type: "application/pdf" });
+      await userEvent.upload(screen.getByLabelText("Upload a new CV (PDF)"), file);
+      expect(await screen.findByRole("alert")).toHaveTextContent("CV must be a PDF");
+      expect(screen.getByRole("heading", { name: "Please upload your CV again" })).toBeInTheDocument();
+      upload.mockRestore();
+    });
+
+    it("does not show the card when no new CV is needed", async () => {
+      mocked.status.mockResolvedValue(makeStatus());
+      render(<StatusPage />);
+      await screen.findByRole("heading", { name: "Senior Frontend Engineer" });
+      expect(screen.queryByRole("heading", { name: "Please upload your CV again" })).toBeNull();
+    });
   });
 });

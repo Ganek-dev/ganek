@@ -25,6 +25,7 @@ BULK_MOVED = "applications.bulk_moved"
 APPLICATIONS_IMPORTED = "applications.imported"  # one CSV import (who, how many, skipped)
 CANDIDATE_ERASED = "candidate.erased"
 CANDIDATE_EMAIL_UPDATED = "candidate.email_updated"
+CV_REPLACED = "cv.replaced"  # the candidate replaced a CV the virus scanner flagged
 EMAIL_CANCELLED = "email.cancelled"  # a scheduled rejection mail was held back
 EMAIL_MESSAGE = "email.message"  # a recruiter's one-off message (PR 4)
 DATA_REQUESTED = "candidate.data_requested"

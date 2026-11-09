@@ -165,6 +165,8 @@ export function describeEvent(event: TimelineEvent, now: Date = new Date()): {
       return { text: `${who(event, "Candidate")} cancelled the interview`, tone: "stage" };
     case "candidate.email_updated":
       return { text: `${who(event)} corrected the email address`, tone: "neutral" };
+    case "cv.replaced":
+      return { text: "Candidate uploaded a new CV after the virus scan flagged the first", tone: "neutral" };
     default:
       return { text: event.kind, tone: "neutral" };
   }
