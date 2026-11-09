@@ -1,0 +1,37 @@
+# Override for the OIDC browser e2e (frontend/e2e/sso.spec.ts): adds a mock
+# OpenID Connect IdP and points the app's generic SSO at it. E2E only - the
+# production docker-compose.yml and .env.example never carry these values.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.oidc-e2e.yml up -d --build
+#   cd frontend && E2E_OIDC=1 pnpm e2e
+#
+# (Locally, add `-p ganek-e2e -f docker-compose.e2e.yml` as well to keep your
+# dev data out of it.) Without this file and E2E_OIDC=1 the SSO spec skips.
+#
+# One URL for two audiences: the IdP shares the backend's network namespace,
+# so http://localhost:8080 is the IdP both for the backend (discovery + token
+# exchange, server side) and for the browser (the login page, through the
+# port published on the backend). The issuer in the discovery document and
+# in the ID token is derived from the request host, so both sides see the
+# same issuer - the classic container-vs-browser issuer mismatch cannot
+# happen, and the backend's "https or localhost" endpoint rule holds.
+services:
+  backend:
+    environment:
+      GANEK_OIDC_ISSUER: http://localhost:8080/ganek
+      GANEK_OIDC_CLIENT_ID: ganek-e2e
+      # a mock IdP accepts any secret; not a credential
+      GANEK_OIDC_CLIENT_SECRET: e2e-mock-idp
+      GANEK_OIDC_DISPLAY_NAME: Mock IdP
+      GANEK_OIDC_EMAIL_DOMAINS: e2e.ganek.dev
+    # the mock IdP listens here too (network_mode below); loopback only
+    ports: ["127.0.0.1:8080:8080"]
+
+  mock-idp:
+    # navikt/mock-oauth2-server: with no JSON_CONFIG it serves an interactive
+    # login page (any username becomes `sub`, a claims JSON box adds
+    # email / email_verified), PKCE, nonce, and aud = the client id.
+    image: ghcr.io/navikt/mock-oauth2-server:6.1.3
+    network_mode: "service:backend"
+    environment:
+      SERVER_PORT: "8080"
