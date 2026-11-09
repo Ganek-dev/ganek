@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -192,27 +193,46 @@ def read_interview_token(token: str) -> uuid.UUID | None:
         return None
 
 
+# Same rule as the frontend's safeNext (lib/home.ts): only a team-invite page,
+# so a sign-in link can never send anyone off-site.
+_SAFE_NEXT_RE = re.compile(r"/invite/[A-Za-z0-9._~-]+")
+
+
+def safe_next_path(value: str | None) -> str | None:
+    """``value`` when it is a same-site team-invite path, else None."""
+    if value and _SAFE_NEXT_RE.fullmatch(value):
+        return value
+    return None
+
+
 def create_google_flow_token(
     state: str,
     code_verifier: str,
     nonce: str,
     invite: str | None = None,
+    next_path: str | None = None,
 ) -> str:
     payload: dict[str, str] = {"s": state, "cv": code_verifier, "n": nonce}
     if invite is not None:
         payload["i"] = invite  # opaque team-invite token riding through the oauth flow
+    if next_path is not None:
+        payload["x"] = next_path  # where to land after sign-in (safe_next_path checked)
     return _google_flow_serializer.dumps(payload)
 
 
-def read_google_flow_token(token: str) -> tuple[str, str, str, str | None] | None:
+def read_google_flow_token(
+    token: str,
+) -> tuple[str, str, str, str | None, str | None] | None:
     try:
         raw = _google_flow_serializer.loads(token, max_age=GOOGLE_FLOW_MAX_AGE_SECONDS)
         invite = raw.get("i")
+        next_path = raw.get("x")
         return (
             str(raw["s"]),
             str(raw["cv"]),
             str(raw["n"]),
             str(invite) if invite is not None else None,
+            safe_next_path(str(next_path)) if next_path is not None else None,
         )
     except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
         return None

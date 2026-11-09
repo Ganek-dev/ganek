@@ -185,7 +185,13 @@ function LoginForm() {
 
       {google ? (
         <>
-          <GoogleButton />
+          <GoogleButton
+            href={
+              next
+                ? `/api/v1/auth/google/start?next=${encodeURIComponent(next)}`
+                : "/api/v1/auth/google/start"
+            }
+          />
           <div className="flex items-center gap-3 pt-2">
             <span aria-hidden className="h-px flex-1 bg-edge" />
             <span className="font-mono text-[10.5px] tracking-wide text-g400 uppercase">

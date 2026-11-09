@@ -1,5 +1,7 @@
 import uuid
 
+import pytest
+
 from app.core.security import (
     create_google_flow_token,
     create_google_signup_token,
@@ -12,6 +14,7 @@ from app.core.security import (
     read_interview_token,
     read_preview_token,
     read_session_token,
+    safe_next_path,
     verify_password,
 )
 from app.services.slugs import slugify
@@ -54,12 +57,35 @@ def test_slugify() -> None:
 
 def test_google_flow_token_roundtrip() -> None:
     token = create_google_flow_token("state1", "verifier1", "nonce1")
-    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1", None)
+    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1", None, None)
 
 
 def test_google_flow_token_carries_invite() -> None:
     token = create_google_flow_token("state1", "verifier1", "nonce1", invite="inv-token")
-    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1", "inv-token")
+    assert read_google_flow_token(token) == ("state1", "verifier1", "nonce1", "inv-token", None)
+
+
+def test_google_flow_token_carries_next_path() -> None:
+    token = create_google_flow_token("s", "v", "n", next_path="/invite/abc.def-1")
+    assert read_google_flow_token(token) == ("s", "v", "n", None, "/invite/abc.def-1")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["https://evil.example/invite/x", "//evil.example", "/admin", "/invite/", "/invite/a/b", None],
+)
+def test_safe_next_path_only_allows_invite_pages(value: str | None) -> None:
+    assert safe_next_path(value) is None
+
+
+def test_safe_next_path_keeps_an_invite_page() -> None:
+    assert safe_next_path("/invite/abc.def-1~_") == "/invite/abc.def-1~_"
+
+
+def test_google_flow_token_drops_an_unsafe_next_path() -> None:
+    # even a signed token never yields an off-site target
+    token = create_google_flow_token("s", "v", "n", next_path="https://evil.example")
+    assert read_google_flow_token(token) == ("s", "v", "n", None, None)
 
 
 def test_google_flow_token_garbage() -> None:

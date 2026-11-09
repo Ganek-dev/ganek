@@ -4,8 +4,9 @@ frontend origin. See services/oauth_google.py for the flow's trust model."""
 
 import logging
 import secrets
+from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.api.auth import _set_session_cookie
@@ -22,6 +23,7 @@ from app.core.security import (
     create_mfa_token,
     read_google_flow_token,
     read_google_signup_token,
+    safe_next_path,
 )
 from app.models import User
 from app.schemas.auth import GoogleSignupPending, GoogleSignupRequest, UserOut
@@ -59,13 +61,21 @@ def _redirect(path: str) -> RedirectResponse:
         demo_mode.locked,
     ],
 )
-async def google_start(invite: str | None = None) -> RedirectResponse:
+async def google_start(
+    invite: str | None = None,
+    next_path: str | None = Query(default=None, alias="next"),
+) -> RedirectResponse:
+    """``next`` (only a same-site /invite/<token> path, anything else is
+    dropped) is where a sign-in lands instead of the home page, so an
+    existing account opening a team invite comes back to it to join."""
     _require_configured()
     url, state, verifier, nonce = oauth_google.build_authorization_request()
     response = RedirectResponse(url, status_code=status.HTTP_302_FOUND)
     response.set_cookie(
         GOOGLE_FLOW_COOKIE_NAME,
-        create_google_flow_token(state, verifier, nonce, invite=invite),
+        create_google_flow_token(
+            state, verifier, nonce, invite=invite, next_path=safe_next_path(next_path)
+        ),
         max_age=GOOGLE_FLOW_MAX_AGE_SECONDS,
         httponly=True,
         # Lax, not Strict: Google's redirect back is a cross-site navigation
@@ -118,6 +128,10 @@ async def google_callback(request: Request, db: DbSession) -> RedirectResponse:
     if flow[3] is not None:
         return await _accept_invite_via_google(db, invite_token=flow[3], claims=claims)
 
+    next_path = flow[4]
+    # carried onto /login so a password or 2FA step still returns to it
+    next_query = f"&next={quote(next_path, safe='')}" if next_path else ""
+
     resolution, user = await oauth_google.resolve_identity(db, claims)
     if resolution is oauth_google.Resolution.SIGNUP:
         # sub+email stay out of the URL (browser history / proxy logs): the
@@ -136,9 +150,9 @@ async def google_callback(request: Request, db: DbSession) -> RedirectResponse:
         )
         return response
     if resolution is oauth_google.Resolution.USE_PASSWORD:
-        return _redirect("/login?error=use-password")
+        return _redirect(f"/login?error=use-password{next_query}")
     if resolution is oauth_google.Resolution.INACTIVE:
-        return _redirect("/login?error=account-disabled")
+        return _redirect(f"/login?error=account-disabled{next_query}")
 
     assert user is not None
     if resolution is oauth_google.Resolution.LINKED:
@@ -152,8 +166,9 @@ async def google_callback(request: Request, db: DbSession) -> RedirectResponse:
         )
     if mfa_service.enabled(user):
         # card A6: the password step was Google's; the code step is ours
-        return _redirect(f"/login?mfa={create_mfa_token(user.id, user.token_version)}")
-    response = _redirect("/admin")
+        mfa_token = create_mfa_token(user.id, user.token_version)
+        return _redirect(f"/login?mfa={mfa_token}{next_query}")
+    response = _redirect(next_path or "/admin")
     _set_session_cookie(response, user)
     return response
 
