@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 
 import { api, type Availability, type DayKey, type DayWindow } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
 
 /** Account settings card: the recruiter's weekly interview-availability
  * window, used by the slot engine to offer times to candidates, plus the
@@ -12,15 +13,7 @@ import { api, type Availability, type DayKey, type DayWindow } from "@/lib/api";
  * saved (or default Mon-Fri 9-17) schedule, edits happen client-side, Save
  * PUTs the whole week + the browser's IANA zone + the location. */
 
-const DAYS: { key: DayKey; label: string; short: string }[] = [
-  { key: "mon", label: "Monday", short: "Mon" },
-  { key: "tue", label: "Tuesday", short: "Tue" },
-  { key: "wed", label: "Wednesday", short: "Wed" },
-  { key: "thu", label: "Thursday", short: "Thu" },
-  { key: "fri", label: "Friday", short: "Fri" },
-  { key: "sat", label: "Saturday", short: "Sat" },
-  { key: "sun", label: "Sunday", short: "Sun" },
-];
+const DAYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 const DEFAULT_WINDOW: DayWindow = { start: "09:00", end: "17:00" };
 
@@ -40,6 +33,7 @@ const selectCls =
   "h-8 rounded-md border border-edge bg-transparent px-2 text-[13px] outline-none focus:border-g400 disabled:opacity-40";
 
 export function AvailabilityCard() {
+  const { t } = useLocale();
   const [loaded, setLoaded] = useState(false);
   const [days, setDays] = useState<Partial<Record<DayKey, DayWindow>>>({});
   const [location, setLocation] = useState("");
@@ -63,16 +57,18 @@ export function AvailabilityCard() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load availability");
+        setError(err instanceof Error ? err.message : t("availability.loadFailed"));
         setLoaded(true);
       });
     return () => {
       cancelled = true;
     };
+    // load once; a language switch must not refetch and drop unsaved edits
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const invalidDay = DAYS.find((d) => {
-    const window = days[d.key];
+    const window = days[d];
     return window ? window.start >= window.end : false;
   });
 
@@ -112,7 +108,7 @@ export function AvailabilityCard() {
       setIsDefault(result.is_default);
       setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save availability");
+      setError(err instanceof Error ? err.message : t("availability.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -132,53 +128,52 @@ export function AvailabilityCard() {
         <div>
           <p className="flex items-center gap-1.5 text-sm font-semibold">
             <Clock aria-hidden className="h-4 w-4 text-g500" />
-            Interview availability
+            {t("availability.title")}
           </p>
-          <p className="mt-0.5 text-[12.5px] text-g500">
-            When candidates can book interview slots with you.
-          </p>
+          <p className="mt-0.5 text-[12.5px] text-g500">{t("availability.description")}</p>
         </div>
         <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-edge px-2.5 text-[11px] font-medium text-g500">
           <span className="font-mono text-g600">{browserZone}</span>
-          &nbsp; - your timezone
+          &nbsp;{t("availability.yourZone")}
         </span>
       </div>
 
       {isDefault ? (
         <p className="mt-3 rounded-md border border-edge bg-muted-fill/40 px-3 py-2 text-[12.5px] text-g500">
-          Using default hours - Mon-Fri 9:00-17:00.
+          {t("availability.defaultHours")}
         </p>
       ) : null}
 
       <div className="mt-4 flex flex-col">
-        {DAYS.map((day) => {
-          const window = days[day.key];
+        {DAYS.map((key) => {
+          const window = days[key];
           const enabled = Boolean(window);
+          const label = t(`day.${key}`);
           return (
             <div
-              key={day.key}
+              key={key}
               className="flex items-center gap-3 border-b border-edge py-2 last:border-b-0"
             >
               <label className="flex w-20 shrink-0 items-center gap-2">
                 <input
                   type="checkbox"
-                  aria-label={day.label}
+                  aria-label={label}
                   checked={enabled}
-                  onChange={() => toggleDay(day.key)}
+                  onChange={() => toggleDay(key)}
                   className="h-4 w-4 rounded border-edge"
                 />
-                <span className="text-[13px] font-medium">{day.short}</span>
+                <span className="text-[13px] font-medium">{t(`dayShort.${key}`)}</span>
               </label>
               <select
-                aria-label={`${day.label} start time`}
+                aria-label={t("availability.startTime", { day: label })}
                 value={window?.start ?? DEFAULT_WINDOW.start}
                 disabled={!enabled}
-                onChange={(event) => setTime(day.key, "start", event.target.value)}
+                onChange={(event) => setTime(key, "start", event.target.value)}
                 className={selectCls}
               >
-                {TIME_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {TIME_OPTIONS.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
                   </option>
                 ))}
               </select>
@@ -186,15 +181,15 @@ export function AvailabilityCard() {
                 -
               </span>
               <select
-                aria-label={`${day.label} end time`}
+                aria-label={t("availability.endTime", { day: label })}
                 value={window?.end ?? DEFAULT_WINDOW.end}
                 disabled={!enabled}
-                onChange={(event) => setTime(day.key, "end", event.target.value)}
+                onChange={(event) => setTime(key, "end", event.target.value)}
                 className={selectCls}
               >
-                {TIME_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {TIME_OPTIONS.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
                   </option>
                 ))}
               </select>
@@ -204,7 +199,7 @@ export function AvailabilityCard() {
       </div>
 
       <label className="mt-4 flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium">Where your interviews happen</span>
+        <span className="text-[13px] font-medium">{t("availability.location")}</span>
         <input
           type="text"
           value={location}
@@ -213,18 +208,18 @@ export function AvailabilityCard() {
             setSaved(false);
             setLocation(event.target.value);
           }}
-          placeholder="A Teams or Zoom link, or a room"
+          placeholder={t("availability.locationPlaceholder")}
           className="h-9 rounded-md border border-edge bg-transparent px-2.5 text-[13px] outline-none focus:border-g400"
         />
       </label>
       <p className="mt-1.5 text-[12px] text-g500">
-        Prefilled on every interview you are asked to run; editable per interview.
+        {t("availability.locationHint")}
       </p>
 
       <div className="mt-4">
         {invalidDay ? (
           <p className="mb-2 text-sm text-red-600 dark:text-red-400">
-            {invalidDay.label}: start must be before end.
+            {t("availability.invalid", { day: t(`day.${invalidDay}`) })}
           </p>
         ) : null}
         {error ? (
@@ -233,7 +228,7 @@ export function AvailabilityCard() {
           </p>
         ) : null}
         {saved ? (
-          <p className="mb-2 text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>
+          <p className="mb-2 text-sm text-emerald-700 dark:text-emerald-400">{t("availability.saved")}</p>
         ) : null}
         <button
           type="button"
@@ -241,7 +236,7 @@ export function AvailabilityCard() {
           disabled={saving || Boolean(invalidDay)}
           className="inline-flex h-8 items-center rounded-md bg-inverse px-3.5 text-[13.5px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
         >
-          {saving ? "…" : "Save availability"}
+          {saving ? "…" : t("availability.save")}
         </button>
       </div>
     </div>
