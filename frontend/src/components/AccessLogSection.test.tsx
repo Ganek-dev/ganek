@@ -1,8 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, accessLogApi, team, type AccessLogRow } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { AccessLogSection } from "./AccessLogSection";
 
@@ -109,5 +110,57 @@ describe("AccessLogSection", () => {
     const { container } = render(<AccessLogSection now={NOW} />);
     await waitFor(() => expect(mocked.list).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("AccessLogSection in German", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mockedTeam.list.mockResolvedValue([]);
+  });
+  afterEach(() => window.localStorage.clear());
+
+  const renderGerman = () =>
+    render(
+      <LocaleProvider>
+        <AccessLogSection now={NOW} />
+      </LocaleProvider>,
+    );
+
+  it("renders filters, headers, rows and ages in German", async () => {
+    mocked.list.mockResolvedValue({
+      items: [
+        row({ id: "r1", action: "cv_download", created_at: "2026-10-24T11:55:00Z" }),
+        row({ id: "r2", actor_label: null, actor_email: null, api_key_name: "ATS sync" }),
+        row({ id: "r3", actor_label: null, actor_email: null, created_at: "2026-10-20T12:00:00Z" }),
+      ],
+      total: 4,
+    });
+    renderGerman();
+    expect(screen.getByText("Zugriffsprotokoll")).toBeInTheDocument();
+    expect(screen.getByLabelText("Teammitglied")).toHaveDisplayValue("Alle");
+    expect(screen.getByLabelText("Aktion")).toHaveDisplayValue("Jede Aktion");
+    expect(screen.getByRole("option", { name: "Lebenslauf geöffnet" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CSV herunterladen" })).toBeInTheDocument();
+    const rows = await screen.findAllByRole("row");
+    expect(rows).toHaveLength(4);
+    for (const header of ["Wer", "Was", "Person", "Stelle", "Wann"]) {
+      expect(within(rows[0]).getByText(header)).toBeInTheDocument();
+    }
+    expect(within(rows[1]).getByText("hat den Lebenslauf geöffnet")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("vor 5 Min.")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("API-Schlüssel ATS sync")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("hat das Profil geöffnet")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("vor 1 Std.")).toBeInTheDocument();
+    expect(within(rows[3]).getByText("Entferntes Teammitglied")).toBeInTheDocument();
+    expect(within(rows[3]).getByText("vor 4 T.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mehr anzeigen" })).toBeInTheDocument();
+  });
+
+  it("shows the German empty state", async () => {
+    mocked.list.mockResolvedValue({ items: [], total: 0 });
+    renderGerman();
+    expect(await screen.findByText("Noch hat niemand eine Bewerbung geöffnet.")).toBeInTheDocument();
   });
 });

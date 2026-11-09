@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 
+import { relativeAge, type RelativeAge } from "@/lib/time";
+
 import { DEFAULT_LOCALE, isLocale, translate, type Locale, type MessageKey } from "./messages";
 
 /** Admin UI locale, kept per browser. Storage can be missing or throw
@@ -76,6 +78,24 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
 export function useLocale(): LocaleContextValue {
   return useContext(LocaleContext);
+}
+
+const AGE_KEYS: Record<RelativeAge["unit"], MessageKey> = {
+  now: "time.justNow",
+  m: "time.minutesAgo",
+  h: "time.hoursAgo",
+  d: "time.daysAgo",
+  w: "time.weeksAgo",
+};
+
+/** `relativeTime` in the admin language ("5m ago", "vor 5 Min."). */
+export function formatAge(
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+  iso: string,
+  now: Date = new Date(),
+): string {
+  const { unit, n } = relativeAge(iso, now);
+  return t(AGE_KEYS[unit], { n });
 }
 
 /** Render a translated template whose `{name}` placeholders are React

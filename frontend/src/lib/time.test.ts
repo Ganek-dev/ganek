@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { relativeTime, shortTime } from "./time";
+import { relativeAge, relativeTime, shortTime } from "./time";
 
 describe("relativeTime", () => {
   const now = new Date("2026-08-17T12:00:00Z");
@@ -30,5 +30,18 @@ describe("shortTime", () => {
     expect(shortTime("2026-11-08T17:13:00Z")).toMatch(/^\d{2}:\d{2}$/);
     expect(shortTime("not a date")).toBe("");
     expect(shortTime(undefined)).toBe("");
+  });
+});
+
+describe("relativeAge", () => {
+  const now = new Date("2026-10-24T12:00:00Z");
+  it.each([
+    ["2026-10-24T11:59:30Z", { unit: "now", n: 0 }],
+    ["2026-10-24T11:55:00Z", { unit: "m", n: 5 }],
+    ["2026-10-24T09:00:00Z", { unit: "h", n: 3 }],
+    ["2026-10-21T12:00:00Z", { unit: "d", n: 3 }],
+    ["2026-10-03T12:00:00Z", { unit: "w", n: 3 }],
+  ])("%s", (iso, expected) => {
+    expect(relativeAge(iso, now)).toEqual(expected);
   });
 });

@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   accessLogApi,
@@ -10,6 +10,7 @@ import {
   type CompanyAdmin,
   type DeepHealth,
 } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import PrivacySettingsPage from "./page";
 
@@ -231,5 +232,68 @@ describe("nightly purge note (G3)", () => {
       await screen.findByRole("button", { name: "Send test email to me" }),
     ).toBeDisabled();
     expect(screen.getByText(/SMTP is NOT configured/)).toBeInTheDocument();
+  });
+});
+
+describe("PrivacySettingsPage in German", () => {
+  const renderGerman = () =>
+    render(
+      <LocaleProvider>
+        <PrivacySettingsPage />
+      </LocaleProvider>,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mocked.get.mockResolvedValue(makeCompany({ retention_months: 12 }));
+    mocked.updateSettings.mockResolvedValue(makeCompany({ retention_months: 12 }));
+    mockedHealth.deep.mockResolvedValue(
+      makeHealth(new Date(Date.now() - 2 * 3600 * 1000).toISOString()),
+    );
+    vi.mocked(accessLogApi).list.mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(team).list.mockResolvedValue([]);
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the cards, retention options and the purge note in German", async () => {
+    renderGerman();
+    expect(await screen.findByLabelText("Name des Unternehmens laut Register")).toHaveValue("");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Einstellungen");
+    expect(screen.getByText("Leer = Ihr Anzeigename „Acme Labs“.")).toBeInTheDocument();
+    expect(screen.getByLabelText("E-Mail-Adresse für Datenschutzanfragen")).toBeInTheDocument();
+    const retention = screen.getByLabelText("Bewerbungen aufbewahren für");
+    expect(within(retention).getByRole("option", { name: "Standard - 6 Monate" })).toBeInTheDocument();
+    expect(within(retention).getByRole("option", { name: "1 Monat" })).toBeInTheDocument();
+    expect(within(retention).getByRole("option", { name: "12 Monate" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Bewerbungen werden 12 Monate nach einer Entscheidung automatisch gelöscht/),
+    ).toBeInTheDocument();
+    expect(await screen.findByTestId("last-purge")).toHaveTextContent("Letzte Löschung: vor 2 Std.");
+    expect(screen.getByLabelText("URL der Datenschutzerklärung")).toBeInTheDocument();
+    expect(screen.getByText("Virenprüfung von Lebensläufen")).toBeInTheDocument();
+    expect(screen.getByText(/^SMTP ist eingerichtet/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Öffentlichen Hinweis ansehen" })).toHaveAttribute(
+      "href",
+      "/c/acmelabs/privacy",
+    );
+    expect(await screen.findByText("Noch hat niemand eine Bewerbung geöffnet.")).toBeInTheDocument();
+  });
+
+  it("saves and confirms in German", async () => {
+    const user = userEvent.setup();
+    renderGerman();
+    await user.click(await screen.findByRole("button", { name: "Datenschutzeinstellungen speichern" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Datenschutzeinstellungen gespeichert",
+    );
+  });
+
+  it("says the purge has not run yet in German", async () => {
+    mockedHealth.deep.mockResolvedValue(makeHealth(null));
+    renderGerman();
+    expect(await screen.findByTestId("last-purge")).toHaveTextContent(
+      "Letzte Löschung: noch nicht gelaufen",
+    );
   });
 });
