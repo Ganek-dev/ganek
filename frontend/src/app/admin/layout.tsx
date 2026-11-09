@@ -17,6 +17,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { DemoBanner } from "@/components/DemoBanner";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { trialDaysLeft, trialDaysText } from "@/lib/trial";
@@ -234,6 +235,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <X size={18} aria-hidden />
           </button>
         </div>
+        <CompanySwitcher tone="dark" impersonating={Boolean(user.impersonation_expires_at)} />
         <nav className="flex-1 space-y-0.5 px-3">
           {visibleNav.map(({ href, label, icon: Icon, ...item }) => {
             const active =

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,7 +17,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    api: { ...original.api, me: vi.fn(), logout: vi.fn(), providers: vi.fn() },
+    api: {
+      ...original.api,
+      me: vi.fn(),
+      logout: vi.fn(),
+      providers: vi.fn(),
+      companies: vi.fn(),
+    },
     companyApi: { ...original.companyApi, get: vi.fn(), usage: vi.fn(), plan: vi.fn() },
     stats: { overview: vi.fn() },
   };
@@ -40,6 +46,7 @@ describe("AdminLayout", () => {
     });
     mockedApi.logout.mockResolvedValue(undefined);
     mockedApi.providers.mockResolvedValue({ google: false, mode: "single" });
+    mockedApi.companies.mockResolvedValue([]);
     mockedCompany.usage.mockResolvedValue({
       emails_today: 0,
       emails_per_day_limit: 500,
@@ -134,6 +141,30 @@ describe("AdminLayout", () => {
     expect(await screen.findByTestId("impersonation-banner")).toHaveTextContent(
       "Viewing as grumpy@acme.dev.",
     );
+  });
+
+  it("shows the company switcher in the sidebar only for a multi-seat user", async () => {
+    const { unmount } = render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    await screen.findByText("page content");
+    expect(screen.queryByRole("combobox", { name: "Company" })).not.toBeInTheDocument();
+    unmount();
+
+    mockedApi.companies.mockResolvedValue([
+      { company_id: "c1", name: "Acme", slug: "acme", role: "admin", active: true },
+      { company_id: "c2", name: "Globex", slug: "globex", role: "member", active: false },
+    ]);
+    render(
+      <AdminLayout>
+        <p>page content</p>
+      </AdminLayout>,
+    );
+    const nav = await screen.findByRole("complementary", { name: "Admin navigation" });
+    const select = await within(nav).findByRole("combobox", { name: "Company" });
+    expect(select).toHaveValue("c1");
   });
 
   it("lists Reports directly after Applicants", async () => {
