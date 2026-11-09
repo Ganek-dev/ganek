@@ -604,6 +604,11 @@ export interface QuizResult {
   integrity: QuizIntegrity;
 }
 
+/** ClamAV verdict on a CV (migration 0055, services.cv_scan). Only
+ * "infected" blocks the download; "pending" and "error" stay downloadable so
+ * a scanner that is down or still loading signatures never locks CVs away. */
+export type CvScanStatus = "pending" | "clean" | "infected" | "error";
+
 export interface ApplicationOut {
   id: string;
   job_id: string;
@@ -611,6 +616,10 @@ export interface ApplicationOut {
   /** null for an application created without a CV (CSV import, screen link, connectors) */
   cv_filename: string | null;
   cv_size: number | null;
+  /** null = never scanned (no scanner configured, or no CV) */
+  cv_scan_status?: CvScanStatus | null;
+  /** The ClamAV signature name when infected, e.g. "Eicar-Test-Signature". */
+  cv_scan_signature?: string | null;
   message: string | null;
   stage: ApplicationStage;
   source: string | null;
@@ -1798,6 +1807,8 @@ export interface CompanyAdmin {
   /** Verified custom careers domain (multi mode, plan includes it), else null. */
   careers_domain?: string | null;
   smtp_configured: boolean;
+  /** GANEK_CLAMAV_HOST is set: new CV uploads are virus scanned. */
+  cv_scanning_configured?: boolean;
   logo_url: string | null;
   website: string | null;
   socials: Record<string, unknown>;

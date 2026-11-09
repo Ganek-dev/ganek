@@ -211,6 +211,17 @@ describe("nightly purge note (G3)", () => {
     expect(await screen.findByText(/SMTP send failed: boom/)).toBeInTheDocument();
   });
 
+  it("says CV scanning is not configured until the scanner is set up", async () => {
+    render(<PrivacySettingsPage />);
+    expect(await screen.findByText(/Scanning is not configured/)).toBeInTheDocument();
+  });
+
+  it("says CV scanning is on when the scanner is configured", async () => {
+    mocked.get.mockResolvedValue({ ...makeCompany(), cv_scanning_configured: true });
+    render(<PrivacySettingsPage />);
+    expect(await screen.findByText(/Scanning is on/)).toBeInTheDocument();
+  });
+
   it("disables the test send while SMTP is unconfigured", async () => {
     const company = makeCompany();
     company.smtp_configured = false;

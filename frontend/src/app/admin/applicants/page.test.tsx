@@ -408,6 +408,26 @@ describe("ApplicantsPage", () => {
     expect(mockedApps.cvUrl).not.toHaveBeenCalled();
   });
 
+  it("blocks the download of a CV the virus scanner flagged", async () => {
+    mockedApps.list.mockResolvedValue(
+      pageOf([
+        makeApp({
+          id: "app-1",
+          cv_scan_status: "infected",
+          cv_scan_signature: "Eicar-Test-Signature",
+        }),
+      ]),
+    );
+    render(<ApplicantsPage />);
+    await screen.findByRole("heading", { name: "Jane Applicant" });
+
+    const button = screen.getByRole("button", { name: /jane\.pdf/ });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/virus scanner flagged this CV/)).toBeInTheDocument();
+    await userEvent.click(button);
+    expect(mockedApps.cvUrl).not.toHaveBeenCalled();
+  });
+
   it("mounts the scorecards card for the selected applicant and opens the form on ?scorecard=1", async () => {
     search = new URLSearchParams("selected=app-2&scorecard=1");
     mockedScorecards.list.mockResolvedValue([
