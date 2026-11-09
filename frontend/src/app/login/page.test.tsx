@@ -61,6 +61,8 @@ describe("LoginPage", () => {
     ["use-password", /log in with your password/i],
     ["account-disabled", /deactivated/i],
     ["google-failed", /didn't complete/i],
+    ["oidc-failed", /single sign-on didn't complete/i],
+    ["oidc-no-account", /ask your admin for an invite/i],
   ])("surfaces the %s oauth error", async (code, copy) => {
     search = new URLSearchParams({ error: code });
     render(<LoginPage />);
@@ -108,6 +110,39 @@ describe("LoginPage", () => {
       "href",
       "/api/v1/auth/google/start?next=%2Finvite%2Fabc.def-1",
     );
+  });
+
+  it("shows the single sign-on button with the instance's name", async () => {
+    mocked.providers.mockResolvedValue({
+      google: false,
+      oidc: true,
+      oidc_name: "Acme Okta",
+      mode: "single",
+    });
+    render(<LoginPage />);
+    const link = await screen.findByRole("link", { name: "Continue with Acme Okta" });
+    expect(link).toHaveAttribute("href", "/api/v1/auth/oidc/start");
+    expect(screen.getByText(/or with email/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Continue with Google/ })).not.toBeInTheDocument();
+  });
+
+  it("offers single sign-on and Google side by side, both returning to the invite", async () => {
+    search = new URLSearchParams({ next: "/invite/abc.def-1" });
+    mocked.providers.mockResolvedValue({ google: true, oidc: true, mode: "single" });
+    render(<LoginPage />);
+    const sso = await screen.findByRole("link", { name: "Continue with SSO" });
+    expect(sso).toHaveAttribute("href", "/api/v1/auth/oidc/start?next=%2Finvite%2Fabc.def-1");
+    expect(screen.getByRole("link", { name: /Continue with Google/ })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/google/start?next=%2Finvite%2Fabc.def-1",
+    );
+  });
+
+  it("hides single sign-on when the instance has none", async () => {
+    mocked.providers.mockResolvedValue({ google: true, oidc: false, mode: "single" });
+    render(<LoginPage />);
+    await screen.findByRole("link", { name: /Continue with Google/ });
+    expect(screen.queryByRole("link", { name: /Continue with SSO/ })).not.toBeInTheDocument();
   });
 
   it("keeps the plain Google start link for a next that is not an invite", async () => {

@@ -82,6 +82,8 @@ NOT_SESSION_GATED: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/v1/auth/google/callback"),
         ("GET", "/api/v1/auth/google/signup/pending"),
         ("POST", "/api/v1/auth/google/signup"),
+        ("GET", "/api/v1/auth/oidc/start"),
+        ("GET", "/api/v1/auth/oidc/callback"),
         # inbound webhooks
         ("POST", "/api/v1/email/webhooks/mailjet"),
         # public career pages

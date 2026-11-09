@@ -3,7 +3,17 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +31,7 @@ class UserRole(enum.StrEnum):
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("oidc_issuer", "oidc_sub"),)
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"), index=True
@@ -32,6 +43,10 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     google_sub: Mapped[str | None] = mapped_column(
         String(255), unique=True, index=True, nullable=True
     )
+    # generic OIDC identity (issuer + subject); unique as a pair so an
+    # issuer change never matches another IdP's subject
+    oidc_issuer: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    oidc_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, values_callable=lambda e: [m.value for m in e], native_enum=False, length=20)
     )

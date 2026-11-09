@@ -46,6 +46,19 @@ class Settings(BaseSettings):
     google_client_secret: str | None = None
     google_redirect_url: str | None = None
 
+    # Generic OpenID Connect sign-in (Keycloak, Authentik, Okta, Entra ID...).
+    # Off while issuer/client id/secret are unset. Existing accounts only:
+    # a first OIDC sign-in links to an account by email solely when the IdP
+    # marks the address verified AND its domain is listed in
+    # oidc_email_domains (comma-separated), so an IdP with open
+    # self-registration cannot claim someone else's account.
+    oidc_issuer: str | None = None
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    oidc_redirect_url: str | None = None
+    oidc_display_name: str = "SSO"
+    oidc_email_domains: str = ""
+
     # Outbound transport (services/email_providers.py): smtp (default) or
     # mailjet (HTTPS API, EU-hosted; its events feed the suppression list)
     email_provider: Literal["smtp", "mailjet"] = "smtp"

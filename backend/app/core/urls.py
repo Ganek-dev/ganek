@@ -193,3 +193,10 @@ def google_oauth_redirect_uri() -> str:
     if settings.google_redirect_url:
         return settings.google_redirect_url
     return f"{_base()}{API_PREFIX}/auth/google/callback"
+
+
+def oidc_redirect_uri() -> str:
+    """Generic OIDC sign-in callback; same override rule as Google's."""
+    if settings.oidc_redirect_url:
+        return settings.oidc_redirect_url
+    return f"{_base()}{API_PREFIX}/auth/oidc/callback"

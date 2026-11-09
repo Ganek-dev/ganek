@@ -379,6 +379,8 @@ async def anonymize_user(
     user.display_name = None
     user.password_hash = None
     user.google_sub = None
+    user.oidc_issuer = None
+    user.oidc_sub = None
     user.interview_availability = None  # a tombstone offers no slots
     user.interview_location = None
     user.is_active = False

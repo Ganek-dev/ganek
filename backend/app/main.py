@@ -15,6 +15,7 @@ from app.api import (
     email_webhooks,
     google_auth,
     jobs,
+    oidc_auth,
     ops,
     public,
     questionnaires,
@@ -98,6 +99,7 @@ app.include_router(email_webhooks.router, prefix="/api/v1")
 app.include_router(google_auth.router, prefix="/api/v1")
 app.include_router(health_api.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api/v1")
+app.include_router(oidc_auth.router, prefix="/api/v1")
 app.include_router(ops.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
 app.include_router(review.router, prefix="/api/v1")
