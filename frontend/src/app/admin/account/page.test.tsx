@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import AccountPage from "./page";
 
@@ -210,5 +211,88 @@ describe("AccountPage", () => {
     expect(screen.queryByLabelText("Current password")).toBeNull();
     expect(screen.getByRole("button", { name: "Set up" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sign out everywhere" })).toBeDisabled();
+  });
+});
+
+describe("AccountPage in German", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    search = new URLSearchParams();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mocked.providers.mockResolvedValue({ google: false, mode: "single" });
+    mocked.availability.get.mockResolvedValue({
+      timezone: "",
+      is_default: true,
+      location: "",
+      days: Object.fromEntries(
+        ["mon", "tue", "wed", "thu", "fri"].map((d) => [d, { start: "09:00", end: "17:00" }]),
+      ),
+    });
+    mocked.companies.mockResolvedValue([]);
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: true,
+      role: "member",
+    });
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the profile and password cards and the settings tabs in German", async () => {
+    render(
+      <LocaleProvider>
+        <AccountPage />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByRole("textbox", { name: "E-Mail" })).toHaveValue(
+      "grumpy.miner@acmelabs.io",
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Konto" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Einstellungsbereiche" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Datenschutz" })).toHaveAttribute(
+      "href",
+      "/admin/privacy",
+    );
+    expect(screen.getByText("Mitglied · vom Workspace-Admin vergeben")).toBeInTheDocument();
+    expect(screen.getByLabelText("Anzeigename")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Namen speichern" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Passwort ändern" })).toBeInTheDocument();
+  });
+
+  it("refuses mismatched passwords with a German message", async () => {
+    render(
+      <LocaleProvider>
+        <AccountPage />
+      </LocaleProvider>,
+    );
+    await userEvent.type(await screen.findByLabelText("Aktuelles Passwort"), "old-password-1");
+    await userEvent.type(screen.getByLabelText("Neues Passwort (mind. 10 Zeichen)"), "new-password-12");
+    await userEvent.type(screen.getByLabelText("Neues Passwort bestätigen"), "new-password-13");
+    await userEvent.click(screen.getByRole("button", { name: "Passwort ändern" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die neuen Passwörter stimmen nicht überein.",
+    );
+    expect(mocked.changePassword).not.toHaveBeenCalled();
+  });
+
+  it("names the sign-in method of a passwordless account in German", async () => {
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: false,
+      google_linked: true,
+      sso_linked: true,
+      role: "admin",
+    });
+    render(
+      <LocaleProvider>
+        <AccountPage />
+      </LocaleProvider>,
+    );
+    expect(
+      await screen.findByText(/Sie melden sich mit Google oder Single Sign-on an/),
+    ).toBeInTheDocument();
   });
 });
