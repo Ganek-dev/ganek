@@ -2,6 +2,7 @@
 these tests exercise our flow handling, linking rules, and cookie handling."""
 
 import time
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ from app.core.security import (
     create_google_signup_token,
     create_invite_token,
     hash_password,
+    read_google_flow_token,
 )
 from app.models import Company, User, UserInvite, UserRole
 from app.services import oauth_google
@@ -68,10 +70,11 @@ def _arm_flow(
     state: str = "state-1",
     nonce: str = "nonce-1",
     invite: str | None = None,
+    next_path: str | None = None,
 ) -> None:
     client.cookies.set(
         GOOGLE_FLOW_COOKIE_NAME,
-        create_google_flow_token(state, "verifier-1", nonce, invite=invite),
+        create_google_flow_token(state, "verifier-1", nonce, invite=invite, next_path=next_path),
     )
 
 
@@ -427,3 +430,86 @@ async def test_google_calendar_status_route_is_gone(
     await _login_user(client, db_session)
     assert (await client.get("/api/v1/users/me/google-calendar")).status_code == 404
     assert (await client.delete("/api/v1/users/me/google-calendar")).status_code == 404
+
+
+# --- slice 9 of card "SSO + multi-company user membership": a Google
+# sign-in started from /login?next=/invite/<token> comes back to the invite
+
+
+@pytest.mark.usefixtures("google_configured")
+async def test_start_keeps_an_invite_next_in_the_flow_cookie(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/auth/google/start", params={"next": "/invite/abc.def-1"})
+    assert resp.status_code == 302
+    flow = read_google_flow_token(resp.cookies[GOOGLE_FLOW_COOKIE_NAME])
+    assert flow is not None
+    assert flow[4] == "/invite/abc.def-1"
+
+
+@pytest.mark.usefixtures("google_configured")
+@pytest.mark.parametrize("value", ["https://evil.example/", "//evil.example", "/admin/settings"])
+async def test_start_drops_a_next_that_is_not_an_invite(client: AsyncClient, value: str) -> None:
+    resp = await client.get("/api/v1/auth/google/start", params={"next": value})
+    flow = read_google_flow_token(resp.cookies[GOOGLE_FLOW_COOKIE_NAME])
+    assert flow is not None
+    assert flow[4] is None
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_callback_signs_in_and_returns_to_the_invite(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"next-{uuid4().hex[:8]}@example.com"
+    sub = f"sub-{uuid4().hex}"
+    await _make_user(db_session, email, google_sub=sub)
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
+    _arm_flow(client, next_path="/invite/abc.def-1")
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/invite/abc.def-1"
+    me = await client.get("/api/v1/auth/me")
+    assert me.json()["email"] == email
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_callback_with_2fa_keeps_the_invite_next_on_the_code_step(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"next2fa-{uuid4().hex[:8]}@example.com"
+    sub = f"sub-{uuid4().hex}"
+    user = await _make_user(db_session, email, google_sub=sub)
+    user.totp_secret = "enabled-for-this-test"  # noqa: S105 - mfa_service.enabled only checks presence
+    user.totp_enabled_at = datetime.now(UTC)
+    await db_session.commit()
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email, sub=sub)))
+    _arm_flow(client, next_path="/invite/abc.def-1")
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    location = urlparse(resp.headers["location"])
+    assert location.path == "/login"
+    query = parse_qs(location.query)
+    assert query["next"] == ["/invite/abc.def-1"]
+    assert query["mfa"]
+    # no session yet: the code step comes first
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_callback_use_password_keeps_the_invite_next(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"nextpw-{uuid4().hex[:8]}@corp.example"
+    await _make_user(db_session, email)
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email)))
+    _arm_flow(client, next_path="/invite/abc.def-1")
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/login?error=use-password&next=%2Finvite%2Fabc.def-1"
+
+
+@pytest.mark.usefixtures("google_configured", "migrated_db")
+async def test_callback_new_identity_ignores_next_and_goes_to_setup(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"nextnew-{uuid4().hex[:8]}@gmail.com"
+    monkeypatch.setattr(oauth_google, "exchange_code_full", _fake_exchange(_claims(email)))
+    _arm_flow(client, next_path="/invite/abc.def-1")
+    resp = await client.get("/api/v1/auth/google/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/setup?google=pending"

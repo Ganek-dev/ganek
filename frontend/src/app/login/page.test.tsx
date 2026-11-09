@@ -99,6 +99,40 @@ describe("LoginPage", () => {
     expect(push).not.toHaveBeenCalledWith("/admin");
   });
 
+  it("sends Google sign-in back to the team-invite page passed as next", async () => {
+    search = new URLSearchParams({ next: "/invite/abc.def-1" });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
+    render(<LoginPage />);
+    const link = await screen.findByRole("link", { name: /Continue with Google/ });
+    expect(link).toHaveAttribute(
+      "href",
+      "/api/v1/auth/google/start?next=%2Finvite%2Fabc.def-1",
+    );
+  });
+
+  it("keeps the plain Google start link for a next that is not an invite", async () => {
+    search = new URLSearchParams({ next: "https://evil.example/invite/x" });
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
+    render(<LoginPage />);
+    const link = await screen.findByRole("link", { name: /Continue with Google/ });
+    expect(link).toHaveAttribute("href", "/api/v1/auth/google/start");
+  });
+
+  it("returns to the invite after the 2FA step of a Google sign-in", async () => {
+    search = new URLSearchParams({ mfa: "google-step", next: "/invite/abc.def-1" });
+    mocked.mfaVerify.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "you@company.com",
+      has_password: false,
+      role: "admin",
+    });
+    render(<LoginPage />);
+    await userEvent.type(await screen.findByLabelText("Authenticator code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/invite/abc.def-1"));
+  });
+
   it.each(["https://evil.example/invite/x", "//evil.example", "/admin/settings"])(
     "ignores a next of %s",
     async (next) => {
