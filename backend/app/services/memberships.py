@@ -29,6 +29,40 @@ class CompanySuspendedError(Exception):
         self.company = company
 
 
+async def seat_role(
+    db: AsyncSession, *, user_id: uuid.UUID, company_id: uuid.UUID
+) -> UserRole | None:
+    """The role of the user's seat in ``company_id``, or None without one."""
+    role = (
+        await db.execute(
+            select(CompanyMembership.role).where(
+                CompanyMembership.user_id == user_id,
+                CompanyMembership.company_id == company_id,
+            )
+        )
+    ).scalar_one_or_none()
+    return None if role is None else UserRole(role)
+
+
+async def active_teammate(
+    db: AsyncSession, *, company_id: uuid.UUID, user_id: uuid.UUID
+) -> User | None:
+    """An active account holding a seat in ``company_id``, whichever company
+    is active for them (slice 5: interviewer, reviewer and job owner pickers
+    accept everyone the team list shows). Anonymized tombstones are inactive."""
+    return (
+        await db.execute(
+            select(User)
+            .join(CompanyMembership, CompanyMembership.user_id == User.id)
+            .where(
+                CompanyMembership.company_id == company_id,
+                User.id == user_id,
+                User.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+
+
 @dataclass(frozen=True)
 class Seat:
     company: Company

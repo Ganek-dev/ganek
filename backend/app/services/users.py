@@ -242,7 +242,9 @@ async def anonymize_user(
         raise HasUpcomingInterviewsError
     # open scorecard requests die with the person (activity scorecard.dismissed,
     # actor = the admin); their frozen label is then rewritten in the payloads
-    await scorecards.dismiss_open_for_reviewer(db, user, actor_user_id=actor_user_id)
+    await scorecards.dismiss_open_for_reviewer(
+        db, user, actor_user_id=actor_user_id, company_id=company.id
+    )
     await _relabel_scorecard_activity(db, company, user)
     user.email = f"deleted-{uuid.uuid4().hex}@invalid"  # emails are globally unique
     user.display_name = None
