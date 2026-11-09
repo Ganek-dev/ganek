@@ -20,6 +20,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       resendInvite: vi.fn(),
       revokeInvite: vi.fn(),
       anonymize: vi.fn(),
+      removeFromCompany: vi.fn(),
     },
   };
 });
@@ -61,6 +62,7 @@ describe("TeamPage", () => {
     mocked.revokeInvite.mockResolvedValue(undefined);
     mocked.update.mockResolvedValue({ ...member, role: "admin" });
     mocked.anonymize.mockResolvedValue(undefined);
+    mocked.removeFromCompany.mockResolvedValue(undefined);
     mockedApi.providers.mockResolvedValue({ google: false, mode: "single" });
   });
 
@@ -94,6 +96,50 @@ describe("TeamPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Keep" }));
     expect(mocked.anonymize).not.toHaveBeenCalled();
     expect(screen.queryByText(/account is wiped/)).not.toBeInTheDocument();
+  });
+
+  it("a person with another company is removed from this company only", async () => {
+    mocked.list.mockResolvedValue([admin, { ...member, in_other_companies: true }]);
+    const menu = await openMemberMenu();
+    expect(menu.queryByRole("menuitem", { name: "Deactivate" })).not.toBeInTheDocument();
+    expect(
+      menu.queryByRole("menuitem", { name: "Remove & anonymize…" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Remove from company…" }));
+    expect(
+      await screen.findByText(
+        /Remove dana\.kowalska@x\.dev from this company\? They keep their account/,
+      ),
+    ).toBeInTheDocument();
+    expect(mocked.removeFromCompany).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Yes, remove" }));
+    await waitFor(() => expect(mocked.removeFromCompany).toHaveBeenCalledWith("u2"));
+    expect(mocked.anonymize).not.toHaveBeenCalled();
+    expect(await screen.findByText("Removed from the company")).toBeInTheDocument();
+    await waitFor(() => expect(mocked.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("Keep cancels the remove from company confirm, 409 detail surfaces", async () => {
+    mocked.list.mockResolvedValue([admin, { ...member, in_other_companies: true }]);
+    mocked.removeFromCompany.mockRejectedValue(
+      new ApiError(409, "Reassign or cancel their upcoming interviews first"),
+    );
+    let menu = await openMemberMenu();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Remove from company…" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Keep" }));
+    expect(mocked.removeFromCompany).not.toHaveBeenCalled();
+    expect(screen.queryByText(/from this company\?/)).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Actions for dana.kowalska@x.dev" }),
+    );
+    menu = within(await screen.findByRole("menu"));
+    await userEvent.click(menu.getByRole("menuitem", { name: "Remove from company…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, remove" }));
+    expect(
+      await screen.findByText("Reassign or cancel their upcoming interviews first"),
+    ).toBeInTheDocument();
   });
 
   it("anonymize 409 detail surfaces in the alert", async () => {

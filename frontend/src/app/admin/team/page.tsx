@@ -90,6 +90,7 @@ export default function TeamPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmAnonymizeId, setConfirmAnonymizeId] = useState<string | null>(null);
+  const [confirmRemoveSeatId, setConfirmRemoveSeatId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const emailRef = useRef<HTMLInputElement>(null);
   const [demo, setDemo] = useState(false);
@@ -186,6 +187,20 @@ export default function TeamPage() {
       setError(err instanceof Error ? err.message : "Remove failed");
     } finally {
       setConfirmAnonymizeId(null);
+    }
+  }
+
+  async function confirmRemoveSeat(id: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      await team.removeFromCompany(id);
+      setNotice("Removed from the company");
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Remove failed");
+    } finally {
+      setConfirmRemoveSeatId(null);
     }
   }
 
@@ -330,15 +345,30 @@ export default function TeamPage() {
                   <Menu>
                     <MenuDotsTrigger label={`Actions for ${user.email}`} />
                     <MenuContent>
-                      <MenuItem onSelect={() => patch(user.id, { is_active: !user.is_active })}>
-                        {user.is_active ? "Deactivate" : "Reactivate"}
-                      </MenuItem>
-                      <MenuItem
-                        onSelect={() => setConfirmAnonymizeId(user.id)}
-                        className="text-danger"
-                      >
-                        Remove &amp; anonymize…
-                      </MenuItem>
+                      {user.in_other_companies ? (
+                        // the account is shared with another company: only
+                        // this company's seat can be taken away from here
+                        <MenuItem
+                          onSelect={() => setConfirmRemoveSeatId(user.id)}
+                          className="text-danger"
+                        >
+                          Remove from company…
+                        </MenuItem>
+                      ) : (
+                        <>
+                          <MenuItem
+                            onSelect={() => patch(user.id, { is_active: !user.is_active })}
+                          >
+                            {user.is_active ? "Deactivate" : "Reactivate"}
+                          </MenuItem>
+                          <MenuItem
+                            onSelect={() => setConfirmAnonymizeId(user.id)}
+                            className="text-danger"
+                          >
+                            Remove &amp; anonymize…
+                          </MenuItem>
+                        </>
+                      )}
                     </MenuContent>
                   </Menu>
                   {confirmAnonymizeId === user.id ? (
@@ -356,6 +386,27 @@ export default function TeamPage() {
                       <button
                         type="button"
                         onClick={() => setConfirmAnonymizeId(null)}
+                        className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  ) : null}
+                  {confirmRemoveSeatId === user.id ? (
+                    <div className="flex w-full flex-wrap items-center gap-3 rounded-md border border-edge bg-muted-fill p-2.5">
+                      <span className="text-[12.5px] text-g700">
+                        {`Remove ${user.email} from this company? They keep their account and their other companies.`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void confirmRemoveSeat(user.id)}
+                        className="inline-flex h-7 items-center rounded-sm bg-red-600 px-2.5 text-[12.5px] font-medium text-white hover:brightness-[0.94]"
+                      >
+                        Yes, remove
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveSeatId(null)}
                         className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2.5 text-[12.5px] font-medium text-g700 hover:bg-muted-fill"
                       >
                         Keep

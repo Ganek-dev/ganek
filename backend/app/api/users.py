@@ -73,7 +73,9 @@ _SHARED_ACCOUNT_DETAIL = (
 
 def _team_user_out(mate: users_service.Teammate) -> TeamUserOut:
     # the role shown is the seat's in this company, not the user's active one
-    return TeamUserOut.model_validate(mate.user).model_copy(update={"role": mate.role})
+    return TeamUserOut.model_validate(mate.user).model_copy(
+        update={"role": mate.role, "in_other_companies": mate.in_other_companies}
+    )
 
 
 @router.get("", response_model=list[TeamUserOut] | list[TeamMemberOut])
@@ -240,6 +242,48 @@ async def anonymize_user(
     except users_service.SharedAccountError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=_SHARED_ACCOUNT_DETAIL
+        ) from None
+    except users_service.HasUpcomingInterviewsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Reassign or cancel their upcoming interviews first",
+        ) from None
+
+
+@router.delete(
+    "/{user_id}/membership",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[demo_mode.locked],
+)
+async def remove_from_company(
+    user_id: uuid.UUID,
+    db: DbSession,
+    company: CurrentCompany,
+    admin: AdminUser,
+) -> None:
+    """Take a teammate's seat in this company away. Their account and their
+    seats in other companies stay; a person who belongs only here is
+    deactivated or anonymized instead."""
+    mate = await users_service.get_user(db, company, user_id)
+    if mate is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        await users_service.remove_seat(db, company, mate, actor_user_id=admin.id)
+    except users_service.SelfRemovalError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You cannot remove yourself. Ask another admin to remove you",
+        ) from None
+    except users_service.OnlySeatError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This person belongs only to this company. Deactivate or remove and"
+            " anonymize them instead",
+        ) from None
+    except users_service.LastAdminError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot remove the company's last active admin",
         ) from None
     except users_service.HasUpcomingInterviewsError:
         raise HTTPException(
