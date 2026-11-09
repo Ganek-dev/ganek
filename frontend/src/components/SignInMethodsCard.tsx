@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { api, ApiError, type SignInMethod, type UserOut } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
 
 interface Row {
   method: SignInMethod;
@@ -33,6 +34,7 @@ export function SignInMethodsCard({
   locked?: boolean;
   onUserChange: (user: UserOut) => void;
 }) {
+  const { t } = useLocale();
   const [confirming, setConfirming] = useState<SignInMethod | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export function SignInMethodsCard({
   const rows: Row[] = [];
   if (google || googleLinked) rows.push({ method: "google", label: "Google", linked: googleLinked });
   if (oidcName || ssoLinked) {
-    rows.push({ method: "sso", label: oidcName || "Single sign-on", linked: ssoLinked });
+    rows.push({ method: "sso", label: oidcName || t("signIn.sso"), linked: ssoLinked });
   }
   if (rows.length === 0) return null;
 
@@ -61,7 +63,7 @@ export function SignInMethodsCard({
       setError(
         err instanceof ApiError && err.status !== 500
           ? err.detail
-          : `Could not unlink ${row.label}. Try again.`,
+          : t("signIn.unlinkFailed", { method: row.label }),
       );
     } finally {
       setBusy(false);
@@ -70,10 +72,8 @@ export function SignInMethodsCard({
 
   return (
     <div className="card p-5">
-      <p className="text-sm font-semibold">Sign-in methods</p>
-      <p className="mt-0.5 text-[12.5px] text-g500">
-        Outside accounts that can sign you in. Signing in with one links it.
-      </p>
+      <p className="text-sm font-semibold">{t("signIn.title")}</p>
+      <p className="mt-0.5 text-[12.5px] text-g500">{t("signIn.description")}</p>
       <ul className="mt-4 divide-y divide-edge rounded-md border border-edge">
         {rows.map((row) => {
           const only = row.linked && onlyWayIn(row.method);
@@ -85,37 +85,30 @@ export function SignInMethodsCard({
                   <p className="text-[12px] text-g500">
                     {row.linked
                       ? only
-                        ? "Linked · your only way to sign in"
-                        : "Linked"
-                      : `Not linked · sign in with ${row.label} once to link it`}
+                        ? t("signIn.linkedOnly")
+                        : t("signIn.linked")
+                      : t("signIn.notLinked", { method: row.label })}
                   </p>
                 </div>
                 {row.linked && confirming !== row.method ? (
                   <button
                     type="button"
                     disabled={busy || locked || only}
-                    title={
-                      only
-                        ? "Add a password first (Forgot password on the sign-in page)"
-                        : undefined
-                    }
+                    title={only ? t("signIn.addPasswordFirst") : undefined}
                     onClick={() => {
                       setError(null);
                       setConfirming(row.method);
                     }}
-                    aria-label={`Unlink ${row.label}`}
+                    aria-label={t("signIn.unlinkMethod", { method: row.label })}
                     className="inline-flex h-8 items-center rounded-md border border-edge px-3 text-[13px] font-medium hover:bg-muted-fill/50 disabled:opacity-50"
                   >
-                    Unlink
+                    {t("signIn.unlink")}
                   </button>
                 ) : null}
               </div>
               {confirming === row.method ? (
                 <div className="mt-2.5 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5">
-                  <p className="text-[12.5px]">
-                    Unlink {row.label}? You can no longer sign in with it until you link it
-                    again by signing in with it.
-                  </p>
+                  <p className="text-[12.5px]">{t("signIn.confirm", { method: row.label })}</p>
                   {error ? (
                     <p
                       role="alert"
@@ -131,7 +124,7 @@ export function SignInMethodsCard({
                       onClick={() => void unlink(row)}
                       className="inline-flex h-8 items-center rounded-md bg-inverse px-3 text-[13px] font-medium text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
                     >
-                      {busy ? "…" : `Unlink ${row.label}`}
+                      {busy ? "…" : t("signIn.unlinkMethod", { method: row.label })}
                     </button>
                     <button
                       type="button"
@@ -142,7 +135,7 @@ export function SignInMethodsCard({
                       }}
                       className="inline-flex h-8 items-center rounded-md border border-edge px-3 text-[13px] font-medium hover:bg-muted-fill/50 disabled:opacity-50"
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </div>
                 </div>

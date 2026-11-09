@@ -5,8 +5,9 @@
  * or an unknown key; messages.test.ts also checks placeholders.
  * Placeholders are `{name}`, filled by `translate`.
  *
- * Coverage grows by surface: the admin shell, the settings tabs and the
- * Account page's own cards so far. Candidate pages are out of scope (separate card). */
+ * Coverage grows by surface: the admin shell, the settings tabs, the
+ * Account page's own cards and its sign-in methods and two-factor/sessions
+ * cards so far. Candidate pages are out of scope (separate card). */
 
 export const LOCALES = ["en", "de"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -39,7 +40,7 @@ const en = {
   "language.description": "Language of the admin app in this browser. Candidate pages are not affected.",
   "language.label": "Interface language",
   "language.partial":
-    "German covers the navigation, the settings tabs and the profile and password cards so far. Other screens stay in English until they are translated.",
+    "German covers the navigation, the settings tabs and the profile, password, sign-in methods, two-factor and sessions cards so far. Other screens stay in English until they are translated.",
   "settings.label": "Settings sections",
   "settings.branding": "Branding",
   "settings.hiring": "Hiring",
@@ -81,6 +82,45 @@ const en = {
   "account.updatePassword": "Update password",
   "account.later":
     "Email notification preferences and account deletion are planned for a later milestone.",
+  "signIn.title": "Sign-in methods",
+  "signIn.description": "Outside accounts that can sign you in. Signing in with one links it.",
+  "signIn.sso": "Single sign-on",
+  "signIn.linked": "Linked",
+  "signIn.linkedOnly": "Linked · your only way to sign in",
+  "signIn.notLinked": "Not linked · sign in with {method} once to link it",
+  "signIn.unlink": "Unlink",
+  "signIn.unlinkMethod": "Unlink {method}",
+  "signIn.addPasswordFirst": "Add a password first (Forgot password on the sign-in page)",
+  "signIn.confirm":
+    "Unlink {method}? You can no longer sign in with it until you link it again by signing in with it.",
+  "signIn.unlinkFailed": "Could not unlink {method}. Try again.",
+  "common.cancel": "Cancel",
+  "common.failed": "Something went wrong",
+  "mfa.title": "Two-factor authentication",
+  "mfa.on":
+    "On. Every login asks for a code from your authenticator app; {count} recovery codes left.",
+  "mfa.off": "Add a code from an authenticator app (any TOTP app) to every login.",
+  "mfa.lockedTitle": "Off on the demo workspace",
+  "mfa.turnOff": "Turn off",
+  "mfa.setUp": "Set up",
+  "mfa.locked":
+    "Two-factor and session changes are off on the demo workspace: the login is shared with every visitor.",
+  "mfa.fewCodes": "Few recovery codes left. Turn two-factor off and on again to get a fresh set.",
+  "mfa.addKey": "Add this key to your authenticator app, then enter the code it shows.",
+  "mfa.openApp": "Open in an authenticator app on this device",
+  "mfa.code": "Code from the app",
+  "mfa.turnOn": "Turn on",
+  "mfa.enabled": "Two-factor authentication is on.",
+  "mfa.saveCodes":
+    "Save these recovery codes somewhere safe. Each one logs you in once if you lose the app. They are shown only now.",
+  "mfa.savedCodes": "I saved them",
+  "mfa.confirmPassword": "Confirm with your password",
+  "mfa.confirmCode": "Confirm with a current code",
+  "mfa.turnOffSubmit": "Turn off two-factor",
+  "sessions.title": "Sessions",
+  "sessions.done": "Done. Every other browser and device is signed out; this one stays.",
+  "sessions.hint": "Lost a laptop or shared a login? Sign out everywhere except here.",
+  "sessions.signOutEverywhere": "Sign out everywhere",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -111,7 +151,7 @@ const de: Messages = {
     "Sprache der Admin-App in diesem Browser. Seiten für Bewerberinnen und Bewerber sind nicht betroffen.",
   "language.label": "Sprache der Oberfläche",
   "language.partial":
-    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs sowie Profil und Passwort übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
+    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs sowie Profil, Passwort, Anmeldemethoden, Zwei-Faktor und Sitzungen übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
   "settings.label": "Einstellungsbereiche",
   "settings.branding": "Branding",
   "settings.hiring": "Recruiting",
@@ -136,7 +176,7 @@ const de: Messages = {
   "account.passwordTitle": "Passwort",
   "account.passwordAccess": "So melden Sie sich in diesem Workspace an.",
   "account.passwordSessions":
-    "Eine Passwortänderung meldet alle anderen Sitzungen ab, ebenso die Schaltfläche im Bereich Sessions weiter unten.",
+    "Eine Passwortänderung meldet alle anderen Sitzungen ab, ebenso die Schaltfläche im Bereich Sitzungen weiter unten.",
   "account.passwordless":
     "Sie melden sich mit {via} an. Dieses Konto hat kein Passwort. Um eines festzulegen, nutzen Sie auf der Anmeldeseite \"Forgot password\".",
   "account.viaGoogle": "Google",
@@ -153,6 +193,49 @@ const de: Messages = {
   "account.updatePassword": "Passwort ändern",
   "account.later":
     "Einstellungen für E-Mail-Benachrichtigungen und das Löschen des Kontos sind für einen späteren Meilenstein geplant.",
+  "signIn.title": "Anmeldemethoden",
+  "signIn.description":
+    "Externe Konten, mit denen Sie sich anmelden können. Eine Anmeldung damit verknüpft das Konto.",
+  "signIn.sso": "Single Sign-on",
+  "signIn.linked": "Verknüpft",
+  "signIn.linkedOnly": "Verknüpft · Ihre einzige Anmeldemöglichkeit",
+  "signIn.notLinked": "Nicht verknüpft · melden Sie sich einmal mit {method} an, um es zu verknüpfen",
+  "signIn.unlink": "Trennen",
+  "signIn.unlinkMethod": "{method} trennen",
+  "signIn.addPasswordFirst":
+    "Legen Sie zuerst ein Passwort fest (\"Forgot password\" auf der Anmeldeseite)",
+  "signIn.confirm":
+    "{method} trennen? Sie können sich damit erst wieder anmelden, wenn Sie es durch eine erneute Anmeldung verknüpfen.",
+  "signIn.unlinkFailed": "{method} konnte nicht getrennt werden. Bitte erneut versuchen.",
+  "common.cancel": "Abbrechen",
+  "common.failed": "Etwas ist schiefgelaufen",
+  "mfa.title": "Zwei-Faktor-Authentifizierung",
+  "mfa.on":
+    "Aktiv. Jede Anmeldung fragt nach einem Code aus Ihrer Authenticator-App; noch {count} Wiederherstellungscodes.",
+  "mfa.off": "Fügen Sie jeder Anmeldung einen Code aus einer Authenticator-App (jede TOTP-App) hinzu.",
+  "mfa.lockedTitle": "Im Demo-Workspace deaktiviert",
+  "mfa.turnOff": "Deaktivieren",
+  "mfa.setUp": "Einrichten",
+  "mfa.locked":
+    "Im Demo-Workspace sind Änderungen an Zwei-Faktor und Sitzungen deaktiviert: Die Anmeldung teilen sich alle Besucherinnen und Besucher.",
+  "mfa.fewCodes":
+    "Nur noch wenige Wiederherstellungscodes. Deaktivieren und aktivieren Sie Zwei-Faktor erneut, um neue zu erhalten.",
+  "mfa.addKey":
+    "Fügen Sie diesen Schlüssel Ihrer Authenticator-App hinzu und geben Sie dann den angezeigten Code ein.",
+  "mfa.openApp": "In einer Authenticator-App auf diesem Gerät öffnen",
+  "mfa.code": "Code aus der App",
+  "mfa.turnOn": "Aktivieren",
+  "mfa.enabled": "Zwei-Faktor-Authentifizierung ist aktiv.",
+  "mfa.saveCodes":
+    "Bewahren Sie diese Wiederherstellungscodes sicher auf. Jeder Code ermöglicht eine Anmeldung, falls Sie die App verlieren. Sie werden nur jetzt angezeigt.",
+  "mfa.savedCodes": "Ich habe sie gespeichert",
+  "mfa.confirmPassword": "Mit Ihrem Passwort bestätigen",
+  "mfa.confirmCode": "Mit einem aktuellen Code bestätigen",
+  "mfa.turnOffSubmit": "Zwei-Faktor deaktivieren",
+  "sessions.title": "Sitzungen",
+  "sessions.done": "Erledigt. Alle anderen Browser und Geräte sind abgemeldet, dieser bleibt angemeldet.",
+  "sessions.hint": "Laptop verloren oder Anmeldung geteilt? Überall außer hier abmelden.",
+  "sessions.signOutEverywhere": "Überall abmelden",
 };
 
 export const MESSAGES: Record<Locale, Messages> = { en, de };

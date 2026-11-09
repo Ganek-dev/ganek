@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api, ApiError, type UserOut } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { SignInMethodsCard } from "./SignInMethodsCard";
 
@@ -144,5 +145,67 @@ describe("SignInMethodsCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Unlink Google" }));
     await userEvent.click(screen.getByRole("button", { name: "Unlink Google" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("This is your only way to sign in.");
+  });
+});
+
+describe("SignInMethodsCard in German", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the methods, the confirm and the fallback error in German", async () => {
+    mockedApi.unlinkSignInMethod.mockRejectedValue(new ApiError(500, "boom"));
+    render(
+      <LocaleProvider>
+        <SignInMethodsCard
+          user={user({ google_linked: true })}
+          google
+          oidcName=""
+          onUserChange={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("Anmeldemethoden")).toBeInTheDocument();
+    expect(screen.getByText("Verknüpft")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Google trennen" }));
+    expect(screen.getByText(/^Google trennen\?/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Google trennen" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Google konnte nicht getrennt werden. Bitte erneut versuchen.",
+    );
+  });
+
+  it("names unlinked SSO and the only way in in German", () => {
+    render(
+      <LocaleProvider>
+        <SignInMethodsCard
+          user={user({ has_password: false, google_linked: true })}
+          google
+          oidcName=""
+          onUserChange={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("Verknüpft · Ihre einzige Anmeldemöglichkeit")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Google trennen" })).toHaveAttribute(
+      "title",
+      expect.stringContaining("Legen Sie zuerst ein Passwort fest"),
+    );
+  });
+
+  it("falls back to the German single sign-on label", () => {
+    render(
+      <LocaleProvider>
+        <SignInMethodsCard
+          user={user({ sso_linked: true })}
+          google={false}
+          onUserChange={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Single Sign-on trennen" })).toBeInTheDocument();
   });
 });
