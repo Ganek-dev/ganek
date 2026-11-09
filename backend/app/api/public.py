@@ -37,6 +37,7 @@ from app.schemas.public import (
     ApplicationReceived,
     ApplicationStatusOut,
     ApplicationSubmit,
+    CvReplace,
     CvUploadTicket,
     HostResolution,
     InterviewPublicOut,
@@ -68,6 +69,7 @@ from app.schemas.users import InviteAcceptRequest, PublicInviteOut
 from app.services import (
     activity,
     custom_domains,
+    cv_scan,
     decision_dates,
     demo_mode,
     ics,
@@ -860,6 +862,7 @@ async def application_status(token: str, db: DbSession) -> ApplicationStatusOut:
         job_title=application.job.title,
         candidate_name=application.candidate.name,
         cv_filename=application.cv_filename,
+        cv_reupload_requested=cv_scan.reupload_requested(application),
         applied_at=application.created_at,
         stage=shown_stage,
         quiz=quiz,
@@ -944,6 +947,56 @@ async def withdraw_application(token: str, db: DbSession) -> dict[str, bool]:
         else:
             await db.commit()
     return {"withdrawn": True}
+
+
+_NO_REUPLOAD = "This application does not need a new CV"
+
+
+async def _company_of(db: DbSession, application: Application) -> Company:
+    return (
+        await db.execute(select(Company).where(Company.id == application.company_id))
+    ).scalar_one()
+
+
+@router.post(
+    "/applications/{token}/cv/upload-url",
+    response_model=CvUploadTicket,
+    dependencies=[rate_limit("upload", lambda: settings.rate_limit_upload_per_minute)],
+)
+async def application_cv_upload_url(token: str, db: DbSession) -> CvUploadTicket:
+    """Upload ticket for a replacement CV, only while the status page asks
+    for one (the scanner flagged the file, the application is open)."""
+    demo_mode.forbid_upload()
+    application = await _application_by_status_token_or_404(db, token)
+    if not cv_scan.reupload_requested(application):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_REUPLOAD)
+    return _upload_ticket(await _company_of(db, application))
+
+
+@router.post(
+    "/applications/{token}/cv",
+    response_model=dict[str, bool],
+    dependencies=[rate_limit("upload", lambda: settings.rate_limit_upload_per_minute)],
+)
+async def replace_application_cv(token: str, payload: CvReplace, db: DbSession) -> dict[str, bool]:
+    """Swap a flagged CV for the uploaded replacement; it is scanned again."""
+    application = await _application_by_status_token_or_404(db, token)
+    company = await _company_of(db, application)
+    try:
+        await applications_service.replace_infected_cv(
+            db,
+            company,
+            application,
+            cv_object_key=payload.cv_object_key,
+            cv_filename=payload.cv_filename,
+        )
+    except applications_service.CvReplaceNotAllowedError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_REUPLOAD) from None
+    except applications_service.InvalidCvError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.reason
+        ) from None
+    return {"replaced": True}
 
 
 async def _record_privacy_request(db: DbSession, application: Application, *, kind: str) -> None:

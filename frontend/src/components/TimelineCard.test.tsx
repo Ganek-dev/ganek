@@ -179,6 +179,15 @@ describe("TimelineCard", () => {
     for (const item of items) expect(item.textContent).not.toContain("null");
   });
 
+  it("labels a CV the candidate replaced after a virus scan flag", async () => {
+    mocked.timeline.mockResolvedValue([
+      event({ kind: "cv.replaced", payload: { previous_signature: "Eicar-Test-Signature" } }),
+    ]);
+    render(<TimelineCard applicationId="a1" now={NOW} />);
+    const [row] = await screen.findAllByRole("listitem");
+    expect(row).toHaveTextContent("Candidate uploaded a new CV after the virus scan flagged the first");
+  });
+
   it("labels a one-off message and its activity row", async () => {
     mocked.timeline.mockResolvedValue([
       event({ kind: "email.message", at: "2026-10-29T11:50:00Z", payload: { subject: "Quick question" }, ...ERIKA }),

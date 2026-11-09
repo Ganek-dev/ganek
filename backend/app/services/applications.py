@@ -1,3 +1,4 @@
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -26,6 +27,8 @@ from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
 from app.services import activity, cv_scan, rejection_reasons, storage, webhooks
 from app.services.names import split_name
+
+logger = logging.getLogger(__name__)
 
 TERMINAL_STAGES = frozenset(
     {ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED}
@@ -88,6 +91,11 @@ class InvalidCvError(Exception):
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+class CvReplaceNotAllowedError(Exception):
+    """Only a CV the virus scanner flagged, on an open application, can be
+    replaced from the candidate's status page."""
 
 
 async def _validated_cv(company: Company, object_key: str) -> storage.ObjectStat:
@@ -190,6 +198,51 @@ async def submit_application(
         raise AlreadyAppliedError from None
     await cv_scan.enqueue(application)
     await webhooks.emit_application_event(db, application.id, "application.created")
+    return application
+
+
+async def replace_infected_cv(
+    db: AsyncSession,
+    company: Company,
+    application: Application,
+    *,
+    cv_object_key: str,
+    cv_filename: str,
+) -> Application:
+    """The candidate's answer to a flagged CV (status page): store the new
+    upload, start its scan over and delete the flagged object.
+
+    Allowed only while ``cv_scan.reupload_requested`` holds, so a clean,
+    pending or unscanned CV can never be swapped through a leaked status
+    link. The new file passes the same checks as an apply."""
+    if not cv_scan.reupload_requested(application):
+        raise CvReplaceNotAllowedError
+    if cv_object_key == application.cv_object_key:
+        raise InvalidCvError("Upload a new file - this is the one the scanner flagged")
+    stat = await _validated_cv(company, cv_object_key)
+    previous_key = application.cv_object_key
+    previous_signature = application.cv_scan_signature
+    application.cv_object_key = cv_object_key
+    application.cv_filename = cv_filename
+    application.cv_size = stat.size
+    application.cv_scan_status = cv_scan.initial_status(cv_object_key)
+    application.cv_scan_signature = None
+    application.cv_scanned_at = None
+    # actor NULL = the candidate; the panel timeline reads "replaced the CV"
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.CV_REPLACED,
+        application_id=application.id,
+        payload={"previous_signature": previous_signature},
+    )
+    await db.commit()
+    if previous_key is not None:
+        try:
+            await storage.delete_object(previous_key)
+        except Exception:  # noqa: BLE001 - the nightly orphan sweep removes it later
+            logger.warning("could not delete the flagged CV of application %s", application.id)
+    await cv_scan.enqueue(application)
     return application
 
 

@@ -1201,6 +1201,9 @@ export interface ApplicationStatus {
   job_title: string;
   candidate_name: string;
   cv_filename: string | null;
+  /** The virus scanner flagged the CV and the application is open: the page
+   * asks for a new file (the signature itself is for the team only). */
+  cv_reupload_requested?: boolean;
   applied_at: string;
   stage: string;
   quiz: StatusQuiz | null;
@@ -1331,6 +1334,17 @@ export const publicApplications = {
   withdraw: (token: string) =>
     request<{ withdrawn: boolean }>(`/api/v1/public/applications/${token}/withdraw`, {
       method: "POST",
+    }),
+  /** Upload ticket for a replacement CV; 409 unless the page asks for one. */
+  cvUploadTicket: (token: string) =>
+    request<CvUploadTicket>(`/api/v1/public/applications/${token}/cv/upload-url`, {
+      method: "POST",
+    }),
+  /** Swap the flagged CV for the uploaded replacement; it is scanned again. */
+  replaceCv: (token: string, body: { cv_object_key: string; cv_filename: string }) =>
+    request<{ replaced: boolean }>(`/api/v1/public/applications/${token}/cv`, {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   /** Art. 15: asks the company for a copy - notify-only, never a download. */
   requestData: (token: string) =>

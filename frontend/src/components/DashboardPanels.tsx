@@ -352,6 +352,8 @@ function activityCopy(item: ActivityItem): string {
       return `${item.actor_email ?? "Someone"} corrected a candidate's email`;
     case "candidate.data_requested":
       return "A candidate asked for a copy of their data";
+    case "cv.replaced":
+      return "A candidate replaced a CV the virus scanner flagged";
     case "candidate.deletion_requested":
       return "A candidate asked for their data to be deleted";
     case "user.anonymized":
