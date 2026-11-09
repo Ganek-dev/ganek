@@ -21,6 +21,7 @@ from app.models.job import (
     Seniority,
 )
 from app.models.job_view import JobView
+from app.models.membership import CompanyMembership
 from app.models.question import (
     MAX_DIFFICULTY,
     MIN_DIFFICULTY,
@@ -52,6 +53,7 @@ __all__ = [
     "BillingAccount",
     "Candidate",
     "Company",
+    "CompanyMembership",
     "CompanyPlan",
     "DeliveryStatus",
     "EmailOutbox",
