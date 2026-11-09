@@ -131,12 +131,12 @@ def cancel_notice_fields(interview: Interview) -> dict[str, object]:
     }
 
 
-def applicant_url_for_interviewer(
-    company: Company, interviewer: User, application_id: object
+async def applicant_url_for_interviewer(
+    db: AsyncSession, company: Company, interviewer: User, application_id: object
 ) -> str:
-    """Where an interviewer's mail links: a reviewer-role user cannot open the
-    admin list and gets the review page."""
-    if scorecards_service.is_reviewer_role(interviewer):
+    """Where an interviewer's mail links: a reviewer seat in THIS company
+    cannot open the admin list and gets the review page."""
+    if await scorecards_service.reviewer_seat_in(db, interviewer, company.id):
         return urls.scorecard_url(company, application_id, reviewer=True)
     return urls.admin_applicant_url(company, application_id)
 

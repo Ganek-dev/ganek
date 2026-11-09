@@ -171,8 +171,8 @@ async def send_interview_reminder(
             start=start,
             timezone=interview.timezone,
             location=interview.location,
-            applicant_url=interviews_service.applicant_url_for_interviewer(
-                company, interviewer, interview.application_id
+            applicant_url=await interviews_service.applicant_url_for_interviewer(
+                db, company, interviewer, interview.application_id
             ),
             controller_name=company_service.controller_name(company),
             privacy_url=urls.privacy_notice_url(company),
@@ -281,7 +281,9 @@ async def remind_scorecards(ctx: dict[str, Any]) -> None:
                     url=urls.scorecard_url(
                         company,
                         application.id,
-                        reviewer=scorecards_service.is_reviewer_role(reviewer),
+                        reviewer=await scorecards_service.reviewer_seat_in(
+                            db, reviewer, company.id
+                        ),
                     ),
                     waiting_days=days,
                     brand_primary=(company.theme or {}).get("primary_color"),

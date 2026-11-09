@@ -1216,8 +1216,8 @@ async def _queue_booking_mails(
         application_id=interview.application_id,
         to=interviewer.email,
         candidate_email=candidate.email,
-        applicant_url=interviews_service.applicant_url_for_interviewer(
-            company, interviewer, interview.application_id
+        applicant_url=await interviews_service.applicant_url_for_interviewer(
+            db, company, interviewer, interview.application_id
         ),
         **common,
     )

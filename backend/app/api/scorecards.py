@@ -16,6 +16,7 @@ from app.schemas.scorecards import (
     ScorecardSubmitIn,
 )
 from app.services import applications as applications_service
+from app.services import memberships as memberships_service
 from app.services import scorecards as scorecards_service
 
 router = APIRouter(prefix="/scorecards", tags=["scorecards"])
@@ -112,15 +113,9 @@ async def request_scorecard(
     user: StaffUser,
 ) -> ScorecardOut:
     application = await _application_or_404(db, company, application_id)
-    reviewer = (
-        await db.execute(
-            select(User).where(
-                User.id == payload.reviewer_user_id,
-                User.company_id == company.id,
-                User.is_active.is_(True),
-            )
-        )
-    ).scalar_one_or_none()
+    reviewer = await memberships_service.active_teammate(
+        db, company_id=company.id, user_id=payload.reviewer_user_id
+    )
     if reviewer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reviewer not found")
     try:

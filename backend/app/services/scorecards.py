@@ -12,15 +12,24 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import urls
-from app.models import Application, Candidate, Company, Interview, Job, User, UserRole
+from app.models import (
+    Application,
+    Candidate,
+    Company,
+    CompanyMembership,
+    Interview,
+    Job,
+    User,
+    UserRole,
+)
 from app.models.application import CLOSED_STAGES
 from app.models.scorecard import Recommendation, Scorecard
-from app.services import activity
+from app.services import activity, memberships
 from app.services import outbox as outbox_service
 
 REMINDER_AFTER_DAYS = 3
@@ -66,7 +75,17 @@ def reviewer_label(user: User | None) -> str:
 
 
 def is_reviewer_role(user: User) -> bool:
+    """The signed-in user's ACTIVE seat role; for someone else use
+    ``reviewer_seat_in``, their active seat may be another company's."""
     return user.role is UserRole.REVIEWER
+
+
+async def reviewer_seat_in(db: AsyncSession, user: User, company_id: uuid.UUID) -> bool:
+    """Whether the user's seat in ``company_id`` is a reviewer seat, so mail
+    links point at the page that seat can open."""
+    return (
+        await memberships.seat_role(db, user_id=user.id, company_id=company_id)
+    ) is UserRole.REVIEWER
 
 
 async def request(
@@ -84,7 +103,8 @@ async def request(
     now = now or datetime.now(UTC)
     if requested_by is not None and requested_by.id == reviewer.id:
         raise SelfRequestError
-    if reviewer.company_id != application.company_id:
+    seat = await memberships.seat_role(db, user_id=reviewer.id, company_id=application.company_id)
+    if seat is None:
         raise ValueError("reviewer is not in the application's company")
     job = (
         await db.execute(
@@ -162,7 +182,7 @@ async def request(
             requester_label=reviewer_label(requested_by) if requested_by else company.name,
             candidate_name=candidate.name,
             job_title=job.title,
-            url=urls.scorecard_url(company, application.id, reviewer=is_reviewer_role(reviewer)),
+            url=urls.scorecard_url(company, application.id, reviewer=seat is UserRole.REVIEWER),
             brand_primary=(company.theme or {}).get("primary_color"),
         )
         await db.commit()  # queue_email skips its own commit in demo mode
@@ -343,10 +363,18 @@ async def reschedule_for_interview(
 
 
 async def dismiss_open_for_reviewer(
-    db: AsyncSession, user: User, *, actor_user_id: uuid.UUID | None
+    db: AsyncSession,
+    user: User,
+    *,
+    actor_user_id: uuid.UUID | None,
+    company_id: uuid.UUID | None = None,
 ) -> int:
+    """Withdraw the user's open requests in ``company_id`` (default: their
+    active company)."""
     rows = await _open_rows(
-        db, Scorecard.company_id == user.company_id, Scorecard.reviewer_user_id == user.id
+        db,
+        Scorecard.company_id == (company_id or user.company_id),
+        Scorecard.reviewer_user_id == user.id,
     )
     for row in rows:
         await dismiss(db, row, actor_user_id=actor_user_id)
@@ -360,6 +388,14 @@ async def due_for_reminder(db: AsyncSession, *, now: datetime) -> list[Scorecard
         select(Scorecard)
         .join(Application, Application.id == Scorecard.application_id)
         .join(User, User.id == Scorecard.reviewer_user_id)
+        # the reviewer still holds a seat there, whichever company is active
+        .join(
+            CompanyMembership,
+            and_(
+                CompanyMembership.user_id == Scorecard.reviewer_user_id,
+                CompanyMembership.company_id == Scorecard.company_id,
+            ),
+        )
         .where(
             Scorecard.submitted_at.is_(None),
             Scorecard.dismissed_at.is_(None),
@@ -368,7 +404,6 @@ async def due_for_reminder(db: AsyncSession, *, now: datetime) -> list[Scorecard
             Scorecard.due_from <= now - timedelta(days=REMINDER_AFTER_DAYS),
             Application.company_id == Scorecard.company_id,
             Application.stage.not_in(CLOSED_STAGES),
-            User.company_id == Scorecard.company_id,
             User.is_active.is_(True),
         )
         .order_by(Scorecard.due_from)

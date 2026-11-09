@@ -78,6 +78,7 @@ from app.services import dsar as dsar_service
 from app.services import email_templates as templates_service
 from app.services import erasure as erasure_service
 from app.services import interviews as interviews_service
+from app.services import memberships as memberships_service
 from app.services import outbox as outbox_service
 from app.services import quiz as quiz_service
 from app.services import timeline as timeline_service
@@ -812,15 +813,9 @@ async def dismiss_quiz_flags(
 async def _interviewer_or_404(
     db: DbSession, company: StaffCompany, interviewer_user_id: uuid.UUID
 ) -> User:
-    interviewer = (
-        await db.execute(
-            select(User).where(
-                User.company_id == company.id,
-                User.id == interviewer_user_id,
-                User.is_active,
-            )
-        )
-    ).scalar_one_or_none()
+    interviewer = await memberships_service.active_teammate(
+        db, company_id=company.id, user_id=interviewer_user_id
+    )
     if interviewer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interviewer not found")
     return interviewer

@@ -5,10 +5,10 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, Job, JobStatus, Questionnaire, User
+from app.models import Company, Job, JobStatus, Questionnaire
 from app.schemas.jobs import JobCreate, JobUpdate
 from app.schemas.scorecard_template import ensure_criterion_ids
-from app.services import activity
+from app.services import activity, memberships
 from app.services.slugs import slugify, with_random_suffix
 
 
@@ -44,18 +44,8 @@ async def _ensure_owner_in_company(
     """The owner is an active teammate of this workspace, never someone else's."""
     if owner_user_id is None:
         return
-    exists = (
-        await db.execute(
-            select(func.count())
-            .select_from(User)
-            .where(
-                User.company_id == company.id,
-                User.id == owner_user_id,
-                User.is_active.is_(True),
-            )
-        )
-    ).scalar_one()
-    if not exists:
+    owner = await memberships.active_teammate(db, company_id=company.id, user_id=owner_user_id)
+    if owner is None:
         raise ValueError("The job owner must be an active teammate in this workspace")
 
 
