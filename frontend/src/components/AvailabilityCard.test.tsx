@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { AvailabilityCard } from "./AvailabilityCard";
 
@@ -71,5 +72,58 @@ describe("AvailabilityCard location", () => {
     mocked.get.mockResolvedValue({ ...DEFAULTS, location: "Room 2" });
     render(<AvailabilityCard />);
     expect(await screen.findByLabelText("Where your interviews happen")).toHaveValue("Room 2");
+  });
+});
+
+describe("AvailabilityCard in German", () => {
+  beforeEach(() => window.localStorage.setItem("ganek.admin.locale", "de"));
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the week, the location and the save in German", async () => {
+    mocked.set.mockResolvedValue({ ...DEFAULTS, is_default: false, timezone: "UTC" });
+    render(
+      <LocaleProvider>
+        <AvailabilityCard />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByText("Standardzeiten: Mo-Fr 9:00-17:00.")).toBeInTheDocument();
+    expect(screen.getByText("Verfügbarkeit für Interviews")).toBeInTheDocument();
+    expect(screen.getByText(/Ihre Zeitzone/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Montag" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Sonntag" })).not.toBeChecked();
+    expect(screen.getByText("Mo")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Freitag Ende" })).toHaveValue("17:00");
+    expect(screen.getByLabelText("Wo Ihre Interviews stattfinden")).toHaveAttribute(
+      "placeholder",
+      "Ein Teams- oder Zoom-Link oder ein Raum",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Verfügbarkeit speichern" }));
+    expect(await screen.findByText("Gespeichert.")).toBeInTheDocument();
+  });
+
+  it("names the invalid day in German", async () => {
+    render(
+      <LocaleProvider>
+        <AvailabilityCard />
+      </LocaleProvider>,
+    );
+    await screen.findByText("Standardzeiten: Mo-Fr 9:00-17:00.");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Dienstag Beginn" }), "18:00");
+    expect(
+      await screen.findByText("Dienstag: Der Beginn muss vor dem Ende liegen."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Verfügbarkeit speichern" })).toBeDisabled();
+  });
+
+  it("falls back to the German load error", async () => {
+    mocked.get.mockRejectedValue("offline");
+    render(
+      <LocaleProvider>
+        <AvailabilityCard />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Verfügbarkeit konnte nicht geladen werden",
+    );
   });
 });

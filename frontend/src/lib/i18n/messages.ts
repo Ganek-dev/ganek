@@ -6,8 +6,8 @@
  * Placeholders are `{name}`, filled by `translate`.
  *
  * Coverage grows by surface: the admin shell, the settings tabs, the
- * Account page's own cards and its sign-in methods and two-factor/sessions
- * cards so far. Candidate pages are out of scope (separate card). */
+ * Account page's own cards and its sign-in methods, two-factor/sessions,
+ * interview availability and companies cards so far. Candidate pages are out of scope (separate card). */
 
 export const LOCALES = ["en", "de"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -40,7 +40,7 @@ const en = {
   "language.description": "Language of the admin app in this browser. Candidate pages are not affected.",
   "language.label": "Interface language",
   "language.partial":
-    "German covers the navigation, the settings tabs and the profile, password, sign-in methods, two-factor and sessions cards so far. Other screens stay in English until they are translated.",
+    "German covers the navigation, the settings tabs and the Account page (profile, password, sign-in methods, two-factor, sessions, interview availability, companies) so far. Other screens stay in English until they are translated.",
   "settings.label": "Settings sections",
   "settings.branding": "Branding",
   "settings.hiring": "Hiring",
@@ -121,6 +121,47 @@ const en = {
   "sessions.done": "Done. Every other browser and device is signed out; this one stays.",
   "sessions.hint": "Lost a laptop or shared a login? Sign out everywhere except here.",
   "sessions.signOutEverywhere": "Sign out everywhere",
+  "day.mon": "Monday",
+  "day.tue": "Tuesday",
+  "day.wed": "Wednesday",
+  "day.thu": "Thursday",
+  "day.fri": "Friday",
+  "day.sat": "Saturday",
+  "day.sun": "Sunday",
+  "dayShort.mon": "Mon",
+  "dayShort.tue": "Tue",
+  "dayShort.wed": "Wed",
+  "dayShort.thu": "Thu",
+  "dayShort.fri": "Fri",
+  "dayShort.sat": "Sat",
+  "dayShort.sun": "Sun",
+  "availability.title": "Interview availability",
+  "availability.description": "When candidates can book interview slots with you.",
+  "availability.yourZone": "- your timezone",
+  "availability.defaultHours": "Using default hours - Mon-Fri 9:00-17:00.",
+  "availability.startTime": "{day} start time",
+  "availability.endTime": "{day} end time",
+  "availability.location": "Where your interviews happen",
+  "availability.locationPlaceholder": "A Teams or Zoom link, or a room",
+  "availability.locationHint":
+    "Prefilled on every interview you are asked to run; editable per interview.",
+  "availability.invalid": "{day}: start must be before end.",
+  "availability.saved": "Saved.",
+  "availability.save": "Save availability",
+  "availability.loadFailed": "Failed to load availability",
+  "availability.saveFailed": "Failed to save availability",
+  "companies.title": "Your companies",
+  "companies.description":
+    "One account, a seat in each company. Leaving a company keeps your account and your other companies.",
+  "companies.roleAdmin": "Admin",
+  "companies.roleMember": "Member",
+  "companies.roleReviewer": "Reviewer",
+  "companies.activeNow": "active now",
+  "companies.leave": "Leave",
+  "companies.leaveCompany": "Leave {name}",
+  "companies.confirm":
+    "Leave {name}? You lose access to its jobs and candidates. An admin there can invite you back.",
+  "companies.leaveFailed": "Could not leave the company. Try again.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -151,7 +192,7 @@ const de: Messages = {
     "Sprache der Admin-App in diesem Browser. Seiten für Bewerberinnen und Bewerber sind nicht betroffen.",
   "language.label": "Sprache der Oberfläche",
   "language.partial":
-    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs sowie Profil, Passwort, Anmeldemethoden, Zwei-Faktor und Sitzungen übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
+    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs und die Kontoseite (Profil, Passwort, Anmeldemethoden, Zwei-Faktor, Sitzungen, Verfügbarkeit für Interviews, Unternehmen) übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
   "settings.label": "Einstellungsbereiche",
   "settings.branding": "Branding",
   "settings.hiring": "Recruiting",
@@ -236,6 +277,48 @@ const de: Messages = {
   "sessions.done": "Erledigt. Alle anderen Browser und Geräte sind abgemeldet, dieser bleibt angemeldet.",
   "sessions.hint": "Laptop verloren oder Anmeldung geteilt? Überall außer hier abmelden.",
   "sessions.signOutEverywhere": "Überall abmelden",
+  "day.mon": "Montag",
+  "day.tue": "Dienstag",
+  "day.wed": "Mittwoch",
+  "day.thu": "Donnerstag",
+  "day.fri": "Freitag",
+  "day.sat": "Samstag",
+  "day.sun": "Sonntag",
+  "dayShort.mon": "Mo",
+  "dayShort.tue": "Di",
+  "dayShort.wed": "Mi",
+  "dayShort.thu": "Do",
+  "dayShort.fri": "Fr",
+  "dayShort.sat": "Sa",
+  "dayShort.sun": "So",
+  "availability.title": "Verfügbarkeit für Interviews",
+  "availability.description":
+    "Wann Bewerberinnen und Bewerber Interviewtermine bei Ihnen buchen können.",
+  "availability.yourZone": "- Ihre Zeitzone",
+  "availability.defaultHours": "Standardzeiten: Mo-Fr 9:00-17:00.",
+  "availability.startTime": "{day} Beginn",
+  "availability.endTime": "{day} Ende",
+  "availability.location": "Wo Ihre Interviews stattfinden",
+  "availability.locationPlaceholder": "Ein Teams- oder Zoom-Link oder ein Raum",
+  "availability.locationHint":
+    "Wird bei jedem Interview, das Sie führen sollen, vorausgefüllt und lässt sich pro Interview ändern.",
+  "availability.invalid": "{day}: Der Beginn muss vor dem Ende liegen.",
+  "availability.saved": "Gespeichert.",
+  "availability.save": "Verfügbarkeit speichern",
+  "availability.loadFailed": "Verfügbarkeit konnte nicht geladen werden",
+  "availability.saveFailed": "Verfügbarkeit konnte nicht gespeichert werden",
+  "companies.title": "Ihre Unternehmen",
+  "companies.description":
+    "Ein Konto, ein Platz in jedem Unternehmen. Wenn Sie ein Unternehmen verlassen, bleiben Ihr Konto und Ihre anderen Unternehmen erhalten.",
+  "companies.roleAdmin": "Admin",
+  "companies.roleMember": "Mitglied",
+  "companies.roleReviewer": "Prüfer",
+  "companies.activeNow": "jetzt aktiv",
+  "companies.leave": "Verlassen",
+  "companies.leaveCompany": "{name} verlassen",
+  "companies.confirm":
+    "{name} verlassen? Sie verlieren den Zugriff auf dessen Stellen und Bewerbungen. Ein Admin dort kann Sie erneut einladen.",
+  "companies.leaveFailed": "Das Unternehmen konnte nicht verlassen werden. Bitte erneut versuchen.",
 };
 
 export const MESSAGES: Record<Locale, Messages> = { en, de };

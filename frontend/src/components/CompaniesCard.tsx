@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 
 import { homeFor } from "@/components/CompanySwitcher";
 import { api, ApiError, type CompanySeat } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const ROLE_LABEL: Record<CompanySeat["role"], string> = {
-  admin: "Admin",
-  member: "Member",
-  reviewer: "Reviewer",
+const ROLE_LABEL: Record<CompanySeat["role"], MessageKey> = {
+  admin: "companies.roleAdmin",
+  member: "companies.roleMember",
+  reviewer: "companies.roleReviewer",
 };
 
 /** "Your companies" on the Account page (SSO + multi-company card, slice 8):
@@ -26,6 +28,7 @@ export function CompaniesCard({
   /** test seam; leaving the active company is a hard navigation */
   navigate?: (path: string) => void;
 }) {
+  const { t } = useLocale();
   const [seats, setSeats] = useState<CompanySeat[] | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,18 +69,15 @@ export function CompaniesCard({
       setError(
         err instanceof ApiError && err.status !== 500
           ? err.detail
-          : "Could not leave the company. Try again.",
+          : t("companies.leaveFailed"),
       );
     }
   }
 
   return (
     <div className="card p-5">
-      <p className="text-sm font-semibold">Your companies</p>
-      <p className="mt-0.5 text-[12.5px] text-g500">
-        One account, a seat in each company. Leaving a company keeps your account and your
-        other companies.
-      </p>
+      <p className="text-sm font-semibold">{t("companies.title")}</p>
+      <p className="mt-0.5 text-[12.5px] text-g500">{t("companies.description")}</p>
       <ul className="mt-4 divide-y divide-edge rounded-md border border-edge">
         {seats.map((seat) => (
           <li key={seat.company_id} className="px-3 py-2.5">
@@ -85,8 +85,8 @@ export function CompaniesCard({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13.5px] font-medium">{seat.name}</p>
                 <p className="text-[12px] text-g500">
-                  {ROLE_LABEL[seat.role]}
-                  {seat.active ? " · active now" : ""}
+                  {t(ROLE_LABEL[seat.role])}
+                  {seat.active ? ` · ${t("companies.activeNow")}` : ""}
                 </p>
               </div>
               {confirming === seat.company_id ? null : (
@@ -97,18 +97,17 @@ export function CompaniesCard({
                     setError(null);
                     setConfirming(seat.company_id);
                   }}
-                  aria-label={`Leave ${seat.name}`}
+                  aria-label={t("companies.leaveCompany", { name: seat.name })}
                   className="inline-flex h-8 items-center rounded-md border border-edge px-3 text-[13px] font-medium hover:bg-muted-fill/50 disabled:opacity-50"
                 >
-                  Leave
+                  {t("companies.leave")}
                 </button>
               )}
             </div>
             {confirming === seat.company_id ? (
               <div className="mt-2.5 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5">
                 <p className="text-[12.5px]">
-                  Leave {seat.name}? You lose access to its jobs and candidates. An admin there
-                  can invite you back.
+                  {t("companies.confirm", { name: seat.name })}
                 </p>
                 {error ? (
                   <p role="alert" className="mt-1.5 text-[12.5px] text-red-600 dark:text-red-400">
@@ -122,7 +121,7 @@ export function CompaniesCard({
                     onClick={() => void leave(seat)}
                     className="inline-flex h-8 items-center rounded-md bg-red-600 px-3 text-[13px] font-medium text-white hover:brightness-[0.94] disabled:opacity-50"
                   >
-                    {busy ? "…" : `Leave ${seat.name}`}
+                    {busy ? "…" : t("companies.leaveCompany", { name: seat.name })}
                   </button>
                   <button
                     type="button"
@@ -133,7 +132,7 @@ export function CompaniesCard({
                     }}
                     className="inline-flex h-8 items-center rounded-md border border-edge px-3 text-[13px] font-medium hover:bg-muted-fill/50 disabled:opacity-50"
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 </div>
               </div>

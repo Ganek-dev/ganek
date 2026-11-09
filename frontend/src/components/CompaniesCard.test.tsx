@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api, ApiError, type CompanySeat, type UserOut } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { CompaniesCard } from "./CompaniesCard";
 
@@ -111,5 +112,34 @@ describe("CompaniesCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Leave Acme" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("You are the last admin there");
     expect(screen.getByText("Acme")).toBeInTheDocument();
+  });
+});
+
+describe("CompaniesCard in German", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the seats, the confirm and the fallback error in German", async () => {
+    mockedApi.companies.mockResolvedValue([ACME, GLOBEX]);
+    mockedApi.leaveCompany.mockRejectedValue(new ApiError(500, "boom"));
+    render(
+      <LocaleProvider>
+        <CompaniesCard />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByText("Ihre Unternehmen")).toBeInTheDocument();
+    expect(screen.getByText("Admin · jetzt aktiv")).toBeInTheDocument();
+    expect(screen.getByText("Prüfer")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /verlassen$/ })).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: "Globex verlassen" }));
+    expect(screen.getByText(/^Globex verlassen\? Sie verlieren den Zugriff/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Globex verlassen" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Das Unternehmen konnte nicht verlassen werden. Bitte erneut versuchen.",
+    );
   });
 });
