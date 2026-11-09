@@ -7,7 +7,7 @@ import { ExternalLink } from "lucide-react";
 import { AccessLogSection } from "@/components/AccessLogSection";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, healthApi, type CompanyAdmin } from "@/lib/api";
-import { relativeTime } from "@/lib/time";
+import { formatAge, useLocale } from "@/lib/i18n/locale";
 
 /** Privacy settings (M5.6 G1): the per-company variables the candidate
  * privacy notice renders - controller identity, rights contact, retention
@@ -22,6 +22,7 @@ const inputCls =
   "h-9 w-full rounded-md border border-edge bg-transparent px-3 text-[13.5px] outline-none focus:border-g400";
 
 export default function PrivacySettingsPage() {
+  const { t } = useLocale();
   const [company, setCompany] = useState<CompanyAdmin | null>(null);
   const [legalName, setLegalName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -41,11 +42,11 @@ export default function PrivacySettingsPage() {
     setTestBusy(true);
     try {
       await companyApi.testEmail();
-      setTestResult({ ok: true, message: "Sent - check your inbox." });
+      setTestResult({ ok: true, message: t("privacy.testSent") });
     } catch (err) {
       setTestResult({
         ok: false,
-        message: err instanceof Error ? err.message : "Test send failed",
+        message: err instanceof Error ? err.message : t("privacy.testFailed"),
       });
     } finally {
       setTestBusy(false);
@@ -63,7 +64,7 @@ export default function PrivacySettingsPage() {
         setPolicyUrl(data.settings.privacy_policy_url ?? "");
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load settings"),
+        setError(err instanceof Error ? err.message : t("privacy.loadFailed")),
       );
     healthApi
       .deep()
@@ -74,6 +75,8 @@ export default function PrivacySettingsPage() {
         setPurgeKnown(false);
         setLastPurgeAt(null);
       });
+    // load once on mount; a language switch only re-labels what is on screen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function save() {
@@ -88,9 +91,9 @@ export default function PrivacySettingsPage() {
         privacy_policy_url: policyUrl.trim() === "" ? null : policyUrl.trim(),
       });
       setCompany(updated);
-      setNotice("Privacy settings saved");
+      setNotice(t("privacy.saved"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : t("privacy.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -99,7 +102,7 @@ export default function PrivacySettingsPage() {
   if (company === null) {
     return (
       <section className="max-w-[680px] space-y-4">
-        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
+        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">{t("privacy.title")}</h1>
         {error ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {error}
@@ -117,7 +120,7 @@ export default function PrivacySettingsPage() {
 
   return (
     <section className="max-w-[680px] space-y-4">
-      <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
+      <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">{t("privacy.title")}</h1>
       <SettingsTabs />
 
       {error ? (
@@ -133,15 +136,12 @@ export default function PrivacySettingsPage() {
 
       <div className="card space-y-4 p-4">
         <div>
-          <p className={labelCls}>Data controller</p>
-          <p className={hintCls}>
-            Candidates see this on the privacy notice as the entity responsible for their
-            data. Use your registered legal name.
-          </p>
+          <p className={labelCls}>{t("privacy.controllerTitle")}</p>
+          <p className={hintCls}>{t("privacy.controllerHint")}</p>
         </div>
         <div>
           <label htmlFor="legal-name" className="mb-1 block text-[12.5px] font-medium text-g700">
-            Legal entity name
+            {t("privacy.legalName")}
           </label>
           <input
             id="legal-name"
@@ -152,14 +152,14 @@ export default function PrivacySettingsPage() {
             maxLength={200}
             className={inputCls}
           />
-          <p className={`mt-1 ${hintCls}`}>Empty = your display name “{company.name}”.</p>
+          <p className={`mt-1 ${hintCls}`}>{t("privacy.legalNameEmpty", { name: company.name })}</p>
         </div>
         <div>
           <label
             htmlFor="privacy-contact"
             className="mb-1 block text-[12.5px] font-medium text-g700"
           >
-            Privacy contact email
+            {t("privacy.contactEmail")}
           </label>
           <input
             id="privacy-contact"
@@ -169,25 +169,18 @@ export default function PrivacySettingsPage() {
             placeholder="privacy@yourcompany.com"
             className={inputCls}
           />
-          <p className={`mt-1 ${hintCls}`}>
-            Where candidates send data requests (access, correction, deletion). Shown on the
-            notice - set one before going live.
-          </p>
+          <p className={`mt-1 ${hintCls}`}>{t("privacy.contactHint")}</p>
         </div>
       </div>
 
       <div className="card space-y-3 p-4">
         <div>
-          <p className={labelCls}>Retention</p>
-          <p className={hintCls}>
-            How long unsuccessful applications are kept after a decision, then removed.
-            6 months suits the strictest EU regimes (Germany, Poland); France allows up to
-            2 years.
-          </p>
+          <p className={labelCls}>{t("privacy.retentionTitle")}</p>
+          <p className={hintCls}>{t("privacy.retentionHint")}</p>
         </div>
         <div>
           <label htmlFor="retention" className="mb-1 block text-[12.5px] font-medium text-g700">
-            Keep applications for
+            {t("privacy.keepFor")}
           </label>
           <select
             id="retention"
@@ -197,24 +190,27 @@ export default function PrivacySettingsPage() {
             }
             className="h-9 rounded-md border border-edge bg-surface px-3 text-[13.5px] outline-none focus:border-g400"
           >
-            <option value="">Default - {RETENTION_DEFAULT} months</option>
+            <option value="">{t("privacy.retentionDefault", { months: RETENTION_DEFAULT })}</option>
             {Array.from({ length: 24 }, (_, i) => i + 1).map((months) => (
               <option key={months} value={months}>
-                {months} {months === 1 ? "month" : "months"}
+                {t(months === 1 ? "privacy.oneMonth" : "privacy.months", { count: months })}
               </option>
             ))}
           </select>
           <p className={`mt-1.5 ${hintCls}`}>
-            {`Applications are deleted automatically ${retention === "" ? RETENTION_DEFAULT : retention} months after a decision (hired candidates excluded). The purge runs nightly.`}
+            {t("privacy.retentionNote", {
+              months: retention === "" ? RETENTION_DEFAULT : retention,
+            })}
           </p>
           {lastPurgeAt !== undefined ? (
             <p className={`mt-1 ${hintCls}`} data-testid="last-purge">
-              Last purge:{" "}
-              {!purgeKnown
-                ? "unknown (health check unavailable)"
-                : lastPurgeAt === null
-                  ? "not yet run"
-                  : relativeTime(lastPurgeAt)}
+              {t("privacy.lastPurge", {
+                when: !purgeKnown
+                  ? t("privacy.purgeUnknown")
+                  : lastPurgeAt === null
+                    ? t("privacy.purgeNever")
+                    : formatAge(t, lastPurgeAt),
+              })}
             </p>
           ) : null}
         </div>
@@ -222,15 +218,12 @@ export default function PrivacySettingsPage() {
 
       <div className="card space-y-3 p-4">
         <div>
-          <p className={labelCls}>Your own privacy policy</p>
-          <p className={hintCls}>
-            Optional. If your company already maintains a privacy policy, link it and the
-            notice will point candidates there alongside the assessment-specific details.
-          </p>
+          <p className={labelCls}>{t("privacy.policyTitle")}</p>
+          <p className={hintCls}>{t("privacy.policyHint")}</p>
         </div>
         <div>
           <label htmlFor="policy-url" className="mb-1 block text-[12.5px] font-medium text-g700">
-            Policy URL
+            {t("privacy.policyUrl")}
           </label>
           <input
             id="policy-url"
@@ -245,21 +238,17 @@ export default function PrivacySettingsPage() {
       </div>
 
       <div className="card space-y-1 p-4">
-        <p className={labelCls}>CV virus scanning</p>
+        <p className={labelCls}>{t("privacy.scanTitle")}</p>
         <p className={hintCls}>
-          {company.cv_scanning_configured
-            ? "Scanning is on. New CV uploads are checked by ClamAV; a flagged CV cannot be downloaded and its applicant shows why."
-            : "Scanning is not configured - CV uploads are not checked for viruses. Start the clamav compose profile and set GANEK_CLAMAV_HOST, then restart."}
+          {company.cv_scanning_configured ? t("privacy.scanOn") : t("privacy.scanOff")}
         </p>
       </div>
 
       <div className="card space-y-3 p-4">
         <div>
-          <p className={labelCls}>Email delivery</p>
+          <p className={labelCls}>{t("privacy.deliveryTitle")}</p>
           <p className={hintCls}>
-            {company.smtp_configured
-              ? "SMTP is configured. Send yourself a test email to prove the pipe end to end - failed candidate emails also show on each applicant."
-              : "SMTP is NOT configured - candidates receive no invites or updates. Set the GANEK_SMTP_* variables and restart, then test here."}
+            {company.smtp_configured ? t("privacy.smtpOn") : t("privacy.smtpOff")}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -269,7 +258,7 @@ export default function PrivacySettingsPage() {
             disabled={testBusy || !company.smtp_configured}
             className="inline-flex h-9 items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill disabled:opacity-50"
           >
-            {testBusy ? "…" : "Send test email to me"}
+            {testBusy ? "…" : t("privacy.sendTest")}
           </button>
           {testResult ? (
             <p
@@ -293,7 +282,7 @@ export default function PrivacySettingsPage() {
           disabled={busy}
           className="inline-flex h-9 items-center rounded-md bg-accent px-4 text-[13.5px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
         >
-          {busy ? "…" : "Save privacy settings"}
+          {busy ? "…" : t("privacy.save")}
         </button>
         <a
           href={`/c/${company.slug}/privacy`}
@@ -302,7 +291,7 @@ export default function PrivacySettingsPage() {
           className="inline-flex h-9 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill"
         >
           <ExternalLink aria-hidden className="h-3.5 w-3.5" />
-          View public notice
+          {t("privacy.viewNotice")}
         </a>
       </div>
       <AccessLogSection now={new Date()} />
