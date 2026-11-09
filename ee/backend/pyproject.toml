@@ -5,10 +5,19 @@
 [project]
 name = "ganek-ee"
 version = "0.6.0"
-description = "Ganek hosted-plane extensions (plan policy, billing)"
+description = "Ganek hosted-plane extensions (plan policy, billing, SAML)"
 requires-python = ">=3.12"
 license = { text = "Ganek Commercial License (ee/LICENSE)" }
-dependencies = ["stripe>=16,<17"]
+# SAML 2.0 (card "SAML 2.0 sign-in (ee/)"). xmlsec and lxml ship manylinux
+# wheels that bundle libxml2; both must load the SAME libxml2 or signature
+# checks crash, which ganek_ee.saml.check_native_bindings guards. The floors
+# are the first releases with matching cp314 wheels.
+dependencies = [
+    "stripe>=16,<17",
+    "python3-saml>=1.16,<2",
+    "xmlsec>=1.3.18,<2",
+    "lxml>=6.1,<7",
+]
 
 [project.entry-points."ganek.plan_policy"]
 hosted = "ganek_ee.plans:HostedPolicy"

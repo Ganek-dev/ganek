@@ -23,6 +23,9 @@ FROM core AS hosted
 COPY ee/LICENSE ./ee/LICENSE
 COPY ee/backend ./ee/backend
 RUN uv pip install --python /srv/.venv/bin/python ./ee/backend
+# SAML signature checks need lxml and xmlsec on one libxml2 (both wheels
+# bundle it); fail the hosted build here rather than at the first sign-in.
+RUN /srv/.venv/bin/python -c "from ganek_ee.saml import check_native_bindings; check_native_bindings()"
 
 # The LAST stage is the default target, so a plain build and the published
 # GHCR image are always the pure AGPL core, never the hosted one.
