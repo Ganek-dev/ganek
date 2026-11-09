@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
+import { SsoButton } from "@/components/SsoButton";
 import Link from "next/link";
 
 import {
@@ -21,7 +22,9 @@ import { homePath } from "@/lib/home";
  * who's invited where, takes a password, and lands the new user in /admin
  * already logged in. Invalid/revoked links 404, past-deadline links 410.
  * An email that already has an account (in another company) signs in and
- * joins instead (card "SSO + multi-company user membership", slice 7). */
+ * joins instead (card "SSO + multi-company user membership", slice 7). A new
+ * account can also be created through Google or the instance's OpenID
+ * Connect provider (slice 11), which must vouch for the invited email. */
 
 const inputCls =
   "h-10 w-full rounded-md border-[1.5px] border-edge bg-surface px-3.5 text-sm outline-none focus:border-accent";
@@ -32,11 +35,16 @@ const ROLE_LABELS: Record<PublicInvite["role"], string> = {
   reviewer: "a Reviewer",
 };
 
-const GOOGLE_ERRORS: Record<string, string> = {
+const SIGN_IN_ERRORS: Record<string, string> = {
   "google-email-mismatch":
     "That Google account doesn't match this invite. Use the Google account for the invited email, or set a password instead.",
   "email-taken": "An account with this email already exists.",
   "google-invalid": "Google sign-in didn't complete. Try again or set a password below.",
+  "oidc-email-mismatch":
+    "Your single sign-on account didn't confirm the invited email. Sign in there as the invited address, or set a password instead.",
+  "oidc-invalid": "Single sign-on didn't complete. Try again or set a password below.",
+  "oidc-linked":
+    "That single sign-on account already belongs to another Ganek account. Sign in with it instead, or set a password below.",
 };
 
 function InviteAcceptForm() {
@@ -48,20 +56,24 @@ function InviteAcceptForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [google, setGoogle] = useState(false);
+  // the OpenID Connect button label, or null when the instance has none
+  const [sso, setSso] = useState<string | null>(null);
   // existing-account invites: who is signed in here (null = nobody)
   const [me, setMe] = useState<UserOut | null | undefined>(undefined);
 
-  const googleError = GOOGLE_ERRORS[searchParams.get("error") ?? ""] ?? null;
+  const signInError = SIGN_IN_ERRORS[searchParams.get("error") ?? ""] ?? null;
 
   useEffect(() => {
     let cancelled = false;
     api
       .providers()
       .then((p) => {
-        if (!cancelled) setGoogle(p.google);
+        if (cancelled) return;
+        setGoogle(p.google);
+        setSso(p.oidc ? (p.oidc_name ?? "SSO") : null);
       })
       .catch(() => {
-        /* flag stays false - password accept is unaffected */
+        /* flags stay off - password accept is unaffected */
       });
     return () => {
       cancelled = true;
@@ -252,15 +264,23 @@ function InviteAcceptForm() {
         </>
       }
     >
-      {googleError ? (
+      {signInError ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {googleError}
+          {signInError}
         </p>
       ) : null}
 
-      {google ? (
+      {google || sso ? (
         <>
-          <GoogleButton href={`/api/v1/auth/google/start?invite=${encodeURIComponent(token)}`} />
+          {sso ? (
+            <SsoButton
+              name={sso}
+              href={`/api/v1/auth/oidc/start?invite=${encodeURIComponent(token)}`}
+            />
+          ) : null}
+          {google ? (
+            <GoogleButton href={`/api/v1/auth/google/start?invite=${encodeURIComponent(token)}`} />
+          ) : null}
           <div className="flex items-center gap-3 pt-2">
             <span aria-hidden className="h-px flex-1 bg-edge" />
             <span className="font-mono text-[10.5px] tracking-wide text-g400 uppercase">

@@ -243,24 +243,34 @@ def read_google_flow_token(
 
 
 def create_oidc_flow_token(
-    state: str, code_verifier: str, nonce: str, next_path: str | None = None
+    state: str,
+    code_verifier: str,
+    nonce: str,
+    next_path: str | None = None,
+    invite: str | None = None,
 ) -> str:
     payload: dict[str, str] = {"s": state, "cv": code_verifier, "n": nonce}
     if next_path is not None:
         payload["x"] = next_path  # where to land after sign-in (safe_next_path checked)
+    if invite is not None:
+        payload["i"] = invite  # opaque team-invite token riding through the IdP round trip
     return _oidc_flow_serializer.dumps(payload)
 
 
-def read_oidc_flow_token(token: str) -> tuple[str, str, str, str | None] | None:
-    """(state, code_verifier, nonce, next_path); next is re-checked on read."""
+def read_oidc_flow_token(
+    token: str,
+) -> tuple[str, str, str, str | None, str | None] | None:
+    """(state, code_verifier, nonce, next_path, invite); next is re-checked on read."""
     try:
         raw = _oidc_flow_serializer.loads(token, max_age=OIDC_FLOW_MAX_AGE_SECONDS)
         next_path = raw.get("x")
+        invite = raw.get("i")
         return (
             str(raw["s"]),
             str(raw["cv"]),
             str(raw["n"]),
             safe_next_path(str(next_path)) if next_path is not None else None,
+            str(invite) if invite is not None else None,
         )
     except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError, AttributeError):
         return None

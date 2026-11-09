@@ -162,16 +162,44 @@ def test_no_domains_means_no_linking(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_flow_token_round_trip_and_unsafe_next() -> None:
     token = create_oidc_flow_token("s", "v", "n", next_path="/invite/abc")
-    assert read_oidc_flow_token(token) == ("s", "v", "n", "/invite/abc")
-    assert read_oidc_flow_token(create_oidc_flow_token("s", "v", "n")) == ("s", "v", "n", None)
+    assert read_oidc_flow_token(token) == ("s", "v", "n", "/invite/abc", None)
+    assert read_oidc_flow_token(create_oidc_flow_token("s", "v", "n")) == (
+        "s",
+        "v",
+        "n",
+        None,
+        None,
+    )
     # a signed but unsafe target is dropped on read
     from app.core import security
 
     forged = security._oidc_flow_serializer.dumps(
         {"s": "s", "cv": "v", "n": "n", "x": "https://evil.test"}
     )
-    assert read_oidc_flow_token(forged) == ("s", "v", "n", None)
+    assert read_oidc_flow_token(forged) == ("s", "v", "n", None, None)
     assert read_oidc_flow_token("garbage") is None
+
+
+def test_flow_token_carries_an_invite() -> None:
+    token = create_oidc_flow_token("s", "v", "n", invite="inv.tok-1")
+    assert read_oidc_flow_token(token) == ("s", "v", "n", None, "inv.tok-1")
+
+
+def test_invite_email_match_needs_same_verified_email() -> None:
+    from app.api.oidc_auth import oidc_email_matches
+
+    def claims(email: object, verified: object) -> dict[str, object]:
+        return {"email": email, "email_verified": verified}
+
+    assert oidc_email_matches(claims("Ann@Corp.dev", True), "ann@corp.dev") is True
+    assert oidc_email_matches(claims("ann@corp.dev", "true"), "ann@corp.dev") is True
+    assert oidc_email_matches(claims("ann@corp.dev", False), "ann@corp.dev") is False
+    assert oidc_email_matches(claims("ann@corp.dev", "false"), "ann@corp.dev") is False
+    assert oidc_email_matches(claims("ann@corp.dev", None), "ann@corp.dev") is False
+    assert oidc_email_matches(claims("bob@corp.dev", True), "ann@corp.dev") is False
+    assert oidc_email_matches(claims(None, True), "ann@corp.dev") is False
+    # the domain list guards linking only: an unlisted domain may accept its own invite
+    assert oidc_email_matches(claims("ann@gmail.com", True), "ann@gmail.com") is True
 
 
 def test_google_flow_token_is_not_an_oidc_flow_token() -> None:

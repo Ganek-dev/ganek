@@ -13,8 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import OIDC_FLOW_COOKIE_NAME, create_oidc_flow_token
-from app.models import Company, User, UserRole
+from app.core.security import OIDC_FLOW_COOKIE_NAME, create_invite_token, create_oidc_flow_token
+from app.models import Company, User, UserInvite, UserRole
 from app.services import oauth_oidc
 from tests.db import database_reachable
 
@@ -54,10 +54,12 @@ def _claims(email: str, sub: str = "sub-1", **overrides: object) -> dict[str, ob
     return claims
 
 
-def _arm_flow(client: AsyncClient, next_path: str | None = None) -> None:
+def _arm_flow(client: AsyncClient, next_path: str | None = None, invite: str | None = None) -> None:
     client.cookies.set(
         OIDC_FLOW_COOKIE_NAME,
-        create_oidc_flow_token("state-1", "verifier-1", "nonce-1", next_path=next_path),
+        create_oidc_flow_token(
+            "state-1", "verifier-1", "nonce-1", next_path=next_path, invite=invite
+        ),
     )
 
 
@@ -327,3 +329,163 @@ async def test_callback_with_2fa_goes_to_the_code_step(
     query = parse_qs(location.query)
     assert query["mfa"] and query["next"] == ["/invite/abc"]
     assert (await client.get("/api/v1/auth/me")).status_code == 401
+
+
+# accepting a team invite through the IdP (a new account from the invite)
+
+
+async def _make_invite(
+    db: AsyncSession, email: str, *, expired: bool = False
+) -> tuple[UserInvite, str]:
+    from datetime import timedelta
+
+    company = Company(slug=f"oi-{uuid4().hex[:8]}", name="OIDC Invite Co")
+    db.add(company)
+    await db.flush()
+    invite = UserInvite(
+        company_id=company.id,
+        email=email,
+        role=UserRole.MEMBER,
+        expires_at=datetime.now(UTC) + (timedelta(days=-1) if expired else timedelta(days=7)),
+    )
+    db.add(invite)
+    await db.commit()
+    await db.refresh(invite)
+    return invite, create_invite_token(invite.id)
+
+
+@pytest.mark.usefixtures("oidc_configured")
+async def test_start_keeps_the_invite_in_the_flow_cookie(client: AsyncClient) -> None:
+    from app.core.security import read_oidc_flow_token
+
+    resp = await client.get("/api/v1/auth/oidc/start", params={"invite": "inv.tok-1"})
+    assert resp.status_code == 302
+    flow = read_oidc_flow_token(resp.cookies[OIDC_FLOW_COOKIE_NAME])
+    assert flow is not None and flow[4] == "inv.tok-1"
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+async def test_invite_accept_creates_the_account_linked_to_the_identity(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # gmail.com is not in GANEK_OIDC_EMAIL_DOMAINS: the invite vouches here
+    email = f"Inv-{uuid4().hex[:8]}@gmail.com"
+    sub = f"sub-{uuid4().hex}"
+    invite, token = await _make_invite(db_session, email.lower())
+    _fake_exchange(monkeypatch, _claims(email, sub=sub))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/admin"
+
+    me = await client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == email.lower()
+    assert me.json()["has_password"] is False
+    user = (await db_session.execute(select(User).where(User.email == email.lower()))).scalar_one()
+    assert (user.oidc_issuer, user.oidc_sub) == (ISSUER, sub)
+    assert (user.company_id, user.role) == (invite.company_id, UserRole.MEMBER)
+    gone = (
+        await db_session.execute(select(UserInvite).where(UserInvite.id == invite.id))
+    ).scalar_one_or_none()
+    assert gone is None
+
+    # the next plain sign-in finds the account by (issuer, sub)
+    client.cookies.clear()
+    _arm_flow(client)
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/admin"
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"email": "someone-else@example.com"},
+        {"email_verified": False},
+        {"email_verified": None},
+    ],
+)
+async def test_invite_accept_needs_the_invited_verified_email(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, object],
+) -> None:
+    email = f"inv-{uuid4().hex[:8]}@example.com"
+    invite, token = await _make_invite(db_session, email)
+    claims = _claims(email)
+    claims.update(overrides)
+    _fake_exchange(monkeypatch, claims)
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}?error=oidc-email-mismatch"
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
+    kept = (
+        await db_session.execute(select(UserInvite).where(UserInvite.id == invite.id))
+    ).scalar_one_or_none()
+    assert kept is not None
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+async def test_invite_accept_expired_invite(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"inv-{uuid4().hex[:8]}@example.com"
+    _, token = await _make_invite(db_session, email, expired=True)
+    _fake_exchange(monkeypatch, _claims(email))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}"
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+async def test_invite_accept_unknown_invite(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_exchange(monkeypatch, _claims("x@example.com"))
+    _arm_flow(client, invite="not-a-real-invite")
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/invite/not-a-real-invite?error=oidc-invalid"
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+async def test_invite_accept_unknown_invite_token_is_escaped(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_exchange(monkeypatch, _claims("x@example.com"))
+    _arm_flow(client, invite="../../admin")
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == "/invite/..%2F..%2Fadmin?error=oidc-invalid"
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+async def test_invite_accept_email_with_an_account(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = f"inv-{uuid4().hex[:8]}@example.com"
+    await _make_user(db_session, email)
+    _, token = await _make_invite(db_session, email)
+    _fake_exchange(monkeypatch, _claims(email, sub=f"sub-{uuid4().hex}"))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}?error=email-taken"
+
+
+@pytest.mark.usefixtures("oidc_configured", "migrated_db")
+async def test_invite_accept_identity_already_linked_elsewhere(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sub = f"sub-{uuid4().hex}"
+    await _make_user(db_session, f"old-{uuid4().hex[:8]}@example.com", oidc_sub=sub)
+    email = f"inv-{uuid4().hex[:8]}@example.com"
+    invite, token = await _make_invite(db_session, email)
+    _fake_exchange(monkeypatch, _claims(email, sub=sub))
+    _arm_flow(client, invite=token)
+    resp = await client.get("/api/v1/auth/oidc/callback?code=c&state=state-1")
+    assert resp.headers["location"] == f"/invite/{token}?error=oidc-linked"
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
+    kept = (
+        await db_session.execute(select(UserInvite).where(UserInvite.id == invite.id))
+    ).scalar_one_or_none()
+    assert kept is not None
