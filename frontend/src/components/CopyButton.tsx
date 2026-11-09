@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 
 import { Check, Copy } from "lucide-react";
 
+import { useLocale } from "@/lib/i18n/locale";
+
 /** Small copy-to-clipboard button with a 1.5s "copied" confirmation. The
  * clipboard call failing is silent by default - every call site keeps the
  * text visible and selectable right next to the button. */
@@ -20,6 +22,7 @@ export function CopyButton({
   className?: string;
   onError?: () => void;
 }) {
+  const { t } = useLocale();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,12 +50,12 @@ export function CopyButton({
       {copied ? (
         <>
           <Check aria-hidden className="h-3 w-3 text-ok" />
-          Copied
+          {t("copy.copied")}
         </>
       ) : (
         <>
           <Copy aria-hidden className="h-3 w-3" />
-          {children ?? "Copy"}
+          {children ?? t("copy.copy")}
         </>
       )}
     </button>

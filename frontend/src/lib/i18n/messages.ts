@@ -7,7 +7,8 @@
  *
  * Coverage grows by surface: the admin shell, the settings tabs, the
  * Account page's own cards and its sign-in methods, two-factor/sessions,
- * interview availability and companies cards so far. Candidate pages are out of scope (separate card). */
+ * interview availability and companies cards, the copy button and the
+ * Developers page (jobs API, embed widget, preview) so far. Candidate pages are out of scope (separate card). */
 
 export const LOCALES = ["en", "de"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -40,7 +41,7 @@ const en = {
   "language.description": "Language of the admin app in this browser. Candidate pages are not affected.",
   "language.label": "Interface language",
   "language.partial":
-    "German covers the navigation, the settings tabs and the Account page (profile, password, sign-in methods, two-factor, sessions, interview availability, companies) so far. Other screens stay in English until they are translated.",
+    "German covers the navigation, the settings tabs and the Account page (profile, password, sign-in methods, two-factor, sessions, interview availability, companies) and the Developers page (jobs API, embed widget) so far. Other screens stay in English until they are translated.",
   "settings.label": "Settings sections",
   "settings.branding": "Branding",
   "settings.hiring": "Hiring",
@@ -162,6 +163,30 @@ const en = {
   "companies.confirm":
     "Leave {name}? You lose access to its jobs and candidates. An admin there can invite you back.",
   "companies.leaveFailed": "Could not leave the company. Try again.",
+  "copy.copy": "Copy",
+  "copy.copied": "Copied",
+  "developers.loadFailed": "Failed to load company",
+  "developers.apiTitle": "Jobs API",
+  "developers.openFeed": "Open feed",
+  "developers.apiDescription": "Public, no auth, CORS enabled, cached 60s. Your published jobs as JSON.",
+  "developers.copyFeed": "Copy feed URL",
+  "developers.widgetTitle": "Embed widget",
+  "developers.widgetDescription":
+    "Drop your open roles into your own site. Inherits your brand color; ~4 KB, no framework.",
+  "developers.copySnippet": "Copy embed snippet",
+  "developers.themeLabel": "Widget theme",
+  "developers.themeAuto": "auto",
+  "developers.themeLight": "light",
+  "developers.themeDark": "dark",
+  "developers.showTags": "Show tags",
+  "developers.widgetNote":
+    "Careers pages on Ganek stay SSR with Google Jobs structured data - the widget is for your marketing site.",
+  "developers.previewLabel": "Widget preview",
+  "developers.previewCaption": "Widget preview - your live roles",
+  "developers.previewHeading": "Open positions",
+  "developers.previewRole": "{count} role",
+  "developers.previewRoles": "{count} roles",
+  "developers.previewEmpty": "No open positions right now.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -192,7 +217,7 @@ const de: Messages = {
     "Sprache der Admin-App in diesem Browser. Seiten für Bewerberinnen und Bewerber sind nicht betroffen.",
   "language.label": "Sprache der Oberfläche",
   "language.partial":
-    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs und die Kontoseite (Profil, Passwort, Anmeldemethoden, Zwei-Faktor, Sitzungen, Verfügbarkeit für Interviews, Unternehmen) übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
+    "Auf Deutsch sind bisher die Navigation, die Einstellungs-Tabs und die Kontoseite (Profil, Passwort, Anmeldemethoden, Zwei-Faktor, Sitzungen, Verfügbarkeit für Interviews, Unternehmen) sowie die Entwicklerseite (Jobs-API, Einbettungs-Widget) übersetzt. Andere Bereiche bleiben Englisch, bis sie übersetzt sind.",
   "settings.label": "Einstellungsbereiche",
   "settings.branding": "Branding",
   "settings.hiring": "Recruiting",
@@ -319,6 +344,31 @@ const de: Messages = {
   "companies.confirm":
     "{name} verlassen? Sie verlieren den Zugriff auf dessen Stellen und Bewerbungen. Ein Admin dort kann Sie erneut einladen.",
   "companies.leaveFailed": "Das Unternehmen konnte nicht verlassen werden. Bitte erneut versuchen.",
+  "copy.copy": "Kopieren",
+  "copy.copied": "Kopiert",
+  "developers.loadFailed": "Unternehmen konnte nicht geladen werden",
+  "developers.apiTitle": "Jobs-API",
+  "developers.openFeed": "Feed öffnen",
+  "developers.apiDescription":
+    "Öffentlich, ohne Anmeldung, mit CORS, 60 s zwischengespeichert. Ihre veröffentlichten Stellen als JSON.",
+  "developers.copyFeed": "Feed-URL kopieren",
+  "developers.widgetTitle": "Einbettungs-Widget",
+  "developers.widgetDescription":
+    "Zeigen Sie Ihre offenen Stellen auf Ihrer eigenen Website. Übernimmt Ihre Markenfarbe; ca. 4 KB, ohne Framework.",
+  "developers.copySnippet": "Einbettungscode kopieren",
+  "developers.themeLabel": "Widget-Design",
+  "developers.themeAuto": "Auto",
+  "developers.themeLight": "Hell",
+  "developers.themeDark": "Dunkel",
+  "developers.showTags": "Tags anzeigen",
+  "developers.widgetNote":
+    "Karriereseiten auf Ganek bleiben serverseitig gerendert, mit strukturierten Daten für Google Jobs - das Widget ist für Ihre Marketing-Website.",
+  "developers.previewLabel": "Widget-Vorschau",
+  "developers.previewCaption": "Widget-Vorschau - Ihre aktuellen Stellen",
+  "developers.previewHeading": "Offene Stellen",
+  "developers.previewRole": "{count} Stelle",
+  "developers.previewRoles": "{count} Stellen",
+  "developers.previewEmpty": "Derzeit keine offenen Stellen.",
 };
 
 export const MESSAGES: Record<Locale, Messages> = { en, de };

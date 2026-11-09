@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   apiKeys,
@@ -10,6 +10,7 @@ import {
   type ApiKey,
   type JobsFeed,
 } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import DevelopersPage from "./page";
 
@@ -156,5 +157,79 @@ describe("API keys card", () => {
     expect(await screen.findByText("gk_zzzzzzzzzSECRETSECRETSECRET")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy API key" })).toBeInTheDocument();
     expect(screen.getByText(/won't be shown again/i)).toBeInTheDocument();
+  });
+});
+
+describe("DevelopersPage in German", () => {
+  const company = {
+    screening_questions: [],
+    slug: "acmelabs",
+    mode: "single" as const,
+    smtp_configured: true,
+    name: "Acme Labs",
+    description: "",
+    logo_url: null,
+    website: null,
+    socials: {},
+    theme: {},
+    settings: {},
+  };
+
+  const renderGerman = () =>
+    render(
+      <LocaleProvider>
+        <DevelopersPage />
+      </LocaleProvider>,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mockedCompany.get.mockResolvedValue(company);
+    mockedFeed.mockResolvedValue(feed);
+    mockedKeys.list.mockResolvedValue([]);
+    mockedHooks.list.mockResolvedValue([]);
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the jobs API, the widget and the preview in German", async () => {
+    renderGerman();
+    expect(await screen.findByText("Jobs-API")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Einstellungen");
+    expect(screen.getByText("Feed öffnen")).toBeInTheDocument();
+    expect(screen.getByText(/^Öffentlich, ohne Anmeldung/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Feed-URL kopieren" })).toHaveTextContent(
+      "Kopieren",
+    );
+    expect(screen.getByText("Einbettungs-Widget")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Einbettungscode kopieren" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Widget-Design" })).toBeInTheDocument();
+    const preview = await screen.findByTestId("widget-preview");
+    expect(screen.getByRole("complementary", { name: "Widget-Vorschau" })).toBeInTheDocument();
+    expect(preview).toHaveTextContent("Offene Stellen");
+    expect(preview).toHaveTextContent("1 Stelle");
+  });
+
+  it("keeps the snippet in sync with the German theme and tag controls", async () => {
+    renderGerman();
+    await screen.findByText(/data-workspace="acmelabs"/);
+    await userEvent.click(screen.getByRole("radio", { name: "Dunkel" }));
+    expect(screen.getByText(/data-workspace/).textContent).toContain('data-theme="dark"');
+    await userEvent.click(screen.getByRole("checkbox", { name: "Tags anzeigen" }));
+    expect(screen.getByText(/data-workspace/).textContent).toContain('data-tags="false"');
+  });
+
+  it("shows the German empty state and the load error", async () => {
+    mockedFeed.mockResolvedValue({ ...feed, jobs: [] });
+    const { unmount } = renderGerman();
+    expect(await screen.findByText("Derzeit keine offenen Stellen.")).toBeInTheDocument();
+    expect(screen.getByTestId("widget-preview")).toHaveTextContent("0 Stellen");
+    unmount();
+
+    mockedCompany.get.mockRejectedValue("offline");
+    renderGerman();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unternehmen konnte nicht geladen werden",
+    );
   });
 });
