@@ -40,8 +40,10 @@ from app.schemas.auth import (
     UserOut,
     VerifyEmailRequest,
 )
+from app.schemas.users import InviteJoinRequest
 from app.services import auth as auth_service
 from app.services import demo_mode
+from app.services import invites as invites_service
 from app.services import memberships as memberships_service
 from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
@@ -321,6 +323,39 @@ async def switch_company(payload: SwitchCompanyRequest, user: CurrentUser, db: D
     except memberships_service.NotAMemberError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Company not found"
+        ) from None
+    except memberships_service.CompanySuspendedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=suspended_detail(exc.company)
+        ) from None
+
+
+@router.post(
+    "/join-invite",
+    response_model=UserOut,
+    dependencies=[rate_limit("auth", lambda: settings.rate_limit_auth_per_minute)],
+)
+async def join_invite(payload: InviteJoinRequest, user: CurrentUser, db: DbSession) -> User:
+    """Slice 7 of card "SSO + multi-company user membership": a signed-in
+    person accepts a team invite sent to their own email and gets a seat in
+    that company, which becomes their active one. Their other seats stay."""
+    invite = await invites_service.invite_by_token(db, payload.token)
+    if invite is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+    try:
+        return await invites_service.join_invite(db, invite, user)
+    except invites_service.InviteExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail="This invite has expired"
+        ) from None
+    except invites_service.InviteEmailMismatchError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This invite was sent to a different email address",
+        ) from None
+    except invites_service.AlreadyMemberError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="You are already on this team"
         ) from None
     except memberships_service.CompanySuspendedError as exc:
         raise HTTPException(

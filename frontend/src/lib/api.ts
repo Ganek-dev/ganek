@@ -2208,6 +2208,8 @@ export interface PublicInvite {
   email: string;
   company_name: string;
   role: UserRole;
+  /** The email already has an account (in another company): sign in and join. */
+  existing_account?: boolean;
 }
 
 /** Invite accept page (magic link from the team-invite email). */
@@ -2217,5 +2219,11 @@ export const publicInvites = {
     request<UserOut>(`/api/v1/public/invites/${token}/accept`, {
       method: "POST",
       body: JSON.stringify({ password }),
+    }),
+  /** Signed-in invitee with an existing account joins the inviting company. */
+  join: (token: string) =>
+    request<UserOut>("/api/v1/auth/join-invite", {
+      method: "POST",
+      body: JSON.stringify({ token }),
     }),
 };

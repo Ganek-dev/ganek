@@ -19,8 +19,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...original,
-    api: { ...original.api, providers: vi.fn() },
-    publicInvites: { get: vi.fn(), accept: vi.fn() },
+    api: { ...original.api, providers: vi.fn(), me: vi.fn(), logout: vi.fn() },
+    publicInvites: { get: vi.fn(), accept: vi.fn(), join: vi.fn() },
   };
 });
 
@@ -144,6 +144,63 @@ describe("InviteAcceptPage", () => {
     search = new URLSearchParams({ error: code });
     render(<InviteAcceptPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+  });
+
+  describe("for an email that already has an account", () => {
+    const sofia = {
+      id: "u9",
+      company_id: "c0",
+      email: "Sofia@x.dev",
+      has_password: true,
+      role: "admin" as const,
+    };
+
+    beforeEach(() => {
+      mocked.get.mockResolvedValue({
+        email: "sofia@x.dev",
+        company_name: "Acme Labs",
+        role: "member",
+        existing_account: true,
+      });
+    });
+
+    it("asks a signed-out invitee to sign in and come back", async () => {
+      mockedApi.me.mockRejectedValue(new ApiError(401, "Not authenticated"));
+      render(<InviteAcceptPage />);
+      const link = await screen.findByRole("link", { name: "Sign in to join" });
+      expect(link).toHaveAttribute("href", "/login?next=%2Finvite%2Finvite-tok");
+      expect(screen.getByText(/already\s+has a Ganek account/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    });
+
+    it("joins as the signed-in invitee and lands in the new company", async () => {
+      mockedApi.me.mockResolvedValue(sofia);
+      mocked.join.mockResolvedValue({ ...sofia, company_id: "c1", role: "member" });
+      render(<InviteAcceptPage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Join Acme Labs" }));
+      expect(mocked.join).toHaveBeenCalledWith("invite-tok");
+      await waitFor(() => expect(push).toHaveBeenCalledWith("/admin"));
+    });
+
+    it("shows a refused join without leaving the page", async () => {
+      mockedApi.me.mockResolvedValue(sofia);
+      mocked.join.mockRejectedValue(new ApiError(409, "You are already on this team"));
+      render(<InviteAcceptPage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Join Acme Labs" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("You are already on this team");
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("offers to sign out when someone else is signed in", async () => {
+      mockedApi.me.mockResolvedValue({ ...sofia, email: "other@x.dev" });
+      mockedApi.logout.mockResolvedValue(undefined);
+      render(<InviteAcceptPage />);
+      expect(await screen.findByText("other@x.dev")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Join Acme Labs" })).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
+      expect(mockedApi.logout).toHaveBeenCalled();
+      expect(await screen.findByRole("link", { name: "Sign in to join" })).toBeInTheDocument();
+    });
   });
 
   it("flips to the expired state when accept returns 410", async () => {
