@@ -8,8 +8,11 @@ export interface UserOut {
   company_id: string;
   email: string;
   role: "admin" | "member" | "reviewer";
-  /** false = Google-only account (signed up via Google, no password set). */
+  /** false = no password set: signs in only through Google or SSO. */
   has_password: boolean;
+  /** A Google / SSO (generic OIDC) identity can sign this account in. */
+  google_linked?: boolean;
+  sso_linked?: boolean;
   /** Own display name (card D14); display_label is the server's fallback-applied label. */
   display_name?: string | null;
   display_label?: string;
@@ -25,6 +28,9 @@ export interface UserOut {
    * (read-only) until this time; the admin shell shows a banner. */
   impersonation_expires_at?: string | null;
 }
+
+/** An outside identity the Account page can unlink. */
+export type SignInMethod = "google" | "sso";
 
 /** GET /auth/companies: one company the signed-in user holds a seat in,
  * with the role they have there. The active seat comes first. */
@@ -385,6 +391,10 @@ export const api = {
     request<UserOut>(`/api/v1/auth/companies/${encodeURIComponent(companyId)}`, {
       method: "DELETE",
     }),
+  /** Forget the linked Google or SSO identity; 409 while it is the only
+   * way to sign in. Returns the updated user. */
+  unlinkSignInMethod: (method: SignInMethod) =>
+    request<UserOut>(`/api/v1/auth/sign-in-methods/${method}`, { method: "DELETE" }),
   availability: {
     get: () => request<Availability>("/api/v1/users/me/availability"),
     set: (payload: AvailabilityIn) =>

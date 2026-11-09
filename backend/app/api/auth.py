@@ -37,6 +37,7 @@ from app.schemas.auth import (
     MfaVerifyRequest,
     RegisterRequest,
     ResetPasswordRequest,
+    SignInMethod,
     SwitchCompanyRequest,
     UserOut,
     VerifyEmailRequest,
@@ -332,6 +333,24 @@ async def switch_company(payload: SwitchCompanyRequest, user: CurrentUser, db: D
     except memberships_service.CompanySuspendedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=suspended_detail(exc.company)
+        ) from None
+
+
+@router.delete("/sign-in-methods/{method}", response_model=UserOut, dependencies=[demo_mode.locked])
+async def unlink_sign_in_method(method: SignInMethod, user: CurrentUser, db: DbSession) -> User:
+    """Slice 12 of card "SSO + multi-company user membership": the signed-in
+    person unlinks their Google or SSO identity from the Account page.
+    Refused while it is the only way to sign in; idempotent when nothing is
+    linked. Read-only while impersonating (the tenancy dependency refuses it)."""
+    try:
+        return await users_service.unlink_sign_in(db, user, method.value)
+    except users_service.LastSignInMethodError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This is your only way to sign in. Add a password first with"
+                " Forgot password on the sign-in page"
+            ),
         ) from None
 
 

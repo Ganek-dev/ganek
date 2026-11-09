@@ -81,6 +81,14 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return self.password_hash is not None
 
     @property
+    def google_linked(self) -> bool:
+        return self.google_sub is not None
+
+    @property
+    def sso_linked(self) -> bool:
+        return self.oidc_sub is not None
+
+    @property
     def is_anonymized(self) -> bool:
         """The tombstone left by services.users.anonymize_user (same pattern
         as the team-list filter: deleted-%@invalid)."""

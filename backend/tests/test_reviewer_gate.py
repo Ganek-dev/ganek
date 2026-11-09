@@ -47,6 +47,8 @@ REVIEWER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
         ("POST", "/api/v1/auth/mfa/confirm"),
         ("POST", "/api/v1/auth/mfa/disable"),
         ("POST", "/api/v1/auth/change-password"),
+        # unlinking their own Google or SSO identity (Account page)
+        ("DELETE", "/api/v1/auth/sign-in-methods/{method}"),
         ("POST", "/api/v1/auth/sign-out-everywhere"),
         ("PATCH", "/api/v1/users/me"),
         ("GET", "/api/v1/users/me/availability"),
