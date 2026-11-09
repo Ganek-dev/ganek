@@ -46,6 +46,35 @@ class SelfRemovalError(Exception):
     """An admin cannot take away their own seat from the team page."""
 
 
+class LastSignInMethodError(Exception):
+    """Unlinking this identity would leave the account with no way to sign
+    in (no password and no other linked identity)."""
+
+
+async def unlink_sign_in(db: AsyncSession, user: User, method: str) -> User:
+    """Forget the Google or SSO identity linked to ``user`` (slice 12).
+    Refused when it is the account's only way in. An unlinked identity is
+    not blocked: the next sign-in with it links it again under the usual
+    rules, which is also how a changed IdP subject is re-linked (the OIDC
+    callback never re-points an existing link by itself)."""
+    if method == "google":
+        linked, others = user.google_sub is not None, user.has_password or user.sso_linked
+    else:
+        linked, others = user.oidc_sub is not None, user.has_password or user.google_linked
+    if not linked:
+        return user
+    if not others:
+        raise LastSignInMethodError
+    if method == "google":
+        user.google_sub = None
+    else:
+        user.oidc_issuer = None
+        user.oidc_sub = None
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 @dataclass(frozen=True)
 class Teammate:
     """A user as one company sees them: the account plus the role of their

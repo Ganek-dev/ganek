@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AvailabilityCard } from "@/components/AvailabilityCard";
 import { CompaniesCard } from "@/components/CompaniesCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
+import { SignInMethodsCard } from "@/components/SignInMethodsCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { api, type UserOut } from "@/lib/api";
 
@@ -28,6 +29,14 @@ function initials(email: string, displayName?: string | null): string {
   return source.toUpperCase();
 }
 
+/** How a passwordless account gets in, for the Password card's note. */
+function passwordlessVia(user: UserOut, oidcName?: string): string {
+  const sso = oidcName || "single sign-on";
+  if (user.sso_linked && user.google_linked) return `Google or ${sso}`;
+  if (user.sso_linked) return sso;
+  return "Google";
+}
+
 function AccountContent() {
   const [user, setUser] = useState<UserOut | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +45,8 @@ function AccountContent() {
   const [nameBusy, setNameBusy] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [google, setGoogle] = useState(false);
+  const [oidcName, setOidcName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     api
@@ -48,6 +59,8 @@ function AccountContent() {
       .providers()
       .then((p) => {
         setDemo(p.demo === true);
+        setGoogle(p.google === true);
+        setOidcName(p.oidc ? p.oidc_name || "Single sign-on" : undefined);
       })
       .catch(() => {
         /* card stays hidden */
@@ -174,7 +187,8 @@ function AccountContent() {
         </div>
         {user && !user.has_password ? (
           <p className="mt-4 rounded-md border border-edge bg-muted-fill/40 px-3 py-2.5 text-[12.5px] text-g500">
-            You sign in with Google - this account has no password.
+            You sign in with {passwordlessVia(user, oidcName)} - this account has no password.
+            To add one, use Forgot password on the sign-in page.
           </p>
         ) : demo ? (
           <p
@@ -220,6 +234,16 @@ function AccountContent() {
         </form>
         )}
       </div>
+
+      {user ? (
+        <SignInMethodsCard
+          user={user}
+          google={google}
+          oidcName={oidcName}
+          locked={demo || Boolean(user.impersonation_expires_at)}
+          onUserChange={setUser}
+        />
+      ) : null}
 
       {user ? <TwoFactorCard user={user} onUserChange={setUser} locked={demo} /> : null}
 

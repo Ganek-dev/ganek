@@ -19,6 +19,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: {
       ...original.api,
       changePassword: vi.fn(),
+      unlinkSignInMethod: vi.fn(),
       updateProfile: vi.fn(),
       me: vi.fn(),
       providers: vi.fn(),
@@ -114,6 +115,61 @@ describe("AccountPage", () => {
     expect(await screen.findByText(/You sign in with Google/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Update password" })).not.toBeInTheDocument();
+  });
+
+  it("names the SSO provider for an account that signs in only through it", async () => {
+    mocked.providers.mockResolvedValue({
+      google: false,
+      oidc: true,
+      oidc_name: "Acme SSO",
+      mode: "single",
+    });
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: false,
+      sso_linked: true,
+      role: "member",
+    });
+    render(<AccountPage />);
+    expect(
+      await screen.findByText(/You sign in with Acme SSO - this account has no password/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/You sign in with Google/)).toBeNull();
+    expect(screen.getByText("Sign-in methods")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unlink Acme SSO" })).toBeDisabled();
+  });
+
+  it("unlinks Google from the sign-in methods card", async () => {
+    mocked.providers.mockResolvedValue({ google: true, mode: "single" });
+    mocked.me.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: true,
+      google_linked: true,
+      role: "admin",
+    });
+    mocked.unlinkSignInMethod.mockResolvedValue({
+      id: "u1",
+      company_id: "c1",
+      email: "grumpy.miner@acmelabs.io",
+      has_password: true,
+      google_linked: false,
+      role: "admin",
+    });
+    render(<AccountPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Unlink Google" }));
+    await userEvent.click(screen.getByRole("button", { name: "Unlink Google" }));
+    await waitFor(() => expect(mocked.unlinkSignInMethod).toHaveBeenCalledWith("google"));
+    expect(await screen.findByText(/Not linked · sign in with Google once/)).toBeInTheDocument();
+  });
+
+  it("hides the sign-in methods card when no provider is on", async () => {
+    render(<AccountPage />);
+    await screen.findByRole("textbox", { name: "Email" });
+    expect(screen.queryByText("Sign-in methods")).toBeNull();
   });
 
   it("saves the display name and shows the server's label as the placeholder", async () => {

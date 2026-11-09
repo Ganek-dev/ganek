@@ -1,3 +1,4 @@
+import enum
 import uuid
 from datetime import datetime
 
@@ -56,6 +57,11 @@ class CompanySeatOut(BaseModel):
     active: bool
 
 
+class SignInMethod(enum.StrEnum):
+    GOOGLE = "google"
+    SSO = "sso"
+
+
 class SwitchCompanyRequest(BaseModel):
     company_id: uuid.UUID
 
@@ -68,6 +74,10 @@ class UserOut(BaseModel):
     email: EmailStr
     role: UserRole
     has_password: bool
+    # which outside identities can sign this account in (Account page
+    # "Sign-in methods"); the identifiers themselves are never exposed
+    google_linked: bool = False
+    sso_linked: bool = False
     display_name: str | None = None
     display_label: str = ""
     # true only in the register response of a multi-mode signup awaiting
