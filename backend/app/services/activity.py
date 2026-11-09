@@ -32,6 +32,7 @@ DATA_REQUESTED = "candidate.data_requested"
 DELETION_REQUESTED = "candidate.deletion_requested"
 USER_ANONYMIZED = "user.anonymized"
 USER_REMOVED = "user.removed"  # a seat taken away, the account lives on elsewhere
+USER_LEFT = "user.left"  # the person gave up their own seat, the account lives on elsewhere
 RETENTION_PURGED = "retention.purged"
 QUOTA_EXCEEDED = "quota.exceeded"
 APPLICATIONS_EXPORTED = "applications.exported"

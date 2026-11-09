@@ -360,6 +360,8 @@ function activityCopy(item: ActivityItem): string {
       return `${item.actor_email ?? "Someone"} removed a teammate's account`;
     case "user.removed":
       return `${item.actor_email ?? "Someone"} removed a teammate from the company`;
+    case "user.left":
+      return `${item.actor_email ?? "Someone"} left the company`;
     case "api_key.created":
       return `${item.actor_email ?? "Someone"} created API key ${String(p.name ?? "")} (${String(p.scope ?? "")})`;
     case "api_key.revoked":

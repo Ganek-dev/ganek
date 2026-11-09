@@ -17,7 +17,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.users import UserCreate, UserUpdate
-from app.services import activity, scorecards
+from app.services import activity, memberships, scorecards
 
 
 class EmailTakenError(Exception):
@@ -217,16 +217,63 @@ async def remove_seat(
     (tenancy refuses an active company without a seat), because the active
     company moves to another seat they hold, a non-suspended one first.
     """
-    user = mate.user
-    if user.id == actor_user_id:
+    if mate.user.id == actor_user_id:
         raise SelfRemovalError
+    await _drop_seat(
+        db,
+        company,
+        mate.user,
+        mate.role,
+        actor_user_id=actor_user_id,
+        activity_type=activity.USER_REMOVED,
+    )
+
+
+async def leave_company(db: AsyncSession, user: User, company_id: uuid.UUID) -> User:
+    """The signed-in person gives up their own seat in ``company_id`` (slice
+    8). The same rules as an admin removing it apply: a person keeps at least
+    one company (their only one is closed by deactivation instead), a company
+    keeps an active admin, and upcoming interviews there are handed over
+    first. When the seat was the active one, the active company moves to
+    another seat. No seat (or no such company) is one error, as for a switch.
+    """
+    row = (
+        await db.execute(
+            select(Company, CompanyMembership.role)
+            .join(CompanyMembership, CompanyMembership.company_id == Company.id)
+            .where(CompanyMembership.user_id == user.id, Company.id == company_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise memberships.NotAMemberError(company_id)
+    company, role = row
+    await _drop_seat(
+        db,
+        company,
+        user,
+        UserRole(role),
+        actor_user_id=user.id,
+        activity_type=activity.USER_LEFT,
+    )
+    await db.refresh(user)
+    return user
+
+
+async def _drop_seat(
+    db: AsyncSession,
+    company: Company,
+    user: User,
+    role: UserRole,
+    *,
+    actor_user_id: uuid.UUID,
+    activity_type: str,
+) -> None:
+    """Shared by an admin removing a seat and a person leaving: checks, then
+    dismisses open scorecard requests here, moves the active company off this
+    one, deletes the seat and records ``activity_type``."""
     if not await _has_other_seats(db, company, user):
         raise OnlySeatError
-    if (
-        mate.role is UserRole.ADMIN
-        and user.is_active
-        and await _active_admin_count(db, company) <= 1
-    ):
+    if role is UserRole.ADMIN and user.is_active and await _active_admin_count(db, company) <= 1:
         raise LastAdminError
     if await _has_upcoming_interviews(db, user, company_id=company.id):
         raise HasUpcomingInterviewsError
@@ -256,7 +303,7 @@ async def remove_seat(
     activity.record(
         db,
         company_id=company.id,
-        type=activity.USER_REMOVED,
+        type=activity_type,
         actor_user_id=actor_user_id,
         application_id=None,
         payload={},

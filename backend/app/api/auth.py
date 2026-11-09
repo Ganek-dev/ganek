@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -47,6 +48,7 @@ from app.services import invites as invites_service
 from app.services import memberships as memberships_service
 from app.services import mfa as mfa_service
 from app.services import outbox as outbox_service
+from app.services import users as users_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -327,6 +329,36 @@ async def switch_company(payload: SwitchCompanyRequest, user: CurrentUser, db: D
     except memberships_service.CompanySuspendedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=suspended_detail(exc.company)
+        ) from None
+
+
+@router.delete("/companies/{company_id}", response_model=UserOut, dependencies=[demo_mode.locked])
+async def leave_company(company_id: uuid.UUID, user: CurrentUser, db: DbSession) -> User:
+    """Slice 8 of card "SSO + multi-company user membership": the signed-in
+    person leaves a company they hold a seat in. Their account and their
+    other seats stay; when they leave the active company, another seat
+    becomes active (the returned user says which, and with what role).
+    Read-only while impersonating (the tenancy dependency refuses it)."""
+    try:
+        return await users_service.leave_company(db, user, company_id)
+    except memberships_service.NotAMemberError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Company not found"
+        ) from None
+    except users_service.OnlySeatError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This is your only company. Ask an admin to deactivate your account instead",
+        ) from None
+    except users_service.LastAdminError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You are the last admin there. Make someone else an admin first",
+        ) from None
+    except users_service.HasUpcomingInterviewsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Reassign or cancel your upcoming interviews there first",
         ) from None
 
 

@@ -22,6 +22,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       updateProfile: vi.fn(),
       me: vi.fn(),
       providers: vi.fn(),
+      companies: vi.fn(),
       availability: { get: vi.fn(), set: vi.fn() },
     },
   };
@@ -43,6 +44,7 @@ describe("AccountPage", () => {
       ),
     });
     mocked.changePassword.mockResolvedValue();
+    mocked.companies.mockResolvedValue([]);
     mocked.me.mockResolvedValue({
       id: "u1",
       company_id: "c1",
@@ -50,6 +52,16 @@ describe("AccountPage", () => {
       has_password: true,
       role: "admin",
     });
+  });
+
+  it("lists the user's companies when they hold seats in two", async () => {
+    mocked.companies.mockResolvedValue([
+      { company_id: "c1", name: "Acme", slug: "acme", role: "admin", active: true },
+      { company_id: "c2", name: "Globex", slug: "globex", role: "member", active: false },
+    ]);
+    render(<AccountPage />);
+    expect(await screen.findByText("Your companies")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Leave Globex" })).toBeInTheDocument();
   });
 
   it("renders the profile card with email and role from api.me()", async () => {
