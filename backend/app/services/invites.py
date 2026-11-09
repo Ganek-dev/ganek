@@ -37,6 +37,10 @@ class InviteExpiredError(Exception):
     """The invite's deadline has passed."""
 
 
+class IdentityLinkedError(Exception):
+    """The SSO identity already belongs to another account."""
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -172,6 +176,39 @@ async def accept_invite_google(db: AsyncSession, invite: UserInvite, google_sub:
         password_hash=None,
         role=invite.role,
         google_sub=google_sub,
+    )
+    db.add(user)
+    await db.delete(invite)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def accept_invite_oidc(
+    db: AsyncSession, invite: UserInvite, *, oidc_issuer: str, oidc_sub: str
+) -> User:
+    """Create the invited user from the instance's OIDC identity (no
+    password), keyed on (issuer, sub), and consume the invite."""
+    if invite.expires_at <= _now():
+        raise InviteExpiredError
+    if await _email_has_account(db, invite.email):
+        raise EmailTakenError
+    sub_taken = (
+        await db.execute(
+            select(func.count())
+            .select_from(User)
+            .where(User.oidc_issuer == oidc_issuer, User.oidc_sub == oidc_sub)
+        )
+    ).scalar_one()
+    if sub_taken:
+        raise IdentityLinkedError
+    user = User(
+        company_id=invite.company_id,
+        email=invite.email,
+        password_hash=None,
+        role=invite.role,
+        oidc_issuer=oidc_issuer,
+        oidc_sub=oidc_sub,
     )
     db.add(user)
     await db.delete(invite)

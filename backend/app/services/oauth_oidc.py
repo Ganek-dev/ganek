@@ -9,8 +9,9 @@ is one the operator listed in GANEK_OIDC_EMAIL_DOMAINS: a generic IdP may
 allow self-registration with any address, and trusting email_verified
 alone is the classic OIDC account-takeover hole.
 
-This slice signs in existing accounts only; an unknown identity gets no
-account (no signup, no invite accept).
+An unknown identity gets no account from a plain sign-in (no signup); a
+flow started from a team invite creates the invited account instead (see
+api/oidc_auth.py).
 
 As with Google, the ID token arrives over our direct TLS channel to the
 token endpoint, so its signature is not re-verified (OIDC Core 3.1.3.7

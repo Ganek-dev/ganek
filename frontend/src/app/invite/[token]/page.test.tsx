@@ -136,11 +136,51 @@ describe("InviteAcceptPage", () => {
     expect(screen.queryByRole("link", { name: /Continue with Google/ })).not.toBeInTheDocument();
   });
 
+  it("offers SSO accept with the instance's name carrying the invite token", async () => {
+    mockedApi.providers.mockResolvedValue({
+      google: false,
+      oidc: true,
+      oidc_name: "Acme SSO",
+      mode: "single",
+    });
+    render(<InviteAcceptPage />);
+    const link = await screen.findByRole("link", { name: "Continue with Acme SSO" });
+    expect(link).toHaveAttribute("href", "/api/v1/auth/oidc/start?invite=invite-tok");
+    expect(screen.getByText(/or set a password/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Continue with Google/ })).not.toBeInTheDocument();
+  });
+
+  it("offers SSO above Google when both are configured", async () => {
+    mockedApi.providers.mockResolvedValue({
+      google: true,
+      oidc: true,
+      oidc_name: "Acme SSO",
+      mode: "single",
+    });
+    render(<InviteAcceptPage />);
+    await screen.findByRole("link", { name: /Continue with Google/ });
+    const names = screen.getAllByRole("link").map((l) => l.textContent);
+    expect(names.indexOf("Continue with Acme SSO")).toBeLessThan(
+      names.indexOf("Continue with Google"),
+    );
+  });
+
+  it("hides the SSO option when the instance has no OIDC provider", async () => {
+    render(<InviteAcceptPage />);
+    await screen.findByRole("heading", { name: "Join Acme Labs" });
+    await waitFor(() => expect(mockedApi.providers).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: /Continue with/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/or set a password/i)).not.toBeInTheDocument();
+  });
+
   it.each([
     ["google-email-mismatch", /doesn't match this invite/i],
     ["email-taken", /already exists/i],
     ["google-invalid", /didn't complete/i],
-  ])("surfaces the %s google error", async (code, copy) => {
+    ["oidc-email-mismatch", /didn't confirm the invited email/i],
+    ["oidc-invalid", /Single sign-on didn't complete/i],
+    ["oidc-linked", /already belongs to another Ganek account/i],
+  ])("surfaces the %s sign-in error", async (code, copy) => {
     search = new URLSearchParams({ error: code });
     render(<InviteAcceptPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(copy);
