@@ -24,7 +24,7 @@ from app.models import (
 )
 from app.models.quiz import AttemptStatus, QuizAttempt
 from app.schemas.public import ApplicationSubmit
-from app.services import activity, rejection_reasons, storage, webhooks
+from app.services import activity, cv_scan, rejection_reasons, storage, webhooks
 from app.services.names import split_name
 
 TERMINAL_STAGES = frozenset(
@@ -165,6 +165,7 @@ async def submit_application(
         cv_object_key=cv_object_key,
         cv_filename=cv_filename,
         cv_size=cv_size,
+        cv_scan_status=cv_scan.initial_status(cv_object_key),
         message=payload.message,
         source=normalize_source(payload.source),
         screening_answers=screening_answers or [],
@@ -187,6 +188,7 @@ async def submit_application(
     except IntegrityError:
         await db.rollback()
         raise AlreadyAppliedError from None
+    await cv_scan.enqueue(application)
     await webhooks.emit_application_event(db, application.id, "application.created")
     return application
 

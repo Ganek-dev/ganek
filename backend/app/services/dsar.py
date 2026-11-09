@@ -39,7 +39,7 @@ from app.schemas.dsar import (
 )
 from app.schemas.public import StatusScreeningAnswer
 from app.services import company as company_service
-from app.services import rejection_reasons, storage
+from app.services import cv_scan, rejection_reasons, storage
 
 
 def _scrub_integrity(integrity: dict[str, Any] | None) -> dict[str, Any]:
@@ -222,7 +222,9 @@ async def export_candidate(
                 applied_at=application.created_at,
                 cv_download_url=(
                     storage.presign_cv_download(application.cv_object_key, application.cv_filename)
-                    if application.cv_object_key and application.cv_filename
+                    if application.cv_object_key
+                    and application.cv_filename
+                    and not cv_scan.blocked(application)
                     else None
                 ),
                 screening_answers=[

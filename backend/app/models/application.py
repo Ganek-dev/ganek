@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -36,6 +37,16 @@ class ApplicationStage(enum.StrEnum):
     WITHDRAWN = "withdrawn"  # candidate-initiated via the status page
 
 
+class CvScanStatus(enum.StrEnum):
+    """Virus scan state of an application's CV (0055). NULL on the row means
+    not scanned: no CV, scanning not configured, or uploaded before 0055."""
+
+    PENDING = "pending"
+    CLEAN = "clean"
+    INFECTED = "infected"
+    ERROR = "error"  # the scanner could not decide after its retries
+
+
 # an application nobody is working on any more drops its pointers
 CLOSED_STAGES = (ApplicationStage.REJECTED, ApplicationStage.WITHDRAWN, ApplicationStage.HIRED)
 
@@ -45,6 +56,12 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("job_id", "candidate_id"),
         Index("ix_applications_job_id_stage", "job_id", "stage"),
+        # the worker's sweep for scans whose enqueue was lost (0055)
+        Index(
+            "ix_applications_cv_scan_pending",
+            "created_at",
+            postgresql_where=text("cv_scan_status = 'pending'"),
+        ),
     )
 
     company_id: Mapped[uuid.UUID] = mapped_column(
@@ -58,6 +75,18 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cv_object_key: Mapped[str | None] = mapped_column(String(500))
     cv_filename: Mapped[str | None] = mapped_column(String(255))
     cv_size: Mapped[int | None] = mapped_column(Integer)
+    # ClamAV verdict for the CV (0055, services.cv_scan); an infected CV is
+    # never handed out (download, review link, webhook, DSAR)
+    cv_scan_status: Mapped[CvScanStatus | None] = mapped_column(
+        Enum(
+            CvScanStatus,
+            values_callable=lambda e: [m.value for m in e],
+            native_enum=False,
+            length=16,
+        )
+    )
+    cv_scan_signature: Mapped[str | None] = mapped_column(String(200))
+    cv_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     message: Mapped[str | None] = mapped_column(Text)
     # answers to the job's screening questions with a snapshot of each
     # question (0039, GIN-indexed); written once at apply time

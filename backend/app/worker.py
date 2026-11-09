@@ -1,4 +1,5 @@
-"""arq worker: scheduled emails (interview reminders, quiz auto-nudges).
+"""arq worker: scheduled emails (interview reminders, quiz auto-nudges),
+CV virus scans.
 
 Run with: arq app.worker.WorkerSettings
 
@@ -42,7 +43,7 @@ from app.models.quiz import AttemptStatus
 from app.models.scorecard import Scorecard
 from app.models.webhook import DeliveryStatus, WebhookDelivery
 from app.services import company as company_service
-from app.services import demo_seed, email_templates, scheduled_emails
+from app.services import cv_scan, demo_seed, email_templates, scheduled_emails
 from app.services import email as email_service
 from app.services import health as health_service
 from app.services import interviews as interviews_service
@@ -456,6 +457,35 @@ async def sweep_webhooks(ctx: dict[str, Any]) -> None:
         logger.info("webhook sweep: re-enqueued %d deliveries", len(stuck))
 
 
+async def scan_cv(ctx: dict[str, Any], application_id: str) -> None:
+    """Virus-scan one application's CV with clamd (0055). Self-validating:
+    only `pending` rows are touched, so duplicate enqueues are harmless.
+    A scanner that cannot answer is retried with backoff and the row parked
+    as `error` after cv_scan.MAX_ATTEMPTS; the CV stays downloadable then."""
+    job_try = int(ctx.get("job_try") or 1)
+    async with ctx["session_factory"]() as db:
+        try:
+            final = job_try >= cv_scan.MAX_ATTEMPTS
+            await cv_scan.scan_application(db, application_id, final=final)
+        except cv_scan.ScanError as exc:
+            delay = cv_scan.RETRY_DELAYS_SECONDS[
+                min(job_try - 1, len(cv_scan.RETRY_DELAYS_SECONDS) - 1)
+            ]
+            raise Retry(defer=delay) from exc
+
+
+async def sweep_cv_scans(ctx: dict[str, Any]) -> None:
+    """Re-enqueue pending scans whose enqueue was lost (redis down at apply)."""
+    if not cv_scan.configured():
+        return
+    async with ctx["session_factory"]() as db:
+        stuck = await cv_scan.stuck_scans(db, older_than=datetime.now(UTC) - timedelta(minutes=10))
+    for row_id in stuck:
+        await ctx["redis"].enqueue_job("scan_cv", str(row_id))
+    if stuck:
+        logger.info("cv scan sweep: re-enqueued %d scans", len(stuck))
+
+
 async def close_expired_jobs(ctx: dict[str, Any]) -> None:
     """Hourly: close published jobs that opted into auto-close once their
     closes-on day is over. Row locks make overlapping workers harmless."""
@@ -476,6 +506,8 @@ class WorkerSettings:
         sweep_outbox,
         deliver_webhook,
         sweep_webhooks,
+        scan_cv,
+        sweep_cv_scans,
         close_expired_jobs,
         heartbeat,
     ]
@@ -485,6 +517,7 @@ class WorkerSettings:
         cron(reset_demo, hour=4, minute=7),  # no-op unless GANEK_DEMO_RESET_SLUG is set
         cron(sweep_outbox, minute={7, 17, 27, 37, 47, 57}),
         cron(sweep_webhooks, minute={3, 13, 23, 33, 43, 53}),
+        cron(sweep_cv_scans, minute={5, 25, 45}),
         cron(close_expired_jobs, minute=11),
         cron(heartbeat),  # every minute
     ]

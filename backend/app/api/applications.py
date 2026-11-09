@@ -65,6 +65,7 @@ from app.schemas.interviews import InterviewCreate, InterviewOut, SlotPreviewOut
 from app.services import (
     access_log,
     activity,
+    cv_scan,
     decision_dates,
     email_render,
     pipeline_signals,
@@ -1123,10 +1124,13 @@ NO_CV_DETAIL = "This application has no CV"
 
 def _cv_or_404(application: Application) -> tuple[str, str]:
     """(object key, filename) of the application's CV, or 404 when it was
-    created without one (CSV import, screen link, connectors; 0046). Checked
-    before the access log, so a missing CV is never logged as a download."""
+    created without one (CSV import, screen link, connectors; 0046), or 409
+    when the virus scanner flagged it (0055). Checked before the access log,
+    so a refused CV is never logged as a download."""
     if application.cv_object_key is None or application.cv_filename is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_CV_DETAIL)
+    if cv_scan.blocked(application):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=cv_scan.INFECTED_DETAIL)
     return application.cv_object_key, application.cv_filename
 
 

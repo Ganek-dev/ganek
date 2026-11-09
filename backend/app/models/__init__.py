@@ -1,7 +1,7 @@
 from app.models.access_log import AccessLog
 from app.models.activity import ActivityLog
 from app.models.api_key import ApiKey, ApiKeyScope
-from app.models.application import Application, ApplicationStage
+from app.models.application import Application, ApplicationStage, CvScanStatus
 from app.models.application_note import ApplicationNote
 from app.models.base import Base
 from app.models.billing_account import BillingAccount
@@ -45,6 +45,7 @@ __all__ = [
     "Application",
     "ApplicationNote",
     "ApplicationStage",
+    "CvScanStatus",
     "AttemptAnswer",
     "AttemptStatus",
     "Base",

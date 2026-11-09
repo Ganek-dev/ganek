@@ -28,6 +28,9 @@ Ganek reads its settings from environment variables, in the compose stack via th
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | `minioadmin` | Root credentials of the bundled MinIO. Change both. |
 | `GANEK_S3_PUBLIC_ENDPOINT_URL` | unset | Public origin candidates upload to (presigned POST). Must be reachable from the browser. It is baked into the frontend's Content Security Policy at build time, so rebuild the frontend image after changing it. |
 | `GANEK_CV_MAX_SIZE_MB` | `10` | Upload size limit; only PDF files are accepted. |
+| `GANEK_CLAMAV_HOST` | unset | Host of a ClamAV daemon that scans every new CV in the worker. With compose, start the optional service with `docker compose --profile clamav up -d` and set this to `clamav`. An infected CV cannot be downloaded. Unset = CVs are not scanned and the admin says scanning is not configured. The first start downloads the signature database (a few minutes) and clamd needs about 1.5 GB of RAM. |
+| `GANEK_CLAMAV_PORT` | `3310` | clamd TCP port. |
+| `GANEK_CLAMAV_TIMEOUT_SECONDS` | `60` | How long one scan may take before the worker retries it. After 4 failed tries the CV is marked as not scannable and stays downloadable. |
 
 ## Public URL and Google sign-in
 
