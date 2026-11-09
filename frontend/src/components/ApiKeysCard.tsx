@@ -6,6 +6,8 @@ import { KeyRound } from "lucide-react";
 
 import { CopyButton } from "@/components/CopyButton";
 import { apiKeys, type ApiKey, type ApiKeyCreated, type ApiKeyScope } from "@/lib/api";
+import { richText, useLocale } from "@/lib/i18n/locale";
+import { INTL_LOCALES } from "@/lib/i18n/messages";
 
 /** Developers page card (card D4 part A): mint, list and revoke the
  * company's API keys. The secret is readable once, right after creation;
@@ -15,12 +17,8 @@ import { apiKeys, type ApiKey, type ApiKeyCreated, type ApiKeyScope } from "@/li
 const inputCls =
   "h-9 rounded-md border-[1.5px] border-edge bg-surface px-3 text-[13px] outline-none focus:border-accent";
 
-function formatDate(value: string | null): string {
-  if (value === null) return "never";
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 export function ApiKeysCard() {
+  const { locale, t } = useLocale();
   const [keys, setKeys] = useState<ApiKey[] | null>(null);
   const [name, setName] = useState("");
   const [scope, setScope] = useState<ApiKeyScope>("read");
@@ -33,10 +31,18 @@ export function ApiKeysCard() {
     apiKeys
       .list()
       .then(setKeys)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load"));
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t("apiKeys.loadFailed")));
   }
 
   useEffect(reload, []);
+
+  function formatDate(value: string | null): string {
+    if (value === null) return t("apiKeys.never");
+    return new Date(value).toLocaleDateString(INTL_LOCALES[locale], {
+      month: "short",
+      day: "numeric",
+    });
+  }
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +54,7 @@ export function ApiKeysCard() {
       setName("");
       reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create the key");
+      setError(err instanceof Error ? err.message : t("apiKeys.createFailed"));
     } finally {
       setBusy(false);
     }
@@ -62,7 +68,7 @@ export function ApiKeysCard() {
       if (created?.id === id) setCreated(null);
       reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not revoke the key");
+      setError(err instanceof Error ? err.message : t("apiKeys.revokeFailed"));
     }
   }
 
@@ -70,12 +76,13 @@ export function ApiKeysCard() {
     <div className="card p-4" data-testid="api-keys-card">
       <div className="flex items-center gap-2">
         <KeyRound aria-hidden className="h-4 w-4 text-g500" />
-        <p className="text-[13.5px] font-semibold">API keys</p>
+        <p className="text-[13.5px] font-semibold">{t("apiKeys.title")}</p>
       </div>
       <p className="mt-1 text-[12.5px] leading-[18px] text-g500">
-        Bearer tokens for your own tools: <span className="font-mono">read</span> lists
-        applicants, exports and fetches CVs, <span className="font-mono">write</span> can also move stages.
-        The secret is shown once.
+        {richText(t("apiKeys.description"), {
+          read: <span className="font-mono">read</span>,
+          write: <span className="font-mono">write</span>,
+        })}
       </p>
 
       {created ? (
@@ -83,19 +90,17 @@ export function ApiKeysCard() {
           role="status"
           className="mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-[12.5px] text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200"
         >
-          <p className="font-medium">
-            {created.name} is ready. Copy it now, it won&apos;t be shown again.
-          </p>
+          <p className="font-medium">{t("apiKeys.created", { name: created.name })}</p>
           <div className="mt-1.5 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate font-mono text-[12px]">{created.secret}</code>
-            <CopyButton text={created.secret} label="Copy API key" />
+            <CopyButton text={created.secret} label={t("apiKeys.copyKey")} />
           </div>
         </div>
       ) : null}
 
       <form onSubmit={handleCreate} className="mt-3 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1">
-          <span className="text-[12px] text-g500">Key name</span>
+          <span className="text-[12px] text-g500">{t("apiKeys.name")}</span>
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -106,7 +111,7 @@ export function ApiKeysCard() {
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[12px] text-g500">Scope</span>
+          <span className="text-[12px] text-g500">{t("apiKeys.scope")}</span>
           <select
             value={scope}
             onChange={(event) => setScope(event.target.value as ApiKeyScope)}
@@ -121,7 +126,7 @@ export function ApiKeysCard() {
           disabled={busy || name.trim() === ""}
           className="inline-flex h-9 items-center rounded-md bg-inverse px-3 text-[13px] font-semibold text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
         >
-          Create key
+          {t("apiKeys.create")}
         </button>
       </form>
 
@@ -134,7 +139,7 @@ export function ApiKeysCard() {
       {keys === null ? (
         <div aria-busy="true" className="mt-3 h-8 animate-pulse rounded-md bg-muted-fill" />
       ) : keys.length === 0 ? (
-        <p className="mt-3 text-[12.5px] text-g500">No keys yet.</p>
+        <p className="mt-3 text-[12.5px] text-g500">{t("apiKeys.empty")}</p>
       ) : (
         <ul className="mt-3 divide-y divide-divider">
           {keys.map((key) => (
@@ -150,8 +155,8 @@ export function ApiKeysCard() {
               </span>
               <span className="ml-auto font-mono text-[11px] text-g400">
                 {key.revoked_at
-                  ? `revoked ${formatDate(key.revoked_at)}`
-                  : `last used ${formatDate(key.last_used_at)}`}
+                  ? t("apiKeys.revokedOn", { date: formatDate(key.revoked_at) })
+                  : t("apiKeys.lastUsed", { date: formatDate(key.last_used_at) })}
               </span>
               {key.revoked_at ? null : confirmId === key.id ? (
                 <span className="flex items-center gap-1.5">
@@ -160,24 +165,24 @@ export function ApiKeysCard() {
                     onClick={() => void handleRevoke(key.id)}
                     className="inline-flex h-7 items-center rounded-md bg-red-600 px-2.5 text-[12px] font-semibold text-white hover:bg-red-700"
                   >
-                    Revoke key
+                    {t("apiKeys.revokeConfirm")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmId(null)}
                     className="inline-flex h-7 items-center rounded-md border border-edge px-2.5 text-[12px] text-g700"
                   >
-                    Keep
+                    {t("apiKeys.keep")}
                   </button>
                 </span>
               ) : (
                 <button
                   type="button"
-                  aria-label={`Revoke ${key.name}`}
+                  aria-label={t("apiKeys.revokeName", { name: key.name })}
                   onClick={() => setConfirmId(key.id)}
                   className="inline-flex h-7 items-center rounded-md border border-edge px-2.5 text-[12px] text-g700 hover:border-red-400 hover:text-red-600"
                 >
-                  Revoke
+                  {t("apiKeys.revoke")}
                 </button>
               )}
             </li>

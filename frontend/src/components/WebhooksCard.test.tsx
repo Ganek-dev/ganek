@@ -1,8 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { webhooks, type WebhookEndpoint } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { WebhooksCard } from "./WebhooksCard";
 
@@ -103,5 +104,68 @@ describe("WebhooksCard", () => {
     await userEvent.type(screen.getByLabelText("Endpoint URL"), "http://localhost:9/x");
     await userEvent.click(screen.getByRole("button", { name: "Add webhook" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/https/);
+  });
+});
+
+describe("WebhooksCard in German", () => {
+  const renderGerman = () =>
+    render(
+      <LocaleProvider>
+        <WebhooksCard />
+      </LocaleProvider>,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+    mocked.list.mockResolvedValue([hook]);
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("renders the form, the endpoint row and the last delivery in German", async () => {
+    renderGerman();
+    const row = (await screen.findByText("Slack")).closest("li") as HTMLElement;
+    const card = screen.getByTestId("webhooks-card");
+    expect(card).toHaveTextContent("Prüfen Sie den Header X-Ganek-Signature");
+    expect(within(card).getByText("X-Ganek-Signature")).toHaveClass("font-mono");
+    expect(screen.getByLabelText("Name des Webhooks")).toBeInTheDocument();
+    expect(screen.getByLabelText("Endpunkt-URL")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Ereignisse" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Webhook hinzufügen" })).toBeInTheDocument();
+    // event names are code and stay as they are; the status and the date are German
+    expect(within(row).getByText(/fehlgeschlagen/)).toHaveTextContent(
+      /application\.created fehlgeschlagen \(HTTP 500\) · 23\. Okt\./,
+    );
+    expect(within(row).getByRole("button", { name: "Test an Slack senden" })).toHaveTextContent(
+      "Test senden",
+    );
+    await userEvent.click(within(row).getByRole("button", { name: "Slack entfernen" }));
+    expect(screen.getByRole("button", { name: "Webhook entfernen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Behalten" })).toBeInTheDocument();
+  });
+
+  it("shows the German queued notice and the empty state", async () => {
+    mocked.test.mockResolvedValue({
+      ...hook.last_delivery!,
+      id: "d4",
+      event: "stage.changed",
+      status: "queued",
+      attempts: 0,
+      last_error: null,
+      response_status: null,
+    });
+    const { unmount } = renderGerman();
+    const row = (await screen.findByText("Slack")).closest("li") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Test an Slack senden" }));
+    expect(
+      await screen.findByText(
+        "Beispielzustellung für stage.changed eingereiht; der Worker sendet sie in wenigen Sekunden.",
+      ),
+    ).toBeInTheDocument();
+    unmount();
+
+    mocked.list.mockResolvedValue([]);
+    renderGerman();
+    expect(await screen.findByText("Noch keine Webhooks.")).toBeInTheDocument();
   });
 });
