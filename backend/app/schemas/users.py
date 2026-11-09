@@ -36,6 +36,9 @@ class TeamUserOut(BaseModel):
     is_active: bool
     last_login_at: datetime | None
     created_at: datetime
+    # the person also holds a seat in another company: the team page offers
+    # "Remove from company" instead of the account-wide deactivate / anonymize
+    in_other_companies: bool = False
 
 
 class TeamMemberOut(BaseModel):

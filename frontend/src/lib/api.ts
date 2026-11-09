@@ -1829,6 +1829,8 @@ export interface TeamUser {
   is_active: boolean;
   last_login_at: string | null;
   created_at: string;
+  /** holds a seat in another company too: removed per company, not deactivated */
+  in_other_companies?: boolean;
 }
 
 export interface CompanyAdmin {
@@ -2187,6 +2189,9 @@ export const team = {
   /** GDPR removal: tombstone in place (their interviews FK-block a hard delete). */
   anonymize: (id: string) =>
     request<void>(`/api/v1/users/${id}/anonymize`, { method: "POST" }),
+  /** Takes away the seat in this company only; the account and other companies stay. */
+  removeFromCompany: (id: string) =>
+    request<void>(`/api/v1/users/${id}/membership`, { method: "DELETE" }),
   listInvites: () => request<TeamInvite[]>("/api/v1/users/invites"),
   invite: (email: string, role: UserRole) =>
     request<TeamInvite>("/api/v1/users/invites", {

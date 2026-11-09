@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
@@ -37,6 +37,15 @@ class SharedAccountError(Exception):
     change (deactivate, anonymize) made from this company is refused."""
 
 
+class OnlySeatError(Exception):
+    """Removing this seat would leave the person in no company at all, so
+    the admin deactivates or anonymizes them instead."""
+
+
+class SelfRemovalError(Exception):
+    """An admin cannot take away their own seat from the team page."""
+
+
 @dataclass(frozen=True)
 class Teammate:
     """A user as one company sees them: the account plus the role of their
@@ -46,14 +55,27 @@ class Teammate:
 
     user: User
     role: UserRole
+    # slice 6: the person also holds a seat in another company, so this
+    # company removes their seat instead of deactivating the account
+    in_other_companies: bool = False
 
 
-def _team_query(company: Company) -> Select[User, UserRole]:
+def _team_query(company: Company) -> Select[User, UserRole, bool]:
+    other = CompanyMembership.__table__.alias("other_seat")
+    elsewhere = (
+        exists()
+        .where(other.c.user_id == User.id, other.c.company_id != company.id)
+        .label("in_other_companies")
+    )
     return (
-        select(User, CompanyMembership.role)
+        select(User, CompanyMembership.role, elsewhere)
         .join(CompanyMembership, CompanyMembership.user_id == User.id)
         .where(CompanyMembership.company_id == company.id)
     )
+
+
+def _teammate(user: User, role: UserRole, elsewhere: bool) -> Teammate:
+    return Teammate(user=user, role=UserRole(role), in_other_companies=bool(elsewhere))
 
 
 async def list_users(db: AsyncSession, company: Company) -> list[Teammate]:
@@ -67,12 +89,12 @@ async def list_users(db: AsyncSession, company: Company) -> list[Teammate]:
             .order_by(User.created_at)
         )
     ).all()
-    return [Teammate(user=u, role=UserRole(r)) for u, r in rows]
+    return [_teammate(*row) for row in rows]
 
 
 async def get_user(db: AsyncSession, company: Company, user_id: uuid.UUID) -> Teammate | None:
     row = (await db.execute(_team_query(company).where(User.id == user_id))).one_or_none()
-    return None if row is None else Teammate(user=row[0], role=UserRole(row[1]))
+    return None if row is None else _teammate(*row)
 
 
 async def _has_other_seats(db: AsyncSession, company: Company, user: User) -> bool:
@@ -165,7 +187,81 @@ async def update_user(
             user.token_version += 1
     await db.commit()
     await db.refresh(user)
-    return Teammate(user=user, role=role)
+    return Teammate(user=user, role=role, in_other_companies=mate.in_other_companies)
+
+
+async def _has_upcoming_interviews(
+    db: AsyncSession, user: User, *, company_id: uuid.UUID | None = None
+) -> bool:
+    """Active or upcoming interviews the user conducts (in ``company_id``
+    when given, otherwise anywhere)."""
+    query = select(Interview.id).where(
+        Interview.interviewer_user_id == user.id,
+        Interview.status != InterviewStatus.CANCELLED,
+        or_(
+            Interview.scheduled_start.is_(None),
+            Interview.scheduled_start > datetime.now(UTC),
+        ),
+    )
+    if company_id is not None:
+        query = query.where(Interview.company_id == company_id)
+    return (await db.execute(query.limit(1))).first() is not None
+
+
+async def remove_seat(
+    db: AsyncSession, company: Company, mate: Teammate, *, actor_user_id: uuid.UUID
+) -> None:
+    """Take a person's seat in this company away, keeping their account and
+    their other companies (slice 6). Their open scorecard requests here are
+    dismissed; a session bound to this company ends on its next request
+    (tenancy refuses an active company without a seat), because the active
+    company moves to another seat they hold, a non-suspended one first.
+    """
+    user = mate.user
+    if user.id == actor_user_id:
+        raise SelfRemovalError
+    if not await _has_other_seats(db, company, user):
+        raise OnlySeatError
+    if (
+        mate.role is UserRole.ADMIN
+        and user.is_active
+        and await _active_admin_count(db, company) <= 1
+    ):
+        raise LastAdminError
+    if await _has_upcoming_interviews(db, user, company_id=company.id):
+        raise HasUpcomingInterviewsError
+    await scorecards.dismiss_open_for_reviewer(
+        db, user, actor_user_id=actor_user_id, company_id=company.id
+    )
+    if user.company_id == company.id:
+        next_company_id, next_role = (
+            await db.execute(
+                select(Company.id, CompanyMembership.role)
+                .join(CompanyMembership, CompanyMembership.company_id == Company.id)
+                .where(CompanyMembership.user_id == user.id, Company.id != company.id)
+                .order_by(Company.suspended_at.is_not(None), func.lower(Company.name), Company.id)
+                .limit(1)
+            )
+        ).one()
+        # role and company move together, so the membership listener's
+        # upsert writes back the role the next seat already has
+        user.company_id = next_company_id
+        user.role = UserRole(next_role)
+        await db.flush()
+    await db.execute(
+        delete(CompanyMembership).where(
+            CompanyMembership.user_id == user.id, CompanyMembership.company_id == company.id
+        )
+    )
+    activity.record(
+        db,
+        company_id=company.id,
+        type=activity.USER_REMOVED,
+        actor_user_id=actor_user_id,
+        application_id=None,
+        payload={},
+    )
+    await db.commit()
 
 
 async def _relabel_scorecard_activity(db: AsyncSession, company: Company, user: User) -> None:
@@ -224,21 +320,7 @@ async def anonymize_user(
         and await _active_admin_count(db, company) <= 1
     ):
         raise LastAdminError
-    upcoming = (
-        await db.execute(
-            select(Interview.id)
-            .where(
-                Interview.interviewer_user_id == user.id,
-                Interview.status != InterviewStatus.CANCELLED,
-                or_(
-                    Interview.scheduled_start.is_(None),
-                    Interview.scheduled_start > datetime.now(UTC),
-                ),
-            )
-            .limit(1)
-        )
-    ).first()
-    if upcoming is not None:
+    if await _has_upcoming_interviews(db, user):
         raise HasUpcomingInterviewsError
     # open scorecard requests die with the person (activity scorecard.dismissed,
     # actor = the admin); their frozen label is then rewritten in the payloads
