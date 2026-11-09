@@ -76,6 +76,13 @@ class PublicInviteOut(BaseModel):
     email: EmailStr
     company_name: str
     role: UserRole
+    # the email already has an account (in another company): the invitee
+    # signs in and joins instead of setting a password
+    existing_account: bool = False
+
+
+class InviteJoinRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
 
 
 class InviteAcceptRequest(BaseModel):

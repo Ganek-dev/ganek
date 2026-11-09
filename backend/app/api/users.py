@@ -143,10 +143,15 @@ async def create_invite(
 ) -> UserInvite:
     try:
         invite = await invites_service.create_invite(db, company, payload)
-    except invites_service.EmailTakenError:
+    except invites_service.AlreadyMemberError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with this email already exists",
+            detail="This person is already on your team",
+        ) from None
+    except invites_service.AccountInactiveError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This email belongs to a deactivated account",
         ) from None
     except invites_service.InviteExistsError:
         raise HTTPException(

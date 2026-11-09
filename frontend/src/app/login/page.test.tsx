@@ -89,6 +89,28 @@ describe("LoginPage", () => {
     expect(push).toHaveBeenCalledWith("/admin");
   });
 
+  it("returns to a team-invite page passed as next", async () => {
+    search = new URLSearchParams({ next: "/invite/abc.def-1" });
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText("Email"), "you@company.com");
+    await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
+    await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/invite/abc.def-1"));
+    expect(push).not.toHaveBeenCalledWith("/admin");
+  });
+
+  it.each(["https://evil.example/invite/x", "//evil.example", "/admin/settings"])(
+    "ignores a next of %s",
+    async (next) => {
+      search = new URLSearchParams({ next });
+      render(<LoginPage />);
+      await userEvent.type(screen.getByLabelText("Email"), "you@company.com");
+      await userEvent.type(screen.getByLabelText("Password"), "correct-horse-battery");
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await waitFor(() => expect(push).toHaveBeenCalledWith("/admin"));
+    },
+  );
+
   it("shows the error message on failed login", async () => {
     mocked.login.mockRejectedValueOnce(new Error("Invalid credentials"));
     render(<LoginPage />);

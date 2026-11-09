@@ -1090,6 +1090,7 @@ async def invite_info(token: str, db: DbSession) -> PublicInviteOut:
         email=invite.email,
         company_name=invite.company.name,
         role=invite.role,
+        existing_account=await invites_service.account_for_email(db, invite.email) is not None,
     )
 
 
@@ -1113,7 +1114,7 @@ async def accept_invite(
     except invites_service.EmailTakenError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists",
+            detail="An account with this email already exists. Sign in to join instead.",
         ) from None
     _set_session_cookie(response, user)
     return UserOut.model_validate(user)

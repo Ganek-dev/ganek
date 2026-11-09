@@ -5,12 +5,23 @@ import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton } from "@/components/GoogleButton";
-import { ApiError, api, publicInvites, type PublicInvite } from "@/lib/api";
+import Link from "next/link";
+
+import {
+  ApiError,
+  api,
+  clearSharedGets,
+  publicInvites,
+  type PublicInvite,
+  type UserOut,
+} from "@/lib/api";
 import { homePath } from "@/lib/home";
 
 /** Team-invite accept page (magic link from the D6 invite email): shows
  * who's invited where, takes a password, and lands the new user in /admin
- * already logged in. Invalid/revoked links 404, past-deadline links 410. */
+ * already logged in. Invalid/revoked links 404, past-deadline links 410.
+ * An email that already has an account (in another company) signs in and
+ * joins instead (card "SSO + multi-company user membership", slice 7). */
 
 const inputCls =
   "h-10 w-full rounded-md border-[1.5px] border-edge bg-surface px-3.5 text-sm outline-none focus:border-accent";
@@ -37,6 +48,8 @@ function InviteAcceptForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [google, setGoogle] = useState(false);
+  // existing-account invites: who is signed in here (null = nobody)
+  const [me, setMe] = useState<UserOut | null | undefined>(undefined);
 
   const googleError = GOOGLE_ERRORS[searchParams.get("error") ?? ""] ?? null;
 
@@ -54,6 +67,22 @@ function InviteAcceptForm() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!invite?.existing_account) return;
+    let cancelled = false;
+    api
+      .me()
+      .then((user) => {
+        if (!cancelled) setMe(user);
+      })
+      .catch(() => {
+        if (!cancelled) setMe(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invite]);
 
   useEffect(() => {
     publicInvites
@@ -86,6 +115,37 @@ function InviteAcceptForm() {
     }
   }
 
+  async function handleJoin() {
+    setError(null);
+    setBusy(true);
+    try {
+      const user = await publicInvites.join(token);
+      clearSharedGets(); // the cached /me still names the previous company
+      router.push(homePath(user));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 410) {
+        setDead("expired");
+      } else if (err instanceof ApiError && err.status === 404) {
+        setDead("invalid");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to join");
+        setBusy(false);
+      }
+    }
+  }
+
+  async function handleSignOut() {
+    setBusy(true);
+    try {
+      await api.logout();
+    } catch {
+      /* the session may already be gone */
+    }
+    clearSharedGets();
+    setMe(null);
+    setBusy(false);
+  }
+
   if (dead !== null) {
     return (
       <AuthShell
@@ -113,6 +173,69 @@ function InviteAcceptForm() {
             <div className="h-10 animate-pulse rounded-md bg-muted-fill" />
             <div className="h-10 animate-pulse rounded-md bg-muted-fill" />
           </div>
+        )}
+      </AuthShell>
+    );
+  }
+
+  if (invite.existing_account) {
+    const signedInAsInvitee =
+      me != null && me.email.toLowerCase() === invite.email.toLowerCase();
+    return (
+      <AuthShell
+        title={`Join ${invite.company_name}`}
+        subtitle={
+          <>
+            You&apos;ve been invited as {ROLE_LABELS[invite.role]}.{" "}
+            <span className="font-mono text-[12.5px] text-g600">{invite.email}</span> already
+            has a Ganek account, so you join with it.
+          </>
+        }
+      >
+        {me === undefined ? (
+          <div aria-busy="true" className="h-[42px] animate-pulse rounded-md bg-muted-fill" />
+        ) : signedInAsInvitee ? (
+          <>
+            {error ? (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                {error}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleJoin}
+              disabled={busy}
+              className="inline-flex h-[42px] w-full items-center justify-center rounded-md bg-inverse text-[14.5px] font-semibold text-inverse-foreground hover:brightness-[0.94] disabled:opacity-50"
+            >
+              {busy ? "…" : `Join ${invite.company_name}`}
+            </button>
+            <p className="text-center text-[12.5px] text-g500">
+              Your other companies stay. Switch between them from the sidebar.
+            </p>
+          </>
+        ) : me ? (
+          <>
+            <p className="text-sm text-g600">
+              You&apos;re signed in as{" "}
+              <span className="font-mono text-[12.5px]">{me.email}</span>. Sign out and sign in
+              as <span className="font-mono text-[12.5px]">{invite.email}</span> to join.
+            </p>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={busy}
+              className="inline-flex h-[42px] w-full items-center justify-center rounded-md border-[1.5px] border-edge text-[14.5px] font-semibold hover:bg-muted-fill disabled:opacity-50"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <Link
+            href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
+            className="inline-flex h-[42px] w-full items-center justify-center rounded-md bg-inverse text-[14.5px] font-semibold text-inverse-foreground hover:brightness-[0.94]"
+          >
+            Sign in to join
+          </Link>
         )}
       </AuthShell>
     );
