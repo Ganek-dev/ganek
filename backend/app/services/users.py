@@ -1,11 +1,21 @@
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
-from app.models import ActivityLog, Company, Interview, InterviewStatus, Scorecard, User, UserRole
+from app.models import (
+    ActivityLog,
+    Company,
+    CompanyMembership,
+    Interview,
+    InterviewStatus,
+    Scorecard,
+    User,
+    UserRole,
+)
 from app.schemas.users import UserCreate, UserUpdate
 from app.services import activity, scorecards
 
@@ -22,29 +32,60 @@ class HasUpcomingInterviewsError(Exception):
     """Refuses to anonymize an interviewer with active/upcoming interviews."""
 
 
-async def list_users(db: AsyncSession, company: Company) -> list[User]:
-    return list(
-        (
-            await db.execute(
-                select(User)
-                .where(
-                    User.company_id == company.id,
-                    # anonymized tombstones stay in the table (interviews FK)
-                    # but are nobody's teammate anymore
-                    ~User.email.like("deleted-%@invalid"),
-                )
-                .order_by(User.created_at)
-            )
-        )
-        .scalars()
-        .all()
+class SharedAccountError(Exception):
+    """The person also holds a seat in another company, so an account-wide
+    change (deactivate, anonymize) made from this company is refused."""
+
+
+@dataclass(frozen=True)
+class Teammate:
+    """A user as one company sees them: the account plus the role of their
+    seat in THAT company (card "SSO + multi-company user membership",
+    slice 4). ``user.role`` is the role of the user's active seat, which can
+    be another company's."""
+
+    user: User
+    role: UserRole
+
+
+def _team_query(company: Company) -> Select[User, UserRole]:
+    return (
+        select(User, CompanyMembership.role)
+        .join(CompanyMembership, CompanyMembership.user_id == User.id)
+        .where(CompanyMembership.company_id == company.id)
     )
 
 
-async def get_user(db: AsyncSession, company: Company, user_id: uuid.UUID) -> User | None:
+async def list_users(db: AsyncSession, company: Company) -> list[Teammate]:
+    """Everyone with a seat in the company, whichever company is active for them."""
+    rows = (
+        await db.execute(
+            _team_query(company)
+            # anonymized tombstones stay in the table (interviews FK)
+            # but are nobody's teammate anymore
+            .where(~User.email.like("deleted-%@invalid"))
+            .order_by(User.created_at)
+        )
+    ).all()
+    return [Teammate(user=u, role=UserRole(r)) for u, r in rows]
+
+
+async def get_user(db: AsyncSession, company: Company, user_id: uuid.UUID) -> Teammate | None:
+    row = (await db.execute(_team_query(company).where(User.id == user_id))).one_or_none()
+    return None if row is None else Teammate(user=row[0], role=UserRole(row[1]))
+
+
+async def _has_other_seats(db: AsyncSession, company: Company, user: User) -> bool:
     return (
-        await db.execute(select(User).where(User.company_id == company.id, User.id == user_id))
-    ).scalar_one_or_none()
+        await db.execute(
+            select(CompanyMembership.id)
+            .where(
+                CompanyMembership.user_id == user.id,
+                CompanyMembership.company_id != company.id,
+            )
+            .limit(1)
+        )
+    ).first() is not None
 
 
 async def create_user(db: AsyncSession, company: Company, payload: UserCreate) -> User:
@@ -65,33 +106,58 @@ async def create_user(db: AsyncSession, company: Company, payload: UserCreate) -
 
 
 async def _active_admin_count(db: AsyncSession, company: Company) -> int:
+    """Active accounts holding an admin seat in the company, counted over
+    memberships so an admin whose active seat is elsewhere still counts."""
     return (
         await db.execute(
             select(func.count())
-            .select_from(User)
+            .select_from(CompanyMembership)
+            .join(User, User.id == CompanyMembership.user_id)
             .where(
-                User.company_id == company.id,
-                User.role == UserRole.ADMIN,
+                CompanyMembership.company_id == company.id,
+                CompanyMembership.role == UserRole.ADMIN,
                 User.is_active.is_(True),
             )
         )
     ).scalar_one()
 
 
-async def update_user(db: AsyncSession, company: Company, user: User, payload: UserUpdate) -> User:
+async def update_user(
+    db: AsyncSession, company: Company, mate: Teammate, payload: UserUpdate
+) -> Teammate:
     """Apply role/active changes, protecting the last active admin.
 
     Demoting or deactivating the only remaining admin is refused so a
-    company can never lock itself out.
+    company can never lock itself out. A role change moves only this
+    company's seat. Deactivation is account-wide, so it is refused for a
+    person who also belongs to another company.
     """
-    demoting_admin = user.role is UserRole.ADMIN and (
+    user = mate.user
+    toggling_active = payload.is_active is not None and payload.is_active != user.is_active
+    if toggling_active and await _has_other_seats(db, company, user):
+        raise SharedAccountError
+    demoting_admin = mate.role is UserRole.ADMIN and (
         (payload.role is not None and payload.role is not UserRole.ADMIN)
         or payload.is_active is False
     )
     if demoting_admin and await _active_admin_count(db, company) <= 1:
         raise LastAdminError
-    if payload.role is not None:
-        user.role = payload.role
+    role = mate.role
+    if payload.role is not None and payload.role is not mate.role:
+        role = payload.role
+        if user.company_id == company.id:
+            # the active seat: the membership listener writes the row back
+            user.role = payload.role
+        else:
+            seat = (
+                await db.execute(
+                    select(CompanyMembership).where(
+                        CompanyMembership.user_id == user.id,
+                        CompanyMembership.company_id == company.id,
+                    )
+                )
+            ).scalar_one()
+            seat.role = payload.role
     if payload.is_active is not None:
         user.is_active = payload.is_active
         if payload.is_active is False:
@@ -99,7 +165,7 @@ async def update_user(db: AsyncSession, company: Company, user: User, payload: U
             user.token_version += 1
     await db.commit()
     await db.refresh(user)
-    return user
+    return Teammate(user=user, role=role)
 
 
 async def _relabel_scorecard_activity(db: AsyncSession, company: Company, user: User) -> None:
@@ -149,6 +215,9 @@ async def anonymize_user(
     email, drop every credential, wipe the availability pattern and
     deactivate - the row survives for the FK, the person is gone.
     """
+    if await _has_other_seats(db, company, user):
+        # erasure is account-wide: never wipe a person another company still has
+        raise SharedAccountError
     if (
         user.is_active
         and user.role is UserRole.ADMIN
