@@ -13,7 +13,6 @@ import {
   Clock,
   Download,
   Mail,
-  FileText,
   X,
 } from "lucide-react";
 
@@ -52,6 +51,7 @@ import { BUILTIN_TEMPLATE, REASON_HELPER, StageEmailDialog } from "@/components/
 import { formatSendAfter, presetSendAfter, type SendAfterPreset } from "@/lib/send-after";
 import { REJECTION_REASONS, type RejectionReason } from "@/lib/rejection-reasons";
 import { ApplicantFilterBar } from "@/components/ApplicantFilterBar";
+import { CvFileLink } from "@/components/CvFileLink";
 import { DecisionDateControl } from "@/components/DecisionDateControl";
 import { InterviewCard } from "@/components/InterviewCard";
 import { AccessTrailCard } from "@/components/AccessTrailCard";
@@ -125,11 +125,6 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const secs = Math.round(seconds % 60);
   return `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-
-function formatBytes(size: number): string {
-  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
 function ScoreStrip({
@@ -955,21 +950,7 @@ function DetailPanel({
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-3.5 text-[13px] text-g600">
             <span className="font-mono text-xs">{app.candidate.email}</span>
-            {app.cv_filename !== null ? (
-              <button
-                type="button"
-                onClick={onDownloadCv}
-                className="inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
-              >
-                <FileText aria-hidden className="h-[13px] w-[13px]" />
-                {app.cv_filename} ({formatBytes(app.cv_size ?? 0)})
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 text-g500">
-                <FileText aria-hidden className="h-[13px] w-[13px]" />
-                No CV
-              </span>
-            )}
+            <CvFileLink app={app} onDownload={onDownloadCv} />
             <span className="font-mono text-[11.5px] text-g400">
               {jobTitle} · applied {relativeTime(app.created_at, now)}
               {app.source ? ` · via ${app.source}` : ""}

@@ -244,6 +244,15 @@ export default function PrivacySettingsPage() {
         </div>
       </div>
 
+      <div className="card space-y-1 p-4">
+        <p className={labelCls}>CV virus scanning</p>
+        <p className={hintCls}>
+          {company.cv_scanning_configured
+            ? "Scanning is on. New CV uploads are checked by ClamAV; a flagged CV cannot be downloaded and its applicant shows why."
+            : "Scanning is not configured - CV uploads are not checked for viruses. Start the clamav compose profile and set GANEK_CLAMAV_HOST, then restart."}
+        </p>
+      </div>
+
       <div className="card space-y-3 p-4">
         <div>
           <p className={labelCls}>Email delivery</p>
