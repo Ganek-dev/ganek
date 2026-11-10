@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, companyApi, type CustomDomainOut } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale";
 
 import { CustomDomainCard } from "./CustomDomainCard";
 
@@ -140,5 +141,63 @@ describe("CustomDomainCard", () => {
     mocked.domain.mockRejectedValue(new ApiError(500, "boom"));
     render(<CustomDomainCard />);
     expect(await screen.findByText(/Could not load/)).toBeInTheDocument();
+  });
+});
+
+describe("CustomDomainCard in German", () => {
+  const renderGerman = () =>
+    render(
+      <LocaleProvider>
+        <CustomDomainCard />
+      </LocaleProvider>,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.setItem("ganek.admin.locale", "de");
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it("adds a domain and shows the TXT record in German", async () => {
+    mocked.domain.mockResolvedValue(make());
+    mocked.setDomain.mockResolvedValue(pending);
+    renderGerman();
+    expect(await screen.findByText("Eigene Domain")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Eigene Domain"), "careers.acme.com");
+    await userEvent.click(screen.getByRole("button", { name: "Domain hinzufügen" }));
+    expect(await screen.findByText("DNS ausstehend")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Domain hinzugefügt");
+    expect(screen.getByText(/^Legen Sie diesen TXT-Eintrag/)).toBeInTheDocument();
+    expect(screen.getByText("Typ")).toBeInTheDocument();
+    expect(screen.getByText("Wert")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "TXT-Name kopieren" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "TXT-Wert kopieren" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Verifizieren" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Entfernen" })).toBeInTheDocument();
+  });
+
+  it("explains a downgraded domain in German", async () => {
+    mocked.domain.mockResolvedValue(
+      make({
+        available: false,
+        upgrade_url: "https://ganek.io/pricing",
+        domain: "careers.acme.com",
+        status: "verified",
+      }),
+    );
+    renderGerman();
+    expect(await screen.findByText("verifiziert")).toBeInTheDocument();
+    expect(screen.getByText(/Inhaberschaft bestätigt/)).toBeInTheDocument();
+    expect(screen.getByText(/enthält keine eigenen Domains mehr/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Tarif upgraden" })).toHaveAttribute(
+      "href",
+      "https://ganek.io/pricing",
+    );
+  });
+
+  it("says so in German when the settings fail to load", async () => {
+    mocked.domain.mockRejectedValue(new ApiError(500, "boom"));
+    renderGerman();
+    expect(await screen.findByText(/konnten nicht geladen werden/)).toBeInTheDocument();
   });
 });

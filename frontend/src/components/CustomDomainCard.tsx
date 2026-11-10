@@ -6,6 +6,7 @@ import { Check, Clock } from "lucide-react";
 
 import { CopyButton } from "@/components/CopyButton";
 import { companyApi, type CustomDomainOut } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale";
 
 /** "Custom domain" card on Settings > Branding (board card "Custom domains
  * + subdomain routing", slice 3): claim a careers domain, publish the TXT
@@ -29,6 +30,7 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 export function CustomDomainCard() {
+  const { t } = useLocale();
   const [state, setState] = useState<CustomDomainOut | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [input, setInput] = useState("");
@@ -68,8 +70,8 @@ export function CustomDomainCard() {
   if (loadFailed) {
     return (
       <div className="card p-4">
-        <p className={labelCls}>Custom domain</p>
-        <p className={hintCls}>Could not load the custom domain settings.</p>
+        <p className={labelCls}>{t("customDomain.title")}</p>
+        <p className={hintCls}>{t("customDomain.loadFailed")}</p>
       </div>
     );
   }
@@ -77,7 +79,7 @@ export function CustomDomainCard() {
     return (
       <div
         aria-busy="true"
-        aria-label="Loading custom domain"
+        aria-label={t("customDomain.loading")}
         className="h-20 animate-pulse rounded-lg bg-muted-fill"
       />
     );
@@ -89,20 +91,18 @@ export function CustomDomainCard() {
     <div className="card space-y-3 p-4" data-testid="custom-domain-card">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className={labelCls}>Custom domain</p>
-          <p className={hintCls}>
-            Serve your careers page on your own domain, such as careers.example.com.
-          </p>
+          <p className={labelCls}>{t("customDomain.title")}</p>
+          <p className={hintCls}>{t("customDomain.hint")}</p>
         </div>
         {state.status === "verified" ? (
           <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 text-[11.5px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
             <Check aria-hidden className="h-3 w-3" />
-            verified
+            {t("customDomain.verified")}
           </span>
         ) : state.status === "pending" ? (
           <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 text-[11.5px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
             <Clock aria-hidden className="h-3 w-3" />
-            pending DNS
+            {t("customDomain.pending")}
           </span>
         ) : null}
       </div>
@@ -125,12 +125,18 @@ export function CustomDomainCard() {
             onSubmit={(event) => {
               event.preventDefault();
               const domain = input.trim();
-              if (domain) run(() => companyApi.setDomain(domain), "Domain added", "Failed to add the domain");
+              if (domain) {
+                run(
+                  () => companyApi.setDomain(domain),
+                  t("customDomain.added"),
+                  t("customDomain.addFailed"),
+                );
+              }
             }}
           >
             <input
               type="text"
-              aria-label="Custom domain"
+              aria-label={t("customDomain.title")}
               placeholder="careers.example.com"
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -139,15 +145,15 @@ export function CustomDomainCard() {
               className="h-9 min-w-0 flex-1 rounded-md border border-edge bg-transparent px-3 font-mono text-[13px] outline-none focus:border-g400"
             />
             <button type="submit" disabled={busy || input.trim() === ""} className={btnCls}>
-              {busy ? "…" : "Add domain"}
+              {busy ? "…" : t("customDomain.add")}
             </button>
           </form>
         ) : (
           <p className="text-[13px] text-g700">
-            Custom domains are part of the Team plan.{" "}
+            {t("customDomain.teamPlan")}{" "}
             {state.upgrade_url ? (
               <a href={state.upgrade_url} className="font-medium text-accent underline">
-                Upgrade plan
+                {t("customDomain.upgrade")}
               </a>
             ) : null}
           </p>
@@ -161,11 +167,15 @@ export function CustomDomainCard() {
                 type="button"
                 disabled={busy}
                 onClick={() =>
-                  run(companyApi.verifyDomain, "Domain verified", "Failed to verify the domain")
+                  run(
+                    companyApi.verifyDomain,
+                    t("customDomain.verifiedNotice"),
+                    t("customDomain.verifyFailed"),
+                  )
                 }
                 className={btnCls}
               >
-                {busy ? "…" : "Verify"}
+                {busy ? "…" : t("customDomain.verify")}
               </button>
             ) : null}
             <button
@@ -173,43 +183,43 @@ export function CustomDomainCard() {
               disabled={busy}
               onClick={() => {
                 setInput("");
-                run(companyApi.removeDomain, "Domain removed", "Failed to remove the domain");
+                run(companyApi.removeDomain, t("customDomain.removed"), t("customDomain.removeFailed"));
               }}
               className="inline-flex h-8 items-center rounded-md px-2 text-[13px] font-medium text-red-600 hover:bg-muted-fill disabled:opacity-50 dark:text-red-400"
             >
-              Remove
+              {t("customDomain.remove")}
             </button>
           </div>
 
           {state.status === "pending" && state.txt_name && state.txt_value ? (
             <div className="space-y-2 rounded-md border border-edge bg-muted-fill p-3">
-              <p className="text-[12.5px] leading-[18px] text-g700">
-                Add this TXT record at your DNS provider, then press Verify. DNS changes can take
-                up to an hour to show.
-              </p>
-              <DnsRow label="Type" value="TXT" />
-              <DnsRow label="Name" value={state.txt_name} copy />
-              <DnsRow label="Value" value={state.txt_value} copy />
-              <p className={hintCls}>
-                If your DNS provider adds your domain to the name by itself, enter only the part
-                before it.
-              </p>
+              <p className="text-[12.5px] leading-[18px] text-g700">{t("customDomain.txtIntro")}</p>
+              <DnsRow label={t("customDomain.type")} value="TXT" />
+              <DnsRow
+                label={t("customDomain.name")}
+                value={state.txt_name}
+                copyLabel={t("customDomain.copyName")}
+              />
+              <DnsRow
+                label={t("customDomain.value")}
+                value={state.txt_value}
+                copyLabel={t("customDomain.copyValue")}
+              />
+              <p className={hintCls}>{t("customDomain.zoneHint")}</p>
             </div>
           ) : null}
 
           {state.status === "verified" ? (
-            <p className={hintCls}>
-              Ownership confirmed. No other workspace can claim this domain.
-            </p>
+            <p className={hintCls}>{t("customDomain.ownership")}</p>
           ) : null}
           {!state.available ? (
             <p className={hintCls}>
-              Your plan no longer includes custom domains, so this domain does not route.
+              {t("customDomain.planEnded")}
               {state.upgrade_url ? (
                 <>
                   {" "}
                   <a href={state.upgrade_url} className="font-medium text-accent underline">
-                    Upgrade plan
+                    {t("customDomain.upgrade")}
                   </a>
                 </>
               ) : null}
@@ -221,12 +231,21 @@ export function CustomDomainCard() {
   );
 }
 
-function DnsRow({ label, value, copy = false }: { label: string; value: string; copy?: boolean }) {
+function DnsRow({
+  label,
+  value,
+  copyLabel,
+}: {
+  label: string;
+  value: string;
+  /** accessible name of the copy button; no button without it */
+  copyLabel?: string;
+}) {
   return (
     <div className="flex items-center gap-2">
       <span className="w-12 shrink-0 text-[12px] text-g500">{label}</span>
       <code className="min-w-0 flex-1 break-all font-mono text-[12.5px] text-g700">{value}</code>
-      {copy ? <CopyButton text={value} label={`Copy TXT ${label.toLowerCase()}`} /> : null}
+      {copyLabel ? <CopyButton text={value} label={copyLabel} /> : null}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { CustomDomainCard } from "@/components/CustomDomainCard";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { companyApi, type CompanyAdmin } from "@/lib/api";
 import { careersDisplay, careersUrl } from "@/lib/careers";
+import { useLocale } from "@/lib/i18n/locale";
+import type { MessageKey } from "@/lib/i18n/messages";
 import {
   DEFAULT_BRAND,
   brandForeground,
@@ -21,18 +23,24 @@ import {
 /** Branding settings, handoff screen 10: brand color with AA check, corner
  * radius picker, careers domain, and a live candidate-surface preview.
  * Logo upload needs its own storage flow - the card ships with Replace
- * disabled until that lands. */
+ * disabled until that lands.
+ *
+ * Admin copy reads the catalog (board card "Admin UI multi-language"); the
+ * preview's own sample copy ("Work at", job titles, "Apply for this
+ * position") stays English because it shows what candidates see, and
+ * candidate pages are not translated yet. */
 
-const RADIUS_OPTIONS: { value: BrandRadius; label: string }[] = [
-  { value: "sharp", label: "sharp" },
-  { value: "default", label: "default" },
-  { value: "round", label: "round" },
+const RADIUS_OPTIONS: { value: BrandRadius; label: MessageKey }[] = [
+  { value: "sharp", label: "branding.radiusSharp" },
+  { value: "default", label: "branding.radiusDefault" },
+  { value: "round", label: "branding.radiusRound" },
 ];
 
 const labelCls = "text-[13.5px] font-semibold";
 const hintCls = "text-[12.5px] leading-[18px] text-g500";
 
 export default function BrandingPage() {
+  const { t } = useLocale();
   const [company, setCompany] = useState<CompanyAdmin | null>(null);
   const [color, setColor] = useState<string>(DEFAULT_BRAND);
   const [radius, setRadius] = useState<BrandRadius>("default");
@@ -50,8 +58,10 @@ export default function BrandingPage() {
         setRadius(data.theme.radius ?? "default");
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load company"),
+        setError(err instanceof Error ? err.message : t("branding.loadFailed")),
       );
+    // load once on mount; a language switch only re-labels what is on screen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validColor = parseHex(color) !== null;
@@ -69,9 +79,9 @@ export default function BrandingPage() {
         radius: radius === "default" ? null : radius,
       });
       setCompany(updated);
-      setNotice("Branding saved");
+      setNotice(t("branding.saved"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save branding");
+      setError(err instanceof Error ? err.message : t("branding.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -81,15 +91,15 @@ export default function BrandingPage() {
     setError(null);
     setNotice(null);
     if (file.size > 2 * 1024 * 1024) {
-      setError("Logo must be 2 MB or smaller");
+      setError(t("branding.logoTooLarge"));
       return;
     }
     setLogoBusy(true);
     try {
       setCompany(await companyApi.uploadLogo(file));
-      setNotice("Logo updated");
+      setNotice(t("branding.logoUpdated"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to upload logo");
+      setError(err instanceof Error ? err.message : t("branding.logoUploadFailed"));
     } finally {
       setLogoBusy(false);
     }
@@ -101,9 +111,9 @@ export default function BrandingPage() {
     setLogoBusy(true);
     try {
       setCompany(await companyApi.removeLogo());
-      setNotice("Logo removed");
+      setNotice(t("branding.logoRemoved"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove logo");
+      setError(err instanceof Error ? err.message : t("branding.logoRemoveFailed"));
     } finally {
       setLogoBusy(false);
     }
@@ -112,7 +122,7 @@ export default function BrandingPage() {
   if (company === null) {
     return (
       <section className="space-y-4">
-        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
+        <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">{t("branding.title")}</h1>
         {error ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {error}
@@ -130,7 +140,7 @@ export default function BrandingPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">Settings</h1>
+      <h1 className="font-heading text-[22px] font-semibold tracking-[-0.01em]">{t("branding.title")}</h1>
       <SettingsTabs />
 
       {error ? (
@@ -151,7 +161,7 @@ export default function BrandingPage() {
               // eslint-disable-next-line @next/next/no-img-element -- served by our own API, host unknown at build time
               <img
                 src={company.logo_url}
-                alt="Company logo"
+                alt={t("branding.logoAlt")}
                 className="h-12 w-12 shrink-0 rounded-lg border border-edge bg-surface object-contain"
               />
             ) : (
@@ -164,8 +174,8 @@ export default function BrandingPage() {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className={labelCls}>Logo</p>
-              <p className={hintCls}>PNG, JPG, or SVG · max 2 MB · shown on all candidate pages</p>
+              <p className={labelCls}>{t("branding.logo")}</p>
+              <p className={hintCls}>{t("branding.logoHint")}</p>
             </div>
             {company.logo_url ? (
               <button
@@ -174,11 +184,11 @@ export default function BrandingPage() {
                 onClick={removeLogo}
                 className="inline-flex h-8 items-center rounded-md px-2 text-[13px] font-medium text-red-600 hover:bg-muted-fill disabled:opacity-50 dark:text-red-400"
               >
-                Remove
+                {t("branding.remove")}
               </button>
             ) : null}
             <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill">
-              {logoBusy ? "…" : company.logo_url ? "Replace" : "Upload"}
+              {logoBusy ? "…" : company.logo_url ? t("branding.replace") : t("branding.upload")}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg"
@@ -195,22 +205,20 @@ export default function BrandingPage() {
 
           <div className="card space-y-3 p-4">
             <div>
-              <p className={labelCls}>Brand color</p>
-              <p className={hintCls}>
-                Drives headers, buttons, timers, and selection on candidate pages.
-              </p>
+              <p className={labelCls}>{t("branding.color")}</p>
+              <p className={hintCls}>{t("branding.colorHint")}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <input
                 type="color"
-                aria-label="Brand color picker"
+                aria-label={t("branding.colorPicker")}
                 value={validColor ? color : DEFAULT_BRAND}
                 onChange={(event) => setColor(event.target.value)}
                 className="h-9 w-12 cursor-pointer rounded-md border border-edge bg-transparent p-1"
               />
               <input
                 type="text"
-                aria-label="Brand color hex"
+                aria-label={t("branding.colorHex")}
                 value={color}
                 onChange={(event) => setColor(event.target.value.trim())}
                 spellCheck={false}
@@ -220,26 +228,26 @@ export default function BrandingPage() {
                 aaOk ? (
                   <span className="inline-flex h-6 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 text-[11.5px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
                     <Check aria-hidden className="h-3 w-3" />
-                    AA contrast ok
+                    {t("branding.contrastOk")}
                   </span>
                 ) : (
                   <span className="inline-flex h-6 items-center rounded-full border border-amber-200 bg-amber-50 px-2 text-[11.5px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-                    contrast below AA
+                    {t("branding.contrastLow")}
                   </span>
                 )
               ) : (
                 <span className="inline-flex h-6 items-center rounded-full border border-edge bg-muted-fill px-2 text-[11.5px] font-medium text-g500">
-                  enter #rrggbb
+                  {t("branding.enterHex")}
                 </span>
               )}
             </div>
           </div>
 
           <div className="card space-y-3 p-4">
-            <p className={labelCls}>Corner radius</p>
+            <p className={labelCls}>{t("branding.radius")}</p>
             <div
               role="radiogroup"
-              aria-label="Corner radius"
+              aria-label={t("branding.radius")}
               className="inline-flex rounded-md border border-edge p-0.5"
             >
               {RADIUS_OPTIONS.map((option) => (
@@ -255,7 +263,7 @@ export default function BrandingPage() {
                       : "text-g500 hover:text-g700"
                   }`}
                 >
-                  {option.label}
+                  {t(option.label)}
                 </button>
               ))}
             </div>
@@ -263,16 +271,16 @@ export default function BrandingPage() {
 
           <div className="card flex items-center gap-3 p-4">
             <div className="min-w-0 flex-1">
-              <p className={labelCls}>Careers page</p>
+              <p className={labelCls}>{t("branding.careersPage")}</p>
               <p className="mt-1 font-mono text-[13px] text-g700">
                 {careersDisplay(company.mode, company.slug, company.careers_domain)}
               </p>
             </div>
             <CopyButton
               text={careersUrl(company.mode, company.slug, company.careers_domain)}
-              label="Copy careers URL"
+              label={t("branding.copyCareersUrl")}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-edge bg-surface px-3 text-[13px] font-medium text-g700 hover:bg-muted-fill"
-              onError={() => setError("Couldn't copy to clipboard")}
+              onError={() => setError(t("branding.copyFailed"))}
             />
           </div>
 
@@ -284,12 +292,12 @@ export default function BrandingPage() {
             disabled={busy || !validColor}
             className="inline-flex h-9 items-center rounded-md bg-accent px-4 text-[13.5px] font-semibold text-white hover:brightness-[0.94] disabled:opacity-50"
           >
-            {busy ? "…" : "Save branding"}
+            {busy ? "…" : t("branding.save")}
           </button>
         </div>
 
-        <aside aria-label="Live preview" className="space-y-2">
-          <p className="font-mono text-[11px] text-g400">Live preview - what candidates see</p>
+        <aside aria-label={t("branding.previewLabel")} className="space-y-2">
+          <p className="font-mono text-[11px] text-g400">{t("branding.previewCaption")}</p>
           <div
             style={brandStyle(previewColor, radius)}
             className="card space-y-4 p-5"
@@ -355,7 +363,7 @@ export default function BrandingPage() {
                 0:14
               </span>
               <span className="font-mono text-[11px] text-g400">
-                quiz timer inherits the brand
+                {t("branding.previewTimer")}
               </span>
             </div>
           </div>
